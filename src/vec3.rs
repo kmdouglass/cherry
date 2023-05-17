@@ -39,4 +39,9 @@ impl Vec3 {
     pub fn length_squared(&self) -> f32 {
         self.e.iter().map(|e| e * e).sum()
     }
+
+    pub fn normalize(&self) -> Self {
+        let length = self.length();
+        Self::new(self.e[0] / length, self.e[1] / length, self.e[2] / length)
+    }
 }
