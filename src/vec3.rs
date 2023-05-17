@@ -1,5 +1,5 @@
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) struct Vec3 {
+pub struct Vec3 {
     e: [f32; 3],
 }
 

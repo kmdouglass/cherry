@@ -1,7 +1,7 @@
 use crate::vec3::Vec3;
 
 /// A refracting conic surface with a circular cross-section.
-pub(super) struct RefractingCircularConic {
+pub struct RefractingCircularConic {
     // Position of the center of the lens relative to the global reference frame
     pos: Vec3,
 
@@ -22,7 +22,7 @@ pub(super) struct RefractingCircularConic {
 }
 
 impl RefractingCircularConic {
-    pub(super) fn new(pos: Vec3, dir: Vec3, diam: f32, n: f32, roc: f32, k: f32) -> Self {
+    pub fn new(pos: Vec3, dir: Vec3, diam: f32, n: f32, roc: f32, k: f32) -> Self {
         Self {
             pos,
             dir,
@@ -33,7 +33,7 @@ impl RefractingCircularConic {
         }
     }
 
-    fn sag_norm(self, pos: Vec3) -> (f32, Vec3) {
+    pub fn sag_norm(self, pos: Vec3) -> (f32, Vec3) {
         // Convert to polar coordinates in x, y plane
         let r = pos.x().powi(2) + pos.y().powi(2);
         let theta = pos.y().atan2(pos.x());
