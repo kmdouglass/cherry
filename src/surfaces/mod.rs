@@ -1,19 +1,29 @@
+mod conics;
+
 use crate::vec3::Vec3;
 
 type RefractiveIndex = fn(f32) -> (f32, f32);
-type SagNorm = fn(Vec3) -> (f32, Vec3);
+
+/// A surface with routines to compute its sag and normal vectors.
+trait SagNorm {
+    fn sag_norm(self, pos: Vec3) -> (f32, Vec3);
+}
 
 /// A refracting surface with circular cross-section.
-struct RefrCircSurf {
+struct RefrCircSurf<S: SagNorm> {
+
+    // Position of the center of the lens relative to the global reference frame.
     pos: Vec3,
+
+    // Euler angles of the optics axis through the lens relative to the global reference frame.
     dir: Vec3,
     radius: f32,
     n: RefractiveIndex,
-    sag_norm: SagNorm,
+    sag_norm: S,
 }
 
-impl RefrCircSurf {
-    fn new(pos: Vec3, dir: Vec3, radius: f32, n: RefractiveIndex, sag_norm: SagNorm) -> Self {
+impl<S: SagNorm> RefrCircSurf<S> {
+    fn new(pos: Vec3, dir: Vec3, radius: f32, n: RefractiveIndex, sag_norm: dyn SagNorm) -> Self {
         Self {
             pos,
             dir,
@@ -24,18 +34,19 @@ impl RefrCircSurf {
     }
 }
 
-enum Surface {
-    RefrCircSurf(RefrCircSurf),
+enum Surface<S: SagNorm> {
+    RefrCircSurf(RefrCircSurf<S>),
 }
 
-impl Surface {
+impl<S: SagNorm> Surface<S> {
     fn new_refr_circ_surf(
-        pos: Vec3,
-        dir: Vec3,
+        pos: f32,
         radius: f32,
-        n: RefractiveIndex,
-        sag_norm: SagNorm,
+        n: f32,
     ) -> Self {
+        let pos = Vec3::new(0.0, 0.0, pos);
+        let dir = Vec3::new(0.0, 0.0, 1.0);
+        let n = |_| (n, 0.0);
         Self::RefrCircSurf(RefrCircSurf::new(pos, dir, radius, n, sag_norm))
     }
 }

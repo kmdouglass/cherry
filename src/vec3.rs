@@ -8,35 +8,35 @@ impl Vec3 {
         Self { e: [e0, e1, e2] }
     }
 
-    fn x(&self) -> f32 {
+    pub fn x(&self) -> f32 {
         self.e[0]
     }
 
-    fn y(&self) -> f32 {
+    pub fn y(&self) -> f32 {
         self.e[1]
     }
 
-    fn z(&self) -> f32 {
+    pub fn z(&self) -> f32 {
         self.e[2]
     }
 
-    fn k(&self) -> f32 {
+    pub fn k(&self) -> f32 {
         self.e[0]
     }
 
-    fn l(&self) -> f32 {
+    pub fn l(&self) -> f32 {
         self.e[1]
     }
 
-    fn m(&self) -> f32 {
+    pub fn m(&self) -> f32 {
         self.e[2]
     }
 
-    fn length(&self) -> f32 {
+    pub fn length(&self) -> f32 {
         self.length_squared().sqrt()
     }
 
-    fn length_squared(&self) -> f32 {
+    pub fn length_squared(&self) -> f32 {
         self.e.iter().map(|e| e * e).sum()
     }
 }

@@ -1,6 +1,6 @@
 use wasm_bindgen::prelude::*;
 
-mod surface;
+mod surfaces;
 mod vec3;
 
 #[wasm_bindgen]
