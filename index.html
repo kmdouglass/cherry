@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="en-US">
+  <head>
+    <meta charset="utf-8" />
+    <title>Cherry Example</title>
+  </head>
+  <body>
+    <script type="module">
+      import init, { greet } from "./pkg/cherry.js";
+      init().then(() => {
+        greet("Cherry");
+      });
+    </script>
+  </body>
+</html>
