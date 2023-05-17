@@ -1,5 +1,8 @@
 use wasm_bindgen::prelude::*;
 
+mod surface;
+mod vec3;
+
 #[wasm_bindgen]
 extern "C" {
     fn alert(s: &str);
