@@ -28,6 +28,18 @@ enum Surface {
     RefrCircSurf(RefrCircSurf),
 }
 
+impl Surface {
+    fn new_refr_circ_surf(
+        pos: Vec3,
+        dir: Vec3,
+        radius: f32,
+        n: RefractiveIndex,
+        sag_norm: SagNorm,
+    ) -> Self {
+        Self::RefrCircSurf(RefrCircSurf::new(pos, dir, radius, n, sag_norm))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
