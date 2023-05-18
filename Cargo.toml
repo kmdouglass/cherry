@@ -9,4 +9,5 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
+anyhow = "1.0"
 wasm-bindgen = "0.2"
