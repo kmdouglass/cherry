@@ -13,6 +13,13 @@ impl Rays {
             bail!("position and direction must have the same length");
         }
 
+        // Verify that each direction is a unit vector
+        for dir in &dir {
+            if !dir.is_unit() {
+                bail!("direction must be a unit vector");
+            }
+        }
+
         Ok(Self { pos, dir })
     }
 }
@@ -52,6 +59,27 @@ mod test {
             Vec3::new(0.0, -2.0, 0.0),
         ];
         let dir = vec![Vec3::new(0.0, 0.0, 1.0), Vec3::new(0.0, 0.0, 1.0)];
+
+        let rays = Rays::new(pos, dir);
+
+        assert!(rays.is_err());
+    }
+
+    // Test the constructor of Rays with a non-unit direction
+    #[test]
+    fn test_rays_new_non_unit_direction() {
+        use super::*;
+
+        let pos = vec![
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 2.0, 0.0),
+            Vec3::new(0.0, -2.0, 0.0),
+        ];
+        let dir = vec![
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(0.0, 0.0, 2.0),
+            Vec3::new(0.0, 0.0, 1.0),
+        ];
 
         let rays = Rays::new(pos, dir);
 

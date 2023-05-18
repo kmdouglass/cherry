@@ -44,4 +44,8 @@ impl Vec3 {
         let length = self.length();
         Self::new(self.e[0] / length, self.e[1] / length, self.e[2] / length)
     }
+
+    pub fn is_unit(&self) -> bool {
+        (self.length_squared() - 1.0).abs() < 1e-6
+    }
 }
