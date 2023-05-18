@@ -33,7 +33,7 @@ impl RefractingCircularConic {
         }
     }
 
-    pub fn sag_norm(self, pos: Vec3) -> (f32, Vec3) {
+    pub fn sag_norm(&self, pos: Vec3) -> (f32, Vec3) {
         // Convert to polar coordinates in x, y plane
         let r = pos.x().powi(2) + pos.y().powi(2);
         let theta = pos.y().atan2(pos.x());
