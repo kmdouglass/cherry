@@ -1,14 +1,24 @@
 mod conics;
 mod flats;
+mod object_or_image;
 
 use crate::vec3::Vec3;
 
+/// A surface in an optical system that can interact with light rays.
 pub enum Surface {
+    ObjectOrImagePlane(object_or_image::ObjectOrImagePlane),
     RefractingCircularConic(conics::RefractingCircularConic),
     RefractingCircularFlat(flats::RefractingCircularFlat),
 }
 
 impl Surface {
+    pub fn new_obj_or_img_plane(axial_pos: f32) -> Self {
+        let pos = Vec3::new(0.0, 0.0, axial_pos);
+        let dir = Vec3::new(0.0, 0.0, 1.0);
+
+        Self::ObjectOrImagePlane(object_or_image::ObjectOrImagePlane::new(pos, dir))
+    }
+
     pub fn new_refr_circ_conic(axial_pos: f32, diam: f32, n: f32, roc: f32, k: f32) -> Self {
         let pos = Vec3::new(0.0, 0.0, axial_pos);
         let dir = Vec3::new(0.0, 0.0, 1.0);
@@ -28,6 +38,7 @@ impl Surface {
     /// Compute the surface sag and surface normals at a given position.
     pub fn sag_norm(&self, pos: Vec3) -> (f32, Vec3) {
         match self {
+            Self::ObjectOrImagePlane(surf) => surf.sag_norm(pos),
             Self::RefractingCircularConic(surf) => surf.sag_norm(pos),
             Self::RefractingCircularFlat(surf) => surf.sag_norm(pos),
         }

@@ -22,12 +22,14 @@ mod test {
         let diameter = 4f32;
         let surf1_axial_pos = 5f32;
         let thickness = 1f32;
+        let efl = 1.1133f32; // Effective focal length
         let n = 2.5f32; // Refractive index
         let roc = -1.67f32; // Radius of curvature
         let k = -6.25f32; // Conic constant
 
         let wavelength = 0.000633f32;
 
+        let obj_surf = surfaces::Surface::new_obj_or_img_plane(0.0);
         let surf1 = surfaces::Surface::new_refr_circ_flat(surf1_axial_pos, diameter, n);
         let surf2 = surfaces::Surface::new_refr_circ_conic(
             surf1_axial_pos + thickness,
@@ -36,6 +38,7 @@ mod test {
             roc,
             k,
         );
+        let img_surf = surfaces::Surface::new_obj_or_img_plane(surf1_axial_pos + thickness + efl);
 
         panic!("TODO: Implement test")
     }
