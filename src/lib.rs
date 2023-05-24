@@ -44,18 +44,23 @@ mod test {
         let img_surf = surfaces::Surface::new_obj_or_img_plane(surf1_axial_pos + thickness + efl);
 
         // Define the rays to trace
-        let rays = ray_tracing::Rays::new(
-            vec![
+        let rays = vec![
+            ray_tracing::Ray::new(
+                vec3::Vec3::new(0.0, -diameter / 2.0, 0.0),
+                vec3::Vec3::new(0.0, 0.0, 1.0),
+            )
+            .unwrap(),
+            ray_tracing::Ray::new(
                 vec3::Vec3::new(0.0, 0.0, 0.0),
-                vec3::Vec3::new(0.0, 2.0, 0.0),
-                vec3::Vec3::new(0.0, -2.0, 0.0),
-            ],
-            vec![
                 vec3::Vec3::new(0.0, 0.0, 1.0),
+            )
+            .unwrap(),
+            ray_tracing::Ray::new(
+                vec3::Vec3::new(0.0, diameter / 2.0, 0.0),
                 vec3::Vec3::new(0.0, 0.0, 1.0),
-                vec3::Vec3::new(0.0, 0.0, 1.0),
-            ],
-        ).unwrap();
+            )
+            .unwrap(),
+        ];
 
         panic!("TODO: Implement test")
     }

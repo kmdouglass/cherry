@@ -1,88 +1,121 @@
 use anyhow::{bail, Result};
 
+use crate::surfaces;
 use crate::vec3::Vec3;
 
-pub(crate) struct Rays {
-    pos: Vec<Vec3>,
-    dir: Vec<Vec3>,
+#[derive(Debug)]
+pub(crate) struct Ray {
+    pos: Vec3,
+    dir: Vec3,
 }
 
-impl Rays {
-    pub fn new(pos: Vec<Vec3>, dir: Vec<Vec3>) -> Result<Self> {
-        if pos.len() != dir.len() {
-            bail!("position and direction must have the same length");
+impl Ray {
+    pub fn new(pos: Vec3, dir: Vec3) -> Result<Self> {
+        if !dir.is_unit() {
+            bail!("Ray direction must be a unit vector");
         }
-
-        // Verify that each direction is a unit vector
-        for dir in &dir {
-            if !dir.is_unit() {
-                bail!("direction must be a unit vector");
-            }
-        }
-
         Ok(Self { pos, dir })
+    }
+
+    /// Computes the point of intersection of a ray with a surface.
+    ///
+    /// If no intersection is found, this function returns an error.
+    pub fn intersect(&self, surf: &surfaces::Surface, tol: f32, max_iter: usize) -> Result<Vec3> {
+        // Initial guess for the intersection point
+        let mut s_1 = 0.0;
+
+        // Find the distance along the ray to the z=0 plane; use this as the initial value for s
+        let mut s = -self.pos.z() / self.dir.m();
+
+        let mut p: Vec3;
+        let mut sag: f32;
+        let mut norm: Vec3;
+        for ctr in 0..max_iter {
+            // Compute the current estimate of the intersection point from the distance s
+            p = self.pos + self.dir * s;
+
+            // Update the distance s using the Newton-Raphson method
+            (sag, norm) = surf.sag_norm(p);
+            s = s - (p.z() - sag) / norm.dot(self.dir);
+
+            // Check for convergence by comparing the current and previous values of s
+            if (s - s_1).abs() < tol {
+                break;
+            }
+
+            if ctr == max_iter - 1 {
+                bail!("Ray intersection did not converge");
+            }
+
+            s_1 = s;
+        }
+
+        Ok(self.pos + self.dir * s)
     }
 }
 
 #[cfg(test)]
 mod test {
-    // Test the constructor of Rays
+    use std::f32::consts::PI;
+
+    // Test the constructor of Ray
     #[test]
     fn test_rays_new() {
         use super::*;
 
-        let pos = vec![
-            Vec3::new(0.0, 0.0, 0.0),
-            Vec3::new(0.0, 2.0, 0.0),
-            Vec3::new(0.0, -2.0, 0.0),
-        ];
-        let dir = vec![
-            Vec3::new(0.0, 0.0, 1.0),
-            Vec3::new(0.0, 0.0, 1.0),
-            Vec3::new(0.0, 0.0, 1.0),
-        ];
+        let pos = Vec3::new(0.0, 0.0, 0.0);
+        let dir = Vec3::new(0.0, 0.0, 1.0);
 
-        let rays = Rays::new(pos, dir).unwrap();
+        let rays = Ray::new(pos, dir);
 
-        assert_eq!(rays.pos.len(), 3);
-        assert_eq!(rays.dir.len(), 3);
+        assert!(rays.is_ok());
     }
 
-    // Test the constructor of Rays with mismatched lengths
+    // Test the constructor of Ray with a non-unit direction vector
     #[test]
-    fn test_rays_new_mismatched_lengths() {
+    fn test_rays_new_non_unit_dir() {
         use super::*;
 
-        let pos = vec![
-            Vec3::new(0.0, 0.0, 0.0),
-            Vec3::new(0.0, 2.0, 0.0),
-            Vec3::new(0.0, -2.0, 0.0),
-        ];
-        let dir = vec![Vec3::new(0.0, 0.0, 1.0), Vec3::new(0.0, 0.0, 1.0)];
+        let pos = Vec3::new(0.0, 0.0, 0.0);
 
-        let rays = Rays::new(pos, dir);
+        let dir = Vec3::new(0.0, 0.0, 2.0);
+
+        let rays = Ray::new(pos, dir);
 
         assert!(rays.is_err());
     }
 
-    // Test the constructor of Rays with a non-unit direction
+    // Test the intersection of a ray with a flat surface
     #[test]
-    fn test_rays_new_non_unit_direction() {
+    fn test_ray_intersection() {
+        use super::*;
+        let ray = Ray::new(Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0)).unwrap();
+        let surf = surfaces::Surface::new_refr_circ_flat(0.0, 4.0, 1.5);
+        let tol = 1e-6;
+        let max_iter = 1000;
+
+        let p = ray.intersect(&surf, tol, max_iter).unwrap();
+
+        assert_eq!(p, Vec3::new(0.0, 0.0, 0.0));
+    }
+
+    // Test the intersection of a ray with a circular surface
+    #[test]
+    fn test_ray_intersection_conic() {
         use super::*;
 
-        let pos = vec![
-            Vec3::new(0.0, 0.0, 0.0),
-            Vec3::new(0.0, 2.0, 0.0),
-            Vec3::new(0.0, -2.0, 0.0),
-        ];
-        let dir = vec![
-            Vec3::new(0.0, 0.0, 1.0),
-            Vec3::new(0.0, 0.0, 2.0),
-            Vec3::new(0.0, 0.0, 1.0),
-        ];
+        // Ray starts at z = -1.0 and travels at 45 degrees to the optics axis
+        let l = 0.7071;
+        let m = (1.0_f32 - 0.7071 * 0.7071).sqrt();
+        let ray = Ray::new(Vec3::new(0.0, 0.0, -1.0), Vec3::new(0.0, l, m)).unwrap();
+        println!("ray = {:?}", ray);
+        // Surface has radius of curvature -1.0 and conic constant 0.0, i.e. a circle
+        let surf = surfaces::Surface::new_refr_circ_conic(0.0, 2.0, 1.5, -1.0, 0.0);
+        let tol = 1e-6;
+        let max_iter = 1000;
 
-        let rays = Rays::new(pos, dir);
+        let p = ray.intersect(&surf, tol, max_iter).unwrap();
 
-        assert!(rays.is_err());
+        assert_eq!(p, Vec3::new(0.0, (PI / 4.0).sin(), (PI / 4.0).cos() - 1.0));
     }
 }
