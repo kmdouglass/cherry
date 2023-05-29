@@ -52,6 +52,29 @@ impl Ray {
 
         Ok(self.pos + self.dir * s)
     }
+
+    // Compute the direction cosines of the ray after interaction with a surface.
+    //
+    // This function accepts the surface normal at the intersection point as an argument to avoid
+    // recomputing it.
+    pub fn redirect(&self, surf: &surfaces::Surface, norm: Vec3, n1: f32, n2: f32) -> Vec3 {
+        // Avoid matching on the wildcard "_" to ensure that this function is updated when new
+        // surfaces are added
+        match surf {
+            // Refracting surfaces
+            surfaces::Surface::RefractingCircularConic(_)
+            | surfaces::Surface::RefractingCircularFlat(_) => {
+                let mu = n1 / n2;
+                let cos_theta_1 = self.dir.dot(norm);
+                let term_1 = norm * (1.0 - mu * mu * (1.0 - cos_theta_1 * cos_theta_1)).sqrt();
+                let term_2 = (self.dir - norm * cos_theta_1) * mu;
+
+                term_1 + term_2
+            }
+            // No-op surfaces
+            surfaces::Surface::ObjectOrImagePlane(_) => self.dir,
+        }
+    }
 }
 
 #[cfg(test)]

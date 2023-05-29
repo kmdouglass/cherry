@@ -43,6 +43,9 @@ mod test {
         );
         let img_surf = surfaces::Surface::new_obj_or_img_plane(surf1_axial_pos + thickness + efl);
 
+        // Build the sequential optical system model
+        let surfaces = vec![obj_surf, surf1, surf2, img_surf];
+
         // Define the rays to trace
         let rays = vec![
             ray_tracing::Ray::new(
