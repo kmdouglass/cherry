@@ -3,7 +3,7 @@ use std::ops;
 
 use crate::vec3::Vec3;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Mat3 {
     e: [[f32; 3]; 3],
 }
@@ -36,6 +36,34 @@ impl Mat3 {
             self.e[0][2],
             self.e[1][2],
             self.e[2][2],
+        )
+    }
+
+    /// Compute a 3x3 rotation matrix from Tait-Bryan Euler angles.
+    ///
+    /// The following conventions are used:
+    /// - Intrinsic rotations are used
+    /// - Rotations are specified by the Tait-Bryan triplet z-y'-x'' where the first rotation is
+    ///   about the z-axis, the second rotation is about the y'-axis, and the third rotation is
+    ///   about the x''-axis.
+    /// - Right-handed coordinate systems are used
+    /// - Counterclockwise rotations are positive
+    /// - Active rotations are used
+    pub fn from_euler_angles(k: f32, l: f32, m: f32) -> Self {
+        let (sin_k, cos_k) = k.sin_cos();
+        let (sin_l, cos_l) = l.sin_cos();
+        let (sin_m, cos_m) = m.sin_cos();
+
+        Self::new(
+            cos_l * cos_m,
+            sin_k * sin_l * cos_m - cos_k * sin_m,
+            cos_k * sin_l * cos_m + sin_k * sin_m,
+            cos_l * sin_m,
+            sin_k * sin_l * sin_m + cos_k * cos_m,
+            cos_k * sin_l * sin_m - sin_k * cos_m,
+            -sin_l,
+            sin_k * cos_l,
+            cos_k * cos_l,
         )
     }
 }
@@ -71,5 +99,19 @@ mod test {
         let res = mat * vec;
 
         assert_eq!(res, Vec3::new(14.0, 32.0, 50.0));
+    }
+
+    #[test]
+    fn test_mat3_transpose() {
+        use super::*;
+
+        let mat = mat3!(1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7., 8.0, 9.0);
+
+        let res = mat.transpose();
+
+        assert_eq!(
+            res,
+            mat3!(1.0, 4.0, 7.0, 2.0, 5.0, 8.0, 3., 6.0, 9.0)
+        );
     }
 }

@@ -1,12 +1,16 @@
+use crate::mat3::Mat3;
 use crate::vec3::Vec3;
 
 /// A refracting flat circular surface.
 pub struct RefractingCircularFlat {
     // Position of the center of the lens relative to the global reference frame
-    pos: Vec3,
+    pub pos: Vec3,
 
     // Euler angles of the optics axis through the lens relative to the global reference frame
-    dir: Vec3,
+    pub dir: Vec3,
+
+    // Rotation matrix from the global reference frame to the surface reference frame
+    pub rot_mat: Mat3,
 
     // Diameter of the lens
     diam: f32,
@@ -17,7 +21,14 @@ pub struct RefractingCircularFlat {
 
 impl RefractingCircularFlat {
     pub fn new(pos: Vec3, dir: Vec3, diam: f32, n: f32) -> Self {
-        Self { pos, dir, diam, n }
+        let rot_mat = Mat3::from_euler_angles(dir.x(), dir.y(), dir.z());
+        Self {
+            pos,
+            dir,
+            rot_mat,
+            diam,
+            n,
+        }
     }
 
     pub fn sag_norm(&self, _: Vec3) -> (f32, Vec3) {

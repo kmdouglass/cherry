@@ -1,12 +1,16 @@
+use crate::mat3::Mat3;
 use crate::vec3::Vec3;
 
 /// Represents the object or image plane in an optical system.
 pub struct ObjectOrImagePlane {
     // Position of the center of the object plane
-    pos: Vec3,
+    pub pos: Vec3,
 
     // Euler angles of the normal to the object plane
-    dir: Vec3,
+    pub dir: Vec3,
+
+    // Rotation matrix from the global reference frame to the surface reference frame
+    pub rot_mat: Mat3,
 
     // Diameter of the object plane
     diam: f32,
@@ -17,9 +21,11 @@ pub struct ObjectOrImagePlane {
 
 impl ObjectOrImagePlane {
     pub fn new(pos: Vec3, dir: Vec3, n: f32) -> Self {
+        let rot_mat = Mat3::from_euler_angles(dir.x(), dir.y(), dir.z());
         Self {
             pos,
             dir,
+            rot_mat,
             diam: f32::INFINITY,
             n,
         }

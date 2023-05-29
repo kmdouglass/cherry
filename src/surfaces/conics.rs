@@ -1,20 +1,24 @@
 use std::f32::consts::PI;
 
+use crate::mat3::Mat3;
 use crate::vec3::Vec3;
 
 /// A refracting conic surface with a circular cross-section.
 pub struct RefractingCircularConic {
     // Position of the center of the lens relative to the global reference frame
-    pos: Vec3,
+    pub pos: Vec3,
 
     // Euler angles of the optics axis through the lens relative to the global reference frame
-    dir: Vec3,
+    pub dir: Vec3,
+
+    // Rotation matrix from the global reference frame to the surface reference frame
+    pub rot_mat: Mat3,
 
     // Diameter of the lens
     diam: f32,
 
     // Refractive index
-    pub(crate) n: f32,
+    pub n: f32,
 
     // Radius of curvature
     roc: f32,
@@ -25,9 +29,11 @@ pub struct RefractingCircularConic {
 
 impl RefractingCircularConic {
     pub fn new(pos: Vec3, dir: Vec3, diam: f32, n: f32, roc: f32, k: f32) -> Self {
+        let rot_mat = Mat3::from_euler_angles(dir.x(), dir.y(), dir.z());
         Self {
             pos,
             dir,
+            rot_mat,
             diam,
             n,
             roc,

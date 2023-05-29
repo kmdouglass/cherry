@@ -84,6 +84,24 @@ impl Ray {
             surfaces::Surface::ObjectOrImagePlane(_) => self.dir,
         }
     }
+
+    /// Transform a ray into the local coordinate system of a surface from the global system.
+    pub fn transform(&self, surf: &surfaces::Surface) -> Self {
+        Self::new(
+            surf.rot_mat() * (self.pos - surf.pos()),
+            surf.rot_mat() * self.dir,
+        )
+        .expect("Ray direction must be a unit vector")
+    }
+
+    /// Transform a ray from the local coordinate system of a surface into the global system.
+    pub fn i_transform(&self, surf: &surfaces::Surface) -> Self {
+        Self::new(
+            surf.rot_mat().transpose() * (self.pos + surf.pos()),
+            surf.rot_mat().transpose() * self.dir,
+        )
+        .expect("Ray direction must be a unit vector")
+    }
 }
 
 #[cfg(test)]

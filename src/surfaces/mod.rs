@@ -2,6 +2,7 @@ mod conics;
 mod flats;
 mod object_or_image;
 
+use crate::mat3::Mat3;
 use crate::vec3::Vec3;
 
 /// A surface in an optical system that can interact with light rays.
@@ -45,7 +46,28 @@ impl Surface {
         }
     }
 
+    /// Return the position of the surface in the global coordinate system.
+    #[inline]
+    pub fn pos(&self) -> Vec3 {
+        match self {
+            Self::ObjectOrImagePlane(surf) => surf.pos,
+            Self::RefractingCircularConic(surf) => surf.pos,
+            Self::RefractingCircularFlat(surf) => surf.pos,
+        }
+    }
+
+    /// Return the rotation matrix from the global to the surface's coordinate system.
+    #[inline]
+    pub fn rot_mat(&self) -> Mat3 {
+        match self {
+            Self::ObjectOrImagePlane(surf) => surf.rot_mat,
+            Self::RefractingCircularConic(surf) => surf.rot_mat,
+            Self::RefractingCircularFlat(surf) => surf.rot_mat,
+        }
+    }
+
     /// Return the refractive index of the surface.
+    #[inline]
     pub fn n(&self) -> f32 {
         match self {
             Self::ObjectOrImagePlane(surf) => surf.n,
