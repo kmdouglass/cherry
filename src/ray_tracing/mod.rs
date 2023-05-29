@@ -20,7 +20,12 @@ impl Ray {
     /// Computes the point of intersection of a ray with a surface.
     ///
     /// If no intersection is found, this function returns an error.
-    pub fn intersect(&self, surf: &surfaces::Surface, tol: f32, max_iter: usize) -> Result<Vec3> {
+    pub fn intersect(
+        &self,
+        surf: &surfaces::Surface,
+        tol: f32,
+        max_iter: usize,
+    ) -> Result<(Vec3, Vec3)> {
         // Initial guess for the intersection point
         let mut s_1 = 0.0;
 
@@ -50,7 +55,11 @@ impl Ray {
             s_1 = s;
         }
 
-        Ok(self.pos + self.dir * s)
+        // Compute the final intersection point and surface normal
+        p = self.pos + self.dir * s;
+        (_, norm) = surf.sag_norm(p);
+
+        Ok((p, norm))
     }
 
     // Compute the direction cosines of the ray after interaction with a surface.
@@ -117,7 +126,7 @@ mod test {
         let tol = 1e-6;
         let max_iter = 1000;
 
-        let p = ray.intersect(&surf, tol, max_iter).unwrap();
+        let (p, _) = ray.intersect(&surf, tol, max_iter).unwrap();
 
         assert_eq!(p, Vec3::new(0.0, 0.0, 0.0));
     }
@@ -137,7 +146,7 @@ mod test {
         let tol = 1e-6;
         let max_iter = 1000;
 
-        let p = ray.intersect(&surf, tol, max_iter).unwrap();
+        let (p, _) = ray.intersect(&surf, tol, max_iter).unwrap();
 
         assert_eq!(p, Vec3::new(0.0, (PI / 4.0).sin(), (PI / 4.0).cos() - 1.0));
     }
