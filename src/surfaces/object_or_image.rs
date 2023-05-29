@@ -2,21 +2,26 @@ use crate::vec3::Vec3;
 
 /// Represents the object or image plane in an optical system.
 pub struct ObjectOrImagePlane {
-    // Position of the center of the object plane.
+    // Position of the center of the object plane
     pos: Vec3,
 
-    // Euler angles of the normal to the object plane.
+    // Euler angles of the normal to the object plane
     dir: Vec3,
 
+    // Diameter of the object plane
     diam: f32,
+
+    // Refractive index
+    pub(crate) n: f32,
 }
 
 impl ObjectOrImagePlane {
-    pub fn new(pos: Vec3, dir: Vec3) -> Self {
+    pub fn new(pos: Vec3, dir: Vec3, n: f32) -> Self {
         Self {
             pos,
             dir,
             diam: f32::INFINITY,
+            n,
         }
     }
 

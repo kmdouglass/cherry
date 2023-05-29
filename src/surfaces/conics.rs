@@ -14,7 +14,7 @@ pub struct RefractingCircularConic {
     diam: f32,
 
     // Refractive index
-    n: f32,
+    pub(crate) n: f32,
 
     // Radius of curvature
     roc: f32,

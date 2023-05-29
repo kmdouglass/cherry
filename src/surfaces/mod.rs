@@ -15,8 +15,9 @@ impl Surface {
     pub fn new_obj_or_img_plane(axial_pos: f32) -> Self {
         let pos = Vec3::new(0.0, 0.0, axial_pos);
         let dir = Vec3::new(0.0, 0.0, 1.0);
+        let n = 1.0;
 
-        Self::ObjectOrImagePlane(object_or_image::ObjectOrImagePlane::new(pos, dir))
+        Self::ObjectOrImagePlane(object_or_image::ObjectOrImagePlane::new(pos, dir, n))
     }
 
     pub fn new_refr_circ_conic(axial_pos: f32, diam: f32, n: f32, roc: f32, k: f32) -> Self {
@@ -41,6 +42,15 @@ impl Surface {
             Self::ObjectOrImagePlane(surf) => surf.sag_norm(pos),
             Self::RefractingCircularConic(surf) => surf.sag_norm(pos),
             Self::RefractingCircularFlat(surf) => surf.sag_norm(pos),
+        }
+    }
+
+    /// Return the refractive index of the surface.
+    pub fn n(&self) -> f32 {
+        match self {
+            Self::ObjectOrImagePlane(surf) => surf.n,
+            Self::RefractingCircularConic(surf) => surf.n,
+            Self::RefractingCircularFlat(surf) => surf.n,
         }
     }
 }

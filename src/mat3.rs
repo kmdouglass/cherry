@@ -1,5 +1,4 @@
 /// A 3 x 3 matrix
-
 use std::ops;
 
 use crate::vec3::Vec3;
@@ -10,12 +9,34 @@ pub struct Mat3 {
 }
 
 impl Mat3 {
-    pub fn new(e00: f32, e01: f32, e02: f32, e10: f32, e11: f32, e12: f32, e20: f32, e21: f32, e22: f32) -> Self {
-        Self { e: [[e00, e01, e02], [e10, e11, e12], [e20, e21, e22]] }
+    pub fn new(
+        e00: f32,
+        e01: f32,
+        e02: f32,
+        e10: f32,
+        e11: f32,
+        e12: f32,
+        e20: f32,
+        e21: f32,
+        e22: f32,
+    ) -> Self {
+        Self {
+            e: [[e00, e01, e02], [e10, e11, e12], [e20, e21, e22]],
+        }
     }
 
     pub fn transpose(&self) -> Self {
-        Self::new(self.e[0][0], self.e[1][0], self.e[2][0], self.e[0][1], self.e[1][1], self.e[2][1], self.e[0][2], self.e[1][2], self.e[2][2])
+        Self::new(
+            self.e[0][0],
+            self.e[1][0],
+            self.e[2][0],
+            self.e[0][1],
+            self.e[1][1],
+            self.e[2][1],
+            self.e[0][2],
+            self.e[1][2],
+            self.e[2][2],
+        )
     }
 }
 

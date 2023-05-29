@@ -1,8 +1,8 @@
 use wasm_bindgen::prelude::*;
 
+mod mat3;
 mod ray_tracing;
 mod surfaces;
-mod mat3;
 mod vec3;
 
 #[wasm_bindgen]
@@ -21,6 +21,8 @@ mod test {
 
     #[test]
     fn test_ray_trace_planoconvex_lens() {
+        use ray_tracing::rays::Ray;
+
         // Setup the optical system
         // From Mansuripur, "Abbe's Sine Condition," Optics and Photonics News 9(2), 56-60 (1998)
         let diameter = 4f32;
@@ -49,17 +51,17 @@ mod test {
 
         // Define the rays to trace
         let rays = vec![
-            ray_tracing::Ray::new(
+            Ray::new(
                 vec3::Vec3::new(0.0, -diameter / 2.0, 0.0),
                 vec3::Vec3::new(0.0, 0.0, 1.0),
             )
             .unwrap(),
-            ray_tracing::Ray::new(
+            Ray::new(
                 vec3::Vec3::new(0.0, 0.0, 0.0),
                 vec3::Vec3::new(0.0, 0.0, 1.0),
             )
             .unwrap(),
-            ray_tracing::Ray::new(
+            Ray::new(
                 vec3::Vec3::new(0.0, diameter / 2.0, 0.0),
                 vec3::Vec3::new(0.0, 0.0, 1.0),
             )

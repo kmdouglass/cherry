@@ -1,5 +1,4 @@
 /// A 3D vector
-
 use std::ops;
 
 static TOL: f32 = 1e-3;
