@@ -2,6 +2,7 @@ use wasm_bindgen::prelude::*;
 
 mod ray_tracing;
 mod surfaces;
+mod mat3;
 mod vec3;
 
 #[wasm_bindgen]

@@ -67,7 +67,7 @@ impl Ray {
     // This function accepts the surface normal at the intersection point as an argument to avoid
     // recomputing it.
     pub fn redirect(&self, surf: &surfaces::Surface, norm: Vec3, n1: f32, n2: f32) -> Vec3 {
-        // Avoid matching on the wildcard "_" to ensure that this function is updated when new
+        // Do not match on the wildcard "_" to ensure that this function is updated when new
         // surfaces are added
         match surf {
             // Refracting surfaces
