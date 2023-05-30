@@ -109,9 +109,6 @@ mod test {
 
         let res = mat.transpose();
 
-        assert_eq!(
-            res,
-            mat3!(1.0, 4.0, 7.0, 2.0, 5.0, 8.0, 3., 6.0, 9.0)
-        );
+        assert_eq!(res, mat3!(1.0, 4.0, 7.0, 2.0, 5.0, 8.0, 3., 6.0, 9.0));
     }
 }

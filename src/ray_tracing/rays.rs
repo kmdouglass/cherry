@@ -3,7 +3,7 @@ use anyhow::{bail, Result};
 use crate::surfaces;
 use crate::vec3::Vec3;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Ray {
     pos: Vec3,
     dir: Vec3,
@@ -62,45 +62,44 @@ impl Ray {
         Ok((p, norm))
     }
 
-    // Compute the direction cosines of the ray after interaction with a surface.
+    // Redirect the ray by computing the direction cosines of the ray after interaction with a surface.
     //
     // This function accepts the surface normal at the intersection point as an argument to avoid
     // recomputing it.
-    pub fn redirect(&self, surf: &surfaces::Surface, norm: Vec3, n1: f32, n2: f32) -> Vec3 {
+    pub fn redirect(&mut self, surf_1: &surfaces::Surface, surf_2: &surfaces::Surface, norm: Vec3) {
         // Do not match on the wildcard "_" to ensure that this function is updated when new
         // surfaces are added
-        match surf {
+        match surf_2 {
             // Refracting surfaces
             surfaces::Surface::RefractingCircularConic(_)
             | surfaces::Surface::RefractingCircularFlat(_) => {
-                let mu = n1 / n2;
+                let mu = surf_1.n() / surf_2.n();
                 let cos_theta_1 = self.dir.dot(norm);
                 let term_1 = norm * (1.0 - mu * mu * (1.0 - cos_theta_1 * cos_theta_1)).sqrt();
                 let term_2 = (self.dir - norm * cos_theta_1) * mu;
 
-                term_1 + term_2
+                self.dir = term_1 + term_2;
             }
             // No-op surfaces
-            surfaces::Surface::ObjectOrImagePlane(_) => self.dir,
+            surfaces::Surface::ObjectOrImagePlane(_) => {}
         }
     }
 
+    /// Displace a ray to the given location.
+    pub fn displace(&mut self, pos: Vec3) {
+        self.pos = pos;
+    }
+
     /// Transform a ray into the local coordinate system of a surface from the global system.
-    pub fn transform(&self, surf: &surfaces::Surface) -> Self {
-        Self::new(
-            surf.rot_mat() * (self.pos - surf.pos()),
-            surf.rot_mat() * self.dir,
-        )
-        .expect("Ray direction must be a unit vector")
+    pub fn transform(&mut self, surf: &surfaces::Surface) {
+        self.pos = surf.rot_mat() * (self.pos - surf.pos());
+        self.dir = surf.rot_mat() * self.dir;
     }
 
     /// Transform a ray from the local coordinate system of a surface into the global system.
-    pub fn i_transform(&self, surf: &surfaces::Surface) -> Self {
-        Self::new(
-            surf.rot_mat().transpose() * (self.pos + surf.pos()),
-            surf.rot_mat().transpose() * self.dir,
-        )
-        .expect("Ray direction must be a unit vector")
+    pub fn i_transform(&mut self, surf: &surfaces::Surface) {
+        self.pos = surf.rot_mat().transpose() * (self.pos + surf.pos());
+        self.dir = surf.rot_mat().transpose() * self.dir;
     }
 }
 

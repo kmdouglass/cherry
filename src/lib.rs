@@ -35,7 +35,6 @@ mod test {
 
         let wavelength = 0.000633f32;
 
-        let obj_surf = surfaces::Surface::new_obj_or_img_plane(0.0);
         let surf1 = surfaces::Surface::new_refr_circ_flat(surf1_axial_pos, diameter, n);
         let surf2 = surfaces::Surface::new_refr_circ_conic(
             surf1_axial_pos + thickness,
@@ -47,7 +46,7 @@ mod test {
         let img_surf = surfaces::Surface::new_obj_or_img_plane(surf1_axial_pos + thickness + efl);
 
         // Build the sequential optical system model
-        let surfaces = vec![obj_surf, surf1, surf2, img_surf];
+        let surfaces = vec![surf1, surf2, img_surf];
 
         // Define the rays to trace
         let rays = vec![
@@ -67,6 +66,10 @@ mod test {
             )
             .unwrap(),
         ];
+
+        // Trace the rays
+        let results = ray_tracing::ray_trace(&surfaces, rays, wavelength);
+        println!("{:?}", results);
 
         panic!("TODO: Implement test")
     }
