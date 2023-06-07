@@ -38,6 +38,12 @@ pub fn ray_trace(
         let (surf_1, surf_2) = (&surface_pair[0], &surface_pair[1]);
 
         for ray in &mut rays {
+            // Skip rays that have already terminated
+            if ray.is_terminated() {
+                results[s_ctr + 1].push(Err(anyhow::anyhow!("Ray terminated")));
+                continue;
+            }
+
             // Transform into coordinate system of the surface
             ray.transform(surf_2);
 
@@ -45,6 +51,7 @@ pub fn ray_trace(
             let (pos, norm) = match ray.intersect(surf_2, 1e-6, 1000) {
                 Ok((pos, norm)) => (pos, norm),
                 Err(e) => {
+                    ray.terminate();
                     results[s_ctr + 1].push(Err(e));
                     continue;
                 }

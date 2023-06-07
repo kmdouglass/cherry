@@ -7,6 +7,7 @@ use crate::vec3::Vec3;
 pub struct Ray {
     pos: Vec3,
     dir: Vec3,
+    terminated: bool,
 }
 
 impl Ray {
@@ -14,7 +15,7 @@ impl Ray {
         if !dir.is_unit() {
             bail!("Ray direction must be a unit vector");
         }
-        Ok(Self { pos, dir })
+        Ok(Self { pos, dir, terminated: false })
     }
 
     /// Finds the intersection point of a ray with a surface and the surface normal at that point.
@@ -101,6 +102,16 @@ impl Ray {
         self.pos = surf.rot_mat().transpose() * (self.pos + surf.pos());
         self.dir = surf.rot_mat().transpose() * self.dir;
     }
+
+    pub fn terminate(&mut self) {
+        self.terminated = true;
+    }
+
+    #[inline]
+    pub fn is_terminated(&self) -> bool {
+        self.terminated
+    }
+
 }
 
 #[cfg(test)]
