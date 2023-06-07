@@ -11,10 +11,10 @@ use rays::Ray;
 /// Result. If the ray intersected the surface successfully, then the result contains the ray
 /// located at the intersection point and with a (possibly) new direction as determined by the
 /// surface interaction, e.g. refraction or reflection.
-/// 
+///
 /// If the ray did not intersect the surface, or the intersection point did not converge, then the
 /// result contains an error.
-/// 
+///
 /// Index 0 of the results corresponds to the rays' initial states. By convention, this is their
 /// locations and directions at the axial position z = 0.
 pub fn ray_trace(
