@@ -1,11 +1,21 @@
 /// A 3D vector
 use std::ops;
 
+use serde::{Deserialize, Serialize};
+
 static TOL: f32 = 1e-3;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(into = "[f32; 3]")]
 pub struct Vec3 {
     e: [f32; 3],
+}
+
+/// Required to serialize Vec3 directly into an array.
+impl Into<[f32; 3]> for Vec3 {
+    fn into(self) -> [f32; 3] {
+        self.e
+    }
 }
 
 impl Vec3 {

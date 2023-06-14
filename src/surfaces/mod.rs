@@ -88,11 +88,13 @@ impl Surface {
         }
     }
 
-    pub fn render(&self) -> Vec<Vec3> {
+    /// Sample the surface in the y,z plane.
+    pub fn sample(&self) -> Vec<Vec3> {
         let diam = self.diam();
 
         // Sample the surface in in the y,z plane by creating uniformally spaced (0,y,z) coordinates
-        let sample_points = Vec3::fan(100, diam / 2.0, PI / 2.0, self.pos().z());
+        let n = 100;
+        let sample_points = Vec3::fan(n, diam / 2.0, PI / 2.0, self.pos().z());
 
         let mut samples = Vec::with_capacity(sample_points.len());
         for point in sample_points {

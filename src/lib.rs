@@ -1,4 +1,9 @@
+use std::sync::Arc;
+
+use serde::ser::{Serialize, SerializeTuple, Serializer};
 use wasm_bindgen::prelude::*;
+
+use crate::math::vec3::Vec3;
 
 mod math;
 mod ray_tracing;
@@ -37,7 +42,16 @@ impl SystemModel {
 
         SystemModel { surfaces }
     }
+
+    /// Returns point samples from the surfaces in the system.
+    pub fn render(&self) -> JsValue {
+        let surface = &self.surfaces[1];
+        let samples = surface.sample();
+
+        serde_wasm_bindgen::to_value(&samples).unwrap()
+    }
 }
+
 #[cfg(test)]
 mod test {
     use super::*;
