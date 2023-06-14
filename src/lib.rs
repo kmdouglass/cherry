@@ -1,12 +1,8 @@
-use std::sync::Arc;
-
-use serde::ser::{Serialize, SerializeTuple, Serializer};
 use wasm_bindgen::prelude::*;
-
-use crate::math::vec3::Vec3;
 
 mod math;
 mod ray_tracing;
+mod rendering;
 mod surfaces;
 
 #[wasm_bindgen]
@@ -27,7 +23,7 @@ impl SystemModel {
         let roc = -1.67f32; // Radius of curvature
         let k = -6.25f32; // Conic constant
 
-        let obj_surf = surfaces::Surface::new_obj_or_img_plane(0.0, diameter);
+        let obj_surf = surfaces::Surface::new_obj_or_img_plane(f32::NEG_INFINITY, diameter);
         let surf1 = surfaces::Surface::new_refr_circ_flat(surf1_axial_pos, diameter, n);
         let surf2 = surfaces::Surface::new_refr_circ_conic(
             surf1_axial_pos + thickness,
@@ -42,16 +38,6 @@ impl SystemModel {
         let surfaces = vec![obj_surf, surf1, surf2, img_surf];
 
         SystemModel { surfaces }
-    }
-
-    /// Returns point samples from the surfaces in the system.
-    pub fn render(&self) -> JsValue {
-        let mut samples: Vec<Vec3> = Vec::new();
-        for surface in &self.surfaces {
-            samples.extend(surface.sample());
-        }
-
-        serde_wasm_bindgen::to_value(&samples).unwrap()
     }
 }
 
@@ -75,6 +61,7 @@ mod test {
 
         let wavelength = 0.000633f32;
 
+        let obj_surf = surfaces::Surface::new_obj_or_img_plane(f32::NEG_INFINITY, diameter);
         let surf1 = surfaces::Surface::new_refr_circ_flat(surf1_axial_pos, diameter, n);
         let surf2 = surfaces::Surface::new_refr_circ_conic(
             surf1_axial_pos + thickness,
@@ -86,7 +73,7 @@ mod test {
         let img_surf = surfaces::Surface::new_obj_or_img_plane(surf1_axial_pos + thickness + efl, diameter);
 
         // Build the sequential optical system model
-        let surfaces = vec![surf1, surf2, img_surf];
+        let surfaces = vec![obj_surf, surf1, surf2, img_surf];
 
         // Define the rays to trace
         let rays = vec![
@@ -107,8 +94,8 @@ mod test {
             .unwrap(),
         ];
 
-        // Trace the rays
-        let results = ray_tracing::ray_trace(&surfaces, rays, wavelength);
+        // Trace the rays; skip the object plane
+        let results = ray_tracing::ray_trace(&surfaces[1..], rays, wavelength);
         println!("{:?}", results);
     }
 }
