@@ -15,12 +15,12 @@ pub enum Surface {
 }
 
 impl Surface {
-    pub fn new_obj_or_img_plane(axial_pos: f32) -> Self {
+    pub fn new_obj_or_img_plane(axial_pos: f32, diam: f32) -> Self {
         let pos = Vec3::new(0.0, 0.0, axial_pos);
         let dir = Vec3::new(0.0, 0.0, 1.0);
         let n = 1.0;
 
-        Self::ObjectOrImagePlane(object_or_image::ObjectOrImagePlane::new(pos, dir, n))
+        Self::ObjectOrImagePlane(object_or_image::ObjectOrImagePlane::new(pos, dir, diam, n))
     }
 
     pub fn new_refr_circ_conic(axial_pos: f32, diam: f32, n: f32, roc: f32, k: f32) -> Self {

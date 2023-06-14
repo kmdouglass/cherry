@@ -11,7 +11,7 @@ pub struct Vec3 {
     e: [f32; 3],
 }
 
-/// Required to serialize Vec3 directly into an array.
+/// Required to serialize Vec3 directly into an array instead of a JSON Object.
 impl Into<[f32; 3]> for Vec3 {
     fn into(self) -> [f32; 3] {
         self.e

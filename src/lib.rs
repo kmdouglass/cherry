@@ -27,6 +27,7 @@ impl SystemModel {
         let roc = -1.67f32; // Radius of curvature
         let k = -6.25f32; // Conic constant
 
+        let obj_surf = surfaces::Surface::new_obj_or_img_plane(0.0, diameter);
         let surf1 = surfaces::Surface::new_refr_circ_flat(surf1_axial_pos, diameter, n);
         let surf2 = surfaces::Surface::new_refr_circ_conic(
             surf1_axial_pos + thickness,
@@ -35,18 +36,20 @@ impl SystemModel {
             roc,
             k,
         );
-        let img_surf = surfaces::Surface::new_obj_or_img_plane(surf1_axial_pos + thickness + efl);
+        let img_surf = surfaces::Surface::new_obj_or_img_plane(surf1_axial_pos + thickness + efl, diameter);
 
         // Build the sequential optical system model
-        let surfaces = vec![surf1, surf2, img_surf];
+        let surfaces = vec![obj_surf, surf1, surf2, img_surf];
 
         SystemModel { surfaces }
     }
 
     /// Returns point samples from the surfaces in the system.
     pub fn render(&self) -> JsValue {
-        let surface = &self.surfaces[1];
-        let samples = surface.sample();
+        let mut samples: Vec<Vec3> = Vec::new();
+        for surface in &self.surfaces {
+            samples.extend(surface.sample());
+        }
 
         serde_wasm_bindgen::to_value(&samples).unwrap()
     }
@@ -80,7 +83,7 @@ mod test {
             roc,
             k,
         );
-        let img_surf = surfaces::Surface::new_obj_or_img_plane(surf1_axial_pos + thickness + efl);
+        let img_surf = surfaces::Surface::new_obj_or_img_plane(surf1_axial_pos + thickness + efl, diameter);
 
         // Build the sequential optical system model
         let surfaces = vec![surf1, surf2, img_surf];

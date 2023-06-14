@@ -20,13 +20,13 @@ pub struct ObjectOrImagePlane {
 }
 
 impl ObjectOrImagePlane {
-    pub fn new(pos: Vec3, dir: Vec3, n: f32) -> Self {
+    pub fn new(pos: Vec3, dir: Vec3, diam: f32, n: f32) -> Self {
         let rot_mat = Mat3::from_euler_angles(dir.x(), dir.y(), dir.z());
         Self {
             pos,
             dir,
             rot_mat,
-            diam: f32::INFINITY,
+            diam: 4.0,
             n,
         }
     }
