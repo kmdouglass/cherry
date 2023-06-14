@@ -1,7 +1,7 @@
 use anyhow::{bail, Result};
 
-use crate::surfaces;
 use crate::math::vec3::Vec3;
+use crate::surfaces;
 
 #[derive(Debug, Clone)]
 pub struct Ray {
@@ -15,7 +15,11 @@ impl Ray {
         if !dir.is_unit() {
             bail!("Ray direction must be a unit vector");
         }
-        Ok(Self { pos, dir, terminated: false })
+        Ok(Self {
+            pos,
+            dir,
+            terminated: false,
+        })
     }
 
     /// Finds the intersection point of a ray with a surface and the surface normal at that point.
@@ -111,7 +115,6 @@ impl Ray {
     pub fn is_terminated(&self) -> bool {
         self.terminated
     }
-
 }
 
 #[cfg(test)]

@@ -2,6 +2,8 @@ mod conics;
 mod flats;
 mod object_or_image;
 
+use std::f32::consts::PI;
+
 use crate::math::mat3::Mat3;
 use crate::math::vec3::Vec3;
 
@@ -86,5 +88,23 @@ impl Surface {
         }
     }
 
-    
+    pub fn render(&self) -> Vec<Vec3> {
+        let diam = self.diam();
+
+        // Sample the surface in in the y,z plane by creating uniformally spaced (0,y,z) coordinates
+        let sample_points = Vec3::fan(100, diam / 2.0, PI / 2.0, self.pos().z());
+
+        let mut samples = Vec::with_capacity(sample_points.len());
+        for point in sample_points {
+            let (sag, _) = match self {
+                Self::ObjectOrImagePlane(surf) => surf.sag_norm(point),
+                Self::RefractingCircularConic(surf) => surf.sag_norm(point),
+                Self::RefractingCircularFlat(surf) => surf.sag_norm(point),
+            };
+
+            samples.push(Vec3::new(point.x(), point.y(), sag + point.z()));
+        }
+
+        samples
+    }
 }
