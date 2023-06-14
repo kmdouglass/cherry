@@ -1,5 +1,5 @@
-use crate::mat3::Mat3;
-use crate::vec3::Vec3;
+use crate::math::mat3::Mat3;
+use crate::math::vec3::Vec3;
 
 /// A refracting flat circular surface.
 pub struct RefractingCircularFlat {
@@ -13,7 +13,7 @@ pub struct RefractingCircularFlat {
     pub rot_mat: Mat3,
 
     // Diameter of the lens
-    diam: f32,
+    pub diam: f32,
 
     // Refractive index
     pub(crate) n: f32,

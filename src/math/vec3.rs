@@ -57,6 +57,26 @@ impl Vec3 {
     pub fn dot(&self, rhs: Self) -> f32 {
         self.e[0] * rhs.e[0] + self.e[1] * rhs.e[1] + self.e[2] * rhs.e[2]
     }
+
+    /// Create a line of uniformly spaced vectors with endpoints in a given z-plane.
+    /// 
+    /// The vectors have endpoints at an angle theta with respect to the x-axis and extend from
+    /// distances -r to r from the point (0, 0, z).
+    /// 
+    /// # Arguments
+    /// - n: Number of vectors to create
+    /// - r: Radial span of vector endpoints from [-r, r]
+    /// - theta: Angle of vectors with respect to x
+    /// - z: z-coordinate of endpoints
+    pub fn linspace(n: usize, r: f32, theta: f32, z: f32) -> Vec<Self> {
+        let mut vecs = Vec::with_capacity(n);
+        for i in 0..n {
+            let x = r * (2.0 * i as f32 / n as f32 - 1.0) * theta.cos();
+            let y = r * (2.0 * i as f32 / n as f32 - 1.0) * theta.sin();
+            vecs.push(Vec3::new(x, y, z));
+        }
+        vecs
+    }
 }
 
 impl PartialEq for Vec3 {

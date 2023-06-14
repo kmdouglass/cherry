@@ -1,7 +1,7 @@
 use anyhow::{bail, Result};
 
 use crate::surfaces;
-use crate::vec3::Vec3;
+use crate::math::vec3::Vec3;
 
 #[derive(Debug, Clone)]
 pub struct Ray {

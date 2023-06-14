@@ -1,3 +1,5 @@
-import * as wasm from "cherry";
+import { SystemModel } from "cherry";
 
-alert("Hello world!");
+const model = SystemModel.new();
+
+console.log(model);

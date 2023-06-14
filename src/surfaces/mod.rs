@@ -2,8 +2,8 @@ mod conics;
 mod flats;
 mod object_or_image;
 
-use crate::mat3::Mat3;
-use crate::vec3::Vec3;
+use crate::math::mat3::Mat3;
+use crate::math::vec3::Vec3;
 
 /// A surface in an optical system that can interact with light rays.
 pub enum Surface {
@@ -66,6 +66,16 @@ impl Surface {
         }
     }
 
+    /// Return the diameter of the surface.
+    #[inline]
+    pub fn diam(&self) -> f32 {
+        match self {
+            Self::ObjectOrImagePlane(surf) => surf.diam,
+            Self::RefractingCircularConic(surf) => surf.diam,
+            Self::RefractingCircularFlat(surf) => surf.diam,
+        }
+    }
+
     /// Return the refractive index of the surface.
     #[inline]
     pub fn n(&self) -> f32 {
@@ -75,4 +85,6 @@ impl Surface {
             Self::RefractingCircularFlat(surf) => surf.n,
         }
     }
+
+    
 }

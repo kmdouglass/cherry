@@ -1,7 +1,5 @@
-use std::f32::consts::PI;
-
-use crate::mat3::Mat3;
-use crate::vec3::Vec3;
+use crate::math::mat3::Mat3;
+use crate::math::vec3::Vec3;
 
 /// A refracting conic surface with a circular cross-section.
 pub struct RefractingCircularConic {
@@ -15,7 +13,7 @@ pub struct RefractingCircularConic {
     pub rot_mat: Mat3,
 
     // Diameter of the lens
-    diam: f32,
+    pub diam: f32,
 
     // Refractive index
     pub n: f32,
@@ -63,6 +61,8 @@ impl RefractingCircularConic {
 
 #[cfg(test)]
 mod tests {
+    use std::f32::consts::PI;
+
     use super::*;
 
     #[test]

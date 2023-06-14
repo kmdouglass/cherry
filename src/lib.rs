@@ -1,9 +1,8 @@
 use wasm_bindgen::prelude::*;
 
-mod mat3;
+mod math;
 mod ray_tracing;
 mod surfaces;
-mod vec3;
 
 #[wasm_bindgen]
 pub struct SystemModel {
@@ -75,18 +74,18 @@ mod test {
         // Define the rays to trace
         let rays = vec![
             Ray::new(
-                vec3::Vec3::new(0.0, -diameter / 2.0, 0.0),
-                vec3::Vec3::new(0.0, 0.0, 1.0),
+                math::vec3::Vec3::new(0.0, -diameter / 2.0, 0.0),
+                math::vec3::Vec3::new(0.0, 0.0, 1.0),
             )
             .unwrap(),
             Ray::new(
-                vec3::Vec3::new(0.0, 0.0, 0.0),
-                vec3::Vec3::new(0.0, 0.0, 1.0),
+                math::vec3::Vec3::new(0.0, 0.0, 0.0),
+                math::vec3::Vec3::new(0.0, 0.0, 1.0),
             )
             .unwrap(),
             Ray::new(
-                vec3::Vec3::new(0.0, diameter / 2.0, 0.0),
-                vec3::Vec3::new(0.0, 0.0, 1.0),
+                math::vec3::Vec3::new(0.0, diameter / 2.0, 0.0),
+                math::vec3::Vec3::new(0.0, 0.0, 1.0),
             )
             .unwrap(),
         ];
