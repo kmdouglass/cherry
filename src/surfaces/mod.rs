@@ -88,13 +88,13 @@ impl Surface {
         }
     }
 
-    /// Sample the surface in the y,z plane.
+    /// Sample the surface in the local y,z plane, returning points in the global coordinate system.
     pub fn sample(&self) -> Vec<Vec3> {
         let diam = self.diam();
 
         // Sample the surface in in the y,z plane by creating uniformally spaced (0,y,z) coordinates
         let n = 100;
-        let sample_points = Vec3::fan(n, diam / 2.0, PI / 2.0, self.pos().z());
+        let sample_points = Vec3::fan(n, diam / 2.0, PI / 2.0, 0.0);
 
         let mut samples = Vec::with_capacity(sample_points.len());
         for point in sample_points {
@@ -104,7 +104,11 @@ impl Surface {
                 Self::RefractingCircularFlat(surf) => surf.sag_norm(point),
             };
 
-            samples.push(Vec3::new(point.x(), point.y(), sag + point.z()));
+            // Transform the samples into the global coordinate system.
+            let sample = Vec3::new(point.x(), point.y(), sag);
+            let rot_sample = self.rot_mat().transpose() * (sample + self.pos());
+
+            samples.push(rot_sample);
         }
 
         samples
