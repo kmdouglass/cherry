@@ -1,6 +1,6 @@
 # Cherry
 
-Numerical optics routines in the browser
+Optical ray tracing in the browser
 
 ## Build
 
