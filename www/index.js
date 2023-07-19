@@ -98,8 +98,20 @@ function toCanvasCoordinates(surfaces, canvasWidth, canvasHeight, scaleFactor = 
     return transformedSurfaces;
 }
 
-canvas.width = window.innerWidth;
-canvas.height = window.innerHeight;
+/***************************************************************************************************
+App starts here
+*/
+
+let system = new SystemModel();
+
+const btn = document.querySelector("button");
+btn.addEventListener("click", function () {
+    alert(system.numSurfaces());
+    alert("Ray tracing is not yet implemented.");
+});
+
+canvas.width = window.innerWidth * 0.8;
+canvas.height = window.innerHeight * 0.8;
 
 // Create a f = 50.1 mm planoconvex lens comprised of two surfaces, the first one being spherical.
 // This corrseponds to Thorlabs part no. LA1255.
@@ -113,9 +125,10 @@ const n1 = 1.0; // refractive index of air
 const backFocalLength= 46.6; // mm
 
 // Create a system with the two surfaces
-let system = new SystemModel();
-system.pushSurfRefrCircConic(0, diam0, n0, roc0, K0);
-system.pushSurfRefrCircFlat(thickness0, diam1, n1);
+system.pushSurfObjOrImgPlane(0, 25.0);
+system.pushSurfRefrCircConic(10.0, diam0, n0, roc0, K0);
+system.pushSurfRefrCircFlat(10.0 + thickness0, diam1, n1);
+system.pushSurfObjOrImgPlane(10.0 + thickness0 + backFocalLength, 25.0);
 
 // Plot the surfaces
 let numSamplesPerSurface = 20;

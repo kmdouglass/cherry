@@ -37,19 +37,6 @@ fn bounding_box(points: Vec<Vec3>) -> (Vec3, Vec3) {
     (min, max)
 }
 
-#[wasm_bindgen]
-impl SystemModel {
-    /// Returns point samples from the surfaces in the system.
-    pub fn render(&self) -> JsValue {
-        let mut samples: Vec<Vec3> = Vec::new();
-        for surface in &self.surfaces {
-            samples.extend(surface.sample_yz(20));
-        }
-
-        serde_wasm_bindgen::to_value(&samples).unwrap()
-    }
-}
-
 impl Surface {
     /// Sample the surface in the local y,z plane, returning points in the global coordinate system.
     pub fn sample_yz(&self, num_samples: usize) -> Vec<Vec3> {

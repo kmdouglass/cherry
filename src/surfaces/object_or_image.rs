@@ -27,7 +27,7 @@ impl ObjectOrImagePlane {
             pos,
             dir,
             rot_mat,
-            diam: 4.0,
+            diam: diam,
             n,
         }
     }
