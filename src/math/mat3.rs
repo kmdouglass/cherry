@@ -1,11 +1,7 @@
 /// A 3 x 3 matrix
-use std::ops;
-
-use serde::{Deserialize, Serialize};
-
 use crate::math::vec3::Vec3;
 
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Mat3 {
     e: [[f32; 3]; 3],
 }

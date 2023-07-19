@@ -6,39 +6,36 @@ mod rendering;
 mod surfaces;
 
 #[wasm_bindgen]
+#[derive(Debug)]
 pub struct SystemModel {
     surfaces: Vec<surfaces::Surface>,
 }
 
 #[wasm_bindgen]
 impl SystemModel {
+    #[wasm_bindgen(constructor)]
     pub fn new() -> SystemModel {
-        // Setup the optical system
-        // From Mansuripur, "Abbe's Sine Condition," Optics and Photonics News 9(2), 56-60 (1998)
-        let diameter = 4f32;
-        let surf1_axial_pos = 5f32;
-        let thickness = 1f32;
-        let efl = 1.1133f32; // Effective focal length
-        let n = 2.5f32; // Refractive index
-        let roc = -1.67f32; // Radius of curvature
-        let k = -6.25f32; // Conic constant
-
-        let obj_surf = surfaces::Surface::new_obj_or_img_plane(f32::NEG_INFINITY, diameter);
-        let surf1 = surfaces::Surface::new_refr_circ_flat(surf1_axial_pos, diameter, n);
-        let surf2 = surfaces::Surface::new_refr_circ_conic(
-            surf1_axial_pos + thickness,
-            diameter,
-            1.0,
-            roc,
-            k,
-        );
-        let img_surf =
-            surfaces::Surface::new_obj_or_img_plane(surf1_axial_pos + thickness + efl, diameter);
-
-        // Build the sequential optical system model
-        let surfaces = vec![obj_surf, surf1, surf2, img_surf];
+        let surfaces = Vec::new();
 
         SystemModel { surfaces }
+    }
+
+    /// Insert a refracting circular conic surface into the optical system.
+    pub fn pushSurfRefrCircConic(&mut self, axial_pos: f32, diam: f32, n: f32, roc: f32, k: f32) {
+        let surf = surfaces::Surface::new_refr_circ_conic(axial_pos, diam, n, roc, k);
+        self.surfaces.push(surf);
+    }
+
+    /// Insert a refracting circular flat surface into the optical system.
+    pub fn pushSurfRefrCircFlat(&mut self, axial_pos: f32, diam: f32, n: f32) {
+        let surf = surfaces::Surface::new_refr_circ_flat(axial_pos, diam, n);
+        self.surfaces.push(surf);
+    }
+
+    /// Insert an object or image plane into the optical system.
+    pub fn pushSurfObjOrImgPlane(&mut self, axial_pos: f32, diam: f32) {
+        let surf = surfaces::Surface::new_obj_or_img_plane(axial_pos, diam);
+        self.surfaces.push(surf);
     }
 }
 
@@ -71,8 +68,7 @@ mod test {
             roc,
             k,
         );
-        let img_surf =
-            surfaces::Surface::new_obj_or_img_plane(surf1_axial_pos + thickness + efl, diameter);
+        let img_surf = surfaces::Surface::new_obj_or_img_plane(surf1_axial_pos + thickness + efl, diameter);
 
         // Build the sequential optical system model
         let surfaces = vec![obj_surf, surf1, surf2, img_surf];

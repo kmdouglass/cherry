@@ -2,6 +2,7 @@ use crate::math::mat3::Mat3;
 use crate::math::vec3::Vec3;
 
 /// A refracting conic surface with a circular cross-section.
+#[derive(Debug)]
 pub struct RefractingCircularConic {
     // Position of the center of the lens relative to the global reference frame
     pub pos: Vec3,

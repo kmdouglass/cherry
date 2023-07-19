@@ -6,6 +6,7 @@ use crate::math::mat3::Mat3;
 use crate::math::vec3::Vec3;
 
 /// A surface in an optical system that can interact with light rays.
+#[derive(Debug)]
 pub enum Surface {
     ObjectOrImagePlane(object_or_image::ObjectOrImagePlane),
     RefractingCircularConic(conics::RefractingCircularConic),
