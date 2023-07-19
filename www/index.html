@@ -3,11 +3,25 @@
   <head>
     <meta charset="utf-8">
     <title>Cherry</title>
+    <style type="text/css">
+      canvas {
+          border: 1px solid black;
+      }
+
+      body {
+          margin: 0;
+      }
+  </style>
   </head>
   <body>
-    <canvas id="systemModelCanvas" width="800" height="600"></canvas>
+    <canvas id="systemModelCanvas"></canvas>
+
+    <div>
+      <button>Ray Trace</button>
+    </div>
 
     <noscript>This page contains webassembly and javascript content, please enable javascript in your browser.</noscript>
     <script src="./bootstrap.js"></script>
+    
   </body>
 </html>

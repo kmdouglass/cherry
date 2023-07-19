@@ -1,6 +1,4 @@
 /// A 3D vector
-use std::ops;
-
 use serde::{Deserialize, Serialize};
 
 static TOL: f32 = 1e-3;
@@ -33,6 +31,18 @@ impl Vec3 {
 
     pub fn z(&self) -> f32 {
         self.e[2]
+    }
+
+    pub fn set_x(&mut self, x: f32) {
+        self.e[0] = x;
+    }
+
+    pub fn set_y(&mut self, y: f32) {
+        self.e[1] = y;
+    }
+
+    pub fn set_z(&mut self, z: f32) {
+        self.e[2] = z;
     }
 
     pub fn k(&self) -> f32 {
@@ -79,6 +89,7 @@ impl Vec3 {
     /// - theta: Angle of vectors with respect to x
     /// - z: z-coordinate of endpoints
     pub fn fan(n: usize, r: f32, theta: f32, z: f32) -> Vec<Self> {
+        // TODO: Include endpoints!
         let mut vecs = Vec::with_capacity(n);
         for i in 0..n {
             let x = r * (2.0 * i as f32 / n as f32 - 1.0) * theta.cos();

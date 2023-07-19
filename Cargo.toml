@@ -13,3 +13,9 @@ anyhow = "1.0"
 serde = { version = "*", features = ["derive"] }
 serde-wasm-bindgen = "*"
 wasm-bindgen = "0.2"
+
+[dependencies.web-sys]
+version = "*"
+features = [
+    "console"
+]

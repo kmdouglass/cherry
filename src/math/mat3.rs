@@ -1,6 +1,4 @@
 /// A 3 x 3 matrix
-use std::ops;
-
 use crate::math::vec3::Vec3;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -89,6 +87,7 @@ impl std::ops::Mul<Vec3> for Mat3 {
 
 #[cfg(test)]
 mod test {
+    use super::*;
     #[test]
     fn test_mat3_mul_vec3() {
         use super::*;
@@ -110,5 +109,12 @@ mod test {
         let res = mat.transpose();
 
         assert_eq!(res, mat3!(1.0, 4.0, 7.0, 2.0, 5.0, 8.0, 3., 6.0, 9.0));
+    }
+
+    #[test]
+    fn test_mat3_from_euler_angles() {
+        let (k, l, m) = (0.0, 0.0, 0.0); // no rotation
+        let mat = Mat3::from_euler_angles(k, l, m);
+        assert_eq!(mat, mat3!(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0));
     }
 }

@@ -2,6 +2,7 @@ use crate::math::mat3::Mat3;
 use crate::math::vec3::Vec3;
 
 /// Represents the object or image plane in an optical system.
+#[derive(Debug)]
 pub struct ObjectOrImagePlane {
     // Position of the center of the object plane
     pub pos: Vec3,
@@ -26,7 +27,7 @@ impl ObjectOrImagePlane {
             pos,
             dir,
             rot_mat,
-            diam: 4.0,
+            diam: diam,
             n,
         }
     }
