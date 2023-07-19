@@ -12,6 +12,7 @@ pub struct SystemModel {
 }
 
 #[wasm_bindgen]
+#[allow(non_snake_case)]
 impl SystemModel {
     #[wasm_bindgen(constructor)]
     pub fn new() -> SystemModel {
@@ -45,6 +46,12 @@ impl SystemModel {
 
         serde_wasm_bindgen::to_value(&samples).unwrap()
     }
+
+    /// Return the number of surfaces in the system.
+    pub fn numSurfaces(&self) -> usize {
+        self.surfaces.len()
+    }
+
 }
 
 #[cfg(test)]
