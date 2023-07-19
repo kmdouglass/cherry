@@ -28,7 +28,7 @@ pub struct RefractingCircularConic {
 
 impl RefractingCircularConic {
     pub fn new(pos: Vec3, dir: Vec3, diam: f32, n: f32, roc: f32, k: f32) -> Self {
-        let rot_mat = Mat3::from_euler_angles(dir.x(), dir.y(), dir.z());
+        let rot_mat = Mat3::from_euler_angles(dir.k(), dir.l(), dir.m());
         Self {
             pos,
             dir,

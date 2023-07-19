@@ -16,5 +16,6 @@ const backFocalLength= 46.6; // mm
 let system = new SystemModel();
 system.pushSurfRefrCircConic(0, diam0, n0, roc0, K0);
 system.pushSurfRefrCircFlat(thickness0, diam1, n1);
+let samples = system.sampleSurfYZ(0, 20);
 
-console.log(system);
+console.log(samples);

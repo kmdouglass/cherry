@@ -43,7 +43,7 @@ impl SystemModel {
     pub fn render(&self) -> JsValue {
         let mut samples: Vec<Vec3> = Vec::new();
         for surface in &self.surfaces {
-            samples.extend(surface.sample_yz());
+            samples.extend(surface.sample_yz(20));
         }
 
         serde_wasm_bindgen::to_value(&samples).unwrap()
@@ -52,7 +52,7 @@ impl SystemModel {
 
 impl Surface {
     /// Sample the surface in the local y,z plane, returning points in the global coordinate system.
-    pub fn sample_yz(&self) -> Vec<Vec3> {
+    pub fn sample_yz(&self, num_samples: usize) -> Vec<Vec3> {
         // Skip object or image planes at infinity
         if let Self::ObjectOrImagePlane(surf) = self {
             if surf.pos.z().abs() == f32::INFINITY {
@@ -63,9 +63,10 @@ impl Surface {
         let diam = self.diam();
 
         // Sample the surface in in the y,z plane by creating uniformally spaced (0,y,z) coordinates
-        let n = 100;
-        let sample_points = Vec3::fan(n, diam / 2.0, PI / 2.0, 0.0);
+        let sample_points = Vec3::fan(num_samples, diam / 2.0, PI / 2.0, 0.0);
 
+        let mut sample: Vec3;
+        let mut rot_sample: Vec3;
         let mut samples = Vec::with_capacity(sample_points.len());
         for point in sample_points {
             let (sag, _) = match self {
@@ -75,8 +76,8 @@ impl Surface {
             };
 
             // Transform the sample into the global coordinate system.
-            let sample = Vec3::new(point.x(), point.y(), sag);
-            let rot_sample = self.rot_mat().transpose() * (sample + self.pos());
+            sample = Vec3::new(point.x(), point.y(), sag);
+            rot_sample = self.rot_mat().transpose() * (sample + self.pos());
 
             samples.push(rot_sample);
         }
@@ -90,16 +91,25 @@ mod test {
     use super::*;
 
     #[test]
-    fn test_pt_cloud_yz_object_plane_at_infinity() {
+    fn test_sample_yz_object_plane_at_infinity() {
         let surf = Surface::new_obj_or_img_plane(f32::NEG_INFINITY, 4.0);
-        let samples = surf.sample_yz();
+        let samples = surf.sample_yz(20);
         assert_eq!(samples.len(), 0);
     }
 
     #[test]
-    fn test_pt_cloud_yz_image_plane_at_infinity() {
+    fn test_sample_yz_image_plane_at_infinity() {
         let surf = Surface::new_obj_or_img_plane(f32::INFINITY, 4.0);
-        let samples = surf.sample_yz();
+        let samples = surf.sample_yz(20);
         assert_eq!(samples.len(), 0);
+    }
+
+    #[test]
+    fn test_sample_yz_x_values_are_zero() {
+        let surf = Surface::new_refr_circ_conic(0.0, 25.0, 1.515, 25.8, 0.0);
+        let samples = surf.sample_yz(20);
+        for sample in samples {
+            assert_eq!(sample.x(), 0.0);
+        }
     }
 }

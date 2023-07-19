@@ -37,6 +37,14 @@ impl SystemModel {
         let surf = surfaces::Surface::new_obj_or_img_plane(axial_pos, diam);
         self.surfaces.push(surf);
     }
+
+    /// Return point samples from a surface in the optical system in local YZ plane.
+    pub fn sampleSurfYZ(&self, surf_idx: usize, num_points: usize) -> JsValue {
+        let surf = &self.surfaces[surf_idx];
+        let samples = surf.sample_yz(num_points);
+
+        serde_wasm_bindgen::to_value(&samples).unwrap()
+    }
 }
 
 #[cfg(test)]
