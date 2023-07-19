@@ -1,23 +1,22 @@
 /// Implementations of routines used to render the system in the UI.
-
 use std::f32::consts::PI;
 
 use wasm_bindgen::prelude::*;
 
-use crate::SystemModel;
 use crate::math::vec3::Vec3;
 use crate::surfaces::Surface;
+use crate::SystemModel;
 
 /// Returns a 3D bounding box of a set of points in the global coordinate system.
 fn bounding_box(points: Vec<Vec3>) -> (Vec3, Vec3) {
-    let mut min = (f32::INFINITY, f32::INFINITY, f32::INFINITY);
-    let mut max = (f32::NEG_INFINITY, f32::NEG_INFINITY, f32::NEG_INFINITY);
+    let mut min = Vec3::new(f32::INFINITY, f32::INFINITY, f32::INFINITY);
+    let mut max = Vec3::new(f32::NEG_INFINITY, f32::NEG_INFINITY, f32::NEG_INFINITY);
 
     for point in points {
-        if point.x() < min.0 {
-            min.0 = point.x();
+        if point.x() < min.x() {
+            min.set_x(point.x());
         }
-        if point.y() < min.1 {
+        if point.y() < min.y() {
             min.set_y(point.y());
         }
         if point.z() < min.z() {
@@ -44,7 +43,7 @@ impl SystemModel {
     pub fn render(&self) -> JsValue {
         let mut samples: Vec<Vec3> = Vec::new();
         for surface in &self.surfaces {
-            samples.extend(surface.pt_cloud_yz());
+            samples.extend(surface.sample_yz());
         }
 
         serde_wasm_bindgen::to_value(&samples).unwrap()
@@ -53,7 +52,7 @@ impl SystemModel {
 
 impl Surface {
     /// Sample the surface in the local y,z plane, returning points in the global coordinate system.
-    pub fn pt_cloud_yz(&self) -> Vec<Vec3> {
+    pub fn sample_yz(&self) -> Vec<Vec3> {
         // Skip object or image planes at infinity
         if let Self::ObjectOrImagePlane(surf) = self {
             if surf.pos.z().abs() == f32::INFINITY {
@@ -93,14 +92,14 @@ mod test {
     #[test]
     fn test_pt_cloud_yz_object_plane_at_infinity() {
         let surf = Surface::new_obj_or_img_plane(f32::NEG_INFINITY, 4.0);
-        let samples = surf.pt_cloud_yz();
+        let samples = surf.sample_yz();
         assert_eq!(samples.len(), 0);
     }
 
     #[test]
     fn test_pt_cloud_yz_image_plane_at_infinity() {
         let surf = Surface::new_obj_or_img_plane(f32::INFINITY, 4.0);
-        let samples = surf.pt_cloud_yz();
+        let samples = surf.sample_yz();
         assert_eq!(samples.len(), 0);
     }
 }

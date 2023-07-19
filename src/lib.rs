@@ -32,7 +32,8 @@ impl SystemModel {
             roc,
             k,
         );
-        let img_surf = surfaces::Surface::new_obj_or_img_plane(surf1_axial_pos + thickness + efl, diameter);
+        let img_surf =
+            surfaces::Surface::new_obj_or_img_plane(surf1_axial_pos + thickness + efl, diameter);
 
         // Build the sequential optical system model
         let surfaces = vec![obj_surf, surf1, surf2, img_surf];
@@ -70,7 +71,8 @@ mod test {
             roc,
             k,
         );
-        let img_surf = surfaces::Surface::new_obj_or_img_plane(surf1_axial_pos + thickness + efl, diameter);
+        let img_surf =
+            surfaces::Surface::new_obj_or_img_plane(surf1_axial_pos + thickness + efl, diameter);
 
         // Build the sequential optical system model
         let surfaces = vec![obj_surf, surf1, surf2, img_surf];

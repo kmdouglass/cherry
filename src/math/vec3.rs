@@ -35,6 +35,18 @@ impl Vec3 {
         self.e[2]
     }
 
+    pub fn set_x(&mut self, x: f32) {
+        self.e[0] = x;
+    }
+
+    pub fn set_y(&mut self, y: f32) {
+        self.e[1] = y;
+    }
+
+    pub fn set_z(&mut self, z: f32) {
+        self.e[2] = z;
+    }
+
     pub fn k(&self) -> f32 {
         self.e[0]
     }
