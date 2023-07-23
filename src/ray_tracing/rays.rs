@@ -1,9 +1,10 @@
 use anyhow::{bail, Result};
+use serde::{Deserialize, Serialize};
 
 use crate::math::vec3::Vec3;
 use crate::surfaces;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Ray {
     pos: Vec3,
     dir: Vec3,
@@ -115,6 +116,36 @@ impl Ray {
     pub fn is_terminated(&self) -> bool {
         self.terminated
     }
+
+    /// Create a fan of uniformly spaced rays in a given z-plane at an angle phi to the z-axis.
+    ///
+    /// The vectors have endpoints at an angle theta with respect to the x-axis and extend from
+    /// distances -r to r from the point (0, 0, z). The rays are at an angle phi from the z-axis.
+    ///
+    /// # Arguments
+    /// - n: Number of vectors to create
+    /// - r: Radial span of vector endpoints from [-r, r]
+    /// - theta: Angle of vectors with respect to x, radians
+    /// - z: z-coordinate of endpoints
+    /// - phi: Angle of vectors with respect to z, the optics axis, radians
+    pub fn fan(n: usize, r: f32, theta: f32, z: f32, phi: f32) -> Vec<Ray> {
+        let pos = Vec3::fan(n, r, theta, z);
+        let dir: Vec<Vec3> = pos
+            .iter()
+            .map(|p| {
+                let l = phi.sin() * theta.cos();
+                let m = phi.sin() * theta.sin();
+                let n = phi.cos();
+                Vec3::new(l, m, n)
+            })
+            .collect();
+
+        pos.iter()
+            .zip(dir.iter())
+            .map(|(p, d)| Ray::new(*p, *d).unwrap())
+            .collect()
+        }
+        
 }
 
 #[cfg(test)]

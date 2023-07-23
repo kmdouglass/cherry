@@ -149,3 +149,6 @@ for (let surface of canvasSurfs) {
     }
 }
 ctx.stroke();
+
+let rays = system.rayTrace()
+console.log(rays);
