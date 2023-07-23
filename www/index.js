@@ -137,6 +137,7 @@ const btn = document.querySelector("button");
 btn.addEventListener("click", function () {
     let results = system.rayTrace();
     let rayPaths = resultsToRayPaths(results);
+    console.log(rayPaths);
     let transformedRayPaths = toCanvasCoordinates(rayPaths, comSamples, canvasCenterCoords, scaleFactor);
     draw(transformedRayPaths, ctx, "red", 1.0);
 });

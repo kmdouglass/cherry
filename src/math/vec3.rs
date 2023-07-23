@@ -89,11 +89,11 @@ impl Vec3 {
     /// - theta: Angle of vectors with respect to x
     /// - z: z-coordinate of endpoints
     pub fn fan(n: usize, r: f32, theta: f32, z: f32) -> Vec<Self> {
-        // TODO: Include endpoints!
         let mut vecs = Vec::with_capacity(n);
+        let step = 2.0 * r / (n - 1) as f32;
         for i in 0..n {
-            let x = r * (2.0 * i as f32 / n as f32 - 1.0) * theta.cos();
-            let y = r * (2.0 * i as f32 / n as f32 - 1.0) * theta.sin();
+            let x = (-r + i as f32 * step) * theta.cos();
+            let y = (-r + i as f32 * step) * theta.sin();
             vecs.push(Vec3::new(x, y, z));
         }
         vecs
