@@ -43,7 +43,7 @@ impl SystemModel {
 
         let wavelength = 0.000532_f32;
         // Generate a ray fan with diameter equal to the maximum diameter of the system
-        let rays = ray_tracing::rays::Ray::fan(3, max_diam / 2.0, PI, first_surf_z, 0.0);
+        let rays = ray_tracing::rays::Ray::fan(3, max_diam / 2.0, PI / 2.0, first_surf_z, 0.0);
 
         let results = ray_tracing::ray_trace(&self.surfaces, rays, wavelength);
 

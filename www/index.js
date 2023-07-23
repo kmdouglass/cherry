@@ -68,27 +68,24 @@ function findScaleFactor(surfaces, canvasWidth, canvasHeight, fillFactor = 0.9) 
 }
 
 /*
-    * Transforms a system of surfaces into the canvas coordinate system.
-    * surfaces: an array of surface objects
-    * canvasWidth: the width of the canvas
-    * canvasHeight: the height of the canvas
+    * Transforms a system of elements into the canvas coordinate system.
+    * surfaces: an array of elements (surfaces or rays)
+    * comSamples: the center of mass of the system in system coordinates
+    * canvasCenterCoords: the center of the canvas in x, y canvas coordinates
     * scaleFactor: the factor by which to scale the surfaces
-    * returns: an array of transformed surface objects
+    * returns: an array of transformed elements
 */
-function toCanvasCoordinates(surfaces, canvasWidth, canvasHeight, scaleFactor = 6) {
-    let comSamples = centerOfMass(surfaces);  // system x, y, z coordinates
-    let comCanvas = [canvasWidth / 2, canvasHeight / 2];  // canvas x, y coordinates
+function toCanvasCoordinates(elements, comSamples, canvasCenterCoords, scaleFactor = 6) {
     let transformedSurfaces = [];
-
-    for (let surface of surfaces) {
+    for (let surface of elements) {
         let transformedSamples = [];
         for (let sample of surface.samples) {
             // Transpose the y and z coordinates because the canvas y-axis points down.
             // Take the negative of the y-coordinate because it points down the screen.
             // Shift the center of mass of the samples to that of the canvas.
             transformedSamples.push([
-                comCanvas[0] + scaleFactor * (sample[2] - comSamples[2]),
-                comCanvas[1] - scaleFactor * (sample[1] - comSamples[1])
+                canvasCenterCoords[0] + scaleFactor * (sample[2] - comSamples[2]),
+                canvasCenterCoords[1] - scaleFactor * (sample[1] - comSamples[1])
             ]);
         }
         transformedSurfaces.push({"samples": transformedSamples});
@@ -96,6 +93,38 @@ function toCanvasCoordinates(surfaces, canvasWidth, canvasHeight, scaleFactor = 
     }
 
     return transformedSurfaces;
+}
+
+/*
+    * Converts rays trace results to a series of points (ray paths) to draw on the canvas.
+    * rays: an array of an array of ray objects at each surface
+    * returns: an array of an array of points to draw on the canvas
+*/
+function resultsToRayPaths(rayTraceResults) {
+    let numRays = rayTraceResults[0].length;
+    let rayPaths = Array.from(Array(numRays), () => {return {"samples": []};});
+    for (let surface of rayTraceResults) {
+        for (let ray_id = 0; ray_id < numRays; ray_id++) {
+            let ray = surface[ray_id];
+            rayPaths[ray_id].samples.push(ray.pos);
+        }
+    }
+
+    return rayPaths;
+}
+
+function draw(elements, ctx, color, lineWidth) {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = lineWidth;
+    ctx.beginPath();
+    for (let element of elements) {
+        ctx.moveTo(element.samples[0][0], element.samples[0][1]);
+        for (let sample of element.samples) {
+            ctx.lineTo(sample[0], sample[1]);
+        }
+    }
+
+    ctx.stroke();
 }
 
 /***************************************************************************************************
@@ -106,8 +135,10 @@ let system = new SystemModel();
 
 const btn = document.querySelector("button");
 btn.addEventListener("click", function () {
-    alert(system.numSurfaces());
-    alert("Ray tracing is not yet implemented.");
+    let results = system.rayTrace();
+    let rayPaths = resultsToRayPaths(results);
+    let transformedRayPaths = toCanvasCoordinates(rayPaths, comSamples, canvasCenterCoords, scaleFactor);
+    draw(transformedRayPaths, ctx, "red", 1.0);
 });
 
 canvas.width = window.innerWidth * 0.8;
@@ -139,16 +170,8 @@ for (let i = 0; i < system.numSurfaces(); i++) {
 }
 
 let scaleFactor = findScaleFactor(surfaces, canvas.width, canvas.height, 0.5);
-let canvasSurfs = toCanvasCoordinates(surfaces, canvas.width, canvas.height, scaleFactor);
+let comSamples = centerOfMass(surfaces);  // system x, y, z coordinates
+let canvasCenterCoords = [canvas.width / 2, canvas.height / 2];  // canvas x, y coordinates
+let canvasSurfs = toCanvasCoordinates(surfaces, comSamples, canvasCenterCoords, scaleFactor);
 
-ctx.beginPath();
-for (let surface of canvasSurfs) {
-    ctx.moveTo(surface.samples[0][0], surface.samples[0][1]);
-    for (let sample of surface.samples) {
-        ctx.lineTo(sample[0], sample[1]);
-    }
-}
-ctx.stroke();
-
-let rays = system.rayTrace()
-console.log(rays);
+draw(canvasSurfs, ctx, "black", 1.0);
