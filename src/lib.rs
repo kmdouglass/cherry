@@ -49,7 +49,7 @@ impl SystemModel {
         let num_rays = 5;
         let rays = ray_tracing::rays::Ray::fan(num_rays, max_diam / 2.0, PI / 2.0, first_surf_z, 0.0);
 
-        let results = ray_tracing::ray_trace(&self.surfaces, rays, wavelength);
+        let results = ray_tracing::trace::trace(&self.surfaces, rays, wavelength);
 
         // Loop over results and remove rays that did not result in an Error
         let sanitized: Vec<Vec<ray_tracing::rays::Ray>> = results
@@ -156,7 +156,7 @@ mod test {
         ];
 
         // Trace the rays; skip the object plane
-        let results = ray_tracing::ray_trace(&surfaces[1..], rays, wavelength);
+        let results = ray_tracing::trace::trace(&surfaces[1..], rays, wavelength);
         println!("{:?}", results);
     }
 }
