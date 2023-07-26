@@ -4,7 +4,7 @@ use std::f32::consts::PI;
 use wasm_bindgen::prelude::*;
 
 use crate::math::vec3::Vec3;
-use crate::surfaces::Surface;
+use crate::ray_tracing::surfaces::Surface;
 use crate::SystemModel;
 
 /// Returns a 3D bounding box of a set of points in the global coordinate system.

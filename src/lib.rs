@@ -5,8 +5,10 @@ use wasm_bindgen::prelude::*;
 mod math;
 mod ray_tracing;
 mod rendering;
-mod surfaces;
 
+use crate::ray_tracing::surfaces;
+
+// Old interface
 #[wasm_bindgen]
 #[derive(Debug)]
 pub struct SystemModel {

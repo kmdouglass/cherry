@@ -1,8 +1,8 @@
 pub mod rays;
+pub mod surfaces;
 
 use anyhow::Result;
 
-use crate::surfaces;
 use rays::Ray;
 
 /// Trace a set of rays through a system using the technique of Spencer and Murty, JOSA (1962).

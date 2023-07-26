@@ -1,8 +1,8 @@
 use anyhow::{bail, Result};
 use serde::{Deserialize, Serialize};
 
+use super::surfaces;
 use crate::math::vec3::Vec3;
-use crate::surfaces;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Ray {
