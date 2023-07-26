@@ -1,16 +1,29 @@
-mod conics;
-mod flats;
-mod object_or_image;
+pub mod surface_types;
 
 use crate::math::mat3::Mat3;
 use crate::math::vec3::Vec3;
 
+use surface_types::{ObjectOrImagePlane, RefractingCircularConic, RefractingCircularFlat};
+
+/// A gap between two surfaces in an optical system.
+#[derive(Debug)]
+pub struct Gap {
+    n: f32,
+    thickness: f32,
+}
+
+impl Gap {
+    pub fn new(n: f32, thickness: f32) -> Self {
+        Self { n, thickness }
+    }
+}
+
 /// A surface in an optical system that can interact with light rays.
 #[derive(Debug)]
 pub enum Surface {
-    ObjectOrImagePlane(object_or_image::ObjectOrImagePlane),
-    RefractingCircularConic(conics::RefractingCircularConic),
-    RefractingCircularFlat(flats::RefractingCircularFlat),
+    ObjectOrImagePlane(ObjectOrImagePlane),
+    RefractingCircularConic(RefractingCircularConic),
+    RefractingCircularFlat(RefractingCircularFlat),
 }
 
 impl Surface {
@@ -19,14 +32,14 @@ impl Surface {
         let dir = Vec3::new(0.0, 0.0, 0.0);
         let n = 1.0;
 
-        Self::ObjectOrImagePlane(object_or_image::ObjectOrImagePlane::new(pos, dir, diam, n))
+        Self::ObjectOrImagePlane(ObjectOrImagePlane::new(pos, dir, diam, n))
     }
 
     pub fn new_refr_circ_conic(axial_pos: f32, diam: f32, n: f32, roc: f32, k: f32) -> Self {
         let pos = Vec3::new(0.0, 0.0, axial_pos);
         let dir = Vec3::new(0.0, 0.0, 0.0);
 
-        Self::RefractingCircularConic(conics::RefractingCircularConic::new(
+        Self::RefractingCircularConic(RefractingCircularConic::new(
             pos, dir, diam, n, roc, k,
         ))
     }
@@ -35,7 +48,7 @@ impl Surface {
         let pos = Vec3::new(0.0, 0.0, axial_pos);
         let dir = Vec3::new(0.0, 0.0, 0.0);
 
-        Self::RefractingCircularFlat(flats::RefractingCircularFlat::new(pos, dir, diam, n))
+        Self::RefractingCircularFlat(RefractingCircularFlat::new(pos, dir, diam, n))
     }
 
     /// Compute the surface sag and surface normals at a given position.

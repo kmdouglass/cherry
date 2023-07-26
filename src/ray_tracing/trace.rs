@@ -1,7 +1,7 @@
 use anyhow::Result;
 
 use super::rays::Ray;
-use super::surfaces;
+use super::sequential_model;
 
 /// Trace a set of rays through a system using the technique of Spencer and Murty, JOSA (1962).
 ///
@@ -16,7 +16,7 @@ use super::surfaces;
 /// Index 0 of the results corresponds to the rays' initial states. By convention, this is their
 /// locations and directions at the axial position z = 0.
 pub fn trace(
-    surfaces: &[surfaces::Surface],
+    surfaces: &[sequential_model::Surface],
     mut rays: Vec<Ray>,
     wavelength: f32,
 ) -> Vec<Vec<Result<Ray>>> {
