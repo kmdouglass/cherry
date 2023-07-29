@@ -2,7 +2,7 @@ use crate::math::mat3::Mat3;
 use crate::math::vec3::Vec3;
 
 /// A refracting flat circular surface.
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct RefractingCircularFlat {
     // Position of the center of the lens relative to the global reference frame
     pub pos: Vec3,

@@ -21,7 +21,7 @@ impl SystemModel {
             INFINITY,
         );
         let img_plane = Surface::new_obj_or_img_plane(
-            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
             Vec3::new(0.0, 0.0, 1.0),
             INFINITY,
         );
@@ -36,7 +36,7 @@ impl SystemModel {
 }
 
 /// A surface in an optical system that can interact with light rays.
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum Surface {
     ObjectOrImagePlane(ObjectOrImagePlane),
     RefractingCircularConic(RefractingCircularConic),

@@ -12,10 +12,17 @@ struct SequentialModel<'a> {
 impl<'a> SequentialModel<'a> {
     fn new(system_model: &'a SystemModel) -> SequentialModel<'a> {
         // Iterate over SurfacePairs and convert to SeqSurfaces and Gaps
-        // TODO See solution in ChatGPT
-
         let mut gaps = Vec::new();
         let mut surfaces = Vec::new();
+        for pair in SurfacePairIterator::new(&system_model.surfaces) {
+            let (surf, gap) = pair.into();
+            surfaces.push(surf);
+            gaps.push(gap);
+        }
+
+        // Add the image plane
+        surfaces.push(system_model.surfaces.last().unwrap().into());
+
         Self {
             system_model,
             gaps,
@@ -38,6 +45,33 @@ impl<'a> SequentialModel<'a> {
         Ok(())
     }
 
+}
+
+impl From<&Surface> for SeqSurface {
+    fn from(value: &Surface) -> Self {
+        match value {
+            Surface::ObjectOrImagePlane(surf) => {
+                let surf = SeqSurface::ObjectOrImagePlane { diam: surf.diam };
+                surf
+            }
+            Surface::RefractingCircularConic(surf) => {
+                let surf = SeqSurface::RefractingCircularConic {
+                    diam: surf.diam,
+                    n: surf.n,
+                    roc: surf.roc,
+                    k: surf.k,
+                };
+                surf
+            }
+            Surface::RefractingCircularFlat(surf) => {
+                let surf = SeqSurface::RefractingCircularFlat {
+                    diam: surf.diam,
+                    n: surf.n,
+                };
+                surf
+            }
+        }
+    }
 }
 
 struct SurfacePair (Surface, Surface );
@@ -70,6 +104,36 @@ impl From<SurfacePair> for (SeqSurface, Gap) {
                 (surf, gap)
             }
         }
+    }
+}
+
+struct SurfacePairIterator<'a> {
+    surfaces: &'a[Surface],
+    idx: usize,
+}
+
+impl<'a> SurfacePairIterator<'a> {
+    fn new(surfaces: &'a[Surface]) -> Self {
+        Self {
+            surfaces: surfaces,
+            idx: 0,
+        }
+    }
+}
+
+impl<'a> Iterator for SurfacePairIterator<'a> {
+    type Item = SurfacePair;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.idx > self.surfaces.len() - 2 {
+            return None;
+        }
+
+        let surf1 = self.surfaces[self.idx];
+        let surf2 = self.surfaces[self.idx + 1];
+        self.idx += 1;
+
+        Some(SurfacePair(surf1, surf2))
     }
 }
 
