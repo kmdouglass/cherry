@@ -1,9 +1,7 @@
 use anyhow::{bail, Result};
 
-use crate::math::mat3::Mat3;
-use crate::math::vec3::Vec3;
+use crate::ray_tracing::{Surface, SystemModel};
 
-use crate::ray_tracing::SystemModel;
 
 struct SequentialModel<'a> {
     system_model: &'a SystemModel,
@@ -13,6 +11,9 @@ struct SequentialModel<'a> {
 
 impl<'a> SequentialModel<'a> {
     fn new(system_model: &'a SystemModel) -> SequentialModel<'a> {
+        // Iterate over SurfacePairs and convert to SeqSurfaces and Gaps
+        // TODO See solution in ChatGPT
+
         let mut gaps = Vec::new();
         let mut surfaces = Vec::new();
         Self {
@@ -35,6 +36,40 @@ impl<'a> SequentialModel<'a> {
         self.gaps.insert(idx, gap);
 
         Ok(())
+    }
+
+}
+
+struct SurfacePair (Surface, Surface );
+
+impl From<SurfacePair> for (SeqSurface, Gap) {
+    fn from(value: SurfacePair) -> Self {
+        let thickness = value.1.pos().z() - value.0.pos().z();
+        match value.0 {
+            Surface::ObjectOrImagePlane(surf) => {
+                let gap = Gap::new(surf.n, thickness);
+                let surf = SeqSurface::ObjectOrImagePlane { diam: surf.diam };
+                (surf, gap)
+            }
+            Surface::RefractingCircularConic(surf) => {
+                let gap = Gap::new(surf.n, thickness);
+                let surf = SeqSurface::RefractingCircularConic {
+                    diam: surf.diam,
+                    n: surf.n,
+                    roc: surf.roc,
+                    k: surf.k,
+                };
+                (surf, gap)
+            }
+            Surface::RefractingCircularFlat(surf) => {
+                let gap = Gap::new(surf.n, thickness);
+                let surf = SeqSurface::RefractingCircularFlat {
+                    diam: surf.diam,
+                    n: surf.n,
+                };
+                (surf, gap)
+            }
+        }
     }
 }
 

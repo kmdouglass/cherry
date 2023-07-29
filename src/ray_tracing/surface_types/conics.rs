@@ -20,10 +20,10 @@ pub struct RefractingCircularConic {
     pub n: f32,
 
     // Radius of curvature
-    roc: f32,
+    pub roc: f32,
 
     // Conic constant
-    k: f32,
+    pub k: f32,
 }
 
 impl RefractingCircularConic {

@@ -17,12 +17,12 @@ impl SystemModel {
     fn new() -> Self {
         let obj_plane = Surface::new_obj_or_img_plane(
             Vec3::new(0.0, 0.0, 0.0),
-            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
             INFINITY,
         );
         let img_plane = Surface::new_obj_or_img_plane(
             Vec3::new(0.0, 0.0, 0.0),
-            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
             INFINITY,
         );
 
