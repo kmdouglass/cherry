@@ -5,7 +5,7 @@ mod ray_tracing;
 mod rendering;
 
 use ray_tracing::SystemModel;
-use ray_tracing::sequential_model::SequentialModel;
+use ray_tracing::sequential_model::{SequentialModel, SeqSurface, Gap};
 
 #[derive(Debug)]
 pub enum Mode {
@@ -29,5 +29,17 @@ impl WasmSystemModel {
         let mode = Mode::Sequential(sequential_model);
 
         WasmSystemModel { system_model, mode }
+    }
+
+    pub fn insertSurfaceAndGap(&mut self, idx: usize, surface: JsValue, gap: JsValue) -> Result<(), JsError> {
+        match self.mode {
+            Mode::Sequential(ref mut model) => {
+                let surface: SeqSurface = serde_wasm_bindgen::from_value(surface)?;
+                let gap: Gap = serde_wasm_bindgen::from_value(gap)?;
+                model.insert_surface_and_gap(idx, surface, gap).map_err(|e| JsError::new(&e.to_string()))?;
+                Ok(())
+            }
+            _ => { Err(JsError::new("Cannot add surface to when the model is not in Sequential mode.")) }
+        }
     }
 }

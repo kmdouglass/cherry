@@ -1,4 +1,5 @@
 use anyhow::{bail, Result};
+use serde::{Deserialize, Serialize};
 
 use crate::ray_tracing::{Surface, SystemModel};
 
@@ -28,7 +29,7 @@ impl SequentialModel {
         }
     }
 
-    pub fn add_surface_and_gap(&mut self, idx: usize, surface: SeqSurface, gap: Gap) -> Result<()> {
+    pub fn insert_surface_and_gap(&mut self, idx: usize, surface: SeqSurface, gap: Gap) -> Result<()> {
         if idx == 0 {
             bail!("Cannot add surface before the object plane.");
         }
@@ -51,7 +52,7 @@ impl From<&SystemModel> for SequentialModel {
 }
 
 /// A gap between two surfaces in an optical system.
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Gap {
     n: f32,
     thickness: f32,
@@ -64,7 +65,7 @@ impl Gap {
 }
 
 /// A surface in a sequential model of an optical system.
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub enum SeqSurface {
     ObjectOrImagePlane { diam: f32 },
     RefractingCircularConic { diam: f32, n: f32, roc: f32, k: f32 },
