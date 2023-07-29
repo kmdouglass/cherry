@@ -4,16 +4,29 @@ mod math;
 mod ray_tracing;
 mod rendering;
 
-// Old interface
+use ray_tracing::SystemModel;
+
 #[wasm_bindgen]
 #[derive(Debug)]
-pub struct SystemModel {}
+pub enum Mode {
+    Sequential,
+}
+
+#[wasm_bindgen]
+#[derive(Debug)]
+pub struct WasmSystemModel {
+    system_model: SystemModel,
+    mode: Mode,
+}
 
 #[wasm_bindgen]
 #[allow(non_snake_case)]
-impl SystemModel {
+impl WasmSystemModel {
     #[wasm_bindgen(constructor)]
-    pub fn new() -> SystemModel {
-        SystemModel {}
+    pub fn new() -> WasmSystemModel {
+        let system_model = SystemModel::new();
+        let mode = Mode::Sequential;
+
+        WasmSystemModel { system_model, mode }
     }
 }

@@ -9,12 +9,13 @@ use crate::math::mat3::Mat3;
 use crate::math::vec3::Vec3;
 use surface_types::{ObjectOrImagePlane, RefractingCircularConic, RefractingCircularFlat};
 
-struct SystemModel {
+#[derive(Debug)]
+pub struct SystemModel {
     surfaces: Vec<Surface>,
 }
 
 impl SystemModel {
-    fn new() -> Self {
+    pub fn new() -> Self {
         let obj_plane = Surface::new_obj_or_img_plane(
             Vec3::new(0.0, 0.0, 0.0),
             Vec3::new(0.0, 0.0, 1.0),

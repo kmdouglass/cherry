@@ -2,8 +2,7 @@ use anyhow::{bail, Result};
 
 use crate::ray_tracing::{Surface, SystemModel};
 
-
-struct SequentialModel<'a> {
+pub struct SequentialModel<'a> {
     system_model: &'a SystemModel,
     gaps: Vec<Gap>,
     surfaces: Vec<SeqSurface>,
@@ -44,7 +43,6 @@ impl<'a> SequentialModel<'a> {
 
         Ok(())
     }
-
 }
 
 impl From<&Surface> for SeqSurface {
@@ -74,7 +72,7 @@ impl From<&Surface> for SeqSurface {
     }
 }
 
-struct SurfacePair (Surface, Surface );
+struct SurfacePair(Surface, Surface);
 
 impl From<SurfacePair> for (SeqSurface, Gap) {
     fn from(value: SurfacePair) -> Self {
@@ -108,12 +106,12 @@ impl From<SurfacePair> for (SeqSurface, Gap) {
 }
 
 struct SurfacePairIterator<'a> {
-    surfaces: &'a[Surface],
+    surfaces: &'a [Surface],
     idx: usize,
 }
 
 impl<'a> SurfacePairIterator<'a> {
-    fn new(surfaces: &'a[Surface]) -> Self {
+    fn new(surfaces: &'a [Surface]) -> Self {
         Self {
             surfaces: surfaces,
             idx: 0,
