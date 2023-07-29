@@ -2,14 +2,14 @@ use anyhow::{bail, Result};
 
 use crate::ray_tracing::{Surface, SystemModel};
 
-pub struct SequentialModel<'a> {
-    system_model: &'a SystemModel,
+#[derive(Debug)]
+pub struct SequentialModel {
     gaps: Vec<Gap>,
     surfaces: Vec<SeqSurface>,
 }
 
-impl<'a> SequentialModel<'a> {
-    fn new(system_model: &'a SystemModel) -> SequentialModel<'a> {
+impl SequentialModel {
+    pub fn new(system_model: &SystemModel) -> SequentialModel {
         // Iterate over SurfacePairs and convert to SeqSurfaces and Gaps
         let mut gaps = Vec::new();
         let mut surfaces = Vec::new();
@@ -23,13 +23,12 @@ impl<'a> SequentialModel<'a> {
         surfaces.push(system_model.surfaces.last().unwrap().into());
 
         Self {
-            system_model,
             gaps,
             surfaces,
         }
     }
 
-    fn add_surface_and_gap(&mut self, idx: usize, surface: SeqSurface, gap: Gap) -> Result<()> {
+    pub fn add_surface_and_gap(&mut self, idx: usize, surface: SeqSurface, gap: Gap) -> Result<()> {
         if idx == 0 {
             bail!("Cannot add surface before the object plane.");
         }
@@ -43,6 +42,33 @@ impl<'a> SequentialModel<'a> {
 
         Ok(())
     }
+}
+
+impl From<&SystemModel> for SequentialModel {
+    fn from(value: &SystemModel) -> Self {
+        Self::new(value)
+    }
+}
+
+/// A gap between two surfaces in an optical system.
+#[derive(Debug)]
+pub struct Gap {
+    n: f32,
+    thickness: f32,
+}
+
+impl Gap {
+    pub fn new(n: f32, thickness: f32) -> Self {
+        Self { n, thickness }
+    }
+}
+
+/// A surface in a sequential model of an optical system.
+#[derive(Debug)]
+pub enum SeqSurface {
+    ObjectOrImagePlane { diam: f32 },
+    RefractingCircularConic { diam: f32, n: f32, roc: f32, k: f32 },
+    RefractingCircularFlat { diam: f32, n: f32 },
 }
 
 impl From<&Surface> for SeqSurface {
@@ -133,25 +159,4 @@ impl<'a> Iterator for SurfacePairIterator<'a> {
 
         Some(SurfacePair(surf1, surf2))
     }
-}
-
-/// A gap between two surfaces in an optical system.
-#[derive(Debug)]
-pub struct Gap {
-    n: f32,
-    thickness: f32,
-}
-
-impl Gap {
-    pub fn new(n: f32, thickness: f32) -> Self {
-        Self { n, thickness }
-    }
-}
-
-/// A surface in a sequential model of an optical system.
-#[derive(Debug)]
-pub enum SeqSurface {
-    ObjectOrImagePlane { diam: f32 },
-    RefractingCircularConic { diam: f32, n: f32, roc: f32, k: f32 },
-    RefractingCircularFlat { diam: f32, n: f32 },
 }

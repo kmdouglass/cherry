@@ -5,11 +5,11 @@ mod ray_tracing;
 mod rendering;
 
 use ray_tracing::SystemModel;
+use ray_tracing::sequential_model::SequentialModel;
 
-#[wasm_bindgen]
 #[derive(Debug)]
 pub enum Mode {
-    Sequential,
+    Sequential(SequentialModel),
 }
 
 #[wasm_bindgen]
@@ -25,7 +25,8 @@ impl WasmSystemModel {
     #[wasm_bindgen(constructor)]
     pub fn new() -> WasmSystemModel {
         let system_model = SystemModel::new();
-        let mode = Mode::Sequential;
+        let sequential_model: SequentialModel = SequentialModel::from(&system_model);
+        let mode = Mode::Sequential(sequential_model);
 
         WasmSystemModel { system_model, mode }
     }
