@@ -9,7 +9,7 @@ use std::f32::INFINITY;
 use crate::math::mat3::Mat3;
 use crate::math::vec3::Vec3;
 use anyhow::bail;
-use sequential_model::{Gap, SurfaceSpec, SequentialModel};
+use sequential_model::{Gap, SequentialModel, SurfaceSpec};
 use surface_types::{ObjectOrImagePlane, RefractingCircularConic, RefractingCircularFlat};
 
 /// A model of an optical system.
@@ -46,50 +46,15 @@ impl SystemModel {
     }
 }
 
-impl TryFrom<&SequentialModel> for SystemModel {
-    type Error = anyhow::Error;
-
-    fn try_from(value: &SequentialModel) -> Result<Self, Self::Error> {
+impl From<&SequentialModel> for SystemModel {
+    fn from(value: &SequentialModel) -> Self {
+        // Copy the surfaces from the sequential model.
         let mut surfaces = Vec::with_capacity(value.surfaces().len());
-
-        // Find the starting point along the axis of the optical system.
-        let t1 = value.gaps()[0].thickness();
-        let mut pos: Vec3 = Vec3::new(0.0, 0.0, -t1);
-        let dir: Vec3 = Vec3::new(0.0, 0.0, 1.0);
-
-        // By convention, the number of gaps is one less than the number of sequential surfaces, so
-        // the last surface  (the image plane) is ignored here.
-        for (surf, gap) in value.surfaces().iter().zip(value.gaps().iter()) {
-            let surf = match surf {
-                SurfaceSpec::ObjectOrImagePlane { diam } => {
-                    let surf = Surface::new_obj_or_img_plane(pos, dir, *diam);
-                    surf
-                }
-                SurfaceSpec::RefractingCircularConic { diam, n, roc, k } => {
-                    let surf = Surface::new_refr_circ_conic(pos, dir, *diam, *n, *roc, *k);
-                    surf
-                }
-                SurfaceSpec::RefractingCircularFlat { diam, n } => {
-                    let surf = Surface::new_refr_circ_flat(pos, dir, *diam, *n);
-                    surf
-                }
-            };
-
-            surfaces.push(surf);
-
-            // Advance to the position of the next surface.
-            pos += dir * gap.thickness();
+        for surf in value.surfaces() {
+            surfaces.push(surf.clone());
         }
 
-        // Add the image plane.
-        if let SurfaceSpec::ObjectOrImagePlane { diam } = value.surfaces().last().unwrap() {
-            let surf = Surface::new_obj_or_img_plane(pos, dir, *diam);
-            surfaces.push(surf);
-        } else {
-            bail!("The last surface in the sequential model must be an image plane.")
-        }
-
-        Ok(Self { surfaces })
+        Self { surfaces }
     }
 }
 
@@ -173,8 +138,8 @@ impl Surface {
     }
 }
 
-impl From<(SurfaceSpec, Gap)> for Surface {
-    fn from((surf, gap): (SurfaceSpec, Gap)) -> Self {
+impl From<(SurfaceSpec, &Gap)> for Surface {
+    fn from((surf, gap): (SurfaceSpec, &Gap)) -> Self {
         let pos = Vec3::new(0.0, 0.0, 0.0);
         let dir = Vec3::new(0.0, 0.0, 1.0);
 

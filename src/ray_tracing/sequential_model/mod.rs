@@ -22,12 +22,12 @@ impl SequentialModel {
         }
 
         // Add the image plane
-        surfaces.push(system_model.surfaces.last().unwrap().into());
+        surfaces.push(system_model.surfaces.last().unwrap().clone());
 
         Self { gaps, surfaces }
     }
 
-    pub fn surfaces(&self) -> &[SurfaceSpec] {
+    pub fn surfaces(&self) -> &[Surface] {
         &self.surfaces
     }
 
@@ -49,7 +49,7 @@ impl SequentialModel {
             bail!("Cannot add surface after the image plane.");
         }
 
-        let surface = Surface::from((surf_spec, gap));
+        let surface = Surface::from((surf_spec, &gap));
 
         self.surfaces.insert(idx, surface);
         self.gaps.insert(idx, gap);
@@ -75,6 +75,13 @@ impl SequentialModel {
 
         self.surfaces.remove(idx);
         self.gaps.remove(idx - 1);
+
+        // Loop over all surfaces after the removed one, adjusting their positions along the axis.
+        let mut dist = self.distance_to_surface(idx);
+        for i in idx..self.surfaces.len() {
+            self.surfaces[i].set_pos(Vec3::new(0.0, 0.0, dist));
+            dist += self.gaps[i].thickness();
+        }
 
         Ok(())
     }
@@ -152,32 +159,21 @@ impl From<&Surface> for SurfaceSpec {
 
 struct SurfacePair(Surface, Surface);
 
-impl From<SurfacePair> for (SurfaceSpec, Gap) {
+impl From<SurfacePair> for (Surface, Gap) {
     fn from(value: SurfacePair) -> Self {
         let thickness = value.1.pos().z() - value.0.pos().z();
         match value.0 {
             Surface::ObjectOrImagePlane(surf) => {
                 let gap = Gap::new(surf.n, thickness);
-                let surf = SurfaceSpec::ObjectOrImagePlane { diam: surf.diam };
-                (surf, gap)
+                (value.0, gap)
             }
             Surface::RefractingCircularConic(surf) => {
                 let gap = Gap::new(surf.n, thickness);
-                let surf = SurfaceSpec::RefractingCircularConic {
-                    diam: surf.diam,
-                    n: surf.n,
-                    roc: surf.roc,
-                    k: surf.k,
-                };
-                (surf, gap)
+                (value.0, gap)
             }
             Surface::RefractingCircularFlat(surf) => {
                 let gap = Gap::new(surf.n, thickness);
-                let surf = SurfaceSpec::RefractingCircularFlat {
-                    diam: surf.diam,
-                    n: surf.n,
-                };
-                (surf, gap)
+                (value.0, gap)
             }
         }
     }

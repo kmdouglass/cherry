@@ -4,7 +4,7 @@ mod math;
 mod ray_tracing;
 mod rendering;
 
-use ray_tracing::sequential_model::{Gap, SurfaceSpec, SequentialModel};
+use ray_tracing::sequential_model::{Gap, SequentialModel, SurfaceSpec};
 use ray_tracing::SystemModel;
 
 #[derive(Debug)]
