@@ -1,12 +1,13 @@
 use anyhow::{bail, Result};
 use serde::{Deserialize, Serialize};
 
+use crate::math::vec3::Vec3;
 use crate::ray_tracing::{Surface, SystemModel};
 
 #[derive(Debug)]
 pub struct SequentialModel {
     gaps: Vec<Gap>,
-    surfaces: Vec<SurfaceSpec>,
+    surfaces: Vec<Surface>,
 }
 
 impl SequentialModel {
@@ -37,7 +38,7 @@ impl SequentialModel {
     pub fn insert_surface_and_gap(
         &mut self,
         idx: usize,
-        surface: SurfaceSpec,
+        surf_spec: SurfaceSpec,
         gap: Gap,
     ) -> Result<()> {
         if idx == 0 {
@@ -48,8 +49,17 @@ impl SequentialModel {
             bail!("Cannot add surface after the image plane.");
         }
 
+        let surface = Surface::from((surf_spec, gap));
+
         self.surfaces.insert(idx, surface);
         self.gaps.insert(idx, gap);
+
+        // Loop over the new surface and all after it, adjusting their positions along the axis.
+        let mut dist = self.distance_to_surface(idx);
+        for i in idx..self.surfaces.len() {
+            self.surfaces[i].set_pos(Vec3::new(0.0, 0.0, dist));
+            dist += self.gaps[i].thickness();
+        }
 
         Ok(())
     }
@@ -67,6 +77,14 @@ impl SequentialModel {
         self.gaps.remove(idx - 1);
 
         Ok(())
+    }
+
+    fn distance_to_surface(&self, idx: usize) -> f32 {
+        let mut dist = 0.0;
+        for i in 0..idx {
+            dist += self.gaps[i].thickness();
+        }
+        dist
     }
 }
 

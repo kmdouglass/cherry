@@ -134,6 +134,14 @@ impl Surface {
         }
     }
 
+    pub fn set_pos(&mut self, pos: Vec3) {
+        match self {
+            Self::ObjectOrImagePlane(surf) => surf.pos = pos,
+            Self::RefractingCircularConic(surf) => surf.pos = pos,
+            Self::RefractingCircularFlat(surf) => surf.pos = pos,
+        }
+    }
+
     /// Return the rotation matrix from the global to the surface's coordinate system.
     #[inline]
     pub fn rot_mat(&self) -> Mat3 {
