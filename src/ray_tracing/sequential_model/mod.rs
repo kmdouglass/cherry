@@ -55,16 +55,21 @@ impl SequentialModel {
         self.gaps.insert(idx, gap);
 
         // Loop over the new surface and all after it, adjusting their positions along the axis.
-        let mut dist = self.distance_to_surface(idx);
-        for i in idx..self.surfaces.len() {
+        let mut dist = self.surf_distance_from_origin(idx);
+        for i in idx..self.gaps.len() {
             self.surfaces[i].set_pos(Vec3::new(0.0, 0.0, dist));
             dist += self.gaps[i].thickness();
         }
+        self.surfaces
+            .last_mut()
+            .unwrap()
+            .set_pos(Vec3::new(0.0, 0.0, dist));
 
         Ok(())
     }
 
     pub fn remove_surface_and_gap(&mut self, idx: usize) -> Result<()> {
+        // TODO Test this and refactor until it works.
         if idx == 0 {
             bail!("Cannot remove the object plane.");
         }
@@ -77,7 +82,7 @@ impl SequentialModel {
         self.gaps.remove(idx - 1);
 
         // Loop over all surfaces after the removed one, adjusting their positions along the axis.
-        let mut dist = self.distance_to_surface(idx);
+        let mut dist = self.surf_distance_from_origin(idx);
         for i in idx..self.surfaces.len() {
             self.surfaces[i].set_pos(Vec3::new(0.0, 0.0, dist));
             dist += self.gaps[i].thickness();
@@ -86,9 +91,14 @@ impl SequentialModel {
         Ok(())
     }
 
-    fn distance_to_surface(&self, idx: usize) -> f32 {
+    fn surf_distance_from_origin(&self, idx: usize) -> f32 {
+        // By convention, the first non-object surface is at z=0.
+        if idx == 0 {
+            return self.gaps[0].thickness();
+        }
+
         let mut dist = 0.0;
-        for i in 0..idx {
+        for i in 1..idx {
             dist += self.gaps[i].thickness();
         }
         dist
@@ -206,5 +216,85 @@ impl<'a> Iterator for SurfacePairIterator<'a> {
         self.idx += 1;
 
         Some(SurfacePair(surf1, surf2))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_insert_surface_and_gap() {
+        let system_model = SystemModel::new();
+        let mut model = SequentialModel::new(&system_model);
+
+        model
+            .insert_surface_and_gap(
+                1,
+                SurfaceSpec::RefractingCircularConic {
+                    diam: 25.0,
+                    n: 1.5,
+                    roc: 1.0,
+                    k: 0.0,
+                },
+                Gap::new(1.0, 1.0),
+            )
+            .unwrap();
+        model
+            .insert_surface_and_gap(
+                2,
+                SurfaceSpec::RefractingCircularConic {
+                    diam: 25.0,
+                    n: 1.5,
+                    roc: -1.0,
+                    k: 0.0,
+                },
+                Gap::new(1.0, 10.0),
+            )
+            .unwrap();
+
+        // 2 surfaces + object plane + image plane
+        assert_eq!(model.surfaces.len(), 4);
+        assert_eq!(model.gaps.len(), 3);
+        assert_eq!(model.surfaces[0].pos(), Vec3::new(0.0, 0.0, -1.0));
+        assert_eq!(model.surfaces[1].pos(), Vec3::new(0.0, 0.0, 0.0));
+        assert_eq!(model.surfaces[2].pos(), Vec3::new(0.0, 0.0, 1.0));
+        assert_eq!(model.surfaces[3].pos(), Vec3::new(0.0, 0.0, 11.0));
+    }
+
+    #[test]
+    fn test_surf_distance_from_origin() {
+        let system_model = SystemModel::new();
+        let mut model = SequentialModel::new(&system_model);
+
+        model
+            .insert_surface_and_gap(
+                1,
+                SurfaceSpec::RefractingCircularConic {
+                    diam: 25.0,
+                    n: 1.5,
+                    roc: 1.0,
+                    k: 0.0,
+                },
+                Gap::new(1.0, 1.0),
+            )
+            .unwrap();
+        model
+            .insert_surface_and_gap(
+                2,
+                SurfaceSpec::RefractingCircularConic {
+                    diam: 25.0,
+                    n: 1.5,
+                    roc: -1.0,
+                    k: 0.0,
+                },
+                Gap::new(1.0, 10.0),
+            )
+            .unwrap();
+
+        assert_eq!(model.surf_distance_from_origin(0), 1.0);
+        assert_eq!(model.surf_distance_from_origin(1), 0.0);
+        assert_eq!(model.surf_distance_from_origin(2), 1.0);
+        assert_eq!(model.surf_distance_from_origin(3), 11.0);
     }
 }
