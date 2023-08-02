@@ -88,6 +88,10 @@ impl Gap {
         Self { n, thickness }
     }
 
+    pub fn n(&self) -> f32 {
+        self.n
+    }
+
     pub fn thickness(&self) -> f32 {
         self.thickness
     }

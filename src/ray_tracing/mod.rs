@@ -9,7 +9,7 @@ use std::f32::INFINITY;
 use crate::math::mat3::Mat3;
 use crate::math::vec3::Vec3;
 use anyhow::bail;
-use sequential_model::{SeqSurface, SequentialModel};
+use sequential_model::{Gap, SeqSurface, SequentialModel};
 use surface_types::{ObjectOrImagePlane, RefractingCircularConic, RefractingCircularFlat};
 
 /// A model of an optical system.
@@ -161,6 +161,28 @@ impl Surface {
             Self::ObjectOrImagePlane(surf) => surf.n,
             Self::RefractingCircularConic(surf) => surf.n,
             Self::RefractingCircularFlat(surf) => surf.n,
+        }
+    }
+}
+
+impl From<(SeqSurface, Gap)> for Surface {
+    fn from((surf, gap): (SeqSurface, Gap)) -> Self {
+        let pos = Vec3::new(0.0, 0.0, 0.0);
+        let dir = Vec3::new(0.0, 0.0, 1.0);
+
+        match surf {
+            SeqSurface::ObjectOrImagePlane { diam } => {
+                let surf = Surface::new_obj_or_img_plane(pos, dir, diam);
+                surf
+            }
+            SeqSurface::RefractingCircularConic { diam, n, roc, k } => {
+                let surf = Surface::new_refr_circ_conic(pos, dir, diam, gap.n(), roc, k);
+                surf
+            }
+            SeqSurface::RefractingCircularFlat { diam, n } => {
+                let surf = Surface::new_refr_circ_flat(pos, dir, diam, gap.n());
+                surf
+            }
         }
     }
 }
