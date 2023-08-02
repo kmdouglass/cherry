@@ -1,8 +1,8 @@
 use anyhow::{bail, Result};
 use serde::{Deserialize, Serialize};
 
+use super::Surface;
 use crate::math::vec3::Vec3;
-use crate::surfaces;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Ray {
@@ -26,12 +26,7 @@ impl Ray {
     /// Finds the intersection point of a ray with a surface and the surface normal at that point.
     ///
     /// If no intersection is found, then this function returns an error.
-    pub fn intersect(
-        &self,
-        surf: &surfaces::Surface,
-        tol: f32,
-        max_iter: usize,
-    ) -> Result<(Vec3, Vec3)> {
+    pub fn intersect(&self, surf: &Surface, tol: f32, max_iter: usize) -> Result<(Vec3, Vec3)> {
         // Initial guess for the intersection point
         let mut s_1 = 0.0;
 
@@ -72,13 +67,12 @@ impl Ray {
     //
     // This function accepts the surface normal at the intersection point as an argument to avoid
     // recomputing it.
-    pub fn redirect(&mut self, surf_1: &surfaces::Surface, surf_2: &surfaces::Surface, norm: Vec3) {
+    pub fn redirect(&mut self, surf_1: &Surface, surf_2: &Surface, norm: Vec3) {
         // Do not match on the wildcard "_" to ensure that this function is updated when new
         // surfaces are added
         match surf_2 {
             // Refracting surfaces
-            surfaces::Surface::RefractingCircularConic(_)
-            | surfaces::Surface::RefractingCircularFlat(_) => {
+            Surface::RefractingCircularConic(_) | Surface::RefractingCircularFlat(_) => {
                 let mu = surf_1.n() / surf_2.n();
                 let cos_theta_1 = self.dir.dot(norm);
                 let term_1 = norm * (1.0 - mu * mu * (1.0 - cos_theta_1 * cos_theta_1)).sqrt();
@@ -87,7 +81,7 @@ impl Ray {
                 self.dir = term_1 + term_2;
             }
             // No-op surfaces
-            surfaces::Surface::ObjectOrImagePlane(_) => {}
+            Surface::ObjectOrImagePlane(_) => {}
         }
     }
 
@@ -97,13 +91,13 @@ impl Ray {
     }
 
     /// Transform a ray into the local coordinate system of a surface from the global system.
-    pub fn transform(&mut self, surf: &surfaces::Surface) {
+    pub fn transform(&mut self, surf: &Surface) {
         self.pos = surf.rot_mat() * (self.pos - surf.pos());
         self.dir = surf.rot_mat() * self.dir;
     }
 
     /// Transform a ray from the local coordinate system of a surface into the global system.
-    pub fn i_transform(&mut self, surf: &surfaces::Surface) {
+    pub fn i_transform(&mut self, surf: &Surface) {
         self.pos = surf.rot_mat().transpose() * (self.pos + surf.pos());
         self.dir = surf.rot_mat().transpose() * self.dir;
     }
@@ -144,8 +138,7 @@ impl Ray {
             .zip(dir.iter())
             .map(|(p, d)| Ray::new(*p, *d).unwrap())
             .collect()
-        }
-        
+    }
 }
 
 #[cfg(test)]
@@ -184,7 +177,12 @@ mod test {
     fn test_ray_intersection() {
         use super::*;
         let ray = Ray::new(Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0)).unwrap();
-        let surf = surfaces::Surface::new_refr_circ_flat(0.0, 4.0, 1.5);
+        let surf = Surface::new_refr_circ_flat(
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            4.0,
+            1.5,
+        );
         let tol = 1e-6;
         let max_iter = 1000;
 
@@ -204,7 +202,14 @@ mod test {
         let ray = Ray::new(Vec3::new(0.0, 0.0, -1.0), Vec3::new(0.0, l, m)).unwrap();
 
         // Surface has radius of curvature -1.0 and conic constant 0.0, i.e. a circle
-        let surf = surfaces::Surface::new_refr_circ_conic(0.0, 2.0, 1.5, -1.0, 0.0);
+        let surf = Surface::new_refr_circ_conic(
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            2.0,
+            1.5,
+            -1.0,
+            0.0,
+        );
         let tol = 1e-6;
         let max_iter = 1000;
 

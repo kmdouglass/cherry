@@ -1,33 +1,33 @@
 use crate::math::mat3::Mat3;
 use crate::math::vec3::Vec3;
 
-/// Represents the object or image plane in an optical system.
-#[derive(Debug)]
-pub struct ObjectOrImagePlane {
-    // Position of the center of the object plane
+/// A refracting flat circular surface.
+#[derive(Debug, Clone, Copy)]
+pub struct RefractingCircularFlat {
+    // Position of the center of the lens relative to the global reference frame
     pub pos: Vec3,
 
-    // Euler angles of the normal to the object plane
+    // Euler angles of the optics axis through the lens relative to the global reference frame
     pub dir: Vec3,
 
     // Rotation matrix from the global reference frame to the surface reference frame
     pub rot_mat: Mat3,
 
-    // Diameter of the object plane
+    // Diameter of the lens
     pub diam: f32,
 
     // Refractive index
     pub(crate) n: f32,
 }
 
-impl ObjectOrImagePlane {
+impl RefractingCircularFlat {
     pub fn new(pos: Vec3, dir: Vec3, diam: f32, n: f32) -> Self {
         let rot_mat = Mat3::from_euler_angles(dir.x(), dir.y(), dir.z());
         Self {
             pos,
             dir,
             rot_mat,
-            diam: diam,
+            diam,
             n,
         }
     }
