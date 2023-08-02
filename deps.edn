@@ -1,0 +1,22 @@
+{:paths ["src/main"]
+ :deps {shams/priority-queue {:mvn/version "0.1.2"}
+        org.clojure/clojure {:mvn/version "1.11.1"}
+        org.clojure/clojurescript {:mvn/version "1.11.51"}
+        org.clojure/core.async {:mvn/version "1.5.648"}
+        com.google.javascript/closure-compiler-unshaded {:mvn/version "v20220502"}
+        reagent/reagent {:mvn/version "1.1.0"}
+        thheller/shadow-cljs {:mvn/version "2.19.0"}}
+ :aliases {:test {:extra-paths ["test"]
+                  :extra-deps {io.github.cognitect-labs/test-runner
+                               {:git/url "https://github.com/cognitect-labs/test-runner.git"
+                                :sha "9e35c979860c75555adaff7600070c60004a0f44"}}
+                  :main-opts ["-m" "cognitect.test-runner"]
+                  :exec-fn cognitect.test-runner.api/test}
+
+           :kibit {:extra-deps {tvaughan/kibit-runner {:mvn/version "0.1.0"}}
+                   :main-opts ["-m" "kibit-runner.cmdline"]}
+
+           :eastwood {:main-opts ["-m" "eastwood.lint" {}]
+                      :extra-deps {jonase/eastwood {:mvn/version "RELEASE"}}}
+
+           :shadow-cljs {:main-opts ["-m" "shadow.cljs.devtools.cli"]}}}

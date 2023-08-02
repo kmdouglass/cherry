@@ -1,0 +1,26 @@
+{
+  "name": "simple-simulations",
+  "version": "1.0.0",
+  "description": "Simple system simulations in Clojure/ClojureScript.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wagdav/clojurescript-simulator-example.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/wagdav/clojurescript-simulator-example/issues"
+  },
+  "homepage": "https://github.com/wagdav/clojurescript-simulator-example#readme",
+  "dependencies": {
+    "buffer": "^6.0.3",
+    "create-react-class": "^15.7.0",
+    "process": "^0.11.10",
+    "react": "^18.2.0",
+    "react-dom": "^18.1.0"
+  }
+}
