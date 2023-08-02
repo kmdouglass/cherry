@@ -4,7 +4,7 @@ mod math;
 mod ray_tracing;
 mod rendering;
 
-use ray_tracing::sequential_model::{Gap, SeqSurface, SequentialModel};
+use ray_tracing::sequential_model::{Gap, SurfaceSpec, SequentialModel};
 use ray_tracing::SystemModel;
 
 #[derive(Debug)]
@@ -39,7 +39,7 @@ impl WasmSystemModel {
     ) -> Result<(), JsError> {
         match self.mode {
             Mode::Sequential(ref mut model) => {
-                let surface: SeqSurface = serde_wasm_bindgen::from_value(surface)?;
+                let surface: SurfaceSpec = serde_wasm_bindgen::from_value(surface)?;
                 let gap: Gap = serde_wasm_bindgen::from_value(gap)?;
                 model
                     .insert_surface_and_gap(idx, surface, gap)

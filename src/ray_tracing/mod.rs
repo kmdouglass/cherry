@@ -9,7 +9,7 @@ use std::f32::INFINITY;
 use crate::math::mat3::Mat3;
 use crate::math::vec3::Vec3;
 use anyhow::bail;
-use sequential_model::{Gap, SeqSurface, SequentialModel};
+use sequential_model::{Gap, SurfaceSpec, SequentialModel};
 use surface_types::{ObjectOrImagePlane, RefractingCircularConic, RefractingCircularFlat};
 
 /// A model of an optical system.
@@ -61,15 +61,15 @@ impl TryFrom<&SequentialModel> for SystemModel {
         // the last surface  (the image plane) is ignored here.
         for (surf, gap) in value.surfaces().iter().zip(value.gaps().iter()) {
             let surf = match surf {
-                SeqSurface::ObjectOrImagePlane { diam } => {
+                SurfaceSpec::ObjectOrImagePlane { diam } => {
                     let surf = Surface::new_obj_or_img_plane(pos, dir, *diam);
                     surf
                 }
-                SeqSurface::RefractingCircularConic { diam, n, roc, k } => {
+                SurfaceSpec::RefractingCircularConic { diam, n, roc, k } => {
                     let surf = Surface::new_refr_circ_conic(pos, dir, *diam, *n, *roc, *k);
                     surf
                 }
-                SeqSurface::RefractingCircularFlat { diam, n } => {
+                SurfaceSpec::RefractingCircularFlat { diam, n } => {
                     let surf = Surface::new_refr_circ_flat(pos, dir, *diam, *n);
                     surf
                 }
@@ -82,7 +82,7 @@ impl TryFrom<&SequentialModel> for SystemModel {
         }
 
         // Add the image plane.
-        if let SeqSurface::ObjectOrImagePlane { diam } = value.surfaces().last().unwrap() {
+        if let SurfaceSpec::ObjectOrImagePlane { diam } = value.surfaces().last().unwrap() {
             let surf = Surface::new_obj_or_img_plane(pos, dir, *diam);
             surfaces.push(surf);
         } else {
@@ -165,21 +165,21 @@ impl Surface {
     }
 }
 
-impl From<(SeqSurface, Gap)> for Surface {
-    fn from((surf, gap): (SeqSurface, Gap)) -> Self {
+impl From<(SurfaceSpec, Gap)> for Surface {
+    fn from((surf, gap): (SurfaceSpec, Gap)) -> Self {
         let pos = Vec3::new(0.0, 0.0, 0.0);
         let dir = Vec3::new(0.0, 0.0, 1.0);
 
         match surf {
-            SeqSurface::ObjectOrImagePlane { diam } => {
+            SurfaceSpec::ObjectOrImagePlane { diam } => {
                 let surf = Surface::new_obj_or_img_plane(pos, dir, diam);
                 surf
             }
-            SeqSurface::RefractingCircularConic { diam, n, roc, k } => {
+            SurfaceSpec::RefractingCircularConic { diam, n, roc, k } => {
                 let surf = Surface::new_refr_circ_conic(pos, dir, diam, gap.n(), roc, k);
                 surf
             }
-            SeqSurface::RefractingCircularFlat { diam, n } => {
+            SurfaceSpec::RefractingCircularFlat { diam, n } => {
                 let surf = Surface::new_refr_circ_flat(pos, dir, diam, gap.n());
                 surf
             }

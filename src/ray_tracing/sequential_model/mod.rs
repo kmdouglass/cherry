@@ -6,7 +6,7 @@ use crate::ray_tracing::{Surface, SystemModel};
 #[derive(Debug)]
 pub struct SequentialModel {
     gaps: Vec<Gap>,
-    surfaces: Vec<SeqSurface>,
+    surfaces: Vec<SurfaceSpec>,
 }
 
 impl SequentialModel {
@@ -26,7 +26,7 @@ impl SequentialModel {
         Self { gaps, surfaces }
     }
 
-    pub fn surfaces(&self) -> &[SeqSurface] {
+    pub fn surfaces(&self) -> &[SurfaceSpec] {
         &self.surfaces
     }
 
@@ -37,7 +37,7 @@ impl SequentialModel {
     pub fn insert_surface_and_gap(
         &mut self,
         idx: usize,
-        surface: SeqSurface,
+        surface: SurfaceSpec,
         gap: Gap,
     ) -> Result<()> {
         if idx == 0 {
@@ -99,21 +99,21 @@ impl Gap {
 
 /// A surface in a sequential model of an optical system.
 #[derive(Debug, Serialize, Deserialize)]
-pub enum SeqSurface {
+pub enum SurfaceSpec {
     ObjectOrImagePlane { diam: f32 },
     RefractingCircularConic { diam: f32, n: f32, roc: f32, k: f32 },
     RefractingCircularFlat { diam: f32, n: f32 },
 }
 
-impl From<&Surface> for SeqSurface {
+impl From<&Surface> for SurfaceSpec {
     fn from(value: &Surface) -> Self {
         match value {
             Surface::ObjectOrImagePlane(surf) => {
-                let surf = SeqSurface::ObjectOrImagePlane { diam: surf.diam };
+                let surf = SurfaceSpec::ObjectOrImagePlane { diam: surf.diam };
                 surf
             }
             Surface::RefractingCircularConic(surf) => {
-                let surf = SeqSurface::RefractingCircularConic {
+                let surf = SurfaceSpec::RefractingCircularConic {
                     diam: surf.diam,
                     n: surf.n,
                     roc: surf.roc,
@@ -122,7 +122,7 @@ impl From<&Surface> for SeqSurface {
                 surf
             }
             Surface::RefractingCircularFlat(surf) => {
-                let surf = SeqSurface::RefractingCircularFlat {
+                let surf = SurfaceSpec::RefractingCircularFlat {
                     diam: surf.diam,
                     n: surf.n,
                 };
@@ -134,18 +134,18 @@ impl From<&Surface> for SeqSurface {
 
 struct SurfacePair(Surface, Surface);
 
-impl From<SurfacePair> for (SeqSurface, Gap) {
+impl From<SurfacePair> for (SurfaceSpec, Gap) {
     fn from(value: SurfacePair) -> Self {
         let thickness = value.1.pos().z() - value.0.pos().z();
         match value.0 {
             Surface::ObjectOrImagePlane(surf) => {
                 let gap = Gap::new(surf.n, thickness);
-                let surf = SeqSurface::ObjectOrImagePlane { diam: surf.diam };
+                let surf = SurfaceSpec::ObjectOrImagePlane { diam: surf.diam };
                 (surf, gap)
             }
             Surface::RefractingCircularConic(surf) => {
                 let gap = Gap::new(surf.n, thickness);
-                let surf = SeqSurface::RefractingCircularConic {
+                let surf = SurfaceSpec::RefractingCircularConic {
                     diam: surf.diam,
                     n: surf.n,
                     roc: surf.roc,
@@ -155,7 +155,7 @@ impl From<SurfacePair> for (SeqSurface, Gap) {
             }
             Surface::RefractingCircularFlat(surf) => {
                 let gap = Gap::new(surf.n, thickness);
-                let surf = SeqSurface::RefractingCircularFlat {
+                let surf = SurfaceSpec::RefractingCircularFlat {
                     diam: surf.diam,
                     n: surf.n,
                 };
