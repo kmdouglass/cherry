@@ -23,13 +23,23 @@ impl SequentialModel {
         // Add the image plane
         surfaces.push(system_model.surfaces.last().unwrap().into());
 
-        Self {
-            gaps,
-            surfaces,
-        }
+        Self { gaps, surfaces }
     }
 
-    pub fn insert_surface_and_gap(&mut self, idx: usize, surface: SeqSurface, gap: Gap) -> Result<()> {
+    pub fn surfaces(&self) -> &[SeqSurface] {
+        &self.surfaces
+    }
+
+    pub fn gaps(&self) -> &[Gap] {
+        &self.gaps
+    }
+
+    pub fn insert_surface_and_gap(
+        &mut self,
+        idx: usize,
+        surface: SeqSurface,
+        gap: Gap,
+    ) -> Result<()> {
         if idx == 0 {
             bail!("Cannot add surface before the object plane.");
         }
@@ -61,6 +71,10 @@ pub struct Gap {
 impl Gap {
     pub fn new(n: f32, thickness: f32) -> Self {
         Self { n, thickness }
+    }
+
+    pub fn thickness(&self) -> f32 {
+        self.thickness
     }
 }
 
