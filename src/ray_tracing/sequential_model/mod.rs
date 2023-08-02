@@ -54,16 +54,8 @@ impl SequentialModel {
         self.surfaces.insert(idx, surface);
         self.gaps.insert(idx, gap);
 
-        // Loop over the new surface and all after it, adjusting their positions along the axis.
-        let mut dist = self.surf_distance_from_origin(idx);
-        for i in idx..self.gaps.len() {
-            self.surfaces[i].set_pos(Vec3::new(0.0, 0.0, dist));
-            dist += self.gaps[i].thickness();
-        }
-        self.surfaces
-            .last_mut()
-            .unwrap()
-            .set_pos(Vec3::new(0.0, 0.0, dist));
+        // Readjust the positions of the surfaces after the inserted one.
+        self.bump_surfaces(idx);
 
         Ok(())
     }
@@ -89,6 +81,19 @@ impl SequentialModel {
         }
 
         Ok(())
+    }
+
+    fn bump_surfaces(&mut self, idx: usize) {
+        // Loop over the surfaces starting at idx and all after it, adjusting their positions along the axis.
+        let mut dist = self.surf_distance_from_origin(idx);
+        for i in idx..self.gaps.len() {
+            self.surfaces[i].set_pos(Vec3::new(0.0, 0.0, dist));
+            dist += self.gaps[i].thickness();
+        }
+        self.surfaces
+            .last_mut()
+            .unwrap()
+            .set_pos(Vec3::new(0.0, 0.0, dist));
     }
 
     fn surf_distance_from_origin(&self, idx: usize) -> f32 {
