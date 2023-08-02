@@ -53,6 +53,21 @@ impl SequentialModel {
 
         Ok(())
     }
+
+    pub fn remove_surface_and_gap(&mut self, idx: usize) -> Result<()> {
+        if idx == 0 {
+            bail!("Cannot remove the object plane.");
+        }
+
+        if idx > self.surfaces.len() - 1 {
+            bail!("Cannot remove the image plane.");
+        }
+
+        self.surfaces.remove(idx);
+        self.gaps.remove(idx - 1);
+
+        Ok(())
+    }
 }
 
 impl From<&SystemModel> for SequentialModel {

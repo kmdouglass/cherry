@@ -47,7 +47,7 @@ impl WasmSystemModel {
                 Ok(())
             }
             _ => Err(JsError::new(
-                "Cannot add surface to when the model is not in Sequential mode.",
+                "Cannot add surface when the model is not in Sequential mode.",
             )),
         }
     }

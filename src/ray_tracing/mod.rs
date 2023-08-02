@@ -16,21 +16,6 @@ use surface_types::{ObjectOrImagePlane, RefractingCircularConic, RefractingCircu
 ///
 /// A SystemModel can be built from a SequentialModel by iterating over (surface, gap) pairs,
 /// creating the corresponding 3D surface objects in the process.
-///
-/// # Examples
-///
-/// ## Create a new SystemModel from a SequentialModel.
-///
-/// ```rust
-/// use ray_tracing::SystemModel;
-/// use ray_tracing::sequential_model::SequentialModel;
-///
-/// let sys_model = SystemModel::new();
-/// let seq_model = SequentialModel::from(&sys_model);
-///
-/// // Create a new SystemModel from a SequentialModel.
-/// let new_model = SystemModel::from(&seq_model);
-/// ```
 #[derive(Debug)]
 pub struct SystemModel {
     surfaces: Vec<Surface>,
