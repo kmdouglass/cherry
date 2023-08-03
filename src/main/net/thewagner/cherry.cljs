@@ -1,6 +1,7 @@
 (ns net.thewagner.cherry
   (:require [goog.dom :as gdom]
             [reagent.dom :as rdom]
+            [reagent.dom.client :as rclient]
             [reagent.core :as r]
             [cljs.spec.alpha :as s]
             [clojure.test.check.generators :as gen]))
@@ -37,25 +38,20 @@
   (into (subvec coll 0 pos) (subvec coll (inc pos))))
 
 (defn ->externally-tagged [tag v]
-  (println tag v)
   {(get v tag) (dissoc v tag)})
 
 (defn surface-dropdown [surface change-fn]
   [:div.select
     {:class (when-not surface :is-primary)}
     [:select
-      {:on-change (fn [e] (change-fn (keyword (.-value (.-target e)))))}
-      [:option {:disabled true
-                :selected (when-not surface true)
-                :value true
-                :hidden true}
-       "Select surface type"]
+      {:value (or (:surface-type surface) ::default)
+       :on-change (fn [e] (change-fn (.-value (.-target e))))}
+      [:option {:disabled true :value ::default :hidden true}
+               "Select surface type"]
       (for [t (keys surface-types)]
         ^{:key t}
-        [:option
-          {:value t
-           :selected (= t (:surface-type surface))}
-          (get-in surface-types [t :display-name])])]])
+        [:option {:value t}
+                 (get-in surface-types [t :display-name])])]])
 
 (defn param-input [value change-fn]
   [:input.input
@@ -89,7 +85,7 @@
                (for [[i s] (map vector (range) @surfaces)]
                  ^{:key i}
                  [:tr
-                   [:td [surface-dropdown s #(swap! surfaces assoc-in [i :surface-type] %)]]
+                   [:td [surface-dropdown s #(swap! surfaces assoc-in [i :surface-type] (keyword %))]]
                    (for [p parameters]
                      ^{:key p}
                      [:td
@@ -115,13 +111,17 @@
                        (clj->js)
                        (js/JSON.stringify nil 2))]]]])))
 
+(defonce root
+   (rclient/create-root (gdom/getElement "app")))
+
 (defn mount []
-  (rdom/render [main] (gdom/getElement "app")))
+  (rclient/render root [main]))
 
 (defn ^:dev/after-load on-reload []
   (mount))
 
-(defonce startup (mount))
+(defonce startup
+  (mount))
 
 (comment
   ; Evaluate these lines to enter into a ClojureScript REPL

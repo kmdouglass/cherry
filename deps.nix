@@ -463,8 +463,8 @@ let repos = [
       inherit repos;
       artifactId = "reagent";
       groupId = "reagent";
-      sha512 = "f37fb230befa669ca89e218a769fb6c29444756d3a905ed9b497eda729ea9f55c3aa9416e5a064152db0e4507d19b8d9667ba5aadea3a2f20868a1a505ba0d19";
-      version = "1.1.0";
+      sha512 = "c15ceec91a05ac90d69f9499a8f1088ea794fc017ffec7b9d941f4e46a5c731704893e301f1b4d887082dc807294547e5846784a5a21ee4d768508c47b493d3a";
+      version = "1.2.0";
 
     };
     paths = [ src ];
