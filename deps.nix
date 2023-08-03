@@ -666,6 +666,19 @@ let repos = [
   }
 
   rec {
+    name = "test.check/org.clojure";
+    src = fetchMavenArtifact {
+      inherit repos;
+      artifactId = "test.check";
+      groupId = "org.clojure";
+      sha512 = "b8d7a330b0b5514cd6a00c4382052fab51c3c9d3bc53133f8506791fa670e7c5ecd65094977ea5ced91f59623b0abd1ab8feeec96d63c5c6e459b265a655c577";
+      version = "1.1.1";
+
+    };
+    paths = [ src ];
+  }
+
+  rec {
     name = "core.memoize/org.clojure";
     src = fetchMavenArtifact {
       inherit repos;
