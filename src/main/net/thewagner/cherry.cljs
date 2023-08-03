@@ -1,7 +1,5 @@
 (ns net.thewagner.cherry
   (:require [goog.dom :as gdom]
-            [goog.string :as gstring]
-            [goog.string.format]
             [reagent.dom :as rdom]
             [reagent.core :as r]))
 
