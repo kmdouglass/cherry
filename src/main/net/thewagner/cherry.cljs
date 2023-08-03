@@ -10,28 +10,7 @@
   [coll pos]
   (into (subvec coll 0 pos) (subvec coll (inc pos))))
 
-(defn surface-dropdown [surface]
-  (r/with-let [active? (r/atom false)]
-    [(if @active? :div.dropdown.is-active :div.dropdown)
-     [:div.dropdown-trigger
-       [:button.button {:aria-haspopup true
-                        :aria-controls "dropdown-menu"
-                        :on-click #(swap! active? not)
-                        :on-blur #(reset! active? false)}
-        [:span (if-let [s surface]
-                 (:surface-type s)
-                "Select surface")]]
-      [:div#dropdown-menu.dropdown-menu {:role "menu"}
-        [:div.dropdown-content
-          (for [t ["glass" "air" "metal"]]
-            ^{:key t}
-            [:a.dropdown-item
-             {:class (when (= t (:surface-type surface)) :is-active)
-              :href "#"
-              :on-click (fn [_] (js/console.log "clicked " t))}
-             t])]]]]))
-
-(defn surface-dropdown2 [surface change-fn]
+(defn surface-dropdown [surface change-fn]
   [:div.select
     {:class (when-not surface :is-primary)}
     [:select
@@ -71,7 +50,7 @@
              (for [[i s] (map vector (range) @surfaces)]
                ^{:key i}
                [:tr
-                 [:td [surface-dropdown2 s #(swap! surfaces assoc-in [i :surface-type] %)]]
+                 [:td [surface-dropdown s #(swap! surfaces assoc-in [i :surface-type] %)]]
                  (for [p [:p1 :p2 :p3]]
                    ^{:key p}
                    [:td
