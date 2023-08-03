@@ -45,7 +45,7 @@
     {:class (when-not surface :is-primary)}
     [:select
       {:value (or (:surface-type surface) ::default)
-       :on-change (fn [e] (change-fn (.-value (.-target e))))}
+       :on-change #(change-fn (.-value (.-target %)))}
       [:option {:disabled true :value ::default :hidden true}
                "Select surface type"]
       (for [t (keys surface-types)]
@@ -56,8 +56,7 @@
 (defn param-input [value change-fn]
   [:input.input
    {:value value
-    :on-change #((when-let [value (parse-double (.-value (.-target %)))]
-                   (change-fn value)))}])
+    :on-change #(change-fn (parse-double (.-value (.-target %))))}])
 
 (defn main []
   (let [surfaces (r/atom (into [] (gen/sample (s/gen ::surface) 3)))]
