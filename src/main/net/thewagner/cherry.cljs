@@ -75,6 +75,8 @@
                 [:p.subtitle "Surfaces"]]]
             [:div.level-right
               [:p.level-item
+                [:a.button {:on-click #(reset! surfaces (into [] (gen/sample (s/gen ::surface) 3)))} "I'm Feeling Lucky"]]
+              [:p.level-item
                 [:a.button.is-success {:on-click #(swap! surfaces conj nil)} "New"]]]]
           [:table.table.is-fullwidth
              [:thead
