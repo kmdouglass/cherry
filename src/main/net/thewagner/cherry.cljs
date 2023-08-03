@@ -62,7 +62,7 @@
         [:table.table.is-fullwidth
            [:thead
              [:tr
-               [:th "Surface"]
+               [:th "Surface type"]
                [:th "p1"]
                [:th "p2"]
                [:th "p3"]
