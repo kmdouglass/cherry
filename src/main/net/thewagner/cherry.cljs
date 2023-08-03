@@ -22,6 +22,11 @@
         ^{:key t}
         [:option {:value t :selected (= t (:surface-type surface))} t])]])
 
+(defn param-input [value change-fn]
+  [:input.input
+   {:value value
+    :on-change #(change-fn (.-value (.-target %)))}])
+
 (defn main []
   (let [surfaces (r/atom [{:surface-type "glass" :p1 1 :p2 2}
                           {:surface-type "air"   :p1 10 :p2 20}
@@ -53,7 +58,7 @@
                    ^{:key p}
                    [:td
                      (if-let [v (get s p)]
-                       v
+                       [param-input v #(swap! surfaces assoc-in [i p] %)]
                        "-")])
                  [:td
                    [:a.button {:on-click #(swap! surfaces vec-remove i)} "Delete"]]])]]
