@@ -12,3 +12,8 @@ wasmSystemModel.insertSurfaceAndGap(2, surface2, gap2);
 
 console.log("Surfaces:", wasmSystemModel.surfaces());
 console.log("Gaps:", wasmSystemModel.gaps());
+
+wasmSystemModel.removeSurfaceAndGap(2);
+
+console.log("Surfaces:", wasmSystemModel.surfaces());
+console.log("Gaps:", wasmSystemModel.gaps());
