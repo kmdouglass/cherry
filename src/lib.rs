@@ -4,7 +4,7 @@ mod math;
 mod ray_tracing;
 mod rendering;
 
-use ray_tracing::sequential_model::{Gap, SeqSurface, SequentialModel};
+use ray_tracing::sequential_model::{Gap, SequentialModel, SurfaceSpec};
 use ray_tracing::SystemModel;
 
 #[derive(Debug)]
@@ -39,7 +39,7 @@ impl WasmSystemModel {
     ) -> Result<(), JsError> {
         match self.mode {
             Mode::Sequential(ref mut model) => {
-                let surface: SeqSurface = serde_wasm_bindgen::from_value(surface)?;
+                let surface: SurfaceSpec = serde_wasm_bindgen::from_value(surface)?;
                 let gap: Gap = serde_wasm_bindgen::from_value(gap)?;
                 model
                     .insert_surface_and_gap(idx, surface, gap)
@@ -47,7 +47,24 @@ impl WasmSystemModel {
                 Ok(())
             }
             _ => Err(JsError::new(
-                "Cannot add surface to when the model is not in Sequential mode.",
+                "Cannot add surface when the model is not in Sequential mode.",
+            )),
+        }
+    }
+
+    pub fn removeSurfaceAndGap(
+        &mut self,
+        idx: usize,
+    ) -> Result<(), JsError> {
+        match self.mode {
+            Mode::Sequential(ref mut model) => {
+                model
+                    .remove_surface_and_gap(idx)
+                    .map_err(|e| JsError::new(&e.to_string()))?;
+                Ok(())
+            }
+            _ => Err(JsError::new(
+                "Cannot remove surface when the model is not in Sequential mode.",
             )),
         }
     }
