@@ -8,4 +8,5 @@
  {:app {:target :browser
         :output-dir "public/js"
         :asset-path "/js"
-        :modules {:main {:entries [net.thewagner.cherry]}}}}}
+        :modules {:main {:init-fn net.thewagner.cherry/init
+                         :entries [net.thewagner.cherry]}}}}}

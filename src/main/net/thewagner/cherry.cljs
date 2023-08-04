@@ -110,17 +110,15 @@
                        (clj->js)
                        (js/JSON.stringify nil 2))]]]])))
 
-(defonce root
+(defonce dom-root
    (rclient/create-root (gdom/getElement "app")))
 
-(defn mount []
-  (rclient/render root [main]))
+; https://code.thheller.com/blog/shadow-cljs/2019/08/25/hot-reload-in-clojurescript.html
+(defn ^:dev/after-load start []
+  (rclient/render dom-root [main]))
 
-(defn ^:dev/after-load on-reload []
-  (mount))
-
-(defonce startup
-  (mount))
+(defn init []
+  (start))
 
 (comment
   ; Evaluate these lines to enter into a ClojureScript REPL
