@@ -51,4 +51,21 @@ impl WasmSystemModel {
             )),
         }
     }
+
+    pub fn removeSurfaceAndGap(
+        &mut self,
+        idx: usize,
+    ) -> Result<(), JsError> {
+        match self.mode {
+            Mode::Sequential(ref mut model) => {
+                model
+                    .remove_surface_and_gap(idx)
+                    .map_err(|e| JsError::new(&e.to_string()))?;
+                Ok(())
+            }
+            _ => Err(JsError::new(
+                "Cannot remove surface when the model is not in Sequential mode.",
+            )),
+        }
+    }
 }
