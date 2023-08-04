@@ -1,21 +1,21 @@
 {
-  "name": "simple-simulations",
+  "name": "cherry-web",
   "version": "1.0.0",
-  "description": "Simple system simulations in Clojure/ClojureScript.",
+  "description": "ClojureScript frontend for ray tracing in the browser",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/wagdav/clojurescript-simulator-example.git"
+    "url": "git+https://github.com/wagdav/cherry-web.git"
   },
   "author": "",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/wagdav/clojurescript-simulator-example/issues"
+    "url": "https://github.com/wagdav/cherry-web/issues"
   },
-  "homepage": "https://github.com/wagdav/clojurescript-simulator-example#readme",
+  "homepage": "https://github.com/wagdav/cherry-web#readme",
   "dependencies": {
     "buffer": "^6.0.3",
     "create-react-class": "^15.7.0",
