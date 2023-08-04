@@ -136,8 +136,8 @@ impl Gap {
 #[derive(Debug, Serialize, Deserialize)]
 pub enum SurfaceSpec {
     ObjectOrImagePlane { diam: f32 },
-    RefractingCircularConic { diam: f32, n: f32, roc: f32, k: f32 },
-    RefractingCircularFlat { diam: f32, n: f32 },
+    RefractingCircularConic { diam: f32, roc: f32, k: f32 },
+    RefractingCircularFlat { diam: f32 },
 }
 
 impl From<&Surface> for SurfaceSpec {
@@ -150,17 +150,13 @@ impl From<&Surface> for SurfaceSpec {
             Surface::RefractingCircularConic(surf) => {
                 let surf = SurfaceSpec::RefractingCircularConic {
                     diam: surf.diam,
-                    n: surf.n,
                     roc: surf.roc,
                     k: surf.k,
                 };
                 surf
             }
             Surface::RefractingCircularFlat(surf) => {
-                let surf = SurfaceSpec::RefractingCircularFlat {
-                    diam: surf.diam,
-                    n: surf.n,
-                };
+                let surf = SurfaceSpec::RefractingCircularFlat { diam: surf.diam };
                 surf
             }
         }
@@ -233,7 +229,6 @@ mod tests {
                 1,
                 SurfaceSpec::RefractingCircularConic {
                     diam: 25.0,
-                    n: 1.5,
                     roc: 1.0,
                     k: 0.0,
                 },
@@ -245,7 +240,6 @@ mod tests {
                 2,
                 SurfaceSpec::RefractingCircularConic {
                     diam: 25.0,
-                    n: 1.5,
                     roc: -1.0,
                     k: 0.0,
                 },
@@ -272,7 +266,6 @@ mod tests {
                 1,
                 SurfaceSpec::RefractingCircularConic {
                     diam: 25.0,
-                    n: 1.5,
                     roc: -1.0,
                     k: 0.0,
                 },
@@ -292,7 +285,6 @@ mod tests {
                 1,
                 SurfaceSpec::RefractingCircularConic {
                     diam: 25.0,
-                    n: 1.5,
                     roc: 1.0,
                     k: 0.0,
                 },
@@ -318,11 +310,10 @@ mod tests {
                 1,
                 SurfaceSpec::RefractingCircularConic {
                     diam: 25.0,
-                    n: 1.5,
                     roc: 1.0,
                     k: 0.0,
                 },
-                Gap::new(1.0, 1.0),
+                Gap::new(1.5, 1.0),
             )
             .unwrap();
         model
@@ -330,7 +321,6 @@ mod tests {
                 2,
                 SurfaceSpec::RefractingCircularConic {
                     diam: 25.0,
-                    n: 1.5,
                     roc: -1.0,
                     k: 0.0,
                 },
@@ -348,7 +338,6 @@ mod tests {
         assert_eq!(model.surfaces[0].pos(), Vec3::new(0.0, 0.0, -1.0));
         assert_eq!(model.surfaces[1].pos(), Vec3::new(0.0, 0.0, 0.0));
         assert_eq!(model.surfaces[2].pos(), Vec3::new(0.0, 0.0, 1.0));
-
     }
 
     #[test]
@@ -361,11 +350,10 @@ mod tests {
                 1,
                 SurfaceSpec::RefractingCircularConic {
                     diam: 25.0,
-                    n: 1.5,
                     roc: 1.0,
                     k: 0.0,
                 },
-                Gap::new(1.0, 1.0),
+                Gap::new(1.5, 1.0),
             )
             .unwrap();
         model
@@ -373,7 +361,6 @@ mod tests {
                 2,
                 SurfaceSpec::RefractingCircularConic {
                     diam: 25.0,
-                    n: 1.5,
                     roc: -1.0,
                     k: 0.0,
                 },

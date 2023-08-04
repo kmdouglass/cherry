@@ -148,11 +148,11 @@ impl From<(SurfaceSpec, &Gap)> for Surface {
                 let surf = Surface::new_obj_or_img_plane(pos, dir, diam);
                 surf
             }
-            SurfaceSpec::RefractingCircularConic { diam, n, roc, k } => {
+            SurfaceSpec::RefractingCircularConic { diam, roc, k } => {
                 let surf = Surface::new_refr_circ_conic(pos, dir, diam, gap.n(), roc, k);
                 surf
             }
-            SurfaceSpec::RefractingCircularFlat { diam, n } => {
+            SurfaceSpec::RefractingCircularFlat { diam } => {
                 let surf = Surface::new_refr_circ_flat(pos, dir, diam, gap.n());
                 surf
             }

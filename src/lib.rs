@@ -52,10 +52,7 @@ impl WasmSystemModel {
         }
     }
 
-    pub fn removeSurfaceAndGap(
-        &mut self,
-        idx: usize,
-    ) -> Result<(), JsError> {
+    pub fn removeSurfaceAndGap(&mut self, idx: usize) -> Result<(), JsError> {
         match self.mode {
             Mode::Sequential(ref mut model) => {
                 model
