@@ -65,4 +65,24 @@ impl WasmSystemModel {
             )),
         }
     }
+
+    pub fn surfaces(&self) -> JsValue {
+        match self.mode {
+            Mode::Sequential(ref model) => {
+                let mut surface_specs: Vec<SurfaceSpec> = Vec::with_capacity(model.surfaces().len());
+                for surface in model.surfaces() {
+                    surface_specs.push(surface.into());
+                }
+                serde_wasm_bindgen::to_value(&surface_specs).unwrap()
+            }
+        }
+    }
+
+    pub fn gaps(&self) -> JsValue {
+        match self.mode {
+            Mode::Sequential(ref model) => {
+                serde_wasm_bindgen::to_value(&model.gaps()).unwrap()
+            }
+        }
+    }
 }

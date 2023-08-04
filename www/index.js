@@ -10,4 +10,5 @@ let gap2 = {"n": 1.0, "thickness": 10.0};
 wasmSystemModel.insertSurfaceAndGap(1, surface1, gap1);
 wasmSystemModel.insertSurfaceAndGap(2, surface2, gap2);
 
-console.log(wasmSystemModel);
+console.log("Surfaces:", wasmSystemModel.surfaces());
+console.log("Gaps:", wasmSystemModel.gaps());
