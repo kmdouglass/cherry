@@ -55,7 +55,7 @@ impl SequentialModel {
         self.gaps.insert(idx, gap);
 
         // Readjust the positions of the surfaces after the inserted one.
-        self.bump_surfaces(idx);
+        self.readjust_surfaces(idx);
 
         Ok(())
     }
@@ -83,7 +83,7 @@ impl SequentialModel {
         Ok(())
     }
 
-    fn bump_surfaces(&mut self, idx: usize) {
+    fn readjust_surfaces(&mut self, idx: usize) {
         // Loop over the surfaces starting at idx and all after it, adjusting their positions along the axis.
         let mut dist = self.surf_distance_from_origin(idx);
         for i in idx..self.gaps.len() {
@@ -259,6 +259,52 @@ mod tests {
             .unwrap();
 
         // 2 surfaces + object plane + image plane
+        assert_eq!(model.surfaces.len(), 4);
+        assert_eq!(model.gaps.len(), 3);
+        assert_eq!(model.surfaces[0].pos(), Vec3::new(0.0, 0.0, -1.0));
+        assert_eq!(model.surfaces[1].pos(), Vec3::new(0.0, 0.0, 0.0));
+        assert_eq!(model.surfaces[2].pos(), Vec3::new(0.0, 0.0, 1.0));
+        assert_eq!(model.surfaces[3].pos(), Vec3::new(0.0, 0.0, 11.0));
+    }
+
+    #[test]
+    fn test_insert_surface_and_gap_before_another_surface() {
+        let system_model = SystemModel::new();
+        let mut model = SequentialModel::new(&system_model);
+
+        model
+            .insert_surface_and_gap(
+                1,
+                SurfaceSpec::RefractingCircularConic {
+                    diam: 25.0,
+                    n: 1.5,
+                    roc: -1.0,
+                    k: 0.0,
+                },
+                Gap::new(1.0, 10.0),
+            )
+            .unwrap();
+
+        assert_eq!(model.surfaces.len(), 3);
+        assert_eq!(model.gaps.len(), 2);
+        assert_eq!(model.surfaces[0].pos(), Vec3::new(0.0, 0.0, -1.0));
+        assert_eq!(model.surfaces[1].pos(), Vec3::new(0.0, 0.0, 0.0));
+        assert_eq!(model.surfaces[2].pos(), Vec3::new(0.0, 0.0, 10.0));
+
+        // Thickness 1.0 goes before surface and gap with thickness 10.0
+        model
+            .insert_surface_and_gap(
+                1,
+                SurfaceSpec::RefractingCircularConic {
+                    diam: 25.0,
+                    n: 1.5,
+                    roc: 1.0,
+                    k: 0.0,
+                },
+                Gap::new(1.0, 1.0),
+            )
+            .unwrap();
+
         assert_eq!(model.surfaces.len(), 4);
         assert_eq!(model.gaps.len(), 3);
         assert_eq!(model.surfaces[0].pos(), Vec3::new(0.0, 0.0, -1.0));
