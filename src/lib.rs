@@ -31,16 +31,14 @@ impl WasmSystemModel {
     ) -> Result<(), JsError> {
         let surface: SurfaceSpec = serde_wasm_bindgen::from_value(surface)?;
         let gap: Gap = serde_wasm_bindgen::from_value(gap)?;
-        self
-            .seq_model_mut()
+        self.seq_model_mut()
             .insert_surface_and_gap(idx, surface, gap)
             .map_err(|e| JsError::new(&e.to_string()))?;
         Ok(())
     }
 
     pub fn removeSurfaceAndGap(&mut self, idx: usize) -> Result<(), JsError> {
-        self
-            .seq_model_mut()
+        self.seq_model_mut()
             .remove_surface_and_gap(idx)
             .map_err(|e| JsError::new(&e.to_string()))?;
         Ok(())
@@ -53,7 +51,6 @@ impl WasmSystemModel {
             surface_specs.push(surface.into());
         }
         serde_wasm_bindgen::to_value(&surface_specs).unwrap()
-
     }
 
     pub fn gaps(&self) -> JsValue {
