@@ -132,8 +132,8 @@ impl ComponentModel {
     }
 }
 
-impl From<&mut SequentialModel> for ComponentModel {
-    fn from(seq_model: &mut SequentialModel) -> Self {
+impl From<&SequentialModel> for ComponentModel {
+    fn from(seq_model: &SequentialModel) -> Self {
         let mut components = HashSet::new();
 
         // Add object and image planes.
@@ -169,6 +169,13 @@ impl From<&mut SequentialModel> for ComponentModel {
         }
 
         Self { components }
+    }
+}
+
+impl From<&mut SequentialModel> for ComponentModel {
+    fn from(seq_model: &mut SequentialModel) -> Self {
+        let seq_model = &*seq_model;
+        Self::from(seq_model)
     }
 }
 

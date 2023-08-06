@@ -42,14 +42,18 @@ impl SystemModel {
         surfaces.push(obj_plane);
         surfaces.push(img_plane);
 
-        let mut sequential_model = SequentialModel::new(&surfaces);
-        let component_model = ComponentModel::from(&mut sequential_model);
+        let sequential_model = SequentialModel::new(&surfaces);
+        let component_model = ComponentModel::from(&sequential_model);
 
         Self {
             comp_model: component_model,
             seq_model: SequentialModel::new(&surfaces),
             surfaces,
         }
+    }
+
+    pub fn comp_model(&self) -> &ComponentModel {
+        &self.comp_model
     }
 
     pub fn seq_model(&self) -> &SequentialModel {
