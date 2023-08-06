@@ -8,9 +8,9 @@ use crate::ray_tracing::sequential_model::SequentialModel;
 ///
 /// Components come in two types: elements and surfaces. Elements are complete optical elements
 /// and are represented as sets of {surface, gap, surface}. Surfaces are are elements without
-/// any gaps, e.g. incomplete elements.
+/// any gaps, e.g. incomplete elements or object/image planes.
 ///
-/// To avoid copying data, only indexes are stored.
+/// To avoid copying data, only indexes are stored from the sequential models are stored.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Component {
     Element {
