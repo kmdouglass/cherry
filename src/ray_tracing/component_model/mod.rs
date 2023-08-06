@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 /// A part is a surface, gap, surface set.
-/// 
+///
 /// To avoid copying data, only indexes are stored.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Component {

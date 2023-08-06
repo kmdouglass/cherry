@@ -11,20 +11,23 @@ pub struct SequentialModel {
 }
 
 impl SequentialModel {
-    pub fn new(system_model: &SystemModel) -> SequentialModel {
-        // Iterate over SurfacePairs and convert to SeqSurfaces and Gaps
+    pub fn new(surfaces: &[Surface]) -> SequentialModel {
+        // Iterate over SurfacePairs and convert to Surfaces and Gaps
         let mut gaps = Vec::new();
-        let mut surfaces = Vec::new();
-        for pair in SurfacePairIterator::new(&system_model.surfaces) {
+        let mut surfs = Vec::new();
+        for pair in SurfacePairIterator::new(surfaces) {
             let (surf, gap) = pair.into();
-            surfaces.push(surf);
+            surfs.push(surf);
             gaps.push(gap);
         }
 
         // Add the image plane
-        surfaces.push(system_model.surfaces.last().unwrap().clone());
+        surfs.push(surfaces.last().unwrap().clone());
 
-        Self { gaps, surfaces }
+        Self {
+            gaps,
+            surfaces: surfs,
+        }
     }
 
     pub fn surfaces(&self) -> &[Surface] {
@@ -107,7 +110,7 @@ impl SequentialModel {
 
 impl From<&SystemModel> for SequentialModel {
     fn from(value: &SystemModel) -> Self {
-        Self::new(value)
+        Self::new(&value.surfaces)
     }
 }
 
@@ -221,8 +224,8 @@ mod tests {
 
     #[test]
     fn test_insert_surface_and_gap() {
-        let system_model = SystemModel::new();
-        let mut model = SequentialModel::new(&system_model);
+        let mut system_model = SystemModel::new();
+        let mut model = system_model.seq_model_mut();
 
         model
             .insert_surface_and_gap(
@@ -258,8 +261,8 @@ mod tests {
 
     #[test]
     fn test_insert_surface_and_gap_before_another_surface() {
-        let system_model = SystemModel::new();
-        let mut model = SequentialModel::new(&system_model);
+        let mut system_model = SystemModel::new();
+        let mut model = system_model.seq_model_mut();
 
         model
             .insert_surface_and_gap(
@@ -302,8 +305,8 @@ mod tests {
 
     #[test]
     fn test_remove_surface_and_gap() {
-        let system_model = SystemModel::new();
-        let mut model = SequentialModel::new(&system_model);
+        let mut system_model = SystemModel::new();
+        let mut model = system_model.seq_model_mut();
 
         model
             .insert_surface_and_gap(
@@ -342,8 +345,8 @@ mod tests {
 
     #[test]
     fn test_surf_distance_from_origin() {
-        let system_model = SystemModel::new();
-        let mut model = SequentialModel::new(&system_model);
+        let mut system_model = SystemModel::new();
+        let mut model = system_model.seq_model_mut();
 
         model
             .insert_surface_and_gap(
