@@ -13,7 +13,10 @@ pom.xml.asc
 .nrepl-port
 .cpcache/
 
+build/
+dist/
 result
 public/js
 node_modules
 .shadow-cljs
+.clj-kondo/cache/

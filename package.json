@@ -4,7 +4,8 @@
   "description": "ClojureScript frontend for ray tracing in the browser",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "webpack --config webpack.config.js",
+    "start": "webpack-dev-server"
   },
   "repository": {
     "type": "git",
@@ -21,6 +22,14 @@
     "create-react-class": "^15.7.0",
     "process": "^0.11.10",
     "react": "^18.2.0",
-    "react-dom": "^18.1.0"
+    "react-dom": "^18.1.0",
+    "cherry": "file:../cherry/pkg"
+  },
+  "devDependencies": {
+    "copy-webpack-plugin": "^11.0.0",
+    "shadow-cljs": "^2.25.2",
+    "webpack": "^5.88.2",
+    "webpack-cli": "^5.1.4",
+    "webpack-dev-server": "^4.15.1"
   }
 }

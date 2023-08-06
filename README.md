@@ -3,9 +3,10 @@ Cherry Web Frontend
 
 # Development
 
-Interactive shell
+Interactive development
 ```
 nix develop --command yarn install
+nix develop --command yarn start
 nix develop --command clj -M:shadow-cljs watch app
 ```
 
