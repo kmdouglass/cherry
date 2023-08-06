@@ -9,12 +9,14 @@ use std::f32::INFINITY;
 use crate::math::mat3::Mat3;
 use crate::math::vec3::Vec3;
 
+use component_model::ComponentModel;
 use sequential_model::{Gap, SequentialModel, SurfaceSpec};
 use surface_types::{ObjectOrImagePlane, RefractingCircularConic, RefractingCircularFlat};
 
 /// A model of an optical system.
 #[derive(Debug)]
 pub struct SystemModel {
+    comp_model: ComponentModel,
     seq_model: SequentialModel,
     surfaces: Vec<Surface>,
 }
@@ -40,7 +42,11 @@ impl SystemModel {
         surfaces.push(obj_plane);
         surfaces.push(img_plane);
 
+        let mut sequential_model = SequentialModel::new(&surfaces);
+        let component_model = ComponentModel::from(&mut sequential_model);
+
         Self {
+            comp_model: component_model,
             seq_model: SequentialModel::new(&surfaces),
             surfaces,
         }

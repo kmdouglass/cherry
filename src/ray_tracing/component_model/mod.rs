@@ -51,7 +51,8 @@ impl Component {
     }
 }
 
-struct ComponentModel {
+#[derive(Debug)]
+pub struct ComponentModel {
     components: HashSet<Component>,
 }
 
@@ -62,19 +63,54 @@ impl ComponentModel {
         }
     }
 
-    pub fn insert_component(&mut self, component: Component) {
+    fn insert_component(&mut self, component: Component) -> Result<()> {
+        // Check for existing object or image planes.
+        match component {
+            Component::ObjectPlane { .. } => {
+                if self.object_plane().is_some() {
+                    bail!("An object plane already exists.");
+                }
+            }
+            Component::ImagePlane { .. } => {
+                if self.image_plane().is_some() {
+                    bail!("An image plane already exists.");
+                }
+            }
+            _ => {}
+        }
         self.components.insert(component);
+
+        Ok(())
     }
 
-    pub fn remove_component(&mut self, component: Component) {
+    fn remove_component(&mut self, component: Component) -> Result<()> {
         self.components.remove(&component);
+
+        Ok(())
     }
 
-    fn object_plane(&self) -> Component {
-        Component::ObjectPlane { surf_idx: 0 }
+    fn object_plane(&self) -> Option<Component> {
+        // Get all the object planes.
+        let mut object_planes: Vec<Component> = self
+            .components
+            .iter()
+            .filter(|component| match component {
+                Component::ObjectPlane { .. } => true,
+                _ => false,
+            })
+            .copied()
+            .collect();
+
+        if object_planes.is_empty() {
+            return None;
+        }
+
+        // By convention there is only one object plane.
+        assert_eq!(object_planes.len(), 1);
+        Some(object_planes[0])
     }
 
-    fn image_plane(&self) -> Component {
+    fn image_plane(&self) -> Option<Component> {
         // Get all the image planes.
         let mut image_planes: Vec<Component> = self
             .components
@@ -86,9 +122,13 @@ impl ComponentModel {
             .copied()
             .collect();
 
+        if image_planes.is_empty() {
+            return None;
+        }
+
         // By convention there is only one image plane.
         assert_eq!(image_planes.len(), 1);
-        image_planes[0]
+        Some(image_planes[0])
     }
 }
 
@@ -172,11 +212,11 @@ mod tests {
         // Component::Element should exist, comprised of two surfaces and their gap.
         assert_eq!(comp_model.components.len(), 3);
         assert_eq!(
-            comp_model.object_plane(),
+            comp_model.object_plane().unwrap(),
             Component::ObjectPlane { surf_idx: 0 }
         );
         assert_eq!(
-            comp_model.image_plane(),
+            comp_model.image_plane().unwrap(),
             Component::ImagePlane { surf_idx: 3 }
         );
         assert_eq!(
@@ -211,11 +251,11 @@ mod tests {
         // Component::Element should exist, comprised of two surfaces and their gap.
         assert_eq!(comp_model.components.len(), 4);
         assert_eq!(
-            comp_model.object_plane(),
+            comp_model.object_plane().unwrap(),
             Component::ObjectPlane { surf_idx: 0 }
         );
         assert_eq!(
-            comp_model.image_plane(),
+            comp_model.image_plane().unwrap(),
             Component::ImagePlane { surf_idx: 4 }
         );
         assert_eq!(
@@ -232,5 +272,29 @@ mod tests {
                 .contains(&Component::Surface { surf_idx: 3 }),
             true
         );
+    }
+
+    #[test]
+    fn test_component_model_cannot_insert_multiple_object_planes() {
+        let mut sys_model = system_model();
+        let seq_model = sys_model.seq_model_mut();
+
+        let mut comp_model = ComponentModel::from(seq_model);
+
+        let result = comp_model.insert_component(Component::ObjectPlane { surf_idx: 5 });
+
+        assert_eq!(result.is_err(), true);
+    }
+
+    #[test]
+    fn test_component_model_cannot_insert_multiple_image_planes() {
+        let mut sys_model = system_model();
+        let seq_model = sys_model.seq_model_mut();
+
+        let mut comp_model = ComponentModel::from(seq_model);
+
+        let result = comp_model.insert_component(Component::ImagePlane { surf_idx: 5 });
+
+        assert_eq!(result.is_err(), true);
     }
 }
