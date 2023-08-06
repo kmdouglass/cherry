@@ -8,16 +8,16 @@ use std::f32::INFINITY;
 
 use crate::math::mat3::Mat3;
 use crate::math::vec3::Vec3;
-use anyhow::bail;
+
+use component_model::ComponentModel;
 use sequential_model::{Gap, SequentialModel, SurfaceSpec};
 use surface_types::{ObjectOrImagePlane, RefractingCircularConic, RefractingCircularFlat};
 
 /// A model of an optical system.
-///
-/// A SystemModel can be built from a SequentialModel by iterating over (surface, gap) pairs,
-/// creating the corresponding 3D surface objects in the process.
 #[derive(Debug)]
 pub struct SystemModel {
+    comp_model: ComponentModel,
+    seq_model: SequentialModel,
     surfaces: Vec<Surface>,
 }
 
@@ -42,19 +42,26 @@ impl SystemModel {
         surfaces.push(obj_plane);
         surfaces.push(img_plane);
 
-        Self { surfaces }
-    }
-}
+        let sequential_model = SequentialModel::new(&surfaces);
+        let component_model = ComponentModel::from(&sequential_model);
 
-impl From<&SequentialModel> for SystemModel {
-    fn from(value: &SequentialModel) -> Self {
-        // Copy the surfaces from the sequential model.
-        let mut surfaces = Vec::with_capacity(value.surfaces().len());
-        for surf in value.surfaces() {
-            surfaces.push(surf.clone());
+        Self {
+            comp_model: component_model,
+            seq_model: SequentialModel::new(&surfaces),
+            surfaces,
         }
+    }
 
-        Self { surfaces }
+    pub fn comp_model(&self) -> &ComponentModel {
+        &self.comp_model
+    }
+
+    pub fn seq_model(&self) -> &SequentialModel {
+        &self.seq_model
+    }
+
+    pub fn seq_model_mut(&mut self) -> &mut SequentialModel {
+        &mut self.seq_model
     }
 }
 
