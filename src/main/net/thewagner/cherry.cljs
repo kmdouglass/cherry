@@ -130,9 +130,9 @@
            [:p.subtitle "Surfaces"]]]
       [:div.level-right
         [:p.level-item
-          [:a.button {:on-click #(reset! surfaces (into [] (gen/sample (s/gen ::row) 3)))} "I'm Feeling Lucky"]]
+          [:button.button {:on-click #(reset! surfaces (into [] (gen/sample (s/gen ::row) 3)))} "I'm Feeling Lucky"]]
         [:p.level-item
-          [:a.button.is-success {:on-click #(swap! surfaces conj nil)} "New"]]]]
+          [:button.button.is-success {:on-click #(swap! surfaces conj nil)} "New"]]]]
     [:table.table.is-fullwidth
        [:thead
          [:tr
@@ -154,7 +154,7 @@
                                 (r/track #(get-in @surfaces [i p]))
                                 #(swap! surfaces assoc-in [i p] %)])])
              [:td
-               [:a.button {:on-click #(swap! surfaces vec-remove i)} "Delete"]]])]]])
+               [:button.button {:on-click #(swap! surfaces vec-remove i)} "Delete"]]])]]])
 
 (defn main []
   (r/with-let [surfaces (r/atom (vec (gen/sample (s/gen ::row) 3)))]
