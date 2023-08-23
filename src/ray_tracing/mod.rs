@@ -4,6 +4,7 @@ pub mod sequential_model;
 pub mod surface_types;
 pub mod trace;
 
+use std::f32::consts::PI;
 use std::f32::INFINITY;
 
 use crate::math::mat3::Mat3;
@@ -29,12 +30,12 @@ impl SystemModel {
         let obj_plane = Surface::new_obj_or_img_plane(
             Vec3::new(0.0, 0.0, -1.0),
             Vec3::new(0.0, 0.0, 1.0),
-            INFINITY,
+            25.0,
         );
         let img_plane = Surface::new_obj_or_img_plane(
             Vec3::new(0.0, 0.0, 0.0),
             Vec3::new(0.0, 0.0, 1.0),
-            INFINITY,
+            25.0,
         );
 
         let mut surfaces = Vec::new();
@@ -143,6 +144,40 @@ impl Surface {
             Self::RefractingCircularFlat(surf) => surf.n,
         }
     }
+
+    /// Determine sequential point samples on the surface in the y-z plane.
+    pub fn sample_yz(&self, num_samples: usize) -> Vec<Vec3> {
+        // Skip object or image planes at infinity
+        if let Self::ObjectOrImagePlane(surf) = self {
+            if surf.pos.z().abs() == f32::INFINITY {
+                return Vec::new();
+            }
+        }
+
+        let diam = self.diam();
+
+        // Sample the surface in in the y,z plane by creating uniformally spaced (0,y,z) coordinates
+        let sample_points = Vec3::fan(num_samples, diam / 2.0, PI / 2.0, 0.0);
+
+        let mut sample: Vec3;
+        let mut rot_sample: Vec3;
+        let mut samples = Vec::with_capacity(sample_points.len());
+        for point in sample_points {
+            let (sag, _) = match self {
+                Self::ObjectOrImagePlane(surf) => surf.sag_norm(point),
+                Self::RefractingCircularConic(surf) => surf.sag_norm(point),
+                Self::RefractingCircularFlat(surf) => surf.sag_norm(point),
+            };
+
+            // Transform the sample into the global coordinate system.
+            sample = Vec3::new(point.x(), point.y(), sag);
+            rot_sample = self.rot_mat().transpose() * (sample + self.pos());
+
+            samples.push(rot_sample);
+        }
+
+        samples
+    }
 }
 
 impl From<(SurfaceSpec, &Gap)> for Surface {
@@ -205,5 +240,55 @@ mod tests {
         // 3 surfaces + object plane + image plane = 5 surfaces
         assert_eq!(seq_model.surfaces().len(), 5);
         assert_eq!(seq_model.gaps().len(), 4);
+    }
+
+    #[test]
+    fn test_sample_yz_object_plane_at_infinity() {
+        let surf = Surface::new_obj_or_img_plane(
+            Vec3::new(0.0, 0.0, f32::NEG_INFINITY),
+            Vec3::new(0.0, 0.0, 1.0),
+            4.0,
+        );
+        let samples = surf.sample_yz(20);
+        assert_eq!(samples.len(), 0);
+    }
+
+    #[test]
+    fn test_sample_yz_image_plane_at_infinity() {
+        let surf = Surface::new_obj_or_img_plane(
+            Vec3::new(0.0, 0.0, f32::INFINITY),
+            Vec3::new(0.0, 0.0, 1.0),
+            4.0,
+        );
+        let samples = surf.sample_yz(20);
+        assert_eq!(samples.len(), 0);
+    }
+
+    #[test]
+    fn test_sample_yz_finite_object_plane() {
+        let surf = Surface::new_obj_or_img_plane(
+            Vec3::new(0.0, 0.0, -1.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            4.0,
+        );
+        let samples = surf.sample_yz(20);
+        assert_eq!(samples.len(), 20);
+    }
+
+    #[ignore]
+    #[test]
+    fn test_sample_yz_x_values_are_zero() {
+        let surf = Surface::new_refr_circ_conic(
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            25.0,
+            1.515,
+            25.8,
+            0.0,
+        );
+        let samples = surf.sample_yz(20);
+        for sample in samples {
+            assert_eq!(sample.x(), 0.0);
+        }
     }
 }

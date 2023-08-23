@@ -1,8 +1,7 @@
-use wasm_bindgen::prelude::*;
-
 mod math;
 mod ray_tracing;
-mod rendering;
+
+use wasm_bindgen::prelude::*;
 
 use ray_tracing::sequential_model::{Gap, SequentialModel, SurfaceSpec};
 use ray_tracing::SystemModel;
@@ -55,6 +54,14 @@ impl WasmSystemModel {
 
     pub fn gaps(&self) -> JsValue {
         serde_wasm_bindgen::to_value(self.seq_model().gaps()).unwrap()
+    }
+
+    /// Return point samples from a surface in the optical system along the y-z plane.
+    pub fn sampleSurfYZ(&self, surf_idx: usize, num_points: usize) -> JsValue {
+        let surf = self.seq_model().surfaces()[surf_idx];
+        let samples = surf.sample_yz(num_points);
+
+        serde_wasm_bindgen::to_value(&samples).unwrap()
     }
 
     fn seq_model(&self) -> &SequentialModel {
