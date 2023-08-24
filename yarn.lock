@@ -2108,6 +2108,9 @@ rechoir@^0.8.0:
   dependencies:
     resolve "^1.20.0"
 
+"rendering@file:./src/rendering":
+  version "1.0.0"
+
 require-from-string@^2.0.2:
   version "2.0.2"
   resolved "https://registry.yarnpkg.com/require-from-string/-/require-from-string-2.0.2.tgz#89a7fdd938261267318eafe14f9c32e598c36909"

@@ -1,12 +1,13 @@
 (ns net.thewagner.cherry
   (:require [goog.dom :as gdom]
-            [reagent.dom.client :as rclient]
             [reagent.core :as r]
+            [reagent.dom.client :as rclient]
             [cljs.pprint :refer [pprint]]
             [cljs.spec.alpha :as s]
             [cljs.core.async :refer [take! go]]
             [cljs.core.async.interop :refer-macros [<p!]]
             [clojure.test.check.generators :as gen]
+            [rendering]
             [cherry :as cherry-async]
             [kmdouglass.cherry :as cherry-spec]))
 
@@ -26,10 +27,6 @@
                              :default #::cherry-spec{:n 1 :thickness 1 :diam 1}}})
 
 (def parameters [::cherry-spec/n ::cherry-spec/thickness ::cherry-spec/diam ::cherry-spec/roc ::cherry-spec/k])
-
-(comment
-  (gen/sample (s/gen number?) 5)
-  (gen/sample (s/gen ::row) 5))
 
 (defn vec-remove
   "remove elem in coll"
@@ -61,9 +58,98 @@
 (defn compute-results [surfaces-and-gaps]
   (go
     (let [cherry (<p! cherry-async)
-          model (wasm-system-model (.-WasmSystemModel cherry) surfaces-and-gaps)]
-      {:surfaces (js->clj (.surfaces model))
-       :gaps (js->clj (.gaps model))})))
+          model (wasm-system-model (.-WasmSystemModel cherry) surfaces-and-gaps)
+          surfaces (.surfaces model)
+          gaps (.gaps model)
+          results (.rayTrace model)
+          surfaces-samples (let [num-samples 20]
+                             (for [i (range (count surfaces))]
+                               {:samples (js->clj (.sampleSurfYZ model i num-samples))}))
+
+          valid-surfaces? (s/valid? ::cherry-spec/surface-samples surfaces-samples)
+          valid-results? (s/valid? ::cherry-spec/raytrace-results
+                                   (js->clj results {:keywordize-keys true}))]
+
+      (cond->
+        {:surfaces (js->clj surfaces)
+         :gaps (js->clj gaps)}
+
+        valid-surfaces?
+        (assoc :surface-samples surfaces-samples)
+
+        valid-results?
+        (assoc :ray-samples (js->clj (rendering/resultsToRayPaths results)))
+
+        (not valid-surfaces?)
+        (assoc ::surface-sample-problems
+               (::s/problems (s/explain-data ::cherry-spec/surface-samples surfaces-samples)))
+
+        (not valid-results?)
+        (assoc ::raytrace-results-problems
+               (::s/problems (s/explain-data ::cherry-spec/raytrace-results
+                                             (js->clj results {:keywordize-keys true}))))))))
+
+
+
+(defn render [canvas surface-samples ray-samples]
+  (when surface-samples
+    (let [ctx (.getContext canvas "2d")
+          w (.-width canvas)
+          h (.-height canvas)
+          _ (.clearRect ctx 0 0 w h)
+          sf (rendering/scaleFactor (clj->js surface-samples) w h 0.8)
+          comSamples (rendering/centerOfMass (clj->js surface-samples))
+          canvasCenterCoords [(/ w 2.) (/ h 2.)]
+          canvasSurfs (rendering/toCanvasCoordinates (clj->js surface-samples)
+                                                     (clj->js comSamples)
+                                                     (clj->js canvasCenterCoords)
+                                                     sf)]
+      (rendering/draw canvasSurfs ctx "black" 1.0)
+      (when ray-samples
+        (let [canvasRays (rendering/toCanvasCoordinates (clj->js ray-samples)
+                                                        (clj->js comSamples)
+                                                        (clj->js canvasCenterCoords)
+                                                        sf)]
+          (rendering/draw canvasRays ctx "red" 1.0))))))
+
+(defn window-size []
+  (r/with-let [size (r/atom nil)
+               handler #(swap! size assoc
+                               :innerWidth (.-innerWidth js/window)
+                               :innerHeight (.-innerHeight js/window))
+               _ (.addEventListener js/window "resize" handler false)]
+    @size
+    (finally
+      (.removeEventListener js/window "resize" handler))))
+
+(defn canvas-component [results]
+  (let [canvas (atom nil)
+        div (atom nil)
+        did-mount? (atom false)]
+    (r/create-class
+      {:display-name `canvas-component
+       :component-did-update
+       (fn [_this]
+         (when (and @did-mount? @results)
+           (render @canvas (:surface-samples @results) (:ray-samples @results))))
+
+       :component-did-mount
+       (fn [_this]
+         (reset! did-mount? true))
+
+       :reagent-render
+       (fn [results]
+         @(r/track window-size)
+         [:div.container
+           {:ref #(reset! div %)}
+           (when (and (:surface-samples @results) (not (:ray-samples @results)))
+             [:div.notification.is-danger "No rays."])
+           [:canvas#systemModel (cond-> {:ref #(reset! canvas %)}
+
+                                        @div
+                                        (assoc :width (.-clientWidth @div)
+                                               :height (let [aspect 3]
+                                                          (/ (.-clientWidth @div) aspect))))]])})))
 
 (defn prefill-row [old selected]
   (let [kw (keyword selected)
@@ -92,22 +178,25 @@
      {:value @value
       :on-change #(change-fn (.. % -target -value))}]))
 
-(defn data-viewer-component [surfaces]
-  [:div.columns
-    [:div.column
-      [:h2.subtitle "Table as ClojureScript data"]
-      [:pre
-        [:code (with-out-str (pprint @surfaces))]]]
-    [:div.column
-      [:h2.subtitle "Surfaces and gaps"]
-      [:pre
-        [:code (-> (map row->surface-and-gap @surfaces)
-                   (clj->js)
-                   (js/JSON.stringify nil 2))]]]])
+(defn data-viewer-component [surfaces results]
+  [:<>
+    [:h2.subtitle "Surfaces and gaps from WasmSystemModel"]
+    [:pre
+      [:code (with-out-str (pprint @results))]]
+    [:div.columns
+      [:div.column
+        [:h2.subtitle "Table as ClojureScript data"]
+        [:pre
+          [:code (with-out-str (pprint @surfaces))]]]
+      [:div.column
+        [:h2.subtitle "Surfaces and gaps"]
+        [:pre
+          [:code (-> (map row->surface-and-gap @surfaces)
+                     (clj->js)
+                     (js/JSON.stringify nil 2))]]]]])
 
-(defn results-viewer-component [rows]
-  (r/with-let [result (r/atom [])
-               watch (r/track!
+(defn results-viewer-component [rows results]
+  (r/with-let [watch (r/track!
                        (fn [] (let [surfaces-and-gaps (map (comp row->surface-and-gap
                                                                  parameters-as-numbers)
                                                            @rows)]
@@ -115,12 +204,36 @@
                                                 surfaces-and-gaps)
                                   (take!
                                     (compute-results surfaces-and-gaps)
-                                    #(reset! result %))))))]
-    [:<>
-      [:pre
-        [:code (with-out-str (pprint @result))]]]
+                                    #(reset! results %))))))]
+    [canvas-component results]
     (finally
       (r/dispose! watch))))
+
+(def planoconvex
+  [(merge {:surface-type :RefractingCircularConic}
+          #::cherry-spec{:n 1.515 :thickness 5.3 :diam 25.0 :roc 25.8 :k 0.0})
+   (merge {:surface-type :RefractingCircularFlat}
+          #::cherry-spec{:n 1.0 :thickness 46.6 :diam 25.0})])
+
+(def petzval
+  [(merge {:surface-type :RefractingCircularConic}
+          #::cherry-spec{:n 1.5168, :thickness 13.0, :diam 56.956, :roc 99.56266, :k 0.0})
+   (merge {:surface-type :RefractingCircularConic}
+          #::cherry-spec{:diam 52.552, :roc -86.84002, :k 0.0 :n 1.6645, :thickness 4.0})
+   (merge {:surface-type :RefractingCircularConic}
+          #::cherry-spec{:n 1.0, :thickness 40.0 :diam 42.04, :roc -1187.63858, :k 0.0})
+   (merge {:surface-type :RefractingCircularFlat}
+          #::cherry-spec{:n 1.0, :thickness 40.0, :diam 33.262})
+   (merge {:surface-type :RefractingCircularConic}
+          #::cherry-spec{:n 1.6074, :thickness 12.0  :diam 41.086, :roc 57.47491, :k 0.0})
+   (merge {:surface-type :RefractingCircularConic}
+          #::cherry-spec{:n 1.6727, :thickness 3.0 :diam 40.148, :roc -54.61685, :k 0.0})
+   (merge {:surface-type :RefractingCircularConic}
+          #::cherry-spec{:n 1.0, :thickness 46.82210 :diam 32.984, :roc -614.68633, :k 0.0})
+   (merge {:surface-type :RefractingCircularConic}
+          #::cherry-spec{:n 1.6727, :thickness 2.0 :diam 34.594, :roc -38.17110, :k 0.0})
+   (merge {:surface-type :RefractingCircularFlat}
+          #::cherry-spec{:n 1.0, :thickness 1.87179 :diam 37.88})])
 
 (defn surfaces-table [surfaces]
   [:<>
@@ -130,7 +243,15 @@
            [:p.subtitle "Surfaces"]]]
       [:div.level-right
         [:p.level-item
-          [:button.button {:on-click #(reset! surfaces (into [] (gen/sample (s/gen ::row) 3)))} "I'm Feeling Lucky"]]
+          [:button.button {:on-click #(reset! surfaces planoconvex)} "Planoconvex"]]
+        [:p.level-item
+          [:button.button {:on-click #(reset! surfaces petzval)} "Petzval"]]
+        [:p.level-item
+          [:button.button {:on-click #(reset! surfaces (into [] (gen/sample
+                                                                  (gen/fmap
+                                                                    (fn [r] (update r ::cherry-spec/diam (partial * 1)))
+                                                                    (s/gen ::row)) 5)))}
+           "I'm Feeling Lucky"]]
         [:p.level-item
           [:button.button.is-success {:on-click #(swap! surfaces conj nil)} "New"]]]]
     [:table.table.is-fullwidth
@@ -156,17 +277,17 @@
              [:td
                [:button.button {:on-click #(swap! surfaces vec-remove i)} "Delete"]]])]]])
 
+(defonce surfaces (r/atom (vec (gen/sample (s/gen ::row) 3))))
+
 (defn main []
-  (r/with-let [surfaces (r/atom (vec (gen/sample (s/gen ::row) 3)))]
+  (r/with-let [results (r/atom nil)]
     [:<>
        [:section.section
          [:h1.title "Cherry table demo"]
+         [results-viewer-component surfaces results]
          [surfaces-table surfaces]]
        [:section.section
-         [:h2.subtitle "Surfaces and gaps from WasmSystemModel"]
-         [results-viewer-component surfaces]]
-       [:section.section
-         [data-viewer-component surfaces]]]))
+         [data-viewer-component surfaces results]]]))
 
 (defonce dom-root
    (rclient/create-root (gdom/getElement "app")))
