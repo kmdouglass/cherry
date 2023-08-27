@@ -58,7 +58,6 @@
 
   (s/valid? ::raytrace-results ex)
   (s/explain ::raytrace-results ex)
-  (fn [rays] (= 1 (count (into #{} (map count [[1] [1]])))))
   (gen/sample (s/gen ::raytrace-results) 5)
   (gen/sample (s/gen ::ray) 5)
   (gen/sample (s/gen ::surface-samples) 5)
