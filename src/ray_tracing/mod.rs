@@ -5,7 +5,6 @@ pub mod surface_types;
 pub mod trace;
 
 use std::f32::consts::PI;
-use std::f32::INFINITY;
 
 use crate::math::mat3::Mat3;
 use crate::math::vec3::Vec3;
@@ -29,12 +28,12 @@ impl SystemModel {
     pub fn new() -> Self {
         let obj_plane = Surface::new_obj_or_img_plane(
             Vec3::new(0.0, 0.0, -1.0),
-            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(0.0, 0.0, 0.0),
             25.0,
         );
         let img_plane = Surface::new_obj_or_img_plane(
             Vec3::new(0.0, 0.0, 0.0),
-            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(0.0, 0.0, 0.0),
             25.0,
         );
 
@@ -183,7 +182,7 @@ impl Surface {
 impl From<(SurfaceSpec, &Gap)> for Surface {
     fn from((surf, gap): (SurfaceSpec, &Gap)) -> Self {
         let pos = Vec3::new(0.0, 0.0, 0.0);
-        let dir = Vec3::new(0.0, 0.0, 1.0);
+        let dir = Vec3::new(0.0, 0.0, 0.0);
 
         match surf {
             SurfaceSpec::ObjectOrImagePlane { diam } => {
