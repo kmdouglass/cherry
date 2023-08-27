@@ -5,6 +5,7 @@ use wasm_bindgen::prelude::*;
 
 use ray_tracing::sequential_model::{Gap, SequentialModel, SurfaceSpec};
 use ray_tracing::SystemModel;
+use std::f32::consts::PI;
 
 #[wasm_bindgen]
 #[derive(Debug)]
@@ -70,5 +71,48 @@ impl WasmSystemModel {
 
     fn seq_model_mut(&mut self) -> &mut SequentialModel {
         self.system_model.seq_model_mut()
+    }
+
+     pub fn rayTrace(&self) -> JsValue {
+        // Find the maximum diameter of the system
+        let mut max_diam = 0.0;
+        for surf in self.seq_model().surfaces() {
+            if surf.diam() > max_diam {
+                max_diam = surf.diam();
+            }
+        }
+
+        // Find the z-position of the first surface
+        let mut first_surf_z = f32::INFINITY;
+        for surf in self.seq_model().surfaces() {
+            if surf.pos().z() < first_surf_z {
+                first_surf_z = surf.pos().z();
+            }
+        }
+
+        let wavelength = 0.000532_f32;
+
+        // Generate a ray fan with diameter equal to the maximum diameter of the system
+        let num_rays = 5;
+        let rays = ray_tracing::rays::Ray::fan(num_rays, max_diam / 2.0, PI / 2.0, first_surf_z, 0.0);
+
+        let results = ray_tracing::trace::trace(&self.seq_model().surfaces(), rays, wavelength);
+
+        // Loop over results and remove rays that did not result in an Error
+        let sanitized: Vec<Vec<ray_tracing::rays::Ray>> = results
+            .iter()
+            .map(|surf_results| {
+                surf_results
+                    .iter()
+                    .filter_map(|res| match res {
+                        Ok(ray) => Some(ray.clone()),
+                        Err(_) => None,
+                    })
+                    .collect()
+            })
+            .collect();
+
+
+        serde_wasm_bindgen::to_value(&sanitized).unwrap()
     }
 }
