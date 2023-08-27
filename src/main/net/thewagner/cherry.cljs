@@ -18,13 +18,18 @@
 (defmethod row-type :RefractingCircularConic [_]
   (s/merge ::cherry-spec/RefractingCircularConic ::cherry-spec/gap))
 
+(defmethod row-type :Stop [_]
+  (s/merge ::cherry-spec/Stop ::cherry-spec/gap))
+
 (s/def ::row (s/multi-spec row-type :surface-type))
 
 (def surface-types
   {:RefractingCircularConic {:display-name "Conic"
                              :default #::cherry-spec{:n 1 :thickness 1 :diam 1 :roc 1 :k 1}}
    :RefractingCircularFlat {:display-name "Flat"
-                             :default #::cherry-spec{:n 1 :thickness 1 :diam 1}}})
+                             :default #::cherry-spec{:n 1 :thickness 1 :diam 1}}
+   :Stop {:display-name "Stop"
+          :default #::cherry-spec{:n 1 :thickness 1 :diam 1}}})
 
 (def parameters [::cherry-spec/n ::cherry-spec/thickness ::cherry-spec/diam ::cherry-spec/roc ::cherry-spec/k])
 
@@ -222,8 +227,8 @@
           #::cherry-spec{:diam 52.552, :roc -86.84002, :k 0.0 :n 1.6645, :thickness 4.0})
    (merge {:surface-type :RefractingCircularConic}
           #::cherry-spec{:n 1.0, :thickness 40.0 :diam 42.04, :roc -1187.63858, :k 0.0})
-   (merge {:surface-type :RefractingCircularFlat}
-          #::cherry-spec{:n 1.0, :thickness 40.0, :diam 33.262})
+   (merge {:surface-type :Stop}
+          #::cherry-spec{:n 1.0 :thickness 40.0, :diam 33.262})
    (merge {:surface-type :RefractingCircularConic}
           #::cherry-spec{:n 1.6074, :thickness 12.0  :diam 41.086, :roc 57.47491, :k 0.0})
    (merge {:surface-type :RefractingCircularConic}

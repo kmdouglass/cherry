@@ -5,11 +5,13 @@
 (s/def ::surface (s/or
                    :ObjectOrImagePlane (s/keys :req-un [::ObjectOrImagePlane])
                    :RefractingCircularFlat (s/keys :req-un [::RefractingCircularFlat])
-                   :RefractingCircularConic (s/keys :req-un [::RefractingCircularConic])))
+                   :RefractingCircularConic (s/keys :req-un [::RefractingCircularConic])
+                   :Stop (s/keys :req-un [::Stop])))
 
 (s/def ::ObjectOrImagePlane (s/keys :req [::diam]))
 (s/def ::RefractingCircularFlat (s/keys :req [::diam]))
 (s/def ::RefractingCircularConic (s/keys :req [::diam ::roc ::k]))
+(s/def ::Stop (s/keys :req [::diam]))
 
 (s/def ::gap (s/keys :req [::n ::thickness]))
 (s/def ::surface-and-gap (s/cat :surface ::surface :gap ::gap))
