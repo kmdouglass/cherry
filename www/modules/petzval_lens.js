@@ -3,7 +3,7 @@ export const surfaces = [
     {"RefractingCircularConic": {"diam": 56.956, "roc": 99.56266, "k": 0.0}},
     {"RefractingCircularConic": {"diam": 52.552, "roc": -86.84002, "k": 0.0}},
     {"RefractingCircularConic": {"diam": 42.04, "roc": -1187.63858, "k": 0.0}},
-    {"RefractingCircularFlat": {"diam": 33.262}},
+    {"Stop": {"diam": 33.262}},
     {"RefractingCircularConic": {"diam": 41.086, "roc": 57.47491, "k": 0.0}},
     {"RefractingCircularConic": {"diam": 40.148, "roc": -54.61685, "k": 0.0}},
     {"RefractingCircularConic": {"diam": 32.984, "roc": -614.68633, "k": 0.0}},

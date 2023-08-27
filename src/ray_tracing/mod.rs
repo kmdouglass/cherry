@@ -11,7 +11,7 @@ use crate::math::vec3::Vec3;
 
 use component_model::ComponentModel;
 use sequential_model::{Gap, SequentialModel, SurfaceSpec};
-use surface_types::{ObjectOrImagePlane, RefractingCircularConic, RefractingCircularFlat};
+use surface_types::{ObjectOrImagePlane, RefractingCircularConic, RefractingCircularFlat, Stop};
 
 /// A model of an optical system.
 #[derive(Debug)]
@@ -71,6 +71,7 @@ pub enum Surface {
     ObjectOrImagePlane(ObjectOrImagePlane),
     RefractingCircularConic(RefractingCircularConic),
     RefractingCircularFlat(RefractingCircularFlat),
+    Stop(Stop),
 }
 
 impl Surface {
@@ -87,12 +88,17 @@ impl Surface {
         Self::RefractingCircularFlat(RefractingCircularFlat::new(pos, dir, diam, n))
     }
 
+    pub fn new_stop(pos: Vec3, dir: Vec3, diam: f32, n: f32) -> Self {
+        Self::Stop(Stop::new(pos, dir, diam, n))
+    }
+
     /// Compute the surface sag and surface normals at a given position.
     pub fn sag_norm(&self, pos: Vec3) -> (f32, Vec3) {
         match self {
             Self::ObjectOrImagePlane(surf) => surf.sag_norm(pos),
             Self::RefractingCircularConic(surf) => surf.sag_norm(pos),
             Self::RefractingCircularFlat(surf) => surf.sag_norm(pos),
+            Self::Stop(surf) => surf.sag_norm(pos),
         }
     }
 
@@ -103,6 +109,7 @@ impl Surface {
             Self::ObjectOrImagePlane(surf) => surf.pos,
             Self::RefractingCircularConic(surf) => surf.pos,
             Self::RefractingCircularFlat(surf) => surf.pos,
+            Self::Stop(surf) => surf.pos,
         }
     }
 
@@ -111,6 +118,7 @@ impl Surface {
             Self::ObjectOrImagePlane(surf) => surf.pos = pos,
             Self::RefractingCircularConic(surf) => surf.pos = pos,
             Self::RefractingCircularFlat(surf) => surf.pos = pos,
+            Self::Stop(surf) => surf.pos = pos,
         }
     }
 
@@ -121,6 +129,7 @@ impl Surface {
             Self::ObjectOrImagePlane(surf) => surf.rot_mat,
             Self::RefractingCircularConic(surf) => surf.rot_mat,
             Self::RefractingCircularFlat(surf) => surf.rot_mat,
+            Self::Stop(surf) => surf.rot_mat,
         }
     }
 
@@ -131,6 +140,7 @@ impl Surface {
             Self::ObjectOrImagePlane(surf) => surf.diam,
             Self::RefractingCircularConic(surf) => surf.diam,
             Self::RefractingCircularFlat(surf) => surf.diam,
+            Self::Stop(surf) => surf.diam,
         }
     }
 
@@ -141,6 +151,7 @@ impl Surface {
             Self::ObjectOrImagePlane(surf) => surf.n,
             Self::RefractingCircularConic(surf) => surf.n,
             Self::RefractingCircularFlat(surf) => surf.n,
+            Self::Stop(surf) => surf.n,
         }
     }
 
@@ -166,6 +177,7 @@ impl Surface {
                 Self::ObjectOrImagePlane(surf) => surf.sag_norm(point),
                 Self::RefractingCircularConic(surf) => surf.sag_norm(point),
                 Self::RefractingCircularFlat(surf) => surf.sag_norm(point),
+                Self::Stop(surf) => surf.sag_norm(point),
             };
 
             // Transform the sample into the global coordinate system.
@@ -195,6 +207,10 @@ impl From<(SurfaceSpec, &Gap)> for Surface {
             }
             SurfaceSpec::RefractingCircularFlat { diam } => {
                 let surf = Surface::new_refr_circ_flat(pos, dir, diam, gap.n());
+                surf
+            }
+            SurfaceSpec::Stop { diam } => {
+                let surf = Surface::new_stop(pos, dir, diam, gap.n());
                 surf
             }
         }

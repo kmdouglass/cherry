@@ -165,6 +165,7 @@ impl From<&SequentialModel> for ComponentModel {
             components.insert(component);
 
             // Skip air gaps
+            // TODO Check if gap is an air gap to account for doublets, etc.
             gap_idx += 2;
         }
 
