@@ -3,10 +3,10 @@
             [clojure.test.check.generators :as gen]))
 
 (s/def ::surface (s/or
-                   :ObjectOrImagePlane (s/keys :req-un [::ObjectOrImagePlane])
-                   :RefractingCircularFlat (s/keys :req-un [::RefractingCircularFlat])
-                   :RefractingCircularConic (s/keys :req-un [::RefractingCircularConic])
-                   :Stop (s/keys :req-un [::Stop])))
+                   :ObjectOrImagePlane (s/keys :req [::ObjectOrImagePlane])
+                   :RefractingCircularFlat (s/keys :req [::RefractingCircularFlat])
+                   :RefractingCircularConic (s/keys :req [::RefractingCircularConic])
+                   :Stop (s/keys :req [::Stop])))
 
 (s/def ::ObjectOrImagePlane (s/keys :req [::diam]))
 (s/def ::RefractingCircularFlat (s/keys :req [::diam]))
@@ -40,6 +40,32 @@
 
 (s/def ::surface-samples (s/coll-of (s/keys :req-un [::samples])))
 (s/def ::samples (s/coll-of (s/tuple number? number? number?) :min-count 1))
+
+(def planoconvex
+  [{::RefractingCircularConic {::diam 25.0 ::roc 25.8 ::k 0.0}}
+   {::n 1.515 ::thickness 5.3}
+   {::RefractingCircularFlat {::diam 25.0}}
+   {::n 1.0 ::thickness 46.6 ::diam 25.0}])
+
+(def petzval
+  [{::RefractingCircularConic {::diam 56.956, ::roc 99.56266, ::k 0.0}}
+   {::n 1.5168 ::thickness 13.0}
+   {::RefractingCircularConic {::diam 52.552, ::roc -86.84002, ::k 0.0}}
+   {::n 1.6645 ::thickness 4.0}
+   {::RefractingCircularConic {::diam 42.04, ::roc -1187.63858, ::k 0.0}}
+   {::n 1.0 ::thickness 40.0}
+   {::Stop {::diam 33.262}}
+   {::n 1.0 ::thickness 40.0,}
+   {::RefractingCircularConic {::diam 41.086, ::roc 57.47491, ::k 0.0}}
+   {::n 1.6074 ::thickness 12.0}
+   {::RefractingCircularConic {::diam 40.148, ::roc -54.61685, ::k 0.0}}
+   {::n 1.6727 ::thickness 3.0}
+   {::RefractingCircularConic {::diam 32.984, ::roc -614.68633, ::k 0.0}}
+   {::n 1.0 ::thickness 46.82210}
+   {::RefractingCircularConic {::diam 34.594, ::roc -38.17110, ::k 0.0}}
+   {::n 1.6727 ::thickness 2.0}
+   {::RefractingCircularFlat {::diam 37.88}}
+   {::n 1.0 ::thickness 1.87179}])
 
 (comment
   (def ex [[{:pos [8.74227794156468e-7 -20 -1], :dir [0 0 1], :terminated false}

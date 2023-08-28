@@ -12,24 +12,29 @@
             [kmdouglass.cherry :as cherry-spec]))
 
 (defmulti row-type :surface-type)
-(defmethod row-type :RefractingCircularFlat [_]
+(defmethod row-type ::cherry-spec/RefractingCircularFlat [_]
   (s/merge ::cherry-spec/RefractingCircularFlat ::cherry-spec/gap))
 
-(defmethod row-type :RefractingCircularConic [_]
+(defmethod row-type ::cherry-spec/RefractingCircularConic [_]
   (s/merge ::cherry-spec/RefractingCircularConic ::cherry-spec/gap))
 
-(defmethod row-type :Stop [_]
+(defmethod row-type ::cherry-spec/Stop [_]
   (s/merge ::cherry-spec/Stop ::cherry-spec/gap))
 
 (s/def ::row (s/multi-spec row-type :surface-type))
 
 (def surface-types
-  {:RefractingCircularConic {:display-name "Conic"
-                             :default #::cherry-spec{:n 1 :thickness 1 :diam 1 :roc 1 :k 1}}
-   :RefractingCircularFlat {:display-name "Flat"
-                             :default #::cherry-spec{:n 1 :thickness 1 :diam 1}}
-   :Stop {:display-name "Stop"
-          :default #::cherry-spec{:n 1 :thickness 1 :diam 1}}})
+  {::cherry-spec/RefractingCircularConic
+   {:display-name "Conic"
+    :default #::cherry-spec{:n 1 :thickness 1 :diam 1 :roc 1 :k 1}}
+
+   ::cherry-spec/RefractingCircularFlat
+   {:display-name "Flat"
+    :default #::cherry-spec{:n 1 :thickness 1 :diam 1}}
+
+   ::cherry-spec/Stop
+   {:display-name "Stop"
+    :default #::cherry-spec{:n 1 :thickness 1 :diam 1}}})
 
 (def parameters [::cherry-spec/n ::cherry-spec/thickness ::cherry-spec/diam ::cherry-spec/roc ::cherry-spec/k])
 
@@ -41,17 +46,21 @@
 (defn parameters-as-numbers [row]
   (update-vals row (fn [v] (if (string? v) (parse-double v) v))))
 
-(defn row->surface-and-gap [row]
- (vector
-   {(:surface-type row) (dissoc row :surface-type ::cherry-spec/thickness ::cherry-spec/n)}
-   (select-keys row [::cherry-spec/thickness ::cherry-spec/n])))
+(defn rows->surfaces-and-gaps [rows]
+ (for [row rows]
+   (vector
+    {(:surface-type row) (dissoc row :surface-type ::cherry-spec/thickness ::cherry-spec/n)}
+    (select-keys row [::cherry-spec/thickness ::cherry-spec/n]))))
 
-(s/fdef row->surface-and-gap
-  :args (s/cat :row ::row)
-  :ret ::cherry-spec/surface-and-gap)
-
-(comment
-  (s/exercise-fn `row->surface-and-gap) 100)
+(defn surfaces-and-gaps->rows [surfaces-and-gaps]
+  (mapv
+    (fn [[surface gap]]
+      (let [surface-type (first (keys surface))]
+        (merge
+          {:surface-type surface-type}
+          (get surface surface-type)
+          gap)))
+    (partition 2 2 surfaces-and-gaps)))
 
 (defn wasm-system-model [constructor surfaces-and-gaps]
   (let [m (new constructor)]
@@ -93,8 +102,6 @@
         (assoc ::raytrace-results-problems
                (::s/problems (s/explain-data ::cherry-spec/raytrace-results
                                              (js->clj results {:keywordize-keys true}))))))))
-
-
 
 (defn render [canvas surface-samples ray-samples]
   (when surface-samples
@@ -157,24 +164,26 @@
                                                           (/ (.-clientWidth @div) aspect))))]])})))
 
 (defn prefill-row [old selected]
-  (let [kw (keyword selected)
-        default (get-in surface-types [kw :default])]
+  (let [default (get-in surface-types [selected :default])]
    (merge
      default
      (select-keys old (keys default))
-     {:surface-type kw})))
+     {:surface-type selected})))
+
+(comment
+  (prefill-row {::cherry-spec/n 2} ::cherry-spec/Stop))
 
 (defn surface-dropdown [surface change-fn]
   [:div.select
     {:class (when-not surface :is-primary)}
     [:select
-      {:value (or (:surface-type surface) ::default)
-       :on-change #(change-fn (.. % -target -value))}
-      [:option {:disabled true :value ::default :hidden true}
+      {:value (str (or (:surface-type surface) ::default))
+       :on-change #(change-fn (-> (.. % -target -value) (subs 1) keyword))}
+      [:option {:disabled true :value (str ::default) :hidden true}
                "Select surface type"]
       (for [t (keys surface-types)]
-        ^{:key t}
-        [:option {:value t}
+        ^{:key (str t)}
+        [:option {:value (str t)}
                  (get-in surface-types [t :display-name])])]])
 
 (defn param-input [spec value change-fn]
@@ -196,15 +205,13 @@
       [:div.column
         [:h2.subtitle "Surfaces and gaps"]
         [:pre
-          [:code (-> (map row->surface-and-gap @surfaces)
+          [:code (-> (rows->surfaces-and-gaps @surfaces)
                      (clj->js)
                      (js/JSON.stringify nil 2))]]]]])
 
 (defn results-viewer-component [rows results]
   (r/with-let [watch (r/track!
-                       (fn [] (let [surfaces-and-gaps (map (comp row->surface-and-gap
-                                                                 parameters-as-numbers)
-                                                           @rows)]
+                       (fn [] (let [surfaces-and-gaps (map parameters-as-numbers (rows->surfaces-and-gaps @rows))]
                                 (when (s/valid? (s/coll-of ::cherry-spec/surface-and-gap)
                                                 surfaces-and-gaps)
                                   (take!
@@ -214,32 +221,6 @@
     (finally
       (r/dispose! watch))))
 
-(def planoconvex
-  [(merge {:surface-type :RefractingCircularConic}
-          #::cherry-spec{:n 1.515 :thickness 5.3 :diam 25.0 :roc 25.8 :k 0.0})
-   (merge {:surface-type :RefractingCircularFlat}
-          #::cherry-spec{:n 1.0 :thickness 46.6 :diam 25.0})])
-
-(def petzval
-  [(merge {:surface-type :RefractingCircularConic}
-          #::cherry-spec{:n 1.5168, :thickness 13.0, :diam 56.956, :roc 99.56266, :k 0.0})
-   (merge {:surface-type :RefractingCircularConic}
-          #::cherry-spec{:diam 52.552, :roc -86.84002, :k 0.0 :n 1.6645, :thickness 4.0})
-   (merge {:surface-type :RefractingCircularConic}
-          #::cherry-spec{:n 1.0, :thickness 40.0 :diam 42.04, :roc -1187.63858, :k 0.0})
-   (merge {:surface-type :Stop}
-          #::cherry-spec{:n 1.0 :thickness 40.0, :diam 33.262})
-   (merge {:surface-type :RefractingCircularConic}
-          #::cherry-spec{:n 1.6074, :thickness 12.0  :diam 41.086, :roc 57.47491, :k 0.0})
-   (merge {:surface-type :RefractingCircularConic}
-          #::cherry-spec{:n 1.6727, :thickness 3.0 :diam 40.148, :roc -54.61685, :k 0.0})
-   (merge {:surface-type :RefractingCircularConic}
-          #::cherry-spec{:n 1.0, :thickness 46.82210 :diam 32.984, :roc -614.68633, :k 0.0})
-   (merge {:surface-type :RefractingCircularConic}
-          #::cherry-spec{:n 1.6727, :thickness 2.0 :diam 34.594, :roc -38.17110, :k 0.0})
-   (merge {:surface-type :RefractingCircularFlat}
-          #::cherry-spec{:n 1.0, :thickness 1.87179 :diam 37.88})])
-
 (defn surfaces-table [surfaces]
   [:<>
     [:nav.level
@@ -248,9 +229,9 @@
            [:p.subtitle "Surfaces"]]]
       [:div.level-right
         [:p.level-item
-          [:button.button {:on-click #(reset! surfaces planoconvex)} "Planoconvex"]]
+          [:button.button {:on-click #(reset! surfaces (surfaces-and-gaps->rows cherry-spec/planoconvex))} "Planoconvex"]]
         [:p.level-item
-          [:button.button {:on-click #(reset! surfaces petzval)} "Petzval"]]
+          [:button.button {:on-click #(reset! surfaces (surfaces-and-gaps->rows cherry-spec/petzval))} "Petzval"]]
         [:p.level-item
           [:button.button {:on-click #(reset! surfaces (into [] (gen/sample
                                                                   (gen/fmap
@@ -271,6 +252,7 @@
            ^{:key i}
            [:tr
              [:td [surface-dropdown s (fn [selected-type]
+                                        (tap> selected-type)
                                         (swap! surfaces update i #(prefill-row % selected-type)))]]
              (for [p parameters]
                ^{:key p}
