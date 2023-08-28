@@ -240,29 +240,30 @@
            "I'm Feeling Lucky"]]
         [:p.level-item
           [:button.button.is-success {:on-click #(swap! surfaces conj nil)} "New"]]]]
-    [:table.table.is-fullwidth
-       [:thead
-         [:tr
-           [:th "Surface type"]
-           (for [p parameters]
-             ^{:key p} [:th {:style {:width "12%"}} p])
-           [:th "Actions"]]]
-       [:tbody
-         (for [[i s] (map vector (range) @surfaces)]
-           ^{:key i}
+    [:div.table-container
+      [:table.table
+         [:thead
            [:tr
-             [:td [surface-dropdown s (fn [selected-type]
-                                        (tap> selected-type)
-                                        (swap! surfaces update i #(prefill-row % selected-type)))]]
+             [:th "Surface type"]
              (for [p parameters]
-               ^{:key p}
+               ^{:key p} [:th {:style {:width "12%"}} p])
+             [:th "Actions"]]]
+         [:tbody
+           (for [[i s] (map vector (range) @surfaces)]
+             ^{:key i}
+             [:tr
+               [:td [surface-dropdown s (fn [selected-type]
+                                          (tap> selected-type)
+                                          (swap! surfaces update i #(prefill-row % selected-type)))]]
+               (for [p parameters]
+                 ^{:key p}
+                 [:td
+                   (when (get s p)
+                     [param-input p
+                                  (r/track #(get-in @surfaces [i p]))
+                                  #(swap! surfaces assoc-in [i p] %)])])
                [:td
-                 (when (get s p)
-                   [param-input p
-                                (r/track #(get-in @surfaces [i p]))
-                                #(swap! surfaces assoc-in [i p] %)])])
-             [:td
-               [:button.button {:on-click #(swap! surfaces vec-remove i)} "Delete"]]])]]])
+                 [:button.button {:on-click #(swap! surfaces vec-remove i)} "Delete"]]])]]]])
 
 (defonce surfaces (r/atom (vec (gen/sample (s/gen ::row) 3))))
 
