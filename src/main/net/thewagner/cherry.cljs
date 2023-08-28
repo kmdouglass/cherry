@@ -271,7 +271,7 @@
   (r/with-let [results (r/atom nil)]
     [:<>
        [:section.section
-         [:h1.title "Cherry table demo"]
+         [:h1.title "Cherry Raytracer"]
          [results-viewer-component surfaces results]
          [surfaces-table surfaces]]
        [:section.section
