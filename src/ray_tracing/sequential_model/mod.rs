@@ -141,6 +141,7 @@ pub enum SurfaceSpec {
     ObjectOrImagePlane { diam: f32 },
     RefractingCircularConic { diam: f32, roc: f32, k: f32 },
     RefractingCircularFlat { diam: f32 },
+    Stop { diam: f32 },
 }
 
 impl From<&Surface> for SurfaceSpec {
@@ -162,6 +163,10 @@ impl From<&Surface> for SurfaceSpec {
                 let surf = SurfaceSpec::RefractingCircularFlat { diam: surf.diam };
                 surf
             }
+            Surface::Stop(surf) => {
+                let surf = SurfaceSpec::Stop { diam: surf.diam };
+                surf
+            }
         }
     }
 }
@@ -181,6 +186,10 @@ impl From<SurfacePair> for (Surface, Gap) {
                 (value.0, gap)
             }
             Surface::RefractingCircularFlat(surf) => {
+                let gap = Gap::new(surf.n, thickness);
+                (value.0, gap)
+            }
+            Surface::Stop(surf) => {
                 let gap = Gap::new(surf.n, thickness);
                 (value.0, gap)
             }
