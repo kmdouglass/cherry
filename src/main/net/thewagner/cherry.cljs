@@ -6,6 +6,7 @@
             [cljs.spec.alpha :as s]
             [cljs.core.async :refer [take! go]]
             [cljs.core.async.interop :refer-macros [<p!]]
+            [cljs.reader :refer [read-string]]
             [clojure.test.check.generators :as gen]
             [rendering]
             [cherry :as cherry-async]
@@ -178,7 +179,7 @@
     {:class (when-not surface :is-primary)}
     [:select
       {:value (str (or (:surface-type surface) ::default))
-       :on-change #(change-fn (-> (.. % -target -value) (subs 1) keyword))}
+       :on-change #(change-fn (read-string (.. % -target -value)))}
       [:option {:disabled true :value (str ::default) :hidden true}
                "Select surface type"]
       (for [t (keys surface-types)]
