@@ -33,7 +33,7 @@
 
 ; Ray-race results
 (s/def ::raytrace-results (s/and (s/coll-of ::ray)
-                                 (fn all-same-length [rays] (= 1 (count (into #{} (map count rays)))))))
+                                 (fn all-same-length [rays] (= 1 (count (set (map count rays)))))))
 (s/def ::ray (s/coll-of (s/keys :req-un [::pos ::dir])))
 (s/def ::pos (s/tuple number? number? number?))
 (s/def ::dir (s/tuple number? number? number?))
