@@ -211,7 +211,7 @@
 
 (defn results-viewer-component [rows results]
   (r/with-let [watch (r/track!
-                       (fn [] (let [surfaces-and-gaps (map parameters-as-numbers (rows->surfaces-and-gaps @rows))]
+                       (fn [] (let [surfaces-and-gaps (rows->surfaces-and-gaps (map parameters-as-numbers @rows))]
                                 (when (s/valid? (s/coll-of ::cherry-spec/surface-and-gap)
                                                 surfaces-and-gaps)
                                   (take!
