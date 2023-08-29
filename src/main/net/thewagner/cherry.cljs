@@ -233,10 +233,7 @@
         [:p.level-item
           [:button.button {:on-click #(reset! surfaces (surfaces-and-gaps->rows cherry-spec/petzval))} "Petzval"]]
         [:p.level-item
-          [:button.button {:on-click #(reset! surfaces (into [] (gen/sample
-                                                                  (gen/fmap
-                                                                    (fn [r] (update r ::cherry-spec/diam (partial * 1)))
-                                                                    (s/gen ::row)) 5)))}
+          [:button.button {:on-click #(reset! surfaces (into [] (gen/sample (s/gen ::row) 5)))}
            "I'm Feeling Lucky"]]
         [:p.level-item
           [:button.button.is-success {:on-click #(swap! surfaces conj nil)} "New"]]]]
