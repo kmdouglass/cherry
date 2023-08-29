@@ -109,7 +109,6 @@
     (let [ctx (.getContext canvas "2d")
           w (.-width canvas)
           h (.-height canvas)
-          _ (.clearRect ctx 0 0 w h)
           sf (rendering/scaleFactor (clj->js surface-samples) w h 0.8)
           comSamples (rendering/centerOfMass (clj->js surface-samples))
           canvasCenterCoords [(/ w 2.) (/ h 2.)]
@@ -117,6 +116,7 @@
                                                      (clj->js comSamples)
                                                      (clj->js canvasCenterCoords)
                                                      sf)]
+      (.clearRect ctx 0 0 w h)
       (rendering/draw canvasSurfs ctx "black" 1.0)
       (when ray-samples
         (let [canvasRays (rendering/toCanvasCoordinates (clj->js ray-samples)
