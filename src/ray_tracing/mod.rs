@@ -7,6 +7,7 @@ pub mod trace;
 use std::f32::consts::PI;
 
 use anyhow::Result;
+use serde::{Deserialize, Serialize};
 
 use crate::math::mat3::Mat3;
 use crate::math::vec3::Vec3;
@@ -243,7 +244,7 @@ impl From<(SurfaceSpec, &Gap)> for Surface {
 ///
 /// For the moment, the entrance pupil is assumed to lie at the first surface, but this is not
 /// valid in general.
-#[derive(Debug)]
+#[derive(Debug, Deserialize, Serialize)]
 pub(crate) enum ApertureSpec {
     EntrancePupilDiameter { diam: f32 },
 }

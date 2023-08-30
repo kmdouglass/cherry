@@ -4,7 +4,7 @@ mod ray_tracing;
 use wasm_bindgen::prelude::*;
 
 use ray_tracing::sequential_model::{Gap, SequentialModel, SurfaceSpec};
-use ray_tracing::SystemModel;
+use ray_tracing::{ApertureSpec, SystemModel};
 use std::f32::consts::PI;
 
 #[wasm_bindgen]
@@ -65,12 +65,16 @@ impl WasmSystemModel {
         serde_wasm_bindgen::to_value(&samples).unwrap()
     }
 
-    fn seq_model(&self) -> &SequentialModel {
-        self.system_model.seq_model()
+    pub fn aperture(&self) -> JsValue {
+        serde_wasm_bindgen::to_value(self.system_model.aperture_spec()).unwrap()
     }
 
-    fn seq_model_mut(&mut self) -> &mut SequentialModel {
-        self.system_model.seq_model_mut()
+    pub fn setAperture(&mut self, aperture: JsValue) -> Result<(), JsError> {
+        let aperture: ApertureSpec = serde_wasm_bindgen::from_value(aperture)?;
+        self.system_model
+            .set_aperture_spec(aperture)
+            .map_err(|e| JsError::new(&e.to_string()))?;
+        Ok(())
     }
 
     pub fn rayTrace(&self) -> JsValue {
@@ -114,5 +118,13 @@ impl WasmSystemModel {
             .collect();
 
         serde_wasm_bindgen::to_value(&sanitized).unwrap()
+    }
+
+    fn seq_model(&self) -> &SequentialModel {
+        self.system_model.seq_model()
+    }
+
+    fn seq_model_mut(&mut self) -> &mut SequentialModel {
+        self.system_model.seq_model_mut()
     }
 }
