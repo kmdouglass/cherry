@@ -72,11 +72,11 @@ impl SystemModel {
         &mut self.seq_model
     }
 
-    pub fn aperture_spec(&self) -> &ApertureSpec {
+    pub fn aperture(&self) -> &ApertureSpec {
         &self.aperture
     }
 
-    pub fn set_aperture_spec(&mut self, aperture: ApertureSpec) -> Result<()> {
+    pub fn set_aperture(&mut self, aperture: ApertureSpec) -> Result<()> {
         if let ApertureSpec::EntrancePupilDiameter { diam } = aperture {
             if diam <= 0.0 {
                 return Err(anyhow::anyhow!("Entrance pupil diameter must be positive"));
@@ -108,12 +108,12 @@ impl SystemModel {
     /// Compute the entrance pupil for the system.
     pub(crate) fn entrance_pupil(&self) -> Option<EntrancePupil> {
         // The diameter is the aperture diameter (until more aperture types are supported)
-        let diam = match self.aperture_spec() {
+        let diam = match self.aperture() {
             ApertureSpec::EntrancePupilDiameter { diam } => *diam,
         };
 
         // The position is the first surface's position (for now)
-        if self.surfaces.len() == 2 {
+        if self.seq_model().surfaces().len() == 2 {
             // Only object and image plane, so return.
             return None;
         }
@@ -147,13 +147,13 @@ impl SystemModel {
         };
 
         // If the object plane is at infinity, launch the rays from one unit in front of the first surface
-        let first_surf_z = if self.object_plane().pos().z() == f32::NEG_INFINITY {
+        let launch_point_z = if self.object_plane().pos().z() == f32::NEG_INFINITY {
             self.surfaces[1].pos().z() - 1.0
         } else {
             self.object_plane().pos().z()
         };
 
-        let rays = Ray::fan(num_rays, ep.diam() / 2.0, theta, first_surf_z, phi);
+        let rays = Ray::fan(num_rays, ep.diam() / 2.0, theta, launch_point_z, phi);
 
         Ok(rays)
     }
@@ -436,10 +436,10 @@ mod tests {
         let mut model = SystemModel::new();
         let aperture = ApertureSpec::EntrancePupilDiameter { diam: 10.0 };
 
-        let result = model.set_aperture_spec(aperture);
+        let result = model.set_aperture(aperture);
         assert!(result.is_ok());
 
-        let aperture = model.aperture_spec();
+        let aperture = model.aperture();
 
         if let ApertureSpec::EntrancePupilDiameter { diam } = aperture {
             assert_eq!(*diam, 10.0);

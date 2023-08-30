@@ -66,13 +66,13 @@ impl WasmSystemModel {
     }
 
     pub fn aperture(&self) -> JsValue {
-        serde_wasm_bindgen::to_value(self.system_model.aperture_spec()).unwrap()
+        serde_wasm_bindgen::to_value(self.system_model.aperture()).unwrap()
     }
 
     pub fn setAperture(&mut self, aperture: JsValue) -> Result<(), JsError> {
         let aperture: ApertureSpec = serde_wasm_bindgen::from_value(aperture)?;
         self.system_model
-            .set_aperture_spec(aperture)
+            .set_aperture(aperture)
             .map_err(|e| JsError::new(&e.to_string()))?;
         Ok(())
     }
@@ -82,7 +82,10 @@ impl WasmSystemModel {
 
         // Generate a ray fan to fill the entrance pupil
         let num_rays = 5;
-        let rays = self.system_model.pupil_ray_fan(num_rays, PI / 2.0, 0.0).map_err(|e| JsError::new(&e.to_string()))?;
+        let rays = self
+            .system_model
+            .pupil_ray_fan(num_rays, PI / 2.0, 0.0)
+            .map_err(|e| JsError::new(&e.to_string()))?;
 
         let results = ray_tracing::trace::trace(&self.seq_model().surfaces(), rays, wavelength);
 
