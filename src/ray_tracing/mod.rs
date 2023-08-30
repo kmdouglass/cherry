@@ -81,10 +81,45 @@ impl SystemModel {
                 return Err(anyhow::anyhow!("Entrance pupil diameter must be positive"));
             }
         }
-        
+
         self.aperture = aperture;
 
         Ok(())
+    }
+
+    /// Compute the system diameter by finding the surface with the largest diameter.
+    pub(crate) fn diam(&self) -> f32 {
+        // Don't include object and image planes
+        let mut diam = 0.0;
+        for surf in self
+            .surfaces
+            .iter()
+            .filter(|surf| !matches!(surf, Surface::ObjectOrImagePlane(_)))
+        {
+            if surf.diam() > diam {
+                diam = surf.diam();
+            }
+        }
+
+        diam
+    }
+
+    /// Compute the entrance pupil for the system.
+    pub(crate) fn entrance_pupil(&self) -> Option<EntrancePupil> {
+        // The diameter is the aperture diameter (until more aperture types are supported)
+        let diam = match self.aperture_spec() {
+            ApertureSpec::EntrancePupilDiameter { diam } => *diam,
+        };
+
+        // The position is the first surface's position (for now)
+        if self.surfaces.len() == 2 {
+            // Only object and image plane, so return.
+            return None;
+        }
+
+        let pos = self.surfaces[1].pos();
+
+        Some(EntrancePupil { pos, diam })
     }
 }
 
@@ -249,6 +284,29 @@ pub(crate) enum ApertureSpec {
     EntrancePupilDiameter { diam: f32 },
 }
 
+/// The system's entrance pupil.
+///
+/// For now, this is assumed to lie at the first surface.
+#[derive(Debug)]
+pub(crate) struct EntrancePupil {
+    pos: Vec3,
+    diam: f32,
+}
+
+impl EntrancePupil {
+    /// Return the position of the entrance pupil in the global coordinate system.
+    #[inline]
+    pub fn pos(&self) -> Vec3 {
+        self.pos
+    }
+
+    /// Return the diameter of the entrance pupil.
+    #[inline]
+    pub fn diam(&self) -> f32 {
+        self.diam
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -341,7 +399,7 @@ mod tests {
     fn test_set_aperture_spec() {
         let mut model = SystemModel::new();
         let aperture = ApertureSpec::EntrancePupilDiameter { diam: 10.0 };
-        
+
         let result = model.set_aperture_spec(aperture);
         assert!(result.is_ok());
 
@@ -354,4 +412,30 @@ mod tests {
         }
     }
 
+    // Test SystemModel.diameter()
+    #[test]
+    fn test_system_model_diam() {
+        let mut model = SystemModel::new();
+
+        let surf = Surface::new_refr_circ_conic(
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 0.0),
+            10.0,
+            1.5,
+            10.0,
+            0.0,
+        );
+        model.surfaces.push(surf);
+
+        let surf = Surface::new_refr_circ_flat(
+            Vec3::new(0.0, 0.0, 10.0),
+            Vec3::new(0.0, 0.0, 0.0),
+            12.0,
+            1.5,
+        );
+        model.surfaces.push(surf);
+
+        let diam = model.diam();
+        assert_eq!(diam, 12.0);
+    }
 }

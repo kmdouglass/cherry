@@ -77,26 +77,21 @@ impl WasmSystemModel {
         Ok(())
     }
 
-    pub fn rayTrace(&self) -> JsValue {
-        // Find the maximum diameter of the system
-        let mut max_diam = 0.0;
-        for surf in self.seq_model().surfaces() {
-            if surf.diam() > max_diam {
-                max_diam = surf.diam();
-            }
-        }
-
+    pub fn rayTrace(&self) -> Result<JsValue, JsError> {
         // Find the z-position of the first surface
-        let mut first_surf_z = f32::INFINITY;
-        for surf in self.seq_model().surfaces() {
-            if surf.pos().z() < first_surf_z {
-                first_surf_z = surf.pos().z();
-            }
-        }
+        let first_surf_z = self.seq_model().surfaces()[1].pos().z();
 
         let wavelength = 0.000532_f32;
 
-        // Generate a ray fan with diameter equal to the maximum diameter of the system
+        // Get the entrance pupil diameter if it exists
+        let ep = self.system_model.entrance_pupil();
+        let max_diam = if let None = ep {
+            return Err(JsError::new("There is no entrance pupil for this system"));
+        } else {
+            ep.unwrap().diam()
+        };
+
+        // Generate a ray fan with diameter equal to the entrance pupil diameter
         let num_rays = 5;
         let rays =
             ray_tracing::rays::Ray::fan(num_rays, max_diam / 2.0, PI / 2.0, first_surf_z, 0.0);
@@ -117,7 +112,7 @@ impl WasmSystemModel {
             })
             .collect();
 
-        serde_wasm_bindgen::to_value(&sanitized).unwrap()
+        Ok(serde_wasm_bindgen::to_value(&sanitized).unwrap())
     }
 
     fn seq_model(&self) -> &SequentialModel {
