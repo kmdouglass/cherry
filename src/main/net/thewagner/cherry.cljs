@@ -10,7 +10,8 @@
             [cljs.reader :refer [read-string]]
             [rendering]
             [cherry :as cherry-async]
-            [kmdouglass.cherry :as cherry-spec]))
+            [kmdouglass.cherry :as cherry-spec]
+            [clojure.test.check.generators]))
 
 (defmulti row-type :surface-type)
 (defmethod row-type ::cherry-spec/RefractingCircularFlat [_]
@@ -53,6 +54,9 @@
     {(:surface-type row) (dissoc row :surface-type ::cherry-spec/thickness ::cherry-spec/n)}
     (select-keys row [::cherry-spec/thickness ::cherry-spec/n]))))
 
+(defn entrance-pupil-diameter->aperture [d]
+  {::cherry-spec/EntrancePupilDiameter {::cherry-spec/diam d}})
+
 (defn surfaces-and-gaps->rows [surfaces-and-gaps]
   (mapv
     (fn [[surface gap]]
@@ -63,17 +67,18 @@
           gap)))
     (partition 2 2 surfaces-and-gaps)))
 
-(defn wasm-system-model [constructor surfaces-and-gaps]
+(defn wasm-system-model [constructor {:keys [aperture surfaces-and-gaps]}]
   (let [m (new constructor)]
     (doseq [[i [s g]] (map vector (range) surfaces-and-gaps)]
        (.insertSurfaceAndGap m (inc i) (clj->js s) (clj->js g)))
+    (.setAperture m (clj->js aperture))
     m))
 
 (set! *warn-on-infer* false)
-(defn compute-results [surfaces-and-gaps]
+(defn compute-results [raytrace-input]
   (go
     (let [cherry (<p! cherry-async)
-          model (wasm-system-model (.-WasmSystemModel cherry) surfaces-and-gaps)
+          model (wasm-system-model (.-WasmSystemModel cherry) raytrace-input)
           surfaces (.surfaces model)
           gaps (.gaps model)
           results (.rayTrace model)
@@ -188,8 +193,8 @@
                  (get-in surface-types [t :display-name])])]])
 
 (defn param-input [spec value change-fn]
-  (let [valid? (s/valid? spec (parse-double (str @value)))]
-    [(if valid? :input.input :input.input.is-warning)
+  (let [valid? (r/atom (s/valid? spec (parse-double (str @value))))]
+    [(if @valid? :input.input :input.input.is-warning)
      {:value @value
       :on-change #(change-fn (.. % -target -value))}]))
 
@@ -210,13 +215,13 @@
                      (clj->js)
                      (js/JSON.stringify nil 2))]]]]])
 
-(defn results-viewer-component [rows results]
+(defn results-viewer-component [rows aperture results]
   (r/with-let [watch (r/track!
-                       (fn [] (let [surfaces-and-gaps (rows->surfaces-and-gaps (map parameters-as-numbers @rows))]
-                                (when (s/valid? (s/coll-of ::cherry-spec/surface-and-gap)
-                                                surfaces-and-gaps)
+                       (fn [] (let [inputs {:aperture (entrance-pupil-diameter->aperture (parse-double (str @aperture)))
+                                            :surfaces-and-gaps (rows->surfaces-and-gaps (map parameters-as-numbers @rows))}]
+                                (when (s/valid? ::cherry-spec/raytrace-inputs inputs)
                                   (take!
-                                    (compute-results surfaces-and-gaps)
+                                    (compute-results inputs)
                                     #(reset! results %))))))]
     [canvas-component results]
     (finally
@@ -251,7 +256,6 @@
              ^{:key i}
              [:tr
                [:td [surface-dropdown s (fn [selected-type]
-                                          (tap> selected-type)
                                           (swap! surfaces update i #(prefill-row % selected-type)))]]
                (for [p parameters]
                  ^{:key p}
@@ -263,15 +267,28 @@
                [:td
                  [:button.button {:on-click #(swap! surfaces vec-remove i)} "Delete"]]])]]]])
 
+(defn entrance-pupil [value]
+  [:<>
+    [:nav.level
+      [:div.level-left
+         [:div.level-item
+           [:p.subtitle "Aperture"]]]
+      [:div.level-right]]
+    [:div.field
+      [:label.label "Entrance pupil diameter"]
+      [param-input ::cherry-spec/diam value #(reset! value %)]]])
+
 (defonce surfaces (r/atom (vec (gen/sample (s/gen ::row) 3))))
 
 (defn main []
-  (r/with-let [results (r/atom nil)]
+  (r/with-let [results (r/atom nil)
+               aperture (r/atom 25)]
     [:<>
        [:section.section
          [:h1.title "Cherry Raytracer"]
-         [results-viewer-component surfaces results]
-         [surfaces-table surfaces]]
+         [results-viewer-component surfaces aperture results]
+         [surfaces-table surfaces]
+         [entrance-pupil aperture]]
        [:section.section
          [data-viewer-component surfaces results]]]))
 

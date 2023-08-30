@@ -15,6 +15,7 @@
 
 (s/def ::gap (s/keys :req [::n ::thickness]))
 (s/def ::surface-and-gap (s/cat :surface ::surface :gap ::gap))
+(s/def ::surfaces-and-gaps (s/coll-of ::surface-and-gap :min-count 1))
 
 (def pos-number?
   (s/with-gen (s/and number? pos?)
@@ -30,6 +31,13 @@
 
 (s/def ::n pos-number?)
 (s/def ::thickness pos-number?)
+
+; Aperture
+(s/def ::aperture (s/keys :req [::EntrancePupilDiameter]))
+(s/def ::EntrancePupilDiameter (s/keys :req [::diam]))
+
+; Ray-trace inputs
+(s/def ::raytrace-inputs (s/keys :req-un [::aperture ::surfaces-and-gaps]))
 
 ; Ray-race results
 (s/def ::raytrace-results (s/and (s/coll-of ::ray)
@@ -89,4 +97,6 @@
   (gen/sample (s/gen ::raytrace-results) 5)
   (gen/sample (s/gen ::ray) 5)
   (gen/sample (s/gen ::surface-samples) 5)
-  (gen/sample (s/gen ::gap) 5))
+  (gen/sample (s/gen ::gap) 5)
+  (gen/sample (s/gen ::aperture) 5)
+  (s/conform ::diam -10))
