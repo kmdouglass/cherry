@@ -78,23 +78,11 @@ impl WasmSystemModel {
     }
 
     pub fn rayTrace(&self) -> Result<JsValue, JsError> {
-        // Find the z-position of the first surface
-        let first_surf_z = self.seq_model().surfaces()[1].pos().z();
-
         let wavelength = 0.000532_f32;
 
-        // Get the entrance pupil diameter if it exists
-        let ep = self.system_model.entrance_pupil();
-        let max_diam = if let None = ep {
-            return Err(JsError::new("There is no entrance pupil for this system"));
-        } else {
-            ep.unwrap().diam()
-        };
-
-        // Generate a ray fan with diameter equal to the entrance pupil diameter
+        // Generate a ray fan to fill the entrance pupil
         let num_rays = 5;
-        let rays =
-            ray_tracing::rays::Ray::fan(num_rays, max_diam / 2.0, PI / 2.0, first_surf_z, 0.0);
+        let rays = self.system_model.pupil_ray_fan(num_rays, PI / 2.0, 0.0).map_err(|e| JsError::new(&e.to_string()))?;
 
         let results = ray_tracing::trace::trace(&self.seq_model().surfaces(), rays, wavelength);
 

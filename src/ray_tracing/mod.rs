@@ -13,6 +13,7 @@ use crate::math::mat3::Mat3;
 use crate::math::vec3::Vec3;
 
 use component_model::ComponentModel;
+use rays::Ray;
 use sequential_model::{Gap, SequentialModel, SurfaceSpec};
 use surface_types::{ObjectOrImagePlane, RefractingCircularConic, RefractingCircularFlat, Stop};
 
@@ -120,6 +121,41 @@ impl SystemModel {
         let pos = self.surfaces[1].pos();
 
         Some(EntrancePupil { pos, diam })
+    }
+
+    pub(crate) fn object_plane(&self) -> Surface {
+        self.surfaces[0]
+    }
+
+    pub(crate) fn image_plane(&self) -> Surface {
+        self.surfaces[self.surfaces.len() - 1]
+    }
+
+    /// Create a linear ray fan that passes through the entrance pupil.
+    /// 
+    /// # Arguments
+    /// 
+    /// * `num_rays` - The number of rays in the fan.
+    /// * `theta` - The polar angle of the ray fan in the x-y plane.
+    /// * `phi` - The angle of the ray w.rt. the z-axis.
+    pub(crate) fn pupil_ray_fan(&self, num_rays: usize, theta: f32, phi: f32) -> Result<Vec<Ray>> {
+        // TODO Handle off-axis rays
+        let ep = if let Some(ep) = self.entrance_pupil() {
+            ep
+        } else {
+            return Err(anyhow::anyhow!("There is no entrance pupil for this system"));
+        };
+
+        // If the object plane is at infinity, launch the rays from one unit in front of the first surface
+        let first_surf_z = if self.object_plane().pos().z() == f32::NEG_INFINITY {
+            self.surfaces[1].pos().z() - 1.0
+        } else {
+            self.object_plane().pos().z()
+        };
+
+        let rays = Ray::fan(num_rays, ep.diam() / 2.0, theta, first_surf_z, phi);
+
+        Ok(rays)
     }
 }
 
