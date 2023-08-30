@@ -1,6 +1,6 @@
 (ns kmdouglass.cherry
   (:require [clojure.spec.alpha :as s]
-            [clojure.test.check.generators :as gen]))
+            [clojure.spec.gen.alpha :as gen]))
 
 (s/def ::surface (s/or
                    :ObjectOrImagePlane (s/keys :req [::ObjectOrImagePlane])

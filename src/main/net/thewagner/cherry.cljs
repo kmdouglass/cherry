@@ -4,10 +4,10 @@
             [reagent.dom.client :as rclient]
             [cljs.pprint :refer [pprint]]
             [cljs.spec.alpha :as s]
+            [cljs.spec.gen.alpha :as gen]
             [cljs.core.async :refer [take! go]]
             [cljs.core.async.interop :refer-macros [<p!]]
             [cljs.reader :refer [read-string]]
-            [clojure.test.check.generators :as gen]
             [rendering]
             [cherry :as cherry-async]
             [kmdouglass.cherry :as cherry-spec]))
