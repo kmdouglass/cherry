@@ -73,7 +73,7 @@ impl WasmSystemModel {
         self.system_model.seq_model_mut()
     }
 
-     pub fn rayTrace(&self) -> JsValue {
+    pub fn rayTrace(&self) -> JsValue {
         // Find the maximum diameter of the system
         let mut max_diam = 0.0;
         for surf in self.seq_model().surfaces() {
@@ -94,7 +94,8 @@ impl WasmSystemModel {
 
         // Generate a ray fan with diameter equal to the maximum diameter of the system
         let num_rays = 5;
-        let rays = ray_tracing::rays::Ray::fan(num_rays, max_diam / 2.0, PI / 2.0, first_surf_z, 0.0);
+        let rays =
+            ray_tracing::rays::Ray::fan(num_rays, max_diam / 2.0, PI / 2.0, first_surf_z, 0.0);
 
         let results = ray_tracing::trace::trace(&self.seq_model().surfaces(), rays, wavelength);
 
@@ -111,7 +112,6 @@ impl WasmSystemModel {
                     .collect()
             })
             .collect();
-
 
         serde_wasm_bindgen::to_value(&sanitized).unwrap()
     }

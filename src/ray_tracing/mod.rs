@@ -13,12 +13,15 @@ use component_model::ComponentModel;
 use sequential_model::{Gap, SequentialModel, SurfaceSpec};
 use surface_types::{ObjectOrImagePlane, RefractingCircularConic, RefractingCircularFlat, Stop};
 
+const INIT_DIAM: f32 = 25.0;
+
 /// A model of an optical system.
 #[derive(Debug)]
 pub struct SystemModel {
     comp_model: ComponentModel,
     seq_model: SequentialModel,
     surfaces: Vec<Surface>,
+    aperture: ApertureSpec,
 }
 
 impl SystemModel {
@@ -29,12 +32,12 @@ impl SystemModel {
         let obj_plane = Surface::new_obj_or_img_plane(
             Vec3::new(0.0, 0.0, -1.0),
             Vec3::new(0.0, 0.0, 0.0),
-            25.0,
+            INIT_DIAM,
         );
         let img_plane = Surface::new_obj_or_img_plane(
             Vec3::new(0.0, 0.0, 0.0),
             Vec3::new(0.0, 0.0, 0.0),
-            25.0,
+            INIT_DIAM,
         );
 
         let mut surfaces = Vec::new();
@@ -49,6 +52,7 @@ impl SystemModel {
             comp_model: component_model,
             seq_model: SequentialModel::new(&surfaces),
             surfaces,
+            aperture: ApertureSpec::EntrancePupilDiameter { diam: INIT_DIAM },
         }
     }
 
@@ -217,6 +221,15 @@ impl From<(SurfaceSpec, &Gap)> for Surface {
     }
 }
 
+/// Specifies the aperture of an optical system.
+///
+/// For the moment, the entrance pupil is assumed to lie at the first surface, but this is not
+/// valid in general.
+#[derive(Debug)]
+pub(crate) enum ApertureSpec {
+    EntrancePupilDiameter { diam: f32 },
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -281,11 +294,8 @@ mod tests {
 
     #[test]
     fn test_sample_yz_finite_object_plane() {
-        let surf = Surface::new_obj_or_img_plane(
-            Vec3::new(0.0, 0.0, -1.0),
-            Vec3::new(0.0, 0.0, 1.0),
-            4.0,
-        );
+        let surf =
+            Surface::new_obj_or_img_plane(Vec3::new(0.0, 0.0, -1.0), Vec3::new(0.0, 0.0, 1.0), 4.0);
         let samples = surf.sample_yz(20);
         assert_eq!(samples.len(), 20);
     }

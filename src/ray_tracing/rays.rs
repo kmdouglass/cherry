@@ -81,8 +81,8 @@ impl Ray {
                 self.dir = term_1 + term_2;
             }
             // No-op surfaces
-            Surface::ObjectOrImagePlane(_) => {},
-            Surface::Stop(_) => {},
+            Surface::ObjectOrImagePlane(_) => {}
+            Surface::Stop(_) => {}
         }
     }
 
