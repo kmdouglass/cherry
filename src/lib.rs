@@ -4,7 +4,7 @@ mod ray_tracing;
 use wasm_bindgen::prelude::*;
 
 use ray_tracing::sequential_model::{Gap, SequentialModel, SurfaceSpec};
-use ray_tracing::SystemModel;
+use ray_tracing::{ApertureSpec, SystemModel};
 use std::f32::consts::PI;
 
 #[wasm_bindgen]
@@ -65,36 +65,27 @@ impl WasmSystemModel {
         serde_wasm_bindgen::to_value(&samples).unwrap()
     }
 
-    fn seq_model(&self) -> &SequentialModel {
-        self.system_model.seq_model()
+    pub fn aperture(&self) -> JsValue {
+        serde_wasm_bindgen::to_value(self.system_model.aperture()).unwrap()
     }
 
-    fn seq_model_mut(&mut self) -> &mut SequentialModel {
-        self.system_model.seq_model_mut()
+    pub fn setAperture(&mut self, aperture: JsValue) -> Result<(), JsError> {
+        let aperture: ApertureSpec = serde_wasm_bindgen::from_value(aperture)?;
+        self.system_model
+            .set_aperture(aperture)
+            .map_err(|e| JsError::new(&e.to_string()))?;
+        Ok(())
     }
 
-     pub fn rayTrace(&self) -> JsValue {
-        // Find the maximum diameter of the system
-        let mut max_diam = 0.0;
-        for surf in self.seq_model().surfaces() {
-            if surf.diam() > max_diam {
-                max_diam = surf.diam();
-            }
-        }
-
-        // Find the z-position of the first surface
-        let mut first_surf_z = f32::INFINITY;
-        for surf in self.seq_model().surfaces() {
-            if surf.pos().z() < first_surf_z {
-                first_surf_z = surf.pos().z();
-            }
-        }
-
+    pub fn rayTrace(&self) -> Result<JsValue, JsError> {
         let wavelength = 0.000532_f32;
 
-        // Generate a ray fan with diameter equal to the maximum diameter of the system
+        // Generate a ray fan to fill the entrance pupil
         let num_rays = 5;
-        let rays = ray_tracing::rays::Ray::fan(num_rays, max_diam / 2.0, PI / 2.0, first_surf_z, 0.0);
+        let rays = self
+            .system_model
+            .pupil_ray_fan(num_rays, PI / 2.0, 0.0)
+            .map_err(|e| JsError::new(&e.to_string()))?;
 
         let results = ray_tracing::trace::trace(&self.seq_model().surfaces(), rays, wavelength);
 
@@ -112,7 +103,14 @@ impl WasmSystemModel {
             })
             .collect();
 
+        Ok(serde_wasm_bindgen::to_value(&sanitized).unwrap())
+    }
 
-        serde_wasm_bindgen::to_value(&sanitized).unwrap()
+    fn seq_model(&self) -> &SequentialModel {
+        self.system_model.seq_model()
+    }
+
+    fn seq_model_mut(&mut self) -> &mut SequentialModel {
+        self.system_model.seq_model_mut()
     }
 }

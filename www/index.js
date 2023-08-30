@@ -1,8 +1,12 @@
 import { WasmSystemModel } from "cherry";
-import { centerOfMass, draw, scaleFactor, toCanvasCoordinates } from "./modules/rendering.js"
+import { centerOfMass, draw, resultsToRayPaths, scaleFactor, toCanvasCoordinates } from "./modules/rendering.js"
 import { surfaces, gaps } from "./modules/petzval_lens.js";
 
 let wasmSystemModel = new WasmSystemModel();
+
+// Set the system aperture to an entrance pupil diameter to 40 mm
+let aperture = {"EntrancePupilDiameter": { diam: 40 }};
+wasmSystemModel.setAperture(aperture);
 
 // Loop over surfaces and gaps and insert them into the system model
 for (let i = 0; i < surfaces.length; i++) {
@@ -34,3 +38,9 @@ let canvasCenterCoords = [canvas.width / 2, canvas.height / 2];  // canvas x, y 
 let canvasSurfs = toCanvasCoordinates(surfSamples, comSamples, canvasCenterCoords, sf);
 
 draw(canvasSurfs, ctx, "black", 1.0);
+
+// Trace rays through the system
+let results = wasmSystemModel.rayTrace();
+let rayPaths = resultsToRayPaths(results);
+let transformedRayPaths = toCanvasCoordinates(rayPaths, comSamples, canvasCenterCoords, sf);
+draw(transformedRayPaths, ctx, "red", 1.0);
