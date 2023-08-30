@@ -6,6 +6,8 @@ pub mod trace;
 
 use std::f32::consts::PI;
 
+use anyhow::Result;
+
 use crate::math::mat3::Mat3;
 use crate::math::vec3::Vec3;
 
@@ -17,7 +19,7 @@ const INIT_DIAM: f32 = 25.0;
 
 /// A model of an optical system.
 #[derive(Debug)]
-pub struct SystemModel {
+pub(crate) struct SystemModel {
     comp_model: ComponentModel,
     seq_model: SequentialModel,
     surfaces: Vec<Surface>,
@@ -66,6 +68,22 @@ impl SystemModel {
 
     pub fn seq_model_mut(&mut self) -> &mut SequentialModel {
         &mut self.seq_model
+    }
+
+    pub fn aperture_spec(&self) -> &ApertureSpec {
+        &self.aperture
+    }
+
+    pub fn set_aperture_spec(&mut self, aperture: ApertureSpec) -> Result<()> {
+        if let ApertureSpec::EntrancePupilDiameter { diam } = aperture {
+            if diam <= 0.0 {
+                return Err(anyhow::anyhow!("Entrance pupil diameter must be positive"));
+            }
+        }
+        
+        self.aperture = aperture;
+
+        Ok(())
     }
 }
 
@@ -316,4 +334,23 @@ mod tests {
             assert_eq!(sample.x(), 0.0);
         }
     }
+
+    // Test set_aperture_spec
+    #[test]
+    fn test_set_aperture_spec() {
+        let mut model = SystemModel::new();
+        let aperture = ApertureSpec::EntrancePupilDiameter { diam: 10.0 };
+        
+        let result = model.set_aperture_spec(aperture);
+        assert!(result.is_ok());
+
+        let aperture = model.aperture_spec();
+
+        if let ApertureSpec::EntrancePupilDiameter { diam } = aperture {
+            assert_eq!(*diam, 10.0);
+        } else {
+            panic!("ApertureSpec is not EntrancePupilDiameter");
+        }
+    }
+
 }
