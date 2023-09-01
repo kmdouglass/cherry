@@ -171,7 +171,6 @@ impl From<&Surface> for SurfaceSpec {
     }
 }
 
-
 impl From<SurfacePair> for (Surface, Gap) {
     fn from(value: SurfacePair) -> Self {
         let thickness = value.1.pos().z() - value.0.pos().z();
