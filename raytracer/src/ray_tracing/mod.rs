@@ -1,4 +1,5 @@
 pub mod component_model;
+mod paraxial_model;
 pub mod rays;
 pub mod sequential_model;
 pub mod surface_types;
