@@ -249,6 +249,17 @@ impl Surface {
         }
     }
 
+    /// Return the radius of curvature of the surface.
+    #[inline]
+    pub fn roc(&self) -> f32 {
+        match self {
+            Self::ObjectOrImagePlane(_) => 0.0,
+            Self::RefractingCircularConic(surf) => surf.roc,
+            Self::RefractingCircularFlat(surf) => 0.0,
+            Self::Stop(_) => 0.0,
+        }
+    }
+
     /// Determine sequential point samples on the surface in the y-z plane.
     pub fn sample_yz(&self, num_samples: usize) -> Vec<Vec3> {
         // Skip object or image planes at infinity
@@ -311,7 +322,31 @@ impl From<(SurfaceSpec, &Gap)> for Surface {
     }
 }
 
+/// A sequential pair of surfaces in an optical system.
 struct SurfacePair(Surface, Surface);
+
+impl SurfacePair {
+    // Compute the paraxial powers of the indiviual surfaces in the pair.
+    //
+    // The first returned number is the power of the first surface, assuming we are going from the
+    // medium of the second surface to the medium of the first surface. The second returned number
+    // is the power of the second surface, assuming we are going from the medium of the first
+    // surface to the medium of the second surface.
+    fn parax_surface_powers(&self) -> (f32, f32) {
+        let n1 = self.0.n();
+        let n2 = self.1.n();
+
+        let roc1 = &self.0.roc();
+        let roc2 = &self.1.roc();
+
+        let power1 = (n1 - n2) / roc1;
+        let power2 = (n2 - n1) / roc2;
+
+        (power1, power2)
+    }
+
+}
+
 struct SurfacePairIterator<'a> {
     surfaces: &'a [Surface],
     idx: usize,
@@ -479,7 +514,6 @@ mod tests {
         }
     }
 
-    // Test SystemModel.diameter()
     #[test]
     fn test_system_model_diam() {
         let mut model = SystemModel::new();
@@ -504,5 +538,29 @@ mod tests {
 
         let diam = model.diam();
         assert_eq!(diam, 12.0);
+    }
+
+    #[test]
+    fn test_surface_pair_parax_surface_powers() {
+        let surf1 = Surface::new_refr_circ_conic(
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 0.0),
+            10.0,
+            1.5,
+            10.0,
+            0.0,
+        );
+        let surf2 = Surface::new_refr_circ_flat(
+            Vec3::new(0.0, 0.0, 10.0),
+            Vec3::new(0.0, 0.0, 0.0),
+            12.0,
+            1.0,
+        );
+
+        let pair = SurfacePair(surf1, surf2);
+        let (power1, power2) = pair.parax_surface_powers();
+
+        assert_eq!(power1, 0.05);
+        assert_eq!(power2, f32::NEG_INFINITY);
     }
 }
