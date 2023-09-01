@@ -311,6 +311,37 @@ impl From<(SurfaceSpec, &Gap)> for Surface {
     }
 }
 
+struct SurfacePair(Surface, Surface);
+struct SurfacePairIterator<'a> {
+    surfaces: &'a [Surface],
+    idx: usize,
+}
+
+impl<'a> SurfacePairIterator<'a> {
+    fn new(surfaces: &'a [Surface]) -> Self {
+        Self {
+            surfaces: surfaces,
+            idx: 0,
+        }
+    }
+}
+
+impl<'a> Iterator for SurfacePairIterator<'a> {
+    type Item = SurfacePair;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.idx > self.surfaces.len() - 2 {
+            return None;
+        }
+
+        let surf1 = self.surfaces[self.idx];
+        let surf2 = self.surfaces[self.idx + 1];
+        self.idx += 1;
+
+        Some(SurfacePair(surf1, surf2))
+    }
+}
+
 /// Specifies the aperture of an optical system.
 ///
 /// For the moment, the entrance pupil is assumed to lie at the first surface, but this is not

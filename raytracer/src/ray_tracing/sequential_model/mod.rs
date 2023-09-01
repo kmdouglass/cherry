@@ -2,7 +2,7 @@ use anyhow::{bail, Result};
 use serde::{Deserialize, Serialize};
 
 use crate::math::vec3::Vec3;
-use crate::ray_tracing::{Surface, SystemModel};
+use crate::ray_tracing::{Surface, SurfacePair, SurfacePairIterator, SystemModel};
 
 #[derive(Debug)]
 pub struct SequentialModel {
@@ -171,7 +171,6 @@ impl From<&Surface> for SurfaceSpec {
     }
 }
 
-struct SurfacePair(Surface, Surface);
 
 impl From<SurfacePair> for (Surface, Gap) {
     fn from(value: SurfacePair) -> Self {
@@ -194,36 +193,6 @@ impl From<SurfacePair> for (Surface, Gap) {
                 (value.0, gap)
             }
         }
-    }
-}
-
-struct SurfacePairIterator<'a> {
-    surfaces: &'a [Surface],
-    idx: usize,
-}
-
-impl<'a> SurfacePairIterator<'a> {
-    fn new(surfaces: &'a [Surface]) -> Self {
-        Self {
-            surfaces: surfaces,
-            idx: 0,
-        }
-    }
-}
-
-impl<'a> Iterator for SurfacePairIterator<'a> {
-    type Item = SurfacePair;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.idx > self.surfaces.len() - 2 {
-            return None;
-        }
-
-        let surf1 = self.surfaces[self.idx];
-        let surf2 = self.surfaces[self.idx + 1];
-        self.idx += 1;
-
-        Some(SurfacePair(surf1, surf2))
     }
 }
 
