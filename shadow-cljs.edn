@@ -6,5 +6,5 @@
         :js-options
         {:js-provider :external
          :external-index "build/index.js"}
-        :dev-tools
-        {:watch-dir "dist"}}}}
+        :build-hooks
+        [(net.thewagner.build/hook)]}}}

@@ -9,7 +9,7 @@ module.exports = {
   },
   mode: "development",
   plugins: [
-    new CopyWebpackPlugin({patterns: ['public/index.html', 'build/main.js']})
+    new CopyWebpackPlugin({patterns: ['build/index.html', 'build/main.js']})
   ],
   devServer: {
     hot: false,
