@@ -23,7 +23,7 @@
     "process": "^0.11.10",
     "react": "^18.2.0",
     "react-dom": "^18.1.0",
-    "cherry": "file:../cherry/pkg",
+    "cherry": "file:../../raytracer/pkg",
     "rendering": "file:./src/rendering"
   },
   "devDependencies": {
