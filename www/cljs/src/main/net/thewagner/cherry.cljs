@@ -68,13 +68,13 @@
     (partition 2 2 surfaces-and-gaps)))
 
 (defn wasm-system-model [constructor {:keys [aperture surfaces-and-gaps]}]
-  (let [m (new constructor)]
+  (let [^js/WasmSystemModel m (new constructor)]
     (doseq [[i [s g]] (map vector (range) surfaces-and-gaps)]
        (.insertSurfaceAndGap m (inc i) (clj->js s) (clj->js g)))
     (.setAperture m (clj->js aperture))
     m))
 
-(set! *warn-on-infer* false)
+(set! *warn-on-infer* true)
 (defn compute-results [raytrace-input]
   (go
     (let [cherry (<p! cherry-async)
