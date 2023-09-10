@@ -41,6 +41,13 @@ impl ParaxSurf {
     }
 }
 
+/// The result of tracing a ray through a paraxial model.
+#[derive(Debug)]
+struct ParaxTraceResult {
+    ray: Vec2,
+    surf_height: f32,
+}
+
 /// A paraxial model of an optical system.
 ///
 /// The paraxial model comprises a sequence of ray transfer matrices (RTMs), one for each surface
@@ -70,10 +77,15 @@ impl ParaxialModel {
         Self { parax_surfs: rtms }
     }
 
-    pub fn trace(&self, mut ray: Vec2) -> Vec<Vec2> {
+    fn trace(&self, mut ray: Vec2) -> Vec<ParaxTraceResult> {
         let num_surfs = self.parax_surfs.len() / 2 + 1;
         let mut results = Vec::with_capacity(num_surfs);
-        results.push(ray.clone());
+
+        // Save the object plane ray.
+        let obj_surf = self.parax_surfs.first().unwrap();
+        if let ParaxSurf::Surf { id: _, height, rtm: _ } = obj_surf {
+            results.push(ParaxTraceResult {ray: ray.clone(), surf_height: *height});
+        };
 
         for surf in &self.parax_surfs {
             match surf {
@@ -82,7 +94,7 @@ impl ParaxialModel {
                 }
                 ParaxSurf::Surf{ id: _, height, rtm} => {
                     ray = rtm * &ray;
-                    results.push(ray.clone());
+                    results.push(ParaxTraceResult {ray: ray.clone(), surf_height: *height});
                 }
             }
         }
