@@ -1,4 +1,5 @@
 use crate::math::mat2::{mat2, Mat2};
+use crate::math::vec2::Vec2;
 use crate::ray_tracing::{Gap, Surface, SurfacePair, SurfacePairIterator};
 
 /// A ray transfer matrix (RTM) for a paraxial optical system component.
@@ -62,6 +63,26 @@ impl ParaxialModel {
         }
 
         Self { rtms }
+    }
+
+    pub fn trace(&self, mut ray: Vec2) -> Vec<Vec2> {
+        let num_surfs = self.rtms.len() / 2 + 1;
+        let mut results = Vec::with_capacity(num_surfs);
+        results.push(ray.clone());
+
+        for rtm in &self.rtms {
+            match rtm {
+                RTM::Gap(_, mat) => {
+                    ray = mat * &ray;
+                }
+                RTM::Surf(_, mat) => {
+                    ray = mat * &ray;
+                    results.push(ray.clone());
+                }
+            }
+        }
+
+        results
     }
 }
 
