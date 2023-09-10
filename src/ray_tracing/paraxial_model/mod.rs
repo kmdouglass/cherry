@@ -2,7 +2,7 @@ use crate::math::mat2::{mat2, Mat2};
 use crate::ray_tracing::{Gap, Surface, SurfacePair, SurfacePairIterator};
 
 /// A paraxial model of an optical system.
-/// 
+///
 /// The paraxial model comprises a sequence of ray transfer matrices (RTMs), one for each surface
 /// and gap.
 #[derive(Debug)]
@@ -71,12 +71,12 @@ fn img_dist_surf(obj_dist: f32, roc: f32, n_o: f32, n_i: f32) -> f32 {
 }
 
 /// Find the paraxial image location from an object point through a sequence of surfaces.
-/// 
+///
 /// # Arguments
 /// * `obj_dist` - The distance from the object to the first surface.
 /// * `n_o` - The refractive index of the medium between the object and the first surface.
 /// * `surfs` - A sequence of surfaces to image through.
-/// 
+///
 /// # Returns
 /// * The distance from the last surface to the image.
 pub fn img_dist_multi_surf(obj_dist: f32, n_o: f32, surfs: &[Surface]) -> f32 {

@@ -4,12 +4,7 @@ pub struct Mat2 {
 }
 
 impl Mat2 {
-    pub fn new(
-        e00: f32,
-        e01: f32,
-        e10: f32,
-        e11: f32,
-    ) -> Self {
+    pub fn new(e00: f32, e01: f32, e10: f32, e11: f32) -> Self {
         Self {
             e: [[e00, e01], [e10, e11]],
         }

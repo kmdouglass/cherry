@@ -350,40 +350,11 @@ impl From<(SurfaceSpec, &Gap)> for Surface {
 struct SurfacePair(Surface, Surface);
 
 impl SurfacePair {
-    /// Compute the paraxial powers of the indiviual surfaces in the pair.
-    ///
-    /// The first returned number is the power of the first surface, assuming we are going from the
-    /// medium of the second surface to the medium of the first surface. The second returned number
-    /// is the power of the second surface, assuming we are going from the medium of the first
-    /// surface to the medium of the second surface.
-    fn parax_surface_powers(&self) -> (f32, f32) {
-        let n1 = self.0.n();
-        let n2 = self.1.n();
-
-        let roc1 = &self.0.roc();
-        let roc2 = &self.1.roc();
-
-        let power1 = (n1 - n2) / roc1;
-        let power2 = (n2 - n1) / roc2;
-
-        (power1, power2)
-    }
-
-    /// Compute the paraxial focal length of the individual surfaces in the pair.
-    fn parax_focal_lengths(&self) -> (f32, f32) {
-        let (power1, power2) = self.parax_surface_powers();
-
-        let f1 = 1.0 / power1;
-        let f2 = 1.0 / power2;
-
-        (f1, f2)
-    }
-
     /// Compute the axial distance between the two surfaces.
     fn axial_dist(&self) -> f32 {
         let pos1 = self.0.pos();
         let pos2 = self.1.pos();
-        
+
         (pos2.z() - pos1.z()).abs()
     }
 }
@@ -604,53 +575,5 @@ mod tests {
 
         let diam = model.diam();
         assert_eq!(diam, 12.0);
-    }
-
-    #[test]
-    fn test_surface_pair_parax_surface_powers() {
-        let surf1 = Surface::new_refr_circ_conic(
-            Vec3::new(0.0, 0.0, 0.0),
-            Vec3::new(0.0, 0.0, 0.0),
-            10.0,
-            1.5,
-            10.0,
-            0.0,
-        );
-        let surf2 = Surface::new_refr_circ_flat(
-            Vec3::new(0.0, 0.0, 10.0),
-            Vec3::new(0.0, 0.0, 0.0),
-            12.0,
-            1.0,
-        );
-
-        let pair = SurfacePair(surf1, surf2);
-        let (power1, power2) = pair.parax_surface_powers();
-
-        assert_eq!(power1, 0.05);
-        assert_eq!(power2, f32::NEG_INFINITY);
-    }
-
-    #[test]
-    fn test_surface_pair_parax_focal_lengths() {
-        let surf1 = Surface::new_refr_circ_conic(
-            Vec3::new(0.0, 0.0, 0.0),
-            Vec3::new(0.0, 0.0, 0.0),
-            10.0,
-            1.5,
-            10.0,
-            0.0,
-        );
-        let surf2 = Surface::new_refr_circ_flat(
-            Vec3::new(0.0, 0.0, 10.0),
-            Vec3::new(0.0, 0.0, 0.0),
-            12.0,
-            1.0,
-        );
-
-        let pair = SurfacePair(surf1, surf2);
-        let (f1, f2) = pair.parax_focal_lengths();
-
-        assert_eq!(f1, 20.0);
-        assert_eq!(f2, 0.0);
     }
 }
