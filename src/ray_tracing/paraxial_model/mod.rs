@@ -1,67 +1,99 @@
 use crate::math::mat2::{mat2, Mat2};
 use crate::ray_tracing::{Gap, Surface, SurfacePair, SurfacePairIterator};
 
+/// A ray transfer matrix (RTM) for a paraxial optical system component.
+#[derive(Debug)]
+enum RTM {
+    Gap(usize, Mat2),
+    Surf(usize, Mat2),
+}
+
+impl RTM {
+    fn new_gap(id: usize, d: f32) -> Self {
+        RTM::Gap(id, mat2!(1.0, d, 0.0, 1.0))
+    }
+
+    fn new_refr_curved_surf(id: usize, n_0: f32, n_1: f32, roc: f32) -> Self {
+        let a = 1.0;
+        let b = 0.0;
+        let c = (n_0 - n_1) / (roc * n_1);
+        let d = n_0 / n_1;
+
+        RTM::Surf(id, mat2!(a, b, c, d))
+    }
+
+    fn new_refr_flat_surf(id: usize, n_0: f32, n_1: f32) -> Self {
+        let a = 1.0;
+        let b = 0.0;
+        let c = 0.0;
+        let d = n_0 / n_1;
+
+        RTM::Surf(id, mat2!(a, b, c, d))
+    }
+
+    fn new_no_op_surf(id: usize) -> Self {
+        RTM::Surf(id, Mat2::eye())
+    }
+}
+
 /// A paraxial model of an optical system.
 ///
 /// The paraxial model comprises a sequence of ray transfer matrices (RTMs), one for each surface
 /// and gap.
 #[derive(Debug)]
 pub struct ParaxialModel {
-    gap_rtms: Vec<Mat2>,
-    surf_rtms: Vec<Mat2>,
+    rtms: Vec<RTM>,
 }
 
 impl ParaxialModel {
     pub fn new(surfs: &[Surface]) -> Self {
-        let mut gap_rtms = Vec::new();
-        let mut surf_rtms = Vec::new();
+        let mut rtms = Vec::new();
 
         // The object plane RTM does not do anything.
-        surf_rtms.push(Mat2::eye());
+        rtms.push(RTM::new_no_op_surf(0));
 
-        for pair in SurfacePairIterator::new(surfs) {
-            surf_rtms.push(pair.rtm());
-
+        for (id, pair) in SurfacePairIterator::new(surfs).enumerate() {
+            // The ray transfer matrix for the second surface in the pair.
+            let surf_rtm = pair.rtm(id + 1);
             let (_, gap) = pair.into();
-            gap_rtms.push(gap.rtm());
+            
+            rtms.push(gap.rtm(id));
+            rtms.push(surf_rtm);
         }
 
-        // The image plane RTM does not do anything either, but its refractive index might be
-        // different from the previous surface, so force it to the identity matrix.
-        let last_surf_rtm = surf_rtms.last_mut().unwrap();
-        *last_surf_rtm = Mat2::eye();
-
-        Self {
-            gap_rtms,
-            surf_rtms,
-        }
+        Self { rtms }
     }
 }
 
 impl SurfacePair {
     /// Return the ray transfer matrix for the second surface in the pair.
-    fn rtm(&self) -> Mat2 {
-        let surf_0 = self.0;
-        let surf_1 = self.1;
-
-        let roc = surf_1.roc();
-        let n_0 = surf_0.n();
-        let n_1 = surf_1.n();
-
-        let a = 1.0;
-        let b = 0.0;
-        let c = (n_0 - n_1) / (roc * n_1);
-        let d = n_0 / n_1;
-
-        mat2!(a, b, c, d)
+    fn rtm(&self, id: usize) -> RTM {
+        let surf = self.1;
+        let n_0 = self.0.n();
+        let n_1 = self.1.n();
+        
+        match surf {
+            Surface::RefractingCircularConic(surf) => {
+                RTM::new_refr_curved_surf(id, n_0, n_1, surf.roc)
+            }
+            Surface::RefractingCircularFlat(surf) => {
+                RTM::new_refr_flat_surf(id, n_0, n_1)
+            }
+            Surface::ObjectOrImagePlane(surf) => {
+                RTM::new_no_op_surf(id)
+            }
+            Surface::Stop(surf) => {
+                RTM::new_no_op_surf(id)
+            }
+        }
     }
 }
 
 impl Gap {
     /// Return the ray transfer matrix for a gap.
-    fn rtm(&self) -> Mat2 {
+    fn rtm(&self, id: usize) -> RTM {
         let d = self.thickness();
-        mat2!(1.0, d, 0.0, 1.0)
+        RTM::new_gap(id, d)
     }
 }
 
