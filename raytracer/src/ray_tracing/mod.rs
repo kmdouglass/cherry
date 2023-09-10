@@ -15,7 +15,7 @@ use crate::math::vec3::Vec3;
 
 use component_model::ComponentModel;
 use rays::Ray;
-use sequential_model::{Gap, SequentialModel, SurfaceSpec};
+use sequential_model::{SequentialModel, SurfaceSpec};
 use surface_types::{ObjectOrImagePlane, RefractingCircularConic, RefractingCircularFlat, Stop};
 
 const INIT_DIAM: f32 = 25.0;
@@ -113,7 +113,7 @@ impl SystemModel {
             ApertureSpec::EntrancePupilDiameter { diam } => *diam,
         };
 
-        // The position is the first surface's position (for now)
+        // TODO The position is the first surface's position (for now)
         if self.seq_model().surfaces().len() == 2 {
             // Only object and image plane, so return.
             return None;
@@ -256,10 +256,10 @@ impl Surface {
     #[inline]
     pub fn roc(&self) -> f32 {
         match self {
-            Self::ObjectOrImagePlane(_) => 0.0,
+            Self::ObjectOrImagePlane(_) => f32::INFINITY,
             Self::RefractingCircularConic(surf) => surf.roc,
-            Self::RefractingCircularFlat(surf) => 0.0,
-            Self::Stop(_) => 0.0,
+            Self::RefractingCircularFlat(_) => f32::INFINITY,
+            Self::Stop(_) => f32::INFINITY,
         }
     }
 
@@ -296,6 +296,27 @@ impl Surface {
         }
 
         samples
+    }
+}
+
+/// A gap between two surfaces in an optical system.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Gap {
+    n: f32,
+    thickness: f32,
+}
+
+impl Gap {
+    pub fn new(n: f32, thickness: f32) -> Self {
+        Self { n, thickness }
+    }
+
+    pub fn n(&self) -> f32 {
+        self.n
+    }
+
+    pub fn thickness(&self) -> f32 {
+        self.thickness
     }
 }
 
@@ -357,6 +378,38 @@ impl SurfacePair {
 
         (f1, f2)
     }
+
+    /// Compute the axial distance between the two surfaces.
+    fn axial_dist(&self) -> f32 {
+        let pos1 = self.0.pos();
+        let pos2 = self.1.pos();
+        
+        (pos2.z() - pos1.z()).abs()
+    }
+}
+
+impl From<SurfacePair> for (Surface, Gap) {
+    fn from(value: SurfacePair) -> Self {
+        let thickness = value.1.pos().z() - value.0.pos().z();
+        match value.0 {
+            Surface::ObjectOrImagePlane(surf) => {
+                let gap = Gap::new(surf.n, thickness);
+                (value.0, gap)
+            }
+            Surface::RefractingCircularConic(surf) => {
+                let gap = Gap::new(surf.n, thickness);
+                (value.0, gap)
+            }
+            Surface::RefractingCircularFlat(surf) => {
+                let gap = Gap::new(surf.n, thickness);
+                (value.0, gap)
+            }
+            Surface::Stop(surf) => {
+                let gap = Gap::new(surf.n, thickness);
+                (value.0, gap)
+            }
+        }
+    }
 }
 
 struct SurfacePairIterator<'a> {
@@ -377,6 +430,7 @@ impl<'a> Iterator for SurfacePairIterator<'a> {
     type Item = SurfacePair;
 
     fn next(&mut self) -> Option<Self::Item> {
+        // Skip object and image planes
         if self.idx > self.surfaces.len() - 2 {
             return None;
         }

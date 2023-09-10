@@ -3,8 +3,8 @@ mod ray_tracing;
 
 use wasm_bindgen::prelude::*;
 
-use ray_tracing::sequential_model::{Gap, SequentialModel, SurfaceSpec};
-use ray_tracing::{ApertureSpec, SystemModel};
+use ray_tracing::sequential_model::{SequentialModel, SurfaceSpec};
+use ray_tracing::{ApertureSpec, Gap, SystemModel};
 use std::f32::consts::PI;
 
 #[wasm_bindgen]

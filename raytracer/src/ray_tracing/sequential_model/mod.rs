@@ -2,7 +2,7 @@ use anyhow::{bail, Result};
 use serde::{Deserialize, Serialize};
 
 use crate::math::vec3::Vec3;
-use crate::ray_tracing::{Surface, SurfacePair, SurfacePairIterator, SystemModel};
+use crate::ray_tracing::{Gap, Surface, SurfacePairIterator, SystemModel};
 
 #[derive(Debug)]
 pub struct SequentialModel {
@@ -114,27 +114,6 @@ impl From<&SystemModel> for SequentialModel {
     }
 }
 
-/// A gap between two surfaces in an optical system.
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Gap {
-    n: f32,
-    thickness: f32,
-}
-
-impl Gap {
-    pub fn new(n: f32, thickness: f32) -> Self {
-        Self { n, thickness }
-    }
-
-    pub fn n(&self) -> f32 {
-        self.n
-    }
-
-    pub fn thickness(&self) -> f32 {
-        self.thickness
-    }
-}
-
 /// A surface in a sequential model of an optical system.
 #[derive(Debug, Serialize, Deserialize)]
 pub enum SurfaceSpec {
@@ -166,30 +145,6 @@ impl From<&Surface> for SurfaceSpec {
             Surface::Stop(surf) => {
                 let surf = SurfaceSpec::Stop { diam: surf.diam };
                 surf
-            }
-        }
-    }
-}
-
-impl From<SurfacePair> for (Surface, Gap) {
-    fn from(value: SurfacePair) -> Self {
-        let thickness = value.1.pos().z() - value.0.pos().z();
-        match value.0 {
-            Surface::ObjectOrImagePlane(surf) => {
-                let gap = Gap::new(surf.n, thickness);
-                (value.0, gap)
-            }
-            Surface::RefractingCircularConic(surf) => {
-                let gap = Gap::new(surf.n, thickness);
-                (value.0, gap)
-            }
-            Surface::RefractingCircularFlat(surf) => {
-                let gap = Gap::new(surf.n, thickness);
-                (value.0, gap)
-            }
-            Surface::Stop(surf) => {
-                let gap = Gap::new(surf.n, thickness);
-                (value.0, gap)
             }
         }
     }

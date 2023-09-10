@@ -183,8 +183,8 @@ impl From<&mut SequentialModel> for ComponentModel {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ray_tracing::sequential_model::{Gap, SurfaceSpec};
-    use crate::ray_tracing::SystemModel;
+    use crate::ray_tracing::sequential_model::SurfaceSpec;
+    use crate::ray_tracing::{Gap, SystemModel};
 
     fn system_model() -> SystemModel {
         let mut system_model = SystemModel::new();
