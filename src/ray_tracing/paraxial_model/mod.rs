@@ -18,14 +18,14 @@ const INIT_RADIUS: f32 = 1.0;
 ///
 /// A surface radius is the distance from the optical axis to its greatest extent.
 #[derive(Debug, Clone)]
-enum ParaxSurf {
+enum ParaxElem {
     Gap { id: usize, rtm: Mat2 },
     Surf { id: usize, radius: f32, rtm: Mat2 },
 }
 
-impl ParaxSurf {
+impl ParaxElem {
     fn new_gap(id: usize, d: f32) -> Self {
-        ParaxSurf::Gap {
+        ParaxElem::Gap {
             id,
             rtm: mat2!(1.0, d, 0.0, 1.0),
         }
@@ -37,7 +37,7 @@ impl ParaxSurf {
         let c = (n_0 - n_1) / (roc * n_1);
         let d = n_0 / n_1;
 
-        ParaxSurf::Surf {
+        ParaxElem::Surf {
             id,
             radius,
             rtm: mat2!(a, b, c, d),
@@ -50,7 +50,7 @@ impl ParaxSurf {
         let c = 0.0;
         let d = n_0 / n_1;
 
-        ParaxSurf::Surf {
+        ParaxElem::Surf {
             id,
             radius,
             rtm: mat2!(a, b, c, d),
@@ -58,7 +58,7 @@ impl ParaxSurf {
     }
 
     fn new_no_op_surf(id: usize, radius: f32) -> Self {
-        ParaxSurf::Surf {
+        ParaxElem::Surf {
             id,
             radius,
             rtm: Mat2::eye(),
@@ -80,7 +80,7 @@ struct ParaxTraceResult {
 /// and gap.
 #[derive(Debug)]
 pub struct ParaxialModel {
-    parax_surfs: Vec<ParaxSurf>,
+    parax_elems: Vec<ParaxElem>,
 }
 
 impl ParaxialModel {
@@ -89,7 +89,7 @@ impl ParaxialModel {
         let mut rtms = Vec::new();
 
         // The object plane RTM does not do anything.
-        rtms.push(ParaxSurf::new_no_op_surf(0, obj_plane_radius));
+        rtms.push(ParaxElem::new_no_op_surf(0, obj_plane_radius));
 
         for (id, pair) in SurfacePairIterator::new(surfs).enumerate() {
             // The ray transfer matrix for the second surface in the pair.
@@ -100,35 +100,33 @@ impl ParaxialModel {
             rtms.push(surf_rtm);
         }
 
-        Self { parax_surfs: rtms }
+        Self { parax_elems: rtms }
     }
 
-    fn trace(parax_surfs: &[ParaxSurf], mut ray: Vec2) -> Vec<ParaxTraceResult> {
-        let num_surfs = parax_surfs.len() / 2 + 1;
+    fn trace(parax_elems: &[ParaxElem], mut ray: Vec2) -> Vec<ParaxTraceResult> {
+        // There's always one more surface than there are gaps.
+        let num_surfs = parax_elems.len() / 2 + 1;
         let mut results = Vec::with_capacity(num_surfs);
 
-        // Save the object plane ray.
-        let obj_surf = parax_surfs.first().unwrap();
-        if let ParaxSurf::Surf {
-            id,
-            radius: height,
-            rtm: _,
-        } = obj_surf
-        {
+        // Save the object space ray.
+        // TODO We shouldn't assume that the first element is the object surface because sometimes
+        // we want to trace rays from an arbitrary surface.
+        let obj_surf = parax_elems.first().unwrap();
+        if let ParaxElem::Surf { id, radius, rtm: _ } = obj_surf {
             results.push(ParaxTraceResult {
                 ray: ray.clone(),
                 surf_id: *id,
-                surf_radius: *height,
+                surf_radius: *radius,
             });
         };
 
         // Trace the ray through the paraxial model and save the results at each surface.
-        for surf in parax_surfs {
+        for surf in parax_elems {
             match surf {
-                ParaxSurf::Gap { id: _, rtm } => {
+                ParaxElem::Gap { id: _, rtm } => {
                     ray = rtm * &ray;
                 }
-                ParaxSurf::Surf { id, radius, rtm } => {
+                ParaxElem::Surf { id, radius, rtm } => {
                     ray = rtm * &ray;
                     results.push(ParaxTraceResult {
                         ray: ray.clone(),
@@ -145,7 +143,7 @@ impl ParaxialModel {
     /// Find the ID of the surface that is the aperture stop of the paraxial model.
     pub fn find_aperture_stop(&self) -> Result<usize> {
         let init_ray = self.init_ray()?;
-        let results = ParaxialModel::trace(&self.parax_surfs, init_ray);
+        let results = ParaxialModel::trace(&self.parax_elems, init_ray);
 
         // Find the ID of the surface with the smallest ratio of surface radius to ray height.
         let mut min_ratio = f32::MAX;
@@ -167,10 +165,10 @@ impl ParaxialModel {
 
         // Find the index of the surface that is the aperture stop.
         let idx = self
-            .parax_surfs
+            .parax_elems
             .iter()
             .position(|surf| {
-                if let ParaxSurf::Surf { id, .. } = surf {
+                if let ParaxElem::Surf { id, .. } = surf {
                     *id == aperture_stop_id
                 } else {
                     false
@@ -179,16 +177,16 @@ impl ParaxialModel {
             .ok_or(anyhow!("The aperture stop ID was not found."))?;
 
         // Launch a ray from the aperture stop from the axis backwards through the system.
-        let surfs = &self.parax_surfs[0..idx + 1];
+        let surfs = &self.parax_elems[0..idx + 1];
         let surfs_reversed = ParaxialModel::reverse_surfaces(surfs);
         let init_ray = Vec2::new(0.0, INIT_ANGLE);
         let results = ParaxialModel::trace(&surfs_reversed, init_ray);
 
         // Get the next-to-last result, which is the ray traveling in the object space from the
-        // first surface.
+        // first surface to the object plane.
         let obj_ray = &results[results.len() - 1].ray;
 
-        // Find the intersection of the object ray with the optical axis.
+        // Find the intersection of the object space ray with the optical axis.
         let t = -obj_ray.y() / obj_ray.theta();
 
         Ok(t)
@@ -196,11 +194,11 @@ impl ParaxialModel {
 
     /// Find the initial ray to trace through the paraxial model.
     ///
-    /// If the object is at infinity, the initial ray is parallel to, but no colinear with, the
+    /// If the object is at infinity, the initial ray is parallel to, but not colinear with, the
     /// optical axis. Otherwise, it starts on the axis with a small angle.
     fn init_ray(&self) -> Result<Vec2> {
         // Get the first gap (second element) in the paraxial model, which is the object space.
-        let obj_space_dist = if let ParaxSurf::Gap { id: _, rtm } = self.parax_surfs[1] {
+        let obj_space_dist = if let ParaxElem::Gap { id: _, rtm } = self.parax_elems[1] {
             rtm[0][1]
         } else {
             bail!("The second element in the paraxial model must be the object space gap.");
@@ -213,8 +211,8 @@ impl ParaxialModel {
         }
     }
 
-    /// Reverses a sequence of surfaces.
-    fn reverse_surfaces(surfs: &[ParaxSurf]) -> Vec<ParaxSurf> {
+    /// Reverses a sequence of paraxial elements.
+    fn reverse_surfaces(surfs: &[ParaxElem]) -> Vec<ParaxElem> {
         let mut reversed_surfs = Vec::with_capacity(surfs.len());
         reversed_surfs.extend(surfs.iter().rev().cloned());
         reversed_surfs
@@ -223,28 +221,28 @@ impl ParaxialModel {
 
 impl SurfacePair {
     /// Return the paraxial surface equivalent for the second surface in the pair.
-    fn parax_surf(&self, id: usize) -> ParaxSurf {
+    fn parax_surf(&self, id: usize) -> ParaxElem {
         let surf = self.1;
         let n_0 = self.0.n();
         let n_1 = self.1.n();
 
         match surf {
             Surface::RefractingCircularConic(surf) => {
-                ParaxSurf::new_refr_curved_surf(id, surf.diam / 2.0, n_0, n_1, surf.roc)
+                ParaxElem::new_refr_curved_surf(id, surf.diam / 2.0, n_0, n_1, surf.roc)
             }
             Surface::RefractingCircularFlat(surf) => {
-                ParaxSurf::new_refr_flat_surf(id, surf.diam / 2.0, n_0, n_1)
+                ParaxElem::new_refr_flat_surf(id, surf.diam / 2.0, n_0, n_1)
             }
-            Surface::ObjectOrImagePlane(surf) => ParaxSurf::new_no_op_surf(id, surf.diam / 2.0),
-            Surface::Stop(surf) => ParaxSurf::new_no_op_surf(id, surf.diam / 2.0),
+            Surface::ObjectOrImagePlane(surf) => ParaxElem::new_no_op_surf(id, surf.diam / 2.0),
+            Surface::Stop(surf) => ParaxElem::new_no_op_surf(id, surf.diam / 2.0),
         }
     }
 }
 
 impl Gap {
     /// Return the ray transfer matrix for a gap.
-    fn parax_surf(&self, id: usize) -> ParaxSurf {
+    fn parax_surf(&self, id: usize) -> ParaxElem {
         let d = self.thickness();
-        ParaxSurf::new_gap(id, d)
+        ParaxElem::new_gap(id, d)
     }
 }
