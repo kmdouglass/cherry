@@ -43,3 +43,13 @@ impl std::ops::Mul<&Vec2> for &Mat2 {
         Vec2::new(y, theta)
     }
 }
+
+impl std::ops::Index<usize> for Mat2 {
+    type Output = [f32];
+
+    fn index(&self, row_index: usize) -> &[f32] {
+        assert!(row_index < 2);
+
+        &self.e[row_index]
+    }
+}

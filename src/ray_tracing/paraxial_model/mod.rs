@@ -1,16 +1,27 @@
+use std::f32::consts::PI;
+
+use anyhow::{bail, Result};
+
 use crate::math::mat2::{mat2, Mat2};
 use crate::math::vec2::Vec2;
 use crate::ray_tracing::{Gap, Surface, SurfacePair, SurfacePairIterator};
+
+
+/// The initial angle of the ray in radians to find the entrance pupil.
+const INIT_ANGLE: f32 = 5.0 * PI / 180.0;
+
+/// The initial radius of the ray to find the entrance pupil.
+const INIT_RADIUS: f32 = 1.0;
 
 /// A paraxial element in an optical system.
 /// 
 /// The ray transfer matrices (RTM) are stored with each element to facilitate ray tracing.
 /// 
-/// A surface height is the distance from the optical axis to its greatest extent.
+/// A surface radius is the distance from the optical axis to its greatest extent.
 #[derive(Debug)]
 enum ParaxSurf {
     Gap{ id: usize, rtm: Mat2 },
-    Surf{ id: usize, height: f32, rtm: Mat2},
+    Surf{ id: usize, radius: f32, rtm: Mat2},
 }
 
 impl ParaxSurf {
@@ -18,26 +29,26 @@ impl ParaxSurf {
         ParaxSurf::Gap{id, rtm: mat2!(1.0, d, 0.0, 1.0)}
     }
 
-    fn new_refr_curved_surf(id: usize, height: f32, n_0: f32, n_1: f32, roc: f32) -> Self {
+    fn new_refr_curved_surf(id: usize, radius: f32, n_0: f32, n_1: f32, roc: f32) -> Self {
         let a = 1.0;
         let b = 0.0;
         let c = (n_0 - n_1) / (roc * n_1);
         let d = n_0 / n_1;
 
-        ParaxSurf::Surf{id, height, rtm: mat2!(a, b, c, d)}
+        ParaxSurf::Surf{id, radius, rtm: mat2!(a, b, c, d)}
     }
 
-    fn new_refr_flat_surf(id: usize, height: f32, n_0: f32, n_1: f32) -> Self {
+    fn new_refr_flat_surf(id: usize, radius: f32, n_0: f32, n_1: f32) -> Self {
         let a = 1.0;
         let b = 0.0;
         let c = 0.0;
         let d = n_0 / n_1;
 
-        ParaxSurf::Surf{ id, height, rtm: mat2!(a, b, c, d)}
+        ParaxSurf::Surf{ id, radius, rtm: mat2!(a, b, c, d)}
     }
 
-    fn new_no_op_surf(id: usize, height: f32) -> Self {
-        ParaxSurf::Surf{id, height, rtm: Mat2::eye()}
+    fn new_no_op_surf(id: usize, radius: f32) -> Self {
+        ParaxSurf::Surf{id, radius, rtm: Mat2::eye()}
     }
 }
 
@@ -45,7 +56,7 @@ impl ParaxSurf {
 #[derive(Debug)]
 struct ParaxTraceResult {
     ray: Vec2,
-    surf_height: f32,
+    surf_radius: f32,
 }
 
 /// A paraxial model of an optical system.
@@ -83,23 +94,62 @@ impl ParaxialModel {
 
         // Save the object plane ray.
         let obj_surf = self.parax_surfs.first().unwrap();
-        if let ParaxSurf::Surf { id: _, height, rtm: _ } = obj_surf {
-            results.push(ParaxTraceResult {ray: ray.clone(), surf_height: *height});
+        if let ParaxSurf::Surf { id: _, radius: height, rtm: _ } = obj_surf {
+            results.push(ParaxTraceResult {ray: ray.clone(), surf_radius: *height});
         };
 
+        // Trace the ray through the paraxial model and save the results at each surface.
         for surf in &self.parax_surfs {
             match surf {
                 ParaxSurf::Gap{ id: _, rtm} => {
                     ray = rtm * &ray;
                 }
-                ParaxSurf::Surf{ id: _, height, rtm} => {
+                ParaxSurf::Surf{ id: _, radius, rtm} => {
                     ray = rtm * &ray;
-                    results.push(ParaxTraceResult {ray: ray.clone(), surf_height: *height});
+                    results.push(ParaxTraceResult {ray: ray.clone(), surf_radius: *radius});
                 }
             }
         }
 
         results
+    }
+
+    /// Find the index of the surface that is the aperture stop of the paraxial model.
+    pub fn find_aperture_stop(&self) -> Result<usize> {
+        let init_ray = self.init_ray()?;
+        let results = self.trace(init_ray);
+
+        // Find the ID of the surface with the smallest ratio of surface radius to ray height.
+        let mut min_ratio = f32::MAX;
+        let mut min_id = 0;
+        for (id, result) in results.iter().enumerate() {
+            let ratio = result.surf_radius / result.ray.y();
+            if ratio < min_ratio {
+                min_ratio = ratio;
+                min_id = id;
+            }
+        }
+
+        Ok(min_id)
+    }
+
+    /// Find the initial ray to trace through the paraxial model.
+    /// 
+    /// If the object is at infinity, the initial ray is parallel to, but no colinear with, the
+    /// optical axis. Otherwise, it starts on the axis with a small angle.
+    fn init_ray(&self) -> Result<Vec2> {
+        // Get the first gap (second element) in the paraxial model, which is the object space.
+        let obj_space_dist = if let ParaxSurf::Gap { id: _, rtm } = self.parax_surfs[1] {
+            rtm[0][1]
+        } else {
+            bail!("The second element in the paraxial model must be the object space gap.");
+        };
+
+        if obj_space_dist.is_infinite() {
+            Ok(Vec2::new(INIT_RADIUS, 0.0))
+        } else {
+            Ok(Vec2::new(0.0, INIT_ANGLE))
+        }
     }
 }
 
@@ -133,34 +183,4 @@ impl Gap {
         let d = self.thickness();
         ParaxSurf::new_gap(id, d)
     }
-}
-
-/// Find the paraxial image distance of an object from a surface.
-fn img_dist_surf(obj_dist: f32, roc: f32, n_o: f32, n_i: f32) -> f32 {
-    n_i / ((n_i - n_o) / roc - n_o / obj_dist)
-}
-
-/// Find the paraxial image location from an object point through a sequence of surfaces.
-///
-/// # Arguments
-/// * `obj_dist` - The distance from the object to the first surface.
-/// * `n_o` - The refractive index of the medium between the object and the first surface.
-/// * `surfs` - A sequence of surfaces to image through.
-///
-/// # Returns
-/// * The distance from the last surface to the image.
-pub fn img_dist_multi_surf(obj_dist: f32, n_o: f32, surfs: &[Surface]) -> f32 {
-    let surf_init = surfs.first().unwrap();
-    let mut img_dist = img_dist_surf(obj_dist, surf_init.roc(), n_o, surf_init.n());
-    let mut obj_dist = 0.0;
-
-    for pair in SurfacePairIterator::new(surfs) {
-        obj_dist = pair.axial_dist() - img_dist;
-
-        let surf = pair.0;
-        let next_surf = pair.1;
-
-        img_dist = img_dist_surf(obj_dist, next_surf.roc(), surf.n(), next_surf.n());
-    }
-    img_dist
 }
