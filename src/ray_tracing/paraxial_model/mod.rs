@@ -2,38 +2,42 @@ use crate::math::mat2::{mat2, Mat2};
 use crate::math::vec2::Vec2;
 use crate::ray_tracing::{Gap, Surface, SurfacePair, SurfacePairIterator};
 
-/// A ray transfer matrix (RTM) for a paraxial optical system component.
+/// A paraxial element in an optical system.
+/// 
+/// The ray transfer matrices (RTM) are stored with each element to facilitate ray tracing.
+/// 
+/// A surface height is the distance from the optical axis to its greatest extent.
 #[derive(Debug)]
-enum RTM {
-    Gap(usize, Mat2),
-    Surf(usize, Mat2),
+enum ParaxSurf {
+    Gap{ id: usize, rtm: Mat2 },
+    Surf{ id: usize, height: f32, rtm: Mat2},
 }
 
-impl RTM {
+impl ParaxSurf {
     fn new_gap(id: usize, d: f32) -> Self {
-        RTM::Gap(id, mat2!(1.0, d, 0.0, 1.0))
+        ParaxSurf::Gap{id, rtm: mat2!(1.0, d, 0.0, 1.0)}
     }
 
-    fn new_refr_curved_surf(id: usize, n_0: f32, n_1: f32, roc: f32) -> Self {
+    fn new_refr_curved_surf(id: usize, height: f32, n_0: f32, n_1: f32, roc: f32) -> Self {
         let a = 1.0;
         let b = 0.0;
         let c = (n_0 - n_1) / (roc * n_1);
         let d = n_0 / n_1;
 
-        RTM::Surf(id, mat2!(a, b, c, d))
+        ParaxSurf::Surf{id, height, rtm: mat2!(a, b, c, d)}
     }
 
-    fn new_refr_flat_surf(id: usize, n_0: f32, n_1: f32) -> Self {
+    fn new_refr_flat_surf(id: usize, height: f32, n_0: f32, n_1: f32) -> Self {
         let a = 1.0;
         let b = 0.0;
         let c = 0.0;
         let d = n_0 / n_1;
 
-        RTM::Surf(id, mat2!(a, b, c, d))
+        ParaxSurf::Surf{ id, height, rtm: mat2!(a, b, c, d)}
     }
 
-    fn new_no_op_surf(id: usize) -> Self {
-        RTM::Surf(id, Mat2::eye())
+    fn new_no_op_surf(id: usize, height: f32) -> Self {
+        ParaxSurf::Surf{id, height, rtm: Mat2::eye()}
     }
 }
 
@@ -43,40 +47,41 @@ impl RTM {
 /// and gap.
 #[derive(Debug)]
 pub struct ParaxialModel {
-    rtms: Vec<RTM>,
+    parax_surfs: Vec<ParaxSurf>,
 }
 
 impl ParaxialModel {
     pub fn new(surfs: &[Surface]) -> Self {
+        let obj_plane_radius = surfs.first().unwrap().diam() / 2.0;
         let mut rtms = Vec::new();
 
         // The object plane RTM does not do anything.
-        rtms.push(RTM::new_no_op_surf(0));
+        rtms.push(ParaxSurf::new_no_op_surf(0, obj_plane_radius));
 
         for (id, pair) in SurfacePairIterator::new(surfs).enumerate() {
             // The ray transfer matrix for the second surface in the pair.
-            let surf_rtm = pair.rtm(id + 1);
+            let surf_rtm = pair.parax_surf(id + 1);
             let (_, gap) = pair.into();
             
-            rtms.push(gap.rtm(id));
+            rtms.push(gap.parax_surf(id));
             rtms.push(surf_rtm);
         }
 
-        Self { rtms }
+        Self { parax_surfs: rtms }
     }
 
     pub fn trace(&self, mut ray: Vec2) -> Vec<Vec2> {
-        let num_surfs = self.rtms.len() / 2 + 1;
+        let num_surfs = self.parax_surfs.len() / 2 + 1;
         let mut results = Vec::with_capacity(num_surfs);
         results.push(ray.clone());
 
-        for rtm in &self.rtms {
-            match rtm {
-                RTM::Gap(_, mat) => {
-                    ray = mat * &ray;
+        for surf in &self.parax_surfs {
+            match surf {
+                ParaxSurf::Gap{ id: _, rtm} => {
+                    ray = rtm * &ray;
                 }
-                RTM::Surf(_, mat) => {
-                    ray = mat * &ray;
+                ParaxSurf::Surf{ id: _, height, rtm} => {
+                    ray = rtm * &ray;
                     results.push(ray.clone());
                 }
             }
@@ -87,24 +92,24 @@ impl ParaxialModel {
 }
 
 impl SurfacePair {
-    /// Return the ray transfer matrix for the second surface in the pair.
-    fn rtm(&self, id: usize) -> RTM {
+    /// Return the paraxial surface equivalent for the second surface in the pair.
+    fn parax_surf(&self, id: usize) -> ParaxSurf {
         let surf = self.1;
         let n_0 = self.0.n();
         let n_1 = self.1.n();
         
         match surf {
             Surface::RefractingCircularConic(surf) => {
-                RTM::new_refr_curved_surf(id, n_0, n_1, surf.roc)
+                ParaxSurf::new_refr_curved_surf(id, surf.diam / 2.0,  n_0, n_1, surf.roc)
             }
             Surface::RefractingCircularFlat(surf) => {
-                RTM::new_refr_flat_surf(id, n_0, n_1)
+                ParaxSurf::new_refr_flat_surf(id, surf.diam / 2.0, n_0, n_1)
             }
             Surface::ObjectOrImagePlane(surf) => {
-                RTM::new_no_op_surf(id)
+                ParaxSurf::new_no_op_surf(id, surf.diam / 2.0)
             }
             Surface::Stop(surf) => {
-                RTM::new_no_op_surf(id)
+                ParaxSurf::new_no_op_surf(id, surf.diam / 2.0)
             }
         }
     }
@@ -112,9 +117,9 @@ impl SurfacePair {
 
 impl Gap {
     /// Return the ray transfer matrix for a gap.
-    fn rtm(&self, id: usize) -> RTM {
+    fn parax_surf(&self, id: usize) -> ParaxSurf {
         let d = self.thickness();
-        RTM::new_gap(id, d)
+        ParaxSurf::new_gap(id, d)
     }
 }
 
