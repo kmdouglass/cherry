@@ -1,11 +1,18 @@
 mod math;
 mod ray_tracing;
 
+use std::f32::consts::PI;
+use std::sync::atomic::{AtomicUsize, Ordering};
+
 use wasm_bindgen::prelude::*;
 
 use ray_tracing::sequential_model::{SequentialModel, SurfaceSpec};
 use ray_tracing::{ApertureSpec, Gap, SystemModel};
-use std::f32::consts::PI;
+
+static COUNTER: AtomicUsize = AtomicUsize::new(1);
+
+/// Returns new unique IDs.
+fn get_id() -> usize { COUNTER.fetch_add(1, Ordering::Relaxed) }
 
 #[wasm_bindgen]
 #[derive(Debug)]

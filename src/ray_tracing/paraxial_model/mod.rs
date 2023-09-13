@@ -1,7 +1,7 @@
 use std::f32::consts::PI;
 
 use anyhow::{anyhow, bail, Result};
-
+use crate::get_id;
 use crate::math::mat2::{mat2, Mat2};
 use crate::math::vec2::Vec2;
 use crate::ray_tracing::{Gap, Surface, SurfacePair, SurfacePairIterator};
@@ -27,71 +27,71 @@ enum ParaxElem {
 }
 
 impl ParaxElem {
-    fn new_gap(id: usize, d: f32) -> Self {
+    fn new_gap(d: f32) -> Self {
         ParaxElem::Gap {
-            id,
+            id: get_id(),
             rtm: mat2!(1.0, d, 0.0, 1.0),
         }
     }
 
-    fn new_refr_curved_surf(id: usize, radius: f32, n_0: f32, n_1: f32, roc: f32) -> Self {
+    fn new_refr_curved_surf(radius: f32, n_0: f32, n_1: f32, roc: f32) -> Self {
         let a = 1.0;
         let b = 0.0;
         let c = (n_0 - n_1) / (roc * n_1);
         let d = n_0 / n_1;
 
         ParaxElem::Surf {
-            id,
+            id: get_id(),
             radius,
             rtm: mat2!(a, b, c, d),
         }
     }
 
-    fn new_refr_flat_surf(id: usize, radius: f32, n_0: f32, n_1: f32) -> Self {
+    fn new_refr_flat_surf(radius: f32, n_0: f32, n_1: f32) -> Self {
         let a = 1.0;
         let b = 0.0;
         let c = 0.0;
         let d = n_0 / n_1;
 
         ParaxElem::Surf {
-            id,
+            id: get_id(),
             radius,
             rtm: mat2!(a, b, c, d),
         }
     }
 
-    fn new_img_plane(id: usize, radius: f32) -> Self {
+    fn new_img_plane(radius: f32) -> Self {
         ParaxElem::ImagePlane {
-            id,
+            id: get_id(),
             radius,
             rtm: Mat2::eye(),
         }
     }
 
-    fn new_no_op_surf(id: usize, radius: f32) -> Self {
+    fn new_no_op_surf(radius: f32) -> Self {
         ParaxElem::Surf {
-            id,
+            id: get_id(),
             radius,
             rtm: Mat2::eye(),
         }
     }
 
-    fn new_obj_plane(id: usize, radius: f32) -> Self {
+    fn new_obj_plane(radius: f32) -> Self {
         ParaxElem::ObjectPlane {
-            id,
+            id: get_id(),
             radius,
             rtm: Mat2::eye(),
         }
     }
 
-    fn new_thin_lens(id: usize, radius: f32, focal_length: f32) -> Self {
+    fn new_thin_lens(radius: f32, focal_length: f32) -> Self {
         let a = 1.0;
         let b = 0.0;
         let c = -1.0 / focal_length;
         let d = 1.0;
 
         ParaxElem::ThinLens {
-            id,
+            id: get_id(),
             radius,
             rtm: mat2!(a, b, c, d),
         }
@@ -120,9 +120,9 @@ impl ParaxialModel {
     /// Creates a new paraxial model.
     pub fn new() -> Self {
         let mut parax_elems = Vec::new();
-        parax_elems.push(ParaxElem::new_obj_plane(0, f32::INFINITY));
-        parax_elems.push(ParaxElem::new_gap(0, 0.0));
-        parax_elems.push(ParaxElem::new_img_plane(1, f32::INFINITY));
+        parax_elems.push(ParaxElem::new_obj_plane(f32::INFINITY));
+        parax_elems.push(ParaxElem::new_gap(0.0));
+        parax_elems.push(ParaxElem::new_img_plane(f32::INFINITY));
 
         Self { parax_elems }
     }
@@ -280,14 +280,14 @@ impl From<&[Surface]> for ParaxialModel {
         let mut rtms = Vec::new();
 
         // The object plane RTM does not do anything.
-        rtms.push(ParaxElem::new_no_op_surf(0, obj_plane_radius));
+        rtms.push(ParaxElem::new_no_op_surf(obj_plane_radius));
 
-        for (id, pair) in SurfacePairIterator::new(surfs).enumerate() {
+        for pair in SurfacePairIterator::new(surfs) {
             // The ray transfer matrix for the second surface in the pair.
-            let surf_rtm = pair.parax_surf(id + 1);
+            let surf_rtm = pair.parax_surf();
             let (_, gap) = pair.into();
 
-            rtms.push(gap.parax_surf(id));
+            rtms.push(gap.parax_surf());
             rtms.push(surf_rtm);
         }
 
@@ -297,29 +297,29 @@ impl From<&[Surface]> for ParaxialModel {
 
 impl SurfacePair {
     /// Return the paraxial surface equivalent for the second surface in the pair.
-    fn parax_surf(&self, id: usize) -> ParaxElem {
+    fn parax_surf(&self) -> ParaxElem {
         let surf = self.1;
         let n_0 = self.0.n();
         let n_1 = self.1.n();
 
         match surf {
             Surface::RefractingCircularConic(surf) => {
-                ParaxElem::new_refr_curved_surf(id, surf.diam / 2.0, n_0, n_1, surf.roc)
+                ParaxElem::new_refr_curved_surf(surf.diam / 2.0, n_0, n_1, surf.roc)
             }
             Surface::RefractingCircularFlat(surf) => {
-                ParaxElem::new_refr_flat_surf(id, surf.diam / 2.0, n_0, n_1)
+                ParaxElem::new_refr_flat_surf(surf.diam / 2.0, n_0, n_1)
             }
-            Surface::ObjectOrImagePlane(surf) => ParaxElem::new_no_op_surf(id, surf.diam / 2.0),
-            Surface::Stop(surf) => ParaxElem::new_no_op_surf(id, surf.diam / 2.0),
+            Surface::ObjectOrImagePlane(surf) => ParaxElem::new_no_op_surf(surf.diam / 2.0),
+            Surface::Stop(surf) => ParaxElem::new_no_op_surf(surf.diam / 2.0),
         }
     }
 }
 
 impl Gap {
     /// Return the ray transfer matrix for a gap.
-    fn parax_surf(&self, id: usize) -> ParaxElem {
+    fn parax_surf(&self) -> ParaxElem {
         let d = self.thickness();
-        ParaxElem::new_gap(id, d)
+        ParaxElem::new_gap(d)
     }
 }
 
@@ -329,15 +329,15 @@ mod tests {
 
     /// A two lens system used for verification testing of the paraixal model.
     fn two_lens_system_verification() {
-        let obj_plane = ParaxElem::new_no_op_surf(0, 100.0);
-        let obj_space_gap = ParaxElem::new_gap(0, 100.0);
-        let lens_1 = ParaxElem::new_thin_lens(1, 100.0, 100.0);
-        let gap_1 = ParaxElem::new_gap(1, 25.0);
-        let stop = ParaxElem::new_no_op_surf(2, 10.0);
-        let gap_2 = ParaxElem::new_gap(2, 25.0);
-        let lens_2 = ParaxElem::new_thin_lens(3, 100.0, 75.0);
-        let img_space_gap = ParaxElem::new_gap(3, 75.0);
-        let img_plane = ParaxElem::new_no_op_surf(4, 100.0);
+        let obj_plane = ParaxElem::new_no_op_surf(100.0);
+        let obj_space_gap = ParaxElem::new_gap(100.0);
+        let lens_1 = ParaxElem::new_thin_lens(100.0, 100.0);
+        let gap_1 = ParaxElem::new_gap(25.0);
+        let stop = ParaxElem::new_no_op_surf(10.0);
+        let gap_2 = ParaxElem::new_gap(25.0);
+        let lens_2 = ParaxElem::new_thin_lens(100.0, 75.0);
+        let img_space_gap = ParaxElem::new_gap(75.0);
+        let img_plane = ParaxElem::new_no_op_surf(100.0);
 
         
     }
