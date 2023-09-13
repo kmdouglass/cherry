@@ -1,10 +1,10 @@
 use std::f32::consts::PI;
 
-use anyhow::{anyhow, bail, Result};
 use crate::get_id;
 use crate::math::mat2::{mat2, Mat2};
 use crate::math::vec2::Vec2;
 use crate::ray_tracing::{Gap, Surface, SurfacePair, SurfacePairIterator};
+use anyhow::{anyhow, bail, Result};
 
 /// The initial angle of the ray in radians to find the entrance pupil.
 const INIT_ANGLE: f32 = 5.0 * PI / 180.0;
@@ -17,13 +17,13 @@ const INIT_RADIUS: f32 = 1.0;
 /// The ray transfer matrices (RTM) are stored with each element to facilitate ray tracing.
 ///
 /// A surface radius is the distance from the optical axis to its greatest extent.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 enum ParaxElem {
     Gap { id: usize, rtm: Mat2 },
     ImagePlane { id: usize, radius: f32, rtm: Mat2 },
     ObjectPlane { id: usize, radius: f32, rtm: Mat2 },
     Surf { id: usize, radius: f32, rtm: Mat2 },
-    ThinLens {id: usize, radius: f32, rtm: Mat2 },
+    ThinLens { id: usize, radius: f32, rtm: Mat2 },
 }
 
 impl ParaxElem {
@@ -98,6 +98,69 @@ impl ParaxElem {
     }
 }
 
+// Implement PartialEq on ParaxElem, ignoring the ID field
+impl PartialEq for ParaxElem {
+    fn eq(&self, other: &Self) -> bool {
+        // If variant is different, return false.
+        if std::mem::discriminant(self) != std::mem::discriminant(other) {
+            return false;
+        }
+
+        match (self, other) {
+            (ParaxElem::Gap { id: _, rtm: m1 }, ParaxElem::Gap { id: _, rtm: m2 }) => m1 == m2,
+            (
+                ParaxElem::ImagePlane {
+                    id: _,
+                    radius: r1,
+                    rtm: m1,
+                },
+                ParaxElem::ImagePlane {
+                    id: _,
+                    radius: r2,
+                    rtm: m2,
+                },
+            ) => r1 == r2 && m1 == m2,
+            (
+                ParaxElem::ObjectPlane {
+                    id: _,
+                    radius: r1,
+                    rtm: m1,
+                },
+                ParaxElem::ObjectPlane {
+                    id: _,
+                    radius: r2,
+                    rtm: m2,
+                },
+            ) => r1 == r2 && m1 == m2,
+            (
+                ParaxElem::Surf {
+                    id: _,
+                    radius: r1,
+                    rtm: m1,
+                },
+                ParaxElem::Surf {
+                    id: _,
+                    radius: r2,
+                    rtm: m2,
+                },
+            ) => r1 == r2 && m1 == m2,
+            (
+                ParaxElem::ThinLens {
+                    id: _,
+                    radius: r1,
+                    rtm: m1,
+                },
+                ParaxElem::ThinLens {
+                    id: _,
+                    radius: r2,
+                    rtm: m2,
+                },
+            ) => r1 == r2 && m1 == m2,
+            _ => false,
+        }
+    }
+}
+
 /// The result of tracing a ray through a paraxial model.
 #[derive(Debug)]
 struct ParaxTraceResult {
@@ -127,7 +190,16 @@ impl ParaxialModel {
         Self { parax_elems }
     }
 
-    fn insert_element_and_gap(&mut self, idx: usize, elem: ParaxElem, gap: ParaxElem) -> Result<()> {
+    fn elements(&self) -> &[ParaxElem] {
+        &self.parax_elems
+    }
+
+    fn insert_element_and_gap(
+        &mut self,
+        idx: usize,
+        elem: ParaxElem,
+        gap: ParaxElem,
+    ) -> Result<()> {
         if idx == 0 {
             bail!("Cannot add element before the object plane.");
         }
@@ -224,7 +296,7 @@ impl ParaxialModel {
                 if let ParaxElem::Surf { id, .. } = elem {
                     *id == aperture_stop_id
                 } else if let ParaxElem::ThinLens { id, .. } = elem {
-                    *id == aperture_stop_id                    
+                    *id == aperture_stop_id
                 } else {
                     false
                 }
@@ -329,16 +401,48 @@ mod tests {
 
     /// A two lens system used for verification testing of the paraixal model.
     fn two_lens_system_verification() {
-        let obj_plane = ParaxElem::new_no_op_surf(100.0);
-        let obj_space_gap = ParaxElem::new_gap(100.0);
+        // Object space is 100 mm.
+        // Image space is 75 mm.
         let lens_1 = ParaxElem::new_thin_lens(100.0, 100.0);
         let gap_1 = ParaxElem::new_gap(25.0);
         let stop = ParaxElem::new_no_op_surf(10.0);
         let gap_2 = ParaxElem::new_gap(25.0);
         let lens_2 = ParaxElem::new_thin_lens(100.0, 75.0);
-        let img_space_gap = ParaxElem::new_gap(75.0);
-        let img_plane = ParaxElem::new_no_op_surf(100.0);
+    }
 
-        
+    #[test]
+    fn test_paraxial_model_insert_elemement_and_gap() {
+        let mut parax_model = ParaxialModel::new();
+        let lens = ParaxElem::new_thin_lens(100.0, 100.0);
+        let gap = ParaxElem::new_gap(100.0);
+
+        parax_model.insert_element_and_gap(1, lens, gap).unwrap();
+
+        let elements = parax_model.elements();
+
+        // Object plane, object space, lens, image space, image plane.
+        assert_eq!(elements.len(), 5);
+        assert_eq!(elements[2], ParaxElem::new_thin_lens(100.0, 100.0));
+        assert_eq!(elements[3], ParaxElem::new_gap(100.0));
+    }
+
+    #[test]
+    fn test_paraxial_model_insert_elemement_and_gap_before_object_plane() {
+        let mut parax_model = ParaxialModel::new();
+        let lens = ParaxElem::new_thin_lens(100.0, 100.0);
+        let gap = ParaxElem::new_gap(100.0);
+
+        let result = parax_model.insert_element_and_gap(0, lens, gap);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_paraxial_model_insert_elemement_and_gap_after_image_plane() {
+        let mut parax_model = ParaxialModel::new();
+        let lens = ParaxElem::new_thin_lens(100.0, 100.0);
+        let gap = ParaxElem::new_gap(100.0);
+
+        let result = parax_model.insert_element_and_gap(2, lens, gap);
+        assert!(result.is_err());
     }
 }

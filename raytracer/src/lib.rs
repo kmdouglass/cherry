@@ -12,7 +12,9 @@ use ray_tracing::{ApertureSpec, Gap, SystemModel};
 static COUNTER: AtomicUsize = AtomicUsize::new(1);
 
 /// Returns new unique IDs.
-fn get_id() -> usize { COUNTER.fetch_add(1, Ordering::Relaxed) }
+fn get_id() -> usize {
+    COUNTER.fetch_add(1, Ordering::Relaxed)
+}
 
 #[wasm_bindgen]
 #[derive(Debug)]
