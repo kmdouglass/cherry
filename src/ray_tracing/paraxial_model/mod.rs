@@ -21,6 +21,7 @@ const INIT_RADIUS: f32 = 1.0;
 enum ParaxElem {
     Gap { id: usize, rtm: Mat2 },
     Surf { id: usize, radius: f32, rtm: Mat2 },
+    ThinLens {id: usize, radius: f32, rtm: Mat2 },
 }
 
 impl ParaxElem {
@@ -64,6 +65,19 @@ impl ParaxElem {
             rtm: Mat2::eye(),
         }
     }
+
+    fn new_thin_lens(id: usize, radius: f32, focal_length: f32) -> Self {
+        let a = 1.0;
+        let b = 0.0;
+        let c = -1.0 / focal_length;
+        let d = 1.0;
+
+        ParaxElem::ThinLens {
+            id,
+            radius,
+            rtm: mat2!(a, b, c, d),
+        }
+    }
 }
 
 /// The result of tracing a ray through a paraxial model.
@@ -104,9 +118,9 @@ impl ParaxialModel {
     }
 
     fn trace(parax_elems: &[ParaxElem], mut ray: Vec2) -> Vec<ParaxTraceResult> {
-        // There's always one more surface than there are gaps.
-        let num_surfs = parax_elems.len() / 2 + 1;
-        let mut results = Vec::with_capacity(num_surfs);
+        // There's always one more non-gap elements than there are gaps.
+        let num_non_gaps = parax_elems.len() / 2 + 1;
+        let mut results = Vec::with_capacity(num_non_gaps);
 
         // Trace the ray through the paraxial model and save the results at each surface.
         for surf in parax_elems {
@@ -115,6 +129,14 @@ impl ParaxialModel {
                     ray = rtm * &ray;
                 }
                 ParaxElem::Surf { id, radius, rtm } => {
+                    ray = rtm * &ray;
+                    results.push(ParaxTraceResult {
+                        ray: ray.clone(),
+                        surf_id: *id,
+                        surf_radius: *radius,
+                    });
+                }
+                ParaxElem::ThinLens { id, radius, rtm } => {
                     ray = rtm * &ray;
                     results.push(ParaxTraceResult {
                         ray: ray.clone(),
@@ -133,7 +155,7 @@ impl ParaxialModel {
         let init_ray = self.init_ray()?;
         let results = ParaxialModel::trace(&self.parax_elems, init_ray);
 
-        // Find the ID of the surface with the smallest ratio of surface radius to ray height.
+        // Find the ID of the non-gap element with the smallest ratio of surface radius to ray height.
         let mut min_ratio = f32::MAX;
         let mut min_id = 0;
         for result in results.iter() {
@@ -151,13 +173,15 @@ impl ParaxialModel {
     pub fn find_entrance_pupil_dist(&self) -> Result<f32> {
         let aperture_stop_id = self.find_aperture_stop()?;
 
-        // Find the index of the surface that is the aperture stop.
+        // Find the index of the element that is the aperture stop.
         let idx = self
             .parax_elems
             .iter()
-            .position(|surf| {
-                if let ParaxElem::Surf { id, .. } = surf {
+            .position(|elem| {
+                if let ParaxElem::Surf { id, .. } = elem {
                     *id == aperture_stop_id
+                } else if let ParaxElem::ThinLens { id, .. } = elem {
+                    *id == aperture_stop_id                    
                 } else {
                     false
                 }
