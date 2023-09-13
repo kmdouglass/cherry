@@ -20,6 +20,8 @@ const INIT_RADIUS: f32 = 1.0;
 #[derive(Debug, Clone)]
 enum ParaxElem {
     Gap { id: usize, rtm: Mat2 },
+    ImagePlane { id: usize, radius: f32, rtm: Mat2 },
+    ObjectPlane { id: usize, radius: f32, rtm: Mat2 },
     Surf { id: usize, radius: f32, rtm: Mat2 },
     ThinLens {id: usize, radius: f32, rtm: Mat2 },
 }
@@ -58,8 +60,24 @@ impl ParaxElem {
         }
     }
 
+    fn new_img_plane(id: usize, radius: f32) -> Self {
+        ParaxElem::ImagePlane {
+            id,
+            radius,
+            rtm: Mat2::eye(),
+        }
+    }
+
     fn new_no_op_surf(id: usize, radius: f32) -> Self {
         ParaxElem::Surf {
+            id,
+            radius,
+            rtm: Mat2::eye(),
+        }
+    }
+
+    fn new_obj_plane(id: usize, radius: f32) -> Self {
+        ParaxElem::ObjectPlane {
             id,
             radius,
             rtm: Mat2::eye(),
@@ -90,31 +108,40 @@ struct ParaxTraceResult {
 
 /// A paraxial model of an optical system.
 ///
-/// The paraxial model comprises a sequence of ray transfer matrices (RTMs), one for each surface
-/// and gap.
+/// The paraxial model comprises a sequence of paraxial elements. The most important part of each
+/// element is its ray transfer matrices (RTMs), which describes how a paraxial ray is transformed
+/// as it propagates through the element.
 #[derive(Debug)]
 pub struct ParaxialModel {
     parax_elems: Vec<ParaxElem>,
 }
 
 impl ParaxialModel {
-    pub fn new(surfs: &[Surface]) -> Self {
-        let obj_plane_radius = surfs.first().unwrap().diam() / 2.0;
-        let mut rtms = Vec::new();
+    /// Creates a new paraxial model.
+    pub fn new() -> Self {
+        let mut parax_elems = Vec::new();
+        parax_elems.push(ParaxElem::new_obj_plane(0, f32::INFINITY));
+        parax_elems.push(ParaxElem::new_gap(0, 0.0));
+        parax_elems.push(ParaxElem::new_img_plane(1, f32::INFINITY));
 
-        // The object plane RTM does not do anything.
-        rtms.push(ParaxElem::new_no_op_surf(0, obj_plane_radius));
+        Self { parax_elems }
+    }
 
-        for (id, pair) in SurfacePairIterator::new(surfs).enumerate() {
-            // The ray transfer matrix for the second surface in the pair.
-            let surf_rtm = pair.parax_surf(id + 1);
-            let (_, gap) = pair.into();
-
-            rtms.push(gap.parax_surf(id));
-            rtms.push(surf_rtm);
+    fn insert_element_and_gap(&mut self, idx: usize, elem: ParaxElem, gap: ParaxElem) -> Result<()> {
+        if idx == 0 {
+            bail!("Cannot add element before the object plane.");
         }
 
-        Self { parax_elems: rtms }
+        if idx > self.parax_elems.len() / 2 {
+            bail!("Cannot add element after the image plane.");
+        }
+
+        // Convert element/gap index into Vec<ParaxElem> index.
+        let idx = idx * 2;
+        self.parax_elems.insert(idx, gap);
+        self.parax_elems.insert(idx, elem);
+
+        Ok(())
     }
 
     fn trace(parax_elems: &[ParaxElem], mut ray: Vec2) -> Vec<ParaxTraceResult> {
@@ -123,10 +150,26 @@ impl ParaxialModel {
         let mut results = Vec::with_capacity(num_non_gaps);
 
         // Trace the ray through the paraxial model and save the results at each surface.
-        for surf in parax_elems {
-            match surf {
+        for elem in parax_elems {
+            match elem {
                 ParaxElem::Gap { id: _, rtm } => {
                     ray = rtm * &ray;
+                }
+                ParaxElem::ImagePlane { id, radius, rtm } => {
+                    ray = rtm * &ray;
+                    results.push(ParaxTraceResult {
+                        ray: ray.clone(),
+                        surf_id: *id,
+                        surf_radius: *radius,
+                    });
+                }
+                ParaxElem::ObjectPlane { id, radius, rtm } => {
+                    ray = rtm * &ray;
+                    results.push(ParaxTraceResult {
+                        ray: ray.clone(),
+                        surf_id: *id,
+                        surf_radius: *radius,
+                    });
                 }
                 ParaxElem::Surf { id, radius, rtm } => {
                     ray = rtm * &ray;
@@ -231,6 +274,27 @@ impl ParaxialModel {
     }
 }
 
+impl From<&[Surface]> for ParaxialModel {
+    fn from(surfs: &[Surface]) -> Self {
+        let obj_plane_radius = surfs.first().unwrap().diam() / 2.0;
+        let mut rtms = Vec::new();
+
+        // The object plane RTM does not do anything.
+        rtms.push(ParaxElem::new_no_op_surf(0, obj_plane_radius));
+
+        for (id, pair) in SurfacePairIterator::new(surfs).enumerate() {
+            // The ray transfer matrix for the second surface in the pair.
+            let surf_rtm = pair.parax_surf(id + 1);
+            let (_, gap) = pair.into();
+
+            rtms.push(gap.parax_surf(id));
+            rtms.push(surf_rtm);
+        }
+
+        Self { parax_elems: rtms }
+    }
+}
+
 impl SurfacePair {
     /// Return the paraxial surface equivalent for the second surface in the pair.
     fn parax_surf(&self, id: usize) -> ParaxElem {
@@ -263,10 +327,18 @@ impl Gap {
 mod tests {
     use super::*;
 
-    use crate::ray_tracing::Surface;
-
     /// A two lens system used for verification testing of the paraixal model.
-    fn two_lens_verification() {
+    fn two_lens_system_verification() {
+        let obj_plane = ParaxElem::new_no_op_surf(0, 100.0);
+        let obj_space_gap = ParaxElem::new_gap(0, 100.0);
+        let lens_1 = ParaxElem::new_thin_lens(1, 100.0, 100.0);
+        let gap_1 = ParaxElem::new_gap(1, 25.0);
+        let stop = ParaxElem::new_no_op_surf(2, 10.0);
+        let gap_2 = ParaxElem::new_gap(2, 25.0);
+        let lens_2 = ParaxElem::new_thin_lens(3, 100.0, 75.0);
+        let img_space_gap = ParaxElem::new_gap(3, 75.0);
+        let img_plane = ParaxElem::new_no_op_surf(4, 100.0);
+
         
     }
 }
