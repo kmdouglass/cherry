@@ -108,18 +108,6 @@ impl ParaxialModel {
         let num_surfs = parax_elems.len() / 2 + 1;
         let mut results = Vec::with_capacity(num_surfs);
 
-        // Save the object space ray.
-        // TODO We shouldn't assume that the first element is the object surface because sometimes
-        // we want to trace rays from an arbitrary surface.
-        let obj_surf = parax_elems.first().unwrap();
-        if let ParaxElem::Surf { id, radius, rtm: _ } = obj_surf {
-            results.push(ParaxTraceResult {
-                ray: ray.clone(),
-                surf_id: *id,
-                surf_radius: *radius,
-            });
-        };
-
         // Trace the ray through the paraxial model and save the results at each surface.
         for surf in parax_elems {
             match surf {
@@ -244,5 +232,17 @@ impl Gap {
     fn parax_surf(&self, id: usize) -> ParaxElem {
         let d = self.thickness();
         ParaxElem::new_gap(id, d)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use crate::ray_tracing::Surface;
+
+    /// A two lens system used for verification testing of the paraixal model.
+    fn two_lens_verification() {
+        
     }
 }
