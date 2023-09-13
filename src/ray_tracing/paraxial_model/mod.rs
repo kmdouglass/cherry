@@ -1,3 +1,9 @@
+/// Paraxial ray trace engine.
+/// 
+/// # Sign conventions
+/// - Distances in front of elements are negative; distances after an element are positive.
+/// - Rays counter-clockwise from the optical axis are positive; rays clockwise are negative. 
+
 use std::f32::consts::PI;
 
 use crate::get_id;
@@ -165,8 +171,8 @@ impl PartialEq for ParaxElem {
 #[derive(Debug)]
 struct ParaxTraceResult {
     ray: Vec2,
-    surf_id: usize,
-    surf_radius: f32,
+    elem_id: usize,
+    elem_radius: f32,
 }
 
 /// A paraxial model of an optical system.
@@ -216,8 +222,15 @@ impl ParaxialModel {
         Ok(())
     }
 
+    /// Set the distance of the object plane from the first optical surface.
+    pub fn set_obj_dist(&mut self, dist: f32) {
+        if let ParaxElem::Gap { id: _, rtm } = &mut self.parax_elems[1] {
+            rtm[0][1] = dist;
+        }
+    }
+
     fn trace(parax_elems: &[ParaxElem], mut ray: Vec2) -> Vec<ParaxTraceResult> {
-        // There's always one more non-gap elements than there are gaps.
+        // There's always one more non-gap element than there are gaps.
         let num_non_gaps = parax_elems.len() / 2 + 1;
         let mut results = Vec::with_capacity(num_non_gaps);
 
@@ -231,32 +244,32 @@ impl ParaxialModel {
                     ray = rtm * &ray;
                     results.push(ParaxTraceResult {
                         ray: ray.clone(),
-                        surf_id: *id,
-                        surf_radius: *radius,
+                        elem_id: *id,
+                        elem_radius: *radius,
                     });
                 }
                 ParaxElem::ObjectPlane { id, radius, rtm } => {
                     ray = rtm * &ray;
                     results.push(ParaxTraceResult {
                         ray: ray.clone(),
-                        surf_id: *id,
-                        surf_radius: *radius,
+                        elem_id: *id,
+                        elem_radius: *radius,
                     });
                 }
                 ParaxElem::Surf { id, radius, rtm } => {
                     ray = rtm * &ray;
                     results.push(ParaxTraceResult {
                         ray: ray.clone(),
-                        surf_id: *id,
-                        surf_radius: *radius,
+                        elem_id: *id,
+                        elem_radius: *radius,
                     });
                 }
                 ParaxElem::ThinLens { id, radius, rtm } => {
                     ray = rtm * &ray;
                     results.push(ParaxTraceResult {
                         ray: ray.clone(),
-                        surf_id: *id,
-                        surf_radius: *radius,
+                        elem_id: *id,
+                        elem_radius: *radius,
                     });
                 }
             }
@@ -266,7 +279,7 @@ impl ParaxialModel {
     }
 
     /// Find the ID of the surface that is the aperture stop of the paraxial model.
-    pub fn find_aperture_stop(&self) -> Result<usize> {
+    pub fn aperture_stop(&self) -> Result<usize> {
         let init_ray = self.init_ray()?;
         let results = ParaxialModel::trace(&self.parax_elems, init_ray);
 
@@ -274,10 +287,10 @@ impl ParaxialModel {
         let mut min_ratio = f32::MAX;
         let mut min_id = 0;
         for result in results.iter() {
-            let ratio = result.surf_radius / result.ray.y();
+            let ratio = result.elem_radius / result.ray.y();
             if ratio < min_ratio {
                 min_ratio = ratio;
-                min_id = result.surf_id;
+                min_id = result.elem_id;
             }
         }
 
@@ -285,38 +298,50 @@ impl ParaxialModel {
     }
 
     /// Find the distance of the entrance pupil from the first optical surface.
-    pub fn find_entrance_pupil_dist(&self) -> Result<f32> {
-        let aperture_stop_id = self.find_aperture_stop()?;
+    /// 
+    /// Following this module's sign conventions, a positive distance means the entrance pupil is
+    /// virtual, i.e. to the right of the first optical surface. A negative distance means the
+    /// entrance pupil is a real image of the aperture stop, i.e. to the left of the first optical
+    /// surface.
+    pub fn entrance_pupil(&self) -> Result<f32> {
+        let aperture_stop_id = self.aperture_stop()?;
 
         // Find the index of the element that is the aperture stop.
+        let idx = self.id_to_index(aperture_stop_id)?;
+
+        // Launch a ray from the aperture stop from the axis backwards through the system.
+        let elems = &self.parax_elems[0..idx];
+        let elems_reversed = ParaxialModel::reverse_surfaces(elems);
+        let init_ray = Vec2::new(0.0, INIT_ANGLE);
+        let results = ParaxialModel::trace(&elems_reversed, init_ray);
+
+        // Get the next-to-last result, which is the ray traveling in the object space from the
+        // first surface to the object plane.
+        let obj_ray = &results[results.len() - 2].ray;
+
+        // Find the intersection of the object space ray with the optical axis.
+        let t = obj_ray.y() / obj_ray.theta();
+
+        Ok(t)
+    }
+
+    /// Return the index of the paraxial element that corresponds to the given element ID.
+    fn id_to_index(&self, id: usize) -> Result<usize> {
         let idx = self
             .parax_elems
             .iter()
             .position(|elem| {
-                if let ParaxElem::Surf { id, .. } = elem {
-                    *id == aperture_stop_id
-                } else if let ParaxElem::ThinLens { id, .. } = elem {
-                    *id == aperture_stop_id
+                if let ParaxElem::Surf { id: elem_id, .. } = elem {
+                    *elem_id == id
+                } else if let ParaxElem::ThinLens { id: elem_id, .. } = elem {
+                    *elem_id == id
                 } else {
                     false
                 }
             })
-            .ok_or(anyhow!("The aperture stop ID was not found."))?;
+            .ok_or(anyhow!("The element ID was not found."))?;
 
-        // Launch a ray from the aperture stop from the axis backwards through the system.
-        let surfs = &self.parax_elems[0..idx + 1];
-        let surfs_reversed = ParaxialModel::reverse_surfaces(surfs);
-        let init_ray = Vec2::new(0.0, INIT_ANGLE);
-        let results = ParaxialModel::trace(&surfs_reversed, init_ray);
-
-        // Get the next-to-last result, which is the ray traveling in the object space from the
-        // first surface to the object plane.
-        let obj_ray = &results[results.len() - 1].ray;
-
-        // Find the intersection of the object space ray with the optical axis.
-        let t = -obj_ray.y() / obj_ray.theta();
-
-        Ok(t)
+        Ok(idx)
     }
 
     /// Find the initial ray to trace through the paraxial model.
@@ -399,15 +424,61 @@ impl Gap {
 mod tests {
     use super::*;
 
+    const TOL: f32 = 0.001;
+
+    fn assert_almost_equal(a: f32, b: f32) {
+        assert!((a - b).abs() < TOL);
+    }
+
+    struct ExpectedTestResults {
+        aperture_stop_idx: usize,
+        entrance_pupil: f32,
+    }
+
     /// A two lens system used for verification testing of the paraixal model.
-    fn two_lens_system_verification() {
+    fn two_lens_system_verification() -> (ParaxialModel, ExpectedTestResults) {
         // Object space is 100 mm.
-        // Image space is 75 mm.
         let lens_1 = ParaxElem::new_thin_lens(100.0, 100.0);
         let gap_1 = ParaxElem::new_gap(25.0);
         let stop = ParaxElem::new_no_op_surf(10.0);
         let gap_2 = ParaxElem::new_gap(25.0);
         let lens_2 = ParaxElem::new_thin_lens(100.0, 75.0);
+        let img_space = ParaxElem::new_gap(75.0);
+
+        let mut parax_model = ParaxialModel::new();
+        parax_model.insert_element_and_gap(1, lens_1, gap_1).unwrap();
+        parax_model.insert_element_and_gap(2, stop, gap_2).unwrap();
+        parax_model.insert_element_and_gap(3, lens_2, img_space).unwrap();
+
+        parax_model.set_obj_dist(100.0);
+
+        let expected = ExpectedTestResults {
+            aperture_stop_idx: 4,
+            entrance_pupil: 33.3333,
+        };
+
+        (parax_model, expected)
+    }
+
+    #[test]
+    fn verify_two_lens_system_aperture_stop() {
+        let (parax_model, expected) = two_lens_system_verification();
+        let idx = if let ParaxElem::Surf { id, .. } = parax_model.elements()[expected.aperture_stop_idx] {
+            id
+        } else {
+            panic!("The aperture stop should be a surface.");
+        };
+        let result = parax_model.aperture_stop().unwrap();
+
+        assert_eq!(result, idx);
+    }
+
+    #[test]
+    fn verify_two_lens_system_entrance_pupil() {
+        let (parax_model, expected) = two_lens_system_verification();
+        let result = parax_model.entrance_pupil().unwrap();
+
+        assert_almost_equal(result, expected.entrance_pupil);
     }
 
     #[test]
@@ -444,5 +515,21 @@ mod tests {
 
         let result = parax_model.insert_element_and_gap(2, lens, gap);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_paraxial_model_set_obj_dist() {
+        let mut parax_model = ParaxialModel::new();
+        let lens = ParaxElem::new_thin_lens(100.0, 100.0);
+        let gap = ParaxElem::new_gap(100.0);
+
+        parax_model.insert_element_and_gap(1, lens, gap).unwrap();
+        parax_model.set_obj_dist(200.0);
+
+        let elements = parax_model.elements();
+
+        // Object plane, object space, lens, image space, image plane.
+        assert_eq!(elements.len(), 5);
+        assert_eq!(elements[1], ParaxElem::new_gap(200.0));
     }
 }

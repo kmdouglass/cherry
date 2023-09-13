@@ -53,3 +53,11 @@ impl std::ops::Index<usize> for Mat2 {
         &self.e[row_index]
     }
 }
+
+impl std::ops::IndexMut<usize> for Mat2 {
+    fn index_mut(&mut self, row_index: usize) -> &mut [f32] {
+        assert!(row_index < 2);
+
+        &mut self.e[row_index]
+    }
+}
