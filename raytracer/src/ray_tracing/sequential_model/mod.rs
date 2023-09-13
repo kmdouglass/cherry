@@ -38,12 +38,7 @@ impl SequentialModel {
         &self.gaps
     }
 
-    pub fn insert_surface_and_gap(
-        &mut self,
-        idx: usize,
-        surf_spec: SurfaceSpec,
-        gap: Gap,
-    ) -> Result<()> {
+    pub fn insert_surface_and_gap(&mut self, idx: usize, surface: Surface, gap: Gap) -> Result<()> {
         if idx == 0 {
             bail!("Cannot add surface before the object plane.");
         }
@@ -51,8 +46,6 @@ impl SequentialModel {
         if idx > self.surfaces.len() - 1 {
             bail!("Cannot add surface after the image plane.");
         }
-
-        let surface = Surface::from((surf_spec, &gap));
 
         self.surfaces.insert(idx, surface);
         self.gaps.insert(idx, gap);
@@ -162,22 +155,28 @@ mod tests {
         model
             .insert_surface_and_gap(
                 1,
-                SurfaceSpec::RefractingCircularConic {
-                    diam: 25.0,
-                    roc: 1.0,
-                    k: 0.0,
-                },
+                Surface::new_refr_circ_conic(
+                    Vec3::new(0.0, 0.0, 0.0),
+                    Vec3::new(0.0, 0.0, 0.0),
+                    25.0,
+                    1.5,
+                    25.0,
+                    0.0,
+                ),
                 Gap::new(1.0, 1.0),
             )
             .unwrap();
         model
             .insert_surface_and_gap(
                 2,
-                SurfaceSpec::RefractingCircularConic {
-                    diam: 25.0,
-                    roc: -1.0,
-                    k: 0.0,
-                },
+                Surface::new_refr_circ_conic(
+                    Vec3::new(0.0, 0.0, 0.0),
+                    Vec3::new(0.0, 0.0, 0.0),
+                    25.0,
+                    1.0,
+                    -25.0,
+                    0.0,
+                ),
                 Gap::new(1.0, 10.0),
             )
             .unwrap();
@@ -199,11 +198,7 @@ mod tests {
         model
             .insert_surface_and_gap(
                 1,
-                SurfaceSpec::RefractingCircularConic {
-                    diam: 25.0,
-                    roc: -1.0,
-                    k: 0.0,
-                },
+                Surface::new_refr_circ_conic(Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 0.0), 25.0, 1.0, -1.0, 0.0),
                 Gap::new(1.0, 10.0),
             )
             .unwrap();
@@ -218,11 +213,7 @@ mod tests {
         model
             .insert_surface_and_gap(
                 1,
-                SurfaceSpec::RefractingCircularConic {
-                    diam: 25.0,
-                    roc: 1.0,
-                    k: 0.0,
-                },
+                Surface::new_refr_circ_conic(Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 0.0), 25.0, 1.0, 1.0, 0.0),
                 Gap::new(1.0, 1.0),
             )
             .unwrap();
@@ -243,22 +234,14 @@ mod tests {
         model
             .insert_surface_and_gap(
                 1,
-                SurfaceSpec::RefractingCircularConic {
-                    diam: 25.0,
-                    roc: 1.0,
-                    k: 0.0,
-                },
+                Surface::new_refr_circ_conic(Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 0.0), 25.0, 1.5, 1.0, 0.0),
                 Gap::new(1.5, 1.0),
             )
             .unwrap();
         model
             .insert_surface_and_gap(
                 2,
-                SurfaceSpec::RefractingCircularConic {
-                    diam: 25.0,
-                    roc: -1.0,
-                    k: 0.0,
-                },
+                Surface::new_refr_circ_conic(Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 0.0), 25.0, 1.0, -1.0, 0.0),
                 Gap::new(1.0, 10.0),
             )
             .unwrap();
@@ -283,22 +266,14 @@ mod tests {
         model
             .insert_surface_and_gap(
                 1,
-                SurfaceSpec::RefractingCircularConic {
-                    diam: 25.0,
-                    roc: 1.0,
-                    k: 0.0,
-                },
+                Surface::new_refr_circ_conic(Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 0.0), 25.0, 1.5, 1.0, 0.0),
                 Gap::new(1.5, 1.0),
             )
             .unwrap();
         model
             .insert_surface_and_gap(
                 2,
-                SurfaceSpec::RefractingCircularConic {
-                    diam: 25.0,
-                    roc: -1.0,
-                    k: 0.0,
-                },
+                Surface::new_refr_circ_conic(Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 0.0), 25.0, 1.0, -1.0, 0.0),
                 Gap::new(1.0, 10.0),
             )
             .unwrap();

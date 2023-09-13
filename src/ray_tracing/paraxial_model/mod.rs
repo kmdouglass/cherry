@@ -1,9 +1,8 @@
 /// Paraxial ray trace engine.
-/// 
+///
 /// # Sign conventions
 /// - Distances in front of elements are negative; distances after an element are positive.
-/// - Rays counter-clockwise from the optical axis are positive; rays clockwise are negative. 
-
+/// - Rays counter-clockwise from the optical axis are positive; rays clockwise are negative.
 use std::f32::consts::PI;
 
 use crate::get_id;
@@ -200,6 +199,11 @@ impl ParaxialModel {
         &self.parax_elems
     }
 
+    fn is_empty(&self) -> bool {
+        // The paraxial model always has an object plane, object space, and image plane.
+        self.parax_elems.len() == 3
+    }
+
     fn insert_element_and_gap(
         &mut self,
         idx: usize,
@@ -280,6 +284,10 @@ impl ParaxialModel {
 
     /// Find the ID of the surface that is the aperture stop of the paraxial model.
     pub fn aperture_stop(&self) -> Result<usize> {
+        if self.is_empty() {
+            bail!("The paraxial model is empty.");
+        };
+
         let init_ray = self.init_ray()?;
         let results = ParaxialModel::trace(&self.parax_elems, init_ray);
 
@@ -298,7 +306,7 @@ impl ParaxialModel {
     }
 
     /// Find the distance of the entrance pupil from the first optical surface.
-    /// 
+    ///
     /// Following this module's sign conventions, a positive distance means the entrance pupil is
     /// virtual, i.e. to the right of the first optical surface. A negative distance means the
     /// entrance pupil is a real image of the aperture stop, i.e. to the left of the first optical
@@ -446,9 +454,13 @@ mod tests {
         let img_space = ParaxElem::new_gap(75.0);
 
         let mut parax_model = ParaxialModel::new();
-        parax_model.insert_element_and_gap(1, lens_1, gap_1).unwrap();
+        parax_model
+            .insert_element_and_gap(1, lens_1, gap_1)
+            .unwrap();
         parax_model.insert_element_and_gap(2, stop, gap_2).unwrap();
-        parax_model.insert_element_and_gap(3, lens_2, img_space).unwrap();
+        parax_model
+            .insert_element_and_gap(3, lens_2, img_space)
+            .unwrap();
 
         parax_model.set_obj_dist(100.0);
 
@@ -463,7 +475,9 @@ mod tests {
     #[test]
     fn verify_two_lens_system_aperture_stop() {
         let (parax_model, expected) = two_lens_system_verification();
-        let idx = if let ParaxElem::Surf { id, .. } = parax_model.elements()[expected.aperture_stop_idx] {
+        let idx = if let ParaxElem::Surf { id, .. } =
+            parax_model.elements()[expected.aperture_stop_idx]
+        {
             id
         } else {
             panic!("The aperture stop should be a surface.");

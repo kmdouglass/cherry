@@ -14,6 +14,7 @@ use crate::math::mat3::Mat3;
 use crate::math::vec3::Vec3;
 
 use component_model::ComponentModel;
+use paraxial_model::ParaxialModel;
 use rays::Ray;
 use sequential_model::{SequentialModel, SurfaceSpec};
 use surface_types::{ObjectOrImagePlane, RefractingCircularConic, RefractingCircularFlat, Stop};
@@ -24,6 +25,7 @@ const INIT_DIAM: f32 = 25.0;
 #[derive(Debug)]
 pub(crate) struct SystemModel {
     comp_model: ComponentModel,
+    parax_model: ParaxialModel,
     seq_model: SequentialModel,
     surfaces: Vec<Surface>,
     aperture: ApertureSpec,
@@ -52,10 +54,12 @@ impl SystemModel {
 
         let sequential_model = SequentialModel::new(&surfaces);
         let component_model = ComponentModel::from(&sequential_model);
+        let paraxial_model = ParaxialModel::from(sequential_model.surfaces());
 
         Self {
             comp_model: component_model,
             seq_model: SequentialModel::new(&surfaces),
+            parax_model: paraxial_model,
             surfaces,
             aperture: ApertureSpec::EntrancePupilDiameter { diam: INIT_DIAM },
         }
@@ -77,6 +81,21 @@ impl SystemModel {
         &self.aperture
     }
 
+    pub fn insert_surface_and_gap(
+        &mut self,
+        idx: usize,
+        surface_spec: SurfaceSpec,
+        gap: Gap,
+    ) -> Result<()> {
+        // TODO Can this be made atomic across all the submodels?
+        let surface: Surface = Surface::from((&surface_spec, &gap));
+
+        self.seq_model.insert_surface_and_gap(idx, surface, gap)?;
+        // TODO Update the paraxial model
+
+        Ok(())
+    }
+
     pub fn set_aperture(&mut self, aperture: ApertureSpec) -> Result<()> {
         if let ApertureSpec::EntrancePupilDiameter { diam } = aperture {
             if diam <= 0.0 {
@@ -89,39 +108,19 @@ impl SystemModel {
         Ok(())
     }
 
-    /// Compute the system diameter by finding the surface with the largest diameter.
-    pub(crate) fn diam(&self) -> f32 {
-        // Don't include object and image planes
-        let mut diam = 0.0;
-        for surf in self
-            .surfaces
-            .iter()
-            .filter(|surf| !matches!(surf, Surface::ObjectOrImagePlane(_)))
-        {
-            if surf.diam() > diam {
-                diam = surf.diam();
-            }
-        }
-
-        diam
-    }
-
-    /// Compute the entrance pupil for the system.
-    pub(crate) fn entrance_pupil(&self) -> Option<EntrancePupil> {
+    /// Determine the entrance pupil for the system.
+    pub(crate) fn entrance_pupil(&self) -> Result<EntrancePupil> {
         // The diameter is the aperture diameter (until more aperture types are supported)
         let diam = match self.aperture() {
             ApertureSpec::EntrancePupilDiameter { diam } => *diam,
         };
 
-        // TODO The position is the first surface's position (for now)
-        if self.seq_model().surfaces().len() == 2 {
-            // Only object and image plane, so return.
-            return None;
-        }
+        let entrance_pupil_dist = self.parax_model.entrance_pupil()?;
 
         let pos = self.surfaces[1].pos();
+        let pos = Vec3::new(pos.x(), pos.y(), pos.z() + entrance_pupil_dist);
 
-        Some(EntrancePupil { pos, diam })
+        Ok(EntrancePupil { pos, diam })
     }
 
     pub(crate) fn object_plane(&self) -> Surface {
@@ -141,13 +140,7 @@ impl SystemModel {
     /// * `phi` - The angle of the ray w.rt. the z-axis.
     pub(crate) fn pupil_ray_fan(&self, num_rays: usize, theta: f32, phi: f32) -> Result<Vec<Ray>> {
         // TODO Handle off-axis rays
-        let ep = if let Some(ep) = self.entrance_pupil() {
-            ep
-        } else {
-            return Err(anyhow::anyhow!(
-                "There is no entrance pupil for this system"
-            ));
-        };
+        let ep = self.entrance_pupil()?;
 
         // If the object plane is at infinity, launch the rays from one unit in front of the first surface
         let launch_point_z = if self.object_plane().pos().z() == f32::NEG_INFINITY {
@@ -320,26 +313,26 @@ impl Gap {
     }
 }
 
-impl From<(SurfaceSpec, &Gap)> for Surface {
-    fn from((surf, gap): (SurfaceSpec, &Gap)) -> Self {
+impl From<(&SurfaceSpec, &Gap)> for Surface {
+    fn from((surf, gap): (&SurfaceSpec, &Gap)) -> Self {
         let pos = Vec3::new(0.0, 0.0, 0.0);
         let dir = Vec3::new(0.0, 0.0, 0.0);
 
         match surf {
             SurfaceSpec::ObjectOrImagePlane { diam } => {
-                let surf = Surface::new_obj_or_img_plane(pos, dir, diam);
+                let surf = Surface::new_obj_or_img_plane(pos, dir, *diam);
                 surf
             }
             SurfaceSpec::RefractingCircularConic { diam, roc, k } => {
-                let surf = Surface::new_refr_circ_conic(pos, dir, diam, gap.n(), roc, k);
+                let surf = Surface::new_refr_circ_conic(pos, dir, *diam, gap.n(), *roc, *k);
                 surf
             }
             SurfaceSpec::RefractingCircularFlat { diam } => {
-                let surf = Surface::new_refr_circ_flat(pos, dir, diam, gap.n());
+                let surf = Surface::new_refr_circ_flat(pos, dir, *diam, gap.n());
                 surf
             }
             SurfaceSpec::Stop { diam } => {
-                let surf = Surface::new_stop(pos, dir, diam, gap.n());
+                let surf = Surface::new_stop(pos, dir, *diam, gap.n());
                 surf
             }
         }
@@ -549,31 +542,5 @@ mod tests {
         } else {
             panic!("ApertureSpec is not EntrancePupilDiameter");
         }
-    }
-
-    #[test]
-    fn test_system_model_diam() {
-        let mut model = SystemModel::new();
-
-        let surf = Surface::new_refr_circ_conic(
-            Vec3::new(0.0, 0.0, 0.0),
-            Vec3::new(0.0, 0.0, 0.0),
-            10.0,
-            1.5,
-            10.0,
-            0.0,
-        );
-        model.surfaces.push(surf);
-
-        let surf = Surface::new_refr_circ_flat(
-            Vec3::new(0.0, 0.0, 10.0),
-            Vec3::new(0.0, 0.0, 0.0),
-            12.0,
-            1.5,
-        );
-        model.surfaces.push(surf);
-
-        let diam = model.diam();
-        assert_eq!(diam, 12.0);
     }
 }
