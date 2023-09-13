@@ -1,7 +1,6 @@
 ---
 name: "Build and deploy site"
 on:  # yamllint disable-line rule:truthy
-  pull_request:
   push:
 jobs:
   tests:
