@@ -32,7 +32,6 @@
         pkgs = import nixpkgs { inherit system overlays; };
 
         rust = pkgs.rust-bin.fromRustupToolchainFile ./raytracer/rust-toolchain.toml;
-        inputs = [ rust pkgs.wasm-pack pkgs.curl ];
 
         clj-deps = import ./www/cljs/deps.nix { inherit (pkgs) fetchMavenArtifact fetchgit lib; };
         classpath = clj-deps.makeClasspaths { };
@@ -63,10 +62,18 @@
               lockFile = ./raytracer/Cargo.lock;
             };
 
-            nativeBuildInputs = inputs;
+            nativeBuildInputs = [
+              rust
+              pkgs.binaryen
+              pkgs.curl
+              pkgs.pkg-config
+              pkgs.wasm-pack
+            ];
 
             buildPhase = ''
               export HOME=$PWD
+              export PKG_CONFIG_PATH="${pkgs.openssl.dev}/lib/pkgconfig"
+
               mkdir -p $out
               wasm-pack build --target bundler --out-dir $out
             '';
