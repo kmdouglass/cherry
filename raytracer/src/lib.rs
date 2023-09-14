@@ -38,10 +38,11 @@ impl WasmSystemModel {
         surface: JsValue,
         gap: JsValue,
     ) -> Result<(), JsError> {
-        let surface: SurfaceSpec = serde_wasm_bindgen::from_value(surface)?;
+        let surf_spec: SurfaceSpec = serde_wasm_bindgen::from_value(surface)?;
         let gap: Gap = serde_wasm_bindgen::from_value(gap)?;
-        self.seq_model_mut()
-            .insert_surface_and_gap(idx, surface, gap)
+        self
+            .system_model
+            .insert_surface_and_gap(idx, surf_spec, gap)
             .map_err(|e| JsError::new(&e.to_string()))?;
 
         // TODO Synchronize the low level models, possibly by adding an insert method to the
