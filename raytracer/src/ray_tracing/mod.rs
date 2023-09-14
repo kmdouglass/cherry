@@ -89,9 +89,19 @@ impl SystemModel {
     ) -> Result<()> {
         // TODO Can this be made atomic across all the submodels?
         let surface: Surface = Surface::from((&surface_spec, &gap));
+        let preceding_surface = self.surfaces[idx];
 
         self.seq_model.insert_surface_and_gap(idx, surface, gap)?;
-        // TODO Update the paraxial model
+        self.parax_model
+            .insert_surface_and_gap(idx, preceding_surface, surface, gap)?;
+
+        Ok(())
+    }
+
+    pub fn remove_surface_and_gap(&mut self, idx: usize) -> Result<()> {
+        // TODO Can this be made atomic across all the submodels?
+        self.seq_model.remove_surface_and_gap(idx)?;
+        self.parax_model.remove_element_and_gap(idx)?;
 
         Ok(())
     }
@@ -293,7 +303,7 @@ impl Surface {
 }
 
 /// A gap between two surfaces in an optical system.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct Gap {
     n: f32,
     thickness: f32,

@@ -198,7 +198,14 @@ mod tests {
         model
             .insert_surface_and_gap(
                 1,
-                Surface::new_refr_circ_conic(Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 0.0), 25.0, 1.0, -1.0, 0.0),
+                Surface::new_refr_circ_conic(
+                    Vec3::new(0.0, 0.0, 0.0),
+                    Vec3::new(0.0, 0.0, 0.0),
+                    25.0,
+                    1.0,
+                    -1.0,
+                    0.0,
+                ),
                 Gap::new(1.0, 10.0),
             )
             .unwrap();
@@ -213,7 +220,14 @@ mod tests {
         model
             .insert_surface_and_gap(
                 1,
-                Surface::new_refr_circ_conic(Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 0.0), 25.0, 1.0, 1.0, 0.0),
+                Surface::new_refr_circ_conic(
+                    Vec3::new(0.0, 0.0, 0.0),
+                    Vec3::new(0.0, 0.0, 0.0),
+                    25.0,
+                    1.0,
+                    1.0,
+                    0.0,
+                ),
                 Gap::new(1.0, 1.0),
             )
             .unwrap();
@@ -234,14 +248,28 @@ mod tests {
         model
             .insert_surface_and_gap(
                 1,
-                Surface::new_refr_circ_conic(Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 0.0), 25.0, 1.5, 1.0, 0.0),
+                Surface::new_refr_circ_conic(
+                    Vec3::new(0.0, 0.0, 0.0),
+                    Vec3::new(0.0, 0.0, 0.0),
+                    25.0,
+                    1.5,
+                    1.0,
+                    0.0,
+                ),
                 Gap::new(1.5, 1.0),
             )
             .unwrap();
         model
             .insert_surface_and_gap(
                 2,
-                Surface::new_refr_circ_conic(Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 0.0), 25.0, 1.0, -1.0, 0.0),
+                Surface::new_refr_circ_conic(
+                    Vec3::new(0.0, 0.0, 0.0),
+                    Vec3::new(0.0, 0.0, 0.0),
+                    25.0,
+                    1.0,
+                    -1.0,
+                    0.0,
+                ),
                 Gap::new(1.0, 10.0),
             )
             .unwrap();
@@ -266,14 +294,28 @@ mod tests {
         model
             .insert_surface_and_gap(
                 1,
-                Surface::new_refr_circ_conic(Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 0.0), 25.0, 1.5, 1.0, 0.0),
+                Surface::new_refr_circ_conic(
+                    Vec3::new(0.0, 0.0, 0.0),
+                    Vec3::new(0.0, 0.0, 0.0),
+                    25.0,
+                    1.5,
+                    1.0,
+                    0.0,
+                ),
                 Gap::new(1.5, 1.0),
             )
             .unwrap();
         model
             .insert_surface_and_gap(
                 2,
-                Surface::new_refr_circ_conic(Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 0.0), 25.0, 1.0, -1.0, 0.0),
+                Surface::new_refr_circ_conic(
+                    Vec3::new(0.0, 0.0, 0.0),
+                    Vec3::new(0.0, 0.0, 0.0),
+                    25.0,
+                    1.0,
+                    -1.0,
+                    0.0,
+                ),
                 Gap::new(1.0, 10.0),
             )
             .unwrap();

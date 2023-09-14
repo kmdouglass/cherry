@@ -40,8 +40,7 @@ impl WasmSystemModel {
     ) -> Result<(), JsError> {
         let surf_spec: SurfaceSpec = serde_wasm_bindgen::from_value(surface)?;
         let gap: Gap = serde_wasm_bindgen::from_value(gap)?;
-        self
-            .system_model
+        self.system_model
             .insert_surface_and_gap(idx, surf_spec, gap)
             .map_err(|e| JsError::new(&e.to_string()))?;
 

@@ -3,6 +3,7 @@
 /// # Sign conventions
 /// - Distances in front of elements are negative; distances after an element are positive.
 /// - Rays counter-clockwise from the optical axis are positive; rays clockwise are negative.
+use std::borrow::Borrow;
 use std::f32::consts::PI;
 
 use crate::get_id;
@@ -195,13 +196,38 @@ impl ParaxialModel {
         Self { parax_elems }
     }
 
-    fn elements(&self) -> &[ParaxElem] {
-        &self.parax_elems
+    /// Inserts the second surface of a pair and a the following gap into the paraxial model.
+    pub fn insert_surface_and_gap(
+        &mut self,
+        idx: usize,
+        surface_0: Surface,
+        surface_1: Surface,
+        gap: Gap,
+    ) -> Result<()> {
+        let pair = SurfacePair(surface_0, surface_1);
+        let parax_surf = ParaxElem::from(&pair);
+        let parax_gap = ParaxElem::from(gap);
+
+        self.insert_element_and_gap(idx, parax_surf, parax_gap)?;
+
+        Ok(())
     }
 
-    fn is_empty(&self) -> bool {
-        // The paraxial model always has an object plane, object space, and image plane.
-        self.parax_elems.len() == 3
+    pub fn remove_element_and_gap(&mut self, idx: usize) -> Result<()> {
+        if idx == 0 {
+            bail!("Cannot remove the object plane.");
+        }
+
+        if idx > self.parax_elems.len() / 2 {
+            bail!("Cannot remove the image plane.");
+        }
+
+        // Convert element/gap index into Vec<ParaxElem> index.
+        let idx = idx * 2;
+        self.parax_elems.remove(idx);
+        self.parax_elems.remove(idx);
+
+        Ok(())
     }
 
     fn insert_element_and_gap(
@@ -224,6 +250,15 @@ impl ParaxialModel {
         self.parax_elems.insert(idx, elem);
 
         Ok(())
+    }
+
+    fn elements(&self) -> &[ParaxElem] {
+        &self.parax_elems
+    }
+
+    fn is_empty(&self) -> bool {
+        // The paraxial model always has an object plane, object space, and image plane.
+        self.parax_elems.len() == 3
     }
 
     /// Set the distance of the object plane from the first optical surface.
@@ -382,30 +417,30 @@ impl ParaxialModel {
 impl From<&[Surface]> for ParaxialModel {
     fn from(surfs: &[Surface]) -> Self {
         let obj_plane_radius = surfs.first().unwrap().diam() / 2.0;
-        let mut rtms = Vec::new();
+        let mut elems = Vec::new();
 
         // The object plane RTM does not do anything.
-        rtms.push(ParaxElem::new_no_op_surf(obj_plane_radius));
+        elems.push(ParaxElem::new_no_op_surf(obj_plane_radius));
 
         for pair in SurfacePairIterator::new(surfs) {
             // The ray transfer matrix for the second surface in the pair.
-            let surf_rtm = pair.parax_surf();
+            let surf = ParaxElem::from(&pair);
             let (_, gap) = pair.into();
 
-            rtms.push(gap.parax_surf());
-            rtms.push(surf_rtm);
+            elems.push(ParaxElem::from(gap));
+            elems.push(surf);
         }
 
-        Self { parax_elems: rtms }
+        Self { parax_elems: elems }
     }
 }
 
-impl SurfacePair {
-    /// Return the paraxial surface equivalent for the second surface in the pair.
-    fn parax_surf(&self) -> ParaxElem {
-        let surf = self.1;
-        let n_0 = self.0.n();
-        let n_1 = self.1.n();
+impl From<&SurfacePair> for ParaxElem {
+    /// Return the paraxial element equivalent for the second surface in the pair.
+    fn from(surface_pair: &SurfacePair) -> ParaxElem {
+        let surf = surface_pair.1;
+        let n_0 = surface_pair.0.n();
+        let n_1 = surface_pair.1.n();
 
         match surf {
             Surface::RefractingCircularConic(surf) => {
@@ -420,10 +455,9 @@ impl SurfacePair {
     }
 }
 
-impl Gap {
-    /// Return the ray transfer matrix for a gap.
-    fn parax_surf(&self) -> ParaxElem {
-        let d = self.thickness();
+impl From<Gap> for ParaxElem {
+    fn from(gap: Gap) -> Self {
+        let d = gap.thickness();
         ParaxElem::new_gap(d)
     }
 }
@@ -529,6 +563,21 @@ mod tests {
 
         let result = parax_model.insert_element_and_gap(2, lens, gap);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_paraxial_model_remove_element_and_gap() {
+        let mut parax_model = ParaxialModel::new();
+        let lens = ParaxElem::new_thin_lens(100.0, 100.0);
+        let gap = ParaxElem::new_gap(100.0);
+
+        parax_model.insert_element_and_gap(1, lens, gap).unwrap();
+        parax_model.remove_element_and_gap(1).unwrap();
+
+        let elements = parax_model.elements();
+
+        // Object plane, object space, image plane.
+        assert_eq!(elements.len(), 3);
     }
 
     #[test]
