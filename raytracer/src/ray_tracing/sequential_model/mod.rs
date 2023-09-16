@@ -101,12 +101,6 @@ impl SequentialModel {
     }
 }
 
-impl From<&SystemModel> for SequentialModel {
-    fn from(value: &SystemModel) -> Self {
-        Self::new(&value.surfaces)
-    }
-}
-
 /// A surface in a sequential model of an optical system.
 #[derive(Debug, Serialize, Deserialize)]
 pub enum SurfaceSpec {

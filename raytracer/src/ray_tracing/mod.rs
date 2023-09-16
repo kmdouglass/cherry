@@ -5,7 +5,7 @@ pub mod sequential_model;
 pub mod surface_types;
 pub mod trace;
 
-use std::{f32::consts::PI, borrow::BorrowMut};
+use std::{borrow::BorrowMut, f32::consts::PI};
 
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
@@ -27,7 +27,6 @@ pub(crate) struct SystemModel {
     comp_model: ComponentModel,
     parax_model: ParaxialModel,
     seq_model: SequentialModel,
-    surfaces: Vec<Surface>,
     aperture: ApertureSpec,
 }
 
@@ -60,7 +59,6 @@ impl SystemModel {
             comp_model: component_model,
             seq_model: SequentialModel::new(&surfaces),
             parax_model: paraxial_model,
-            surfaces,
             aperture: ApertureSpec::EntrancePupilDiameter { diam: INIT_DIAM },
         }
     }
@@ -90,11 +88,15 @@ impl SystemModel {
         // TODO Can this be made atomic across all the submodels?
         let seq_model = self.seq_model_mut();
         let surface: Surface = Surface::from((&surface_spec, &gap));
-        let preceding_surface = seq_model.surfaces().get(idx).ok_or(anyhow!(
-            "Surface index is out of bounds: {} >= {}",
-            idx,
-            seq_model.surfaces().len()
-        ))?.clone();
+        let preceding_surface = seq_model
+            .surfaces()
+            .get(idx)
+            .ok_or(anyhow!(
+                "Surface index is out of bounds: {} >= {}",
+                idx,
+                seq_model.surfaces().len()
+            ))?
+            .clone();
 
         seq_model.insert_surface_and_gap(idx, surface, gap)?;
         self.parax_model
@@ -132,18 +134,18 @@ impl SystemModel {
 
         let entrance_pupil_dist = self.parax_model.entrance_pupil()?;
 
-        let pos = self.surfaces[1].pos();
+        let pos = self.seq_model.surfaces()[1].pos();
         let pos = Vec3::new(pos.x(), pos.y(), pos.z() + entrance_pupil_dist);
 
         Ok(EntrancePupil { pos, diam })
     }
 
     pub(crate) fn object_plane(&self) -> Surface {
-        self.surfaces[0]
+        self.seq_model.surfaces()[0]
     }
 
     pub(crate) fn image_plane(&self) -> Surface {
-        self.surfaces[self.surfaces.len() - 1]
+        self.seq_model.surfaces()[self.seq_model.surfaces().len() - 1]
     }
 
     /// Create a linear ray fan that passes through the entrance pupil.
@@ -159,7 +161,7 @@ impl SystemModel {
 
         // If the object plane is at infinity, launch the rays from one unit in front of the first surface
         let launch_point_z = if self.object_plane().pos().z() == f32::NEG_INFINITY {
-            self.surfaces[1].pos().z() - 1.0
+            self.seq_model.surfaces()[1].pos().z() - 1.0
         } else {
             self.object_plane().pos().z()
         };
@@ -457,42 +459,6 @@ impl EntrancePupil {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_system_model() {
-        let mut model = SystemModel::new();
-
-        let surf = Surface::new_refr_circ_conic(
-            Vec3::new(0.0, 0.0, 0.0),
-            Vec3::new(0.0, 0.0, 1.0),
-            10.0,
-            1.5,
-            10.0,
-            0.0,
-        );
-        model.surfaces.push(surf);
-
-        let surf = Surface::new_refr_circ_flat(
-            Vec3::new(0.0, 0.0, 10.0),
-            Vec3::new(0.0, 0.0, 1.0),
-            10.0,
-            1.5,
-        );
-        model.surfaces.push(surf);
-
-        let surf = Surface::new_obj_or_img_plane(
-            Vec3::new(0.0, 0.0, 20.0),
-            Vec3::new(0.0, 0.0, 1.0),
-            10.0,
-        );
-        model.surfaces.push(surf);
-
-        let seq_model = SequentialModel::try_from(&model).unwrap();
-
-        // 3 surfaces + object plane + image plane = 5 surfaces
-        assert_eq!(seq_model.surfaces().len(), 5);
-        assert_eq!(seq_model.gaps().len(), 4);
-    }
 
     #[test]
     fn test_sample_yz_object_plane_at_infinity() {
