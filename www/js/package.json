@@ -27,7 +27,7 @@
   },
   "homepage": "https://github.com/rustwasm/create-wasm-app#readme",
   "dependencies": {
-    "cherry": "file:../pkg"
+    "cherry": "file:../raytracer/pkg"
   },
   "devDependencies": {
     "@webpack-cli/serve": "^2.0.5",

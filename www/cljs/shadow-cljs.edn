@@ -1,0 +1,13 @@
+{:builds
+ {:app {:target :browser
+        :compiler-options
+        {:infer-externs true
+         :externs ["cherry-externs.js"]}
+        :output-dir "build"
+        :modules
+        {:main {:init-fn net.thewagner.cherry/init}}
+        :js-options
+        {:js-provider :external
+         :external-index "build/index.js"}
+        :build-hooks
+        [(net.thewagner.build/hook)]}}}
