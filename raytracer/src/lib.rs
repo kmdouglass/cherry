@@ -87,6 +87,13 @@ impl WasmSystemModel {
         Ok(())
     }
 
+    pub fn setObjectSpace(&mut self, n: f32, thickness: f32) -> Result<(), JsError> {
+        self.system_model
+            .set_obj_space(n, thickness)
+            .map_err(|e| JsError::new(&e.to_string()))?;
+        Ok(())
+    }
+
     pub fn rayTrace(&self) -> Result<JsValue, JsError> {
         let wavelength = 0.000532_f32;
 

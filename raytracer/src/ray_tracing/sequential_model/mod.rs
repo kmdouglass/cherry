@@ -74,9 +74,20 @@ impl SequentialModel {
         Ok(())
     }
 
+    pub fn set_obj_space(&mut self, gap: Gap) {
+        self.gaps[0] = gap;
+        self.readjust_surfaces(0);
+    }
+
     fn readjust_surfaces(&mut self, idx: usize) {
         // Loop over the surfaces starting at idx and all after it, adjusting their positions along the axis.
         let mut dist = self.surf_distance_from_origin(idx);
+
+        // By convention, the first non-object surface is at z=0.
+        if idx == 0 {
+            dist = -dist;
+        }
+
         for i in idx..self.gaps.len() {
             self.surfaces[i].set_pos(Vec3::new(0.0, 0.0, dist));
             dist += self.gaps[i].thickness();

@@ -144,6 +144,17 @@ impl SystemModel {
         self.seq_model.surfaces()[0]
     }
 
+    pub fn set_obj_space(&mut self, n:f32, thickness: f32) -> Result<()> {
+        if thickness <= 0.0 {
+            return Err(anyhow::anyhow!("Object space thickness must be positive"));
+        };
+
+        self.seq_model.set_obj_space(Gap::new(n, thickness));
+        self.parax_model.set_obj_dist(thickness);
+        
+        Ok(())
+    }
+
     pub(crate) fn image_plane(&self) -> Surface {
         self.seq_model.surfaces()[self.seq_model.surfaces().len() - 1]
     }
@@ -318,6 +329,7 @@ pub struct Gap {
 
 impl Gap {
     pub fn new(n: f32, thickness: f32) -> Self {
+        // TODO Validate n and thickness
         Self { n, thickness }
     }
 
@@ -358,16 +370,6 @@ impl From<(&SurfaceSpec, &Gap)> for Surface {
 
 /// A sequential pair of surfaces in an optical system.
 struct SurfacePair(Surface, Surface);
-
-impl SurfacePair {
-    /// Compute the axial distance between the two surfaces.
-    fn axial_dist(&self) -> f32 {
-        let pos1 = self.0.pos();
-        let pos2 = self.1.pos();
-
-        (pos2.z() - pos1.z()).abs()
-    }
-}
 
 impl From<SurfacePair> for (Surface, Gap) {
     fn from(value: SurfacePair) -> Self {

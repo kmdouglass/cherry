@@ -326,7 +326,10 @@ impl ParaxialModel {
         let init_ray = self.init_ray()?;
         let results = ParaxialModel::trace(&self.parax_elems, init_ray);
 
-        // Find the ID of the non-gap element with the smallest ratio of surface radius to ray height.
+        // Remove the image plane result.
+        let results = &results[0..results.len() - 1];
+
+        // Find the ID of the non-gap, non-image plane element with the smallest ratio of surface radius to ray height.
         let mut min_ratio = f32::MAX;
         let mut min_id = 0;
         for result in results.iter() {
