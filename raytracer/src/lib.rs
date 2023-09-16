@@ -44,8 +44,6 @@ impl WasmSystemModel {
             .insert_surface_and_gap(idx, surf_spec, gap)
             .map_err(|e| JsError::new(&e.to_string()))?;
 
-        // TODO Synchronize the low level models, possibly by adding an insert method to the
-        // SystemModel and not calling directly into the sequential model.
         Ok(())
     }
 

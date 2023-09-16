@@ -5,9 +5,9 @@ pub mod sequential_model;
 pub mod surface_types;
 pub mod trace;
 
-use std::f32::consts::PI;
+use std::{f32::consts::PI, borrow::BorrowMut};
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 
 use crate::math::mat3::Mat3;
@@ -88,10 +88,15 @@ impl SystemModel {
         gap: Gap,
     ) -> Result<()> {
         // TODO Can this be made atomic across all the submodels?
+        let seq_model = self.seq_model_mut();
         let surface: Surface = Surface::from((&surface_spec, &gap));
-        let preceding_surface = self.surfaces[idx];
+        let preceding_surface = seq_model.surfaces().get(idx).ok_or(anyhow!(
+            "Surface index is out of bounds: {} >= {}",
+            idx,
+            seq_model.surfaces().len()
+        ))?.clone();
 
-        self.seq_model.insert_surface_and_gap(idx, surface, gap)?;
+        seq_model.insert_surface_and_gap(idx, surface, gap)?;
         self.parax_model
             .insert_surface_and_gap(idx, preceding_surface, surface, gap)?;
 
