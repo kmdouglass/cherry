@@ -1,11 +1,20 @@
 mod math;
 mod ray_tracing;
 
+use std::f32::consts::PI;
+use std::sync::atomic::{AtomicUsize, Ordering};
+
 use wasm_bindgen::prelude::*;
 
-use ray_tracing::sequential_model::{Gap, SequentialModel, SurfaceSpec};
-use ray_tracing::{ApertureSpec, SystemModel};
-use std::f32::consts::PI;
+use ray_tracing::sequential_model::{SequentialModel, SurfaceSpec};
+use ray_tracing::{ApertureSpec, Gap, SystemModel};
+
+static COUNTER: AtomicUsize = AtomicUsize::new(1);
+
+/// Returns new unique IDs.
+fn get_id() -> usize {
+    COUNTER.fetch_add(1, Ordering::Relaxed)
+}
 
 #[wasm_bindgen]
 #[derive(Debug)]
@@ -29,11 +38,12 @@ impl WasmSystemModel {
         surface: JsValue,
         gap: JsValue,
     ) -> Result<(), JsError> {
-        let surface: SurfaceSpec = serde_wasm_bindgen::from_value(surface)?;
+        let surf_spec: SurfaceSpec = serde_wasm_bindgen::from_value(surface)?;
         let gap: Gap = serde_wasm_bindgen::from_value(gap)?;
-        self.seq_model_mut()
-            .insert_surface_and_gap(idx, surface, gap)
+        self.system_model
+            .insert_surface_and_gap(idx, surf_spec, gap)
             .map_err(|e| JsError::new(&e.to_string()))?;
+
         Ok(())
     }
 
@@ -73,6 +83,13 @@ impl WasmSystemModel {
         let aperture: ApertureSpec = serde_wasm_bindgen::from_value(aperture)?;
         self.system_model
             .set_aperture(aperture)
+            .map_err(|e| JsError::new(&e.to_string()))?;
+        Ok(())
+    }
+
+    pub fn setObjectSpace(&mut self, n: f32, thickness: f32) -> Result<(), JsError> {
+        self.system_model
+            .set_obj_space(n, thickness)
             .map_err(|e| JsError::new(&e.to_string()))?;
         Ok(())
     }

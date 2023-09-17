@@ -15,6 +15,9 @@ for (let i = 0; i < surfaces.length; i++) {
     wasmSystemModel.insertSurfaceAndGap(i + 1, surface, gap);
 }
 
+// Set the object space thickness to 50 mm
+wasmSystemModel.setObjectSpace(1.0, 50);
+
 console.log("Surfaces:", wasmSystemModel.surfaces());
 console.log("Gaps:", wasmSystemModel.gaps());
 

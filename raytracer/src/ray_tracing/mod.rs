@@ -1,20 +1,22 @@
 pub mod component_model;
+mod paraxial_model;
 pub mod rays;
 pub mod sequential_model;
 pub mod surface_types;
 pub mod trace;
 
-use std::f32::consts::PI;
+use std::{borrow::BorrowMut, f32::consts::PI};
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 
 use crate::math::mat3::Mat3;
 use crate::math::vec3::Vec3;
 
 use component_model::ComponentModel;
+use paraxial_model::ParaxialModel;
 use rays::Ray;
-use sequential_model::{Gap, SequentialModel, SurfaceSpec};
+use sequential_model::{SequentialModel, SurfaceSpec};
 use surface_types::{ObjectOrImagePlane, RefractingCircularConic, RefractingCircularFlat, Stop};
 
 const INIT_DIAM: f32 = 25.0;
@@ -23,8 +25,8 @@ const INIT_DIAM: f32 = 25.0;
 #[derive(Debug)]
 pub(crate) struct SystemModel {
     comp_model: ComponentModel,
+    parax_model: ParaxialModel,
     seq_model: SequentialModel,
-    surfaces: Vec<Surface>,
     aperture: ApertureSpec,
 }
 
@@ -51,11 +53,12 @@ impl SystemModel {
 
         let sequential_model = SequentialModel::new(&surfaces);
         let component_model = ComponentModel::from(&sequential_model);
+        let paraxial_model = ParaxialModel::from(sequential_model.surfaces());
 
         Self {
             comp_model: component_model,
             seq_model: SequentialModel::new(&surfaces),
-            surfaces,
+            parax_model: paraxial_model,
             aperture: ApertureSpec::EntrancePupilDiameter { diam: INIT_DIAM },
         }
     }
@@ -76,6 +79,40 @@ impl SystemModel {
         &self.aperture
     }
 
+    pub fn insert_surface_and_gap(
+        &mut self,
+        idx: usize,
+        surface_spec: SurfaceSpec,
+        gap: Gap,
+    ) -> Result<()> {
+        // TODO Can this be made atomic across all the submodels?
+        let seq_model = self.seq_model_mut();
+        let surface: Surface = Surface::from((&surface_spec, &gap));
+        let preceding_surface = seq_model
+            .surfaces()
+            .get(idx)
+            .ok_or(anyhow!(
+                "Surface index is out of bounds: {} >= {}",
+                idx,
+                seq_model.surfaces().len()
+            ))?
+            .clone();
+
+        seq_model.insert_surface_and_gap(idx, surface, gap)?;
+        self.parax_model
+            .insert_surface_and_gap(idx, preceding_surface, surface, gap)?;
+
+        Ok(())
+    }
+
+    pub fn remove_surface_and_gap(&mut self, idx: usize) -> Result<()> {
+        // TODO Can this be made atomic across all the submodels?
+        self.seq_model.remove_surface_and_gap(idx)?;
+        self.parax_model.remove_element_and_gap(idx)?;
+
+        Ok(())
+    }
+
     pub fn set_aperture(&mut self, aperture: ApertureSpec) -> Result<()> {
         if let ApertureSpec::EntrancePupilDiameter { diam } = aperture {
             if diam <= 0.0 {
@@ -88,67 +125,54 @@ impl SystemModel {
         Ok(())
     }
 
-    /// Compute the system diameter by finding the surface with the largest diameter.
-    pub(crate) fn diam(&self) -> f32 {
-        // Don't include object and image planes
-        let mut diam = 0.0;
-        for surf in self
-            .surfaces
-            .iter()
-            .filter(|surf| !matches!(surf, Surface::ObjectOrImagePlane(_)))
-        {
-            if surf.diam() > diam {
-                diam = surf.diam();
-            }
-        }
-
-        diam
-    }
-
-    /// Compute the entrance pupil for the system.
-    pub(crate) fn entrance_pupil(&self) -> Option<EntrancePupil> {
+    /// Determine the entrance pupil for the system.
+    pub(crate) fn entrance_pupil(&self) -> Result<EntrancePupil> {
         // The diameter is the aperture diameter (until more aperture types are supported)
         let diam = match self.aperture() {
             ApertureSpec::EntrancePupilDiameter { diam } => *diam,
         };
 
-        // The position is the first surface's position (for now)
-        if self.seq_model().surfaces().len() == 2 {
-            // Only object and image plane, so return.
-            return None;
-        }
+        let entrance_pupil_dist = self.parax_model.entrance_pupil()?;
 
-        let pos = self.surfaces[1].pos();
+        let pos = self.seq_model.surfaces()[1].pos();
+        let pos = Vec3::new(pos.x(), pos.y(), pos.z() + entrance_pupil_dist);
 
-        Some(EntrancePupil { pos, diam })
+        Ok(EntrancePupil { pos, diam })
     }
 
     pub(crate) fn object_plane(&self) -> Surface {
-        self.surfaces[0]
+        self.seq_model.surfaces()[0]
+    }
+
+    pub fn set_obj_space(&mut self, n:f32, thickness: f32) -> Result<()> {
+        if thickness <= 0.0 {
+            return Err(anyhow::anyhow!("Object space thickness must be positive"));
+        };
+
+        self.seq_model.set_obj_space(Gap::new(n, thickness));
+        self.parax_model.set_obj_dist(thickness);
+        
+        Ok(())
     }
 
     pub(crate) fn image_plane(&self) -> Surface {
-        self.surfaces[self.surfaces.len() - 1]
+        self.seq_model.surfaces()[self.seq_model.surfaces().len() - 1]
     }
 
     /// Create a linear ray fan that passes through the entrance pupil.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `num_rays` - The number of rays in the fan.
     /// * `theta` - The polar angle of the ray fan in the x-y plane.
     /// * `phi` - The angle of the ray w.rt. the z-axis.
     pub(crate) fn pupil_ray_fan(&self, num_rays: usize, theta: f32, phi: f32) -> Result<Vec<Ray>> {
         // TODO Handle off-axis rays
-        let ep = if let Some(ep) = self.entrance_pupil() {
-            ep
-        } else {
-            return Err(anyhow::anyhow!("There is no entrance pupil for this system"));
-        };
+        let ep = self.entrance_pupil()?;
 
         // If the object plane is at infinity, launch the rays from one unit in front of the first surface
         let launch_point_z = if self.object_plane().pos().z() == f32::NEG_INFINITY {
-            self.surfaces[1].pos().z() - 1.0
+            self.seq_model.surfaces()[1].pos().z() - 1.0
         } else {
             self.object_plane().pos().z()
         };
@@ -249,6 +273,17 @@ impl Surface {
         }
     }
 
+    /// Return the radius of curvature of the surface.
+    #[inline]
+    pub fn roc(&self) -> f32 {
+        match self {
+            Self::ObjectOrImagePlane(_) => f32::INFINITY,
+            Self::RefractingCircularConic(surf) => surf.roc,
+            Self::RefractingCircularFlat(_) => f32::INFINITY,
+            Self::Stop(_) => f32::INFINITY,
+        }
+    }
+
     /// Determine sequential point samples on the surface in the y-z plane.
     pub fn sample_yz(&self, num_samples: usize) -> Vec<Vec3> {
         // Skip object or image planes at infinity
@@ -285,29 +320,109 @@ impl Surface {
     }
 }
 
-impl From<(SurfaceSpec, &Gap)> for Surface {
-    fn from((surf, gap): (SurfaceSpec, &Gap)) -> Self {
+/// A gap between two surfaces in an optical system.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct Gap {
+    n: f32,
+    thickness: f32,
+}
+
+impl Gap {
+    pub fn new(n: f32, thickness: f32) -> Self {
+        // TODO Validate n and thickness
+        Self { n, thickness }
+    }
+
+    pub fn n(&self) -> f32 {
+        self.n
+    }
+
+    pub fn thickness(&self) -> f32 {
+        self.thickness
+    }
+}
+
+impl From<(&SurfaceSpec, &Gap)> for Surface {
+    fn from((surf, gap): (&SurfaceSpec, &Gap)) -> Self {
         let pos = Vec3::new(0.0, 0.0, 0.0);
         let dir = Vec3::new(0.0, 0.0, 0.0);
 
         match surf {
             SurfaceSpec::ObjectOrImagePlane { diam } => {
-                let surf = Surface::new_obj_or_img_plane(pos, dir, diam);
+                let surf = Surface::new_obj_or_img_plane(pos, dir, *diam);
                 surf
             }
             SurfaceSpec::RefractingCircularConic { diam, roc, k } => {
-                let surf = Surface::new_refr_circ_conic(pos, dir, diam, gap.n(), roc, k);
+                let surf = Surface::new_refr_circ_conic(pos, dir, *diam, gap.n(), *roc, *k);
                 surf
             }
             SurfaceSpec::RefractingCircularFlat { diam } => {
-                let surf = Surface::new_refr_circ_flat(pos, dir, diam, gap.n());
+                let surf = Surface::new_refr_circ_flat(pos, dir, *diam, gap.n());
                 surf
             }
             SurfaceSpec::Stop { diam } => {
-                let surf = Surface::new_stop(pos, dir, diam, gap.n());
+                let surf = Surface::new_stop(pos, dir, *diam, gap.n());
                 surf
             }
         }
+    }
+}
+
+/// A sequential pair of surfaces in an optical system.
+struct SurfacePair(Surface, Surface);
+
+impl From<SurfacePair> for (Surface, Gap) {
+    fn from(value: SurfacePair) -> Self {
+        let thickness = value.1.pos().z() - value.0.pos().z();
+        match value.0 {
+            Surface::ObjectOrImagePlane(surf) => {
+                let gap = Gap::new(surf.n, thickness);
+                (value.0, gap)
+            }
+            Surface::RefractingCircularConic(surf) => {
+                let gap = Gap::new(surf.n, thickness);
+                (value.0, gap)
+            }
+            Surface::RefractingCircularFlat(surf) => {
+                let gap = Gap::new(surf.n, thickness);
+                (value.0, gap)
+            }
+            Surface::Stop(surf) => {
+                let gap = Gap::new(surf.n, thickness);
+                (value.0, gap)
+            }
+        }
+    }
+}
+
+struct SurfacePairIterator<'a> {
+    surfaces: &'a [Surface],
+    idx: usize,
+}
+
+impl<'a> SurfacePairIterator<'a> {
+    fn new(surfaces: &'a [Surface]) -> Self {
+        Self {
+            surfaces: surfaces,
+            idx: 0,
+        }
+    }
+}
+
+impl<'a> Iterator for SurfacePairIterator<'a> {
+    type Item = SurfacePair;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        // Skip object and image planes
+        if self.idx > self.surfaces.len() - 2 {
+            return None;
+        }
+
+        let surf1 = self.surfaces[self.idx];
+        let surf2 = self.surfaces[self.idx + 1];
+        self.idx += 1;
+
+        Some(SurfacePair(surf1, surf2))
     }
 }
 
@@ -346,42 +461,6 @@ impl EntrancePupil {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_system_model() {
-        let mut model = SystemModel::new();
-
-        let surf = Surface::new_refr_circ_conic(
-            Vec3::new(0.0, 0.0, 0.0),
-            Vec3::new(0.0, 0.0, 1.0),
-            10.0,
-            1.5,
-            10.0,
-            0.0,
-        );
-        model.surfaces.push(surf);
-
-        let surf = Surface::new_refr_circ_flat(
-            Vec3::new(0.0, 0.0, 10.0),
-            Vec3::new(0.0, 0.0, 1.0),
-            10.0,
-            1.5,
-        );
-        model.surfaces.push(surf);
-
-        let surf = Surface::new_obj_or_img_plane(
-            Vec3::new(0.0, 0.0, 20.0),
-            Vec3::new(0.0, 0.0, 1.0),
-            10.0,
-        );
-        model.surfaces.push(surf);
-
-        let seq_model = SequentialModel::try_from(&model).unwrap();
-
-        // 3 surfaces + object plane + image plane = 5 surfaces
-        assert_eq!(seq_model.surfaces().len(), 5);
-        assert_eq!(seq_model.gaps().len(), 4);
-    }
 
     #[test]
     fn test_sample_yz_object_plane_at_infinity() {
@@ -446,32 +525,5 @@ mod tests {
         } else {
             panic!("ApertureSpec is not EntrancePupilDiameter");
         }
-    }
-
-    // Test SystemModel.diameter()
-    #[test]
-    fn test_system_model_diam() {
-        let mut model = SystemModel::new();
-
-        let surf = Surface::new_refr_circ_conic(
-            Vec3::new(0.0, 0.0, 0.0),
-            Vec3::new(0.0, 0.0, 0.0),
-            10.0,
-            1.5,
-            10.0,
-            0.0,
-        );
-        model.surfaces.push(surf);
-
-        let surf = Surface::new_refr_circ_flat(
-            Vec3::new(0.0, 0.0, 10.0),
-            Vec3::new(0.0, 0.0, 0.0),
-            12.0,
-            1.5,
-        );
-        model.surfaces.push(surf);
-
-        let diam = model.diam();
-        assert_eq!(diam, 12.0);
     }
 }

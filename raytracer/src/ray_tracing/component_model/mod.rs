@@ -183,12 +183,11 @@ impl From<&mut SequentialModel> for ComponentModel {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ray_tracing::sequential_model::{Gap, SurfaceSpec};
-    use crate::ray_tracing::SystemModel;
+    use crate::ray_tracing::sequential_model::SurfaceSpec;
+    use crate::ray_tracing::{Gap, SystemModel};
 
     fn system_model() -> SystemModel {
         let mut system_model = SystemModel::new();
-        let seq_model = system_model.seq_model_mut();
 
         let surf_spec_1 = SurfaceSpec::RefractingCircularConic {
             diam: 25.0,
@@ -199,10 +198,10 @@ mod tests {
         let surf_spec_2 = SurfaceSpec::RefractingCircularFlat { diam: 25.0 };
         let gap_2 = Gap::new(1.0, 46.6);
 
-        seq_model
+        system_model
             .insert_surface_and_gap(1, surf_spec_1, gap_1)
             .unwrap();
-        seq_model
+        system_model
             .insert_surface_and_gap(2, surf_spec_2, gap_2)
             .unwrap();
 
@@ -241,7 +240,6 @@ mod tests {
     fn test_component_model_even_number_of_gaps() {
         // An even number of gaps indicates that the last surface is unpaired.
         let mut sys_model = system_model();
-        let seq_model = sys_model.seq_model_mut();
 
         let surf_spec_3 = SurfaceSpec::RefractingCircularConic {
             diam: 25.0,
@@ -249,11 +247,11 @@ mod tests {
             k: 0.0,
         };
         let gap_3 = Gap::new(1.515, 5.3);
-        seq_model
+        sys_model
             .insert_surface_and_gap(3, surf_spec_3, gap_3)
             .unwrap();
 
-        let comp_model = ComponentModel::from(seq_model);
+        let comp_model = ComponentModel::from(sys_model.seq_model());
 
         // Three Component::Surfaces should exist: object plane, unpaired surface, and image plane. One
         // Component::Element should exist, comprised of two surfaces and their gap.

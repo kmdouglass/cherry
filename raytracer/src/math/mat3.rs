@@ -73,6 +73,8 @@ macro_rules! mat3 {
     };
 }
 
+pub(crate) use mat3;
+
 impl std::ops::Mul<Vec3> for Mat3 {
     type Output = Vec3;
 
