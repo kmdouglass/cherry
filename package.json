@@ -1,0 +1,9 @@
+{
+  "name": "cherry",
+  "private": true,
+  "workspaces": [
+      "raytracer/pkg",
+      "www/cljs",
+      "www/cljs/src/rendering"
+  ]
+}
