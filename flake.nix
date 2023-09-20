@@ -92,7 +92,7 @@
               name = "cherry-web-node-modules-${version}";
               inherit version;
               packageJSON = ./www/cljs/package.json;
-              yarnLock = ./www/cljs/yarn.lock;
+              yarnLock = ./yarn.lock;
             };
 
             src = ./www/cljs;
