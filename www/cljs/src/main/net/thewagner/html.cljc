@@ -1,7 +1,8 @@
-(ns net.thewagner.html)
+(ns net.thewagner.html
+  (:require [hiccup.page :refer [html5]]))
 
 (def index
-  [:html
+  (html5 {:lang "en"}
     [:head
       [:meta {:charset "UTF-8"}]
       [:meta {:name "viewport" :content "width=device-width, initial-scale=1"}]
@@ -11,8 +12,7 @@
     [:body
       [:div#app]
       [:script {:src "./index.js"}]
-      [:script {:src "./main.js"}]]])
+      [:script {:src "./main.js"}]]))
 
 (comment
-  (require '[hiccup.core :refer [html]])
-  (spit "build/index.html" (html index)))
+  (spit "build/index.html" index))
