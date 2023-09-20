@@ -1,13 +1,13 @@
 (ns net.thewagner.cherry
-  (:require [goog.dom :as gdom]
-            [reagent.core :as r]
-            [reagent.dom.client :as rclient]
-            [cljs.pprint :refer [pprint]]
+  (:require [goog.dom :as dom]
+            [goog.events :as events]
+            [goog.functions :refer [throttle]]
+            [goog.dom.classlist :as classlist]
             [cljs.spec.alpha :as s]
             [cljs.spec.gen.alpha :as gen]
-            [cljs.core.async :refer [take! go]]
+            [cljs.core.async :as async :refer [<! >!]]
             [cljs.core.async.interop :refer-macros [<p!]]
-            [cljs.reader :refer [read-string]]
+            [cljs.tools.reader.edn :as edn]
             [rendering]
             [cherry :as cherry-async]
             [kmdouglass.cherry :as cherry-spec]
@@ -45,9 +45,6 @@
   [coll pos]
   (into (subvec coll 0 pos) (subvec coll (inc pos))))
 
-(defn parameters-as-numbers [row]
-  (update-vals row (fn [v] (if (string? v) (parse-double v) v))))
-
 (defn rows->surfaces-and-gaps [rows]
  (for [row rows]
    (vector
@@ -76,7 +73,7 @@
 
 (set! *warn-on-infer* true)
 (defn compute-results [raytrace-input]
-  (go
+  (async/go
     (let [cherry (<p! cherry-async)
           model (wasm-system-model (.-WasmSystemModel cherry) raytrace-input)
           surfaces (.surfaces model)
@@ -130,45 +127,6 @@
                                                         sf)]
           (rendering/draw canvasRays ctx "red" 1.0))))))
 
-(defn window-size []
-  (r/with-let [size (r/atom nil)
-               handler #(swap! size assoc
-                               :innerWidth (.-innerWidth js/window)
-                               :innerHeight (.-innerHeight js/window))
-               _ (.addEventListener js/window "resize" handler false)]
-    @size
-    (finally
-      (.removeEventListener js/window "resize" handler))))
-
-(defn canvas-component [results]
-  (let [canvas (atom nil)
-        div (atom nil)
-        did-mount? (atom false)]
-    (r/create-class
-      {:display-name `canvas-component
-       :component-did-update
-       (fn [_this]
-         (when (and @did-mount? @results)
-           (render @canvas (:surface-samples @results) (:ray-samples @results))))
-
-       :component-did-mount
-       (fn [_this]
-         (reset! did-mount? true))
-
-       :reagent-render
-       (fn [results]
-         @(r/track window-size)
-         [:div.container
-           {:ref #(reset! div %)}
-           (when (and (:surface-samples @results) (not (:ray-samples @results)))
-             [:div.notification.is-danger "No rays."])
-           [:canvas#systemModel (cond-> {:ref #(reset! canvas %)}
-
-                                        @div
-                                        (assoc :width (.-clientWidth @div)
-                                               :height (let [aspect 3]
-                                                          (/ (.-clientWidth @div) aspect))))]])})))
-
 (defn prefill-row [old selected]
   (let [default (get-in surface-types [selected :default])]
    (merge
@@ -179,122 +137,203 @@
 (comment
   (prefill-row {::cherry-spec/n 2} ::cherry-spec/Stop))
 
-(defn surface-dropdown [surface change-fn]
-  [:div.select
-    {:class (when-not surface :is-primary)}
-    [:select
-      {:value (str (or (:surface-type surface) ::default))
-       :on-change #(change-fn (read-string (.. % -target -value)))}
-      [:option {:disabled true :value (str ::default) :hidden true}
-               "Select surface type"]
-      (for [t (keys surface-types)]
-        ^{:key (str t)}
-        [:option {:value (str t)}
-                 (get-in surface-types [t :display-name])])]])
+(defprotocol IValidated
+  (-set-valid! [input])
+  (-set-invalid! [input]))
 
-(defn param-input [spec value change-fn]
-  (let [valid? (r/atom (s/valid? spec (parse-double (str @value))))]
-    [(if @valid? :input.input :input.input.is-warning)
-     {:value @value
-      :on-change #(change-fn (.. % -target -value))}]))
+(extend-type js/HTMLInputElement
+  IValidated
+  (-set-valid! [input]
+    (classlist/remove input "is-warning"))
+  (-set-invalid! [input]
+    (classlist/add input "is-warning")))
 
-(defn data-viewer-component [surfaces results]
-  [:<>
-    [:h2.subtitle "Surfaces and gaps from WasmSystemModel"]
-    [:pre
-      [:code (with-out-str (pprint @results))]]
-    [:div.columns
-      [:div.column
-        [:h2.subtitle "Table as ClojureScript data"]
-        [:pre
-          [:code (with-out-str (pprint @surfaces))]]]
-      [:div.column
-        [:h2.subtitle "Surfaces and gaps"]
-        [:pre
-          [:code (-> (rows->surfaces-and-gaps @surfaces)
-                     (clj->js)
-                     (js/JSON.stringify nil 2))]]]]])
+(defn valid-number [input-str spec]
+  (let [number (parse-double input-str)]
+    (and (s/valid? spec number) number)))
 
-(defn results-viewer-component [rows aperture results]
-  (r/with-let [watch (r/track!
-                       (fn [] (let [inputs {:aperture (entrance-pupil-diameter->aperture (parse-double (str @aperture)))
-                                            :surfaces-and-gaps (rows->surfaces-and-gaps (map parameters-as-numbers @rows))}]
-                                (when (s/valid? ::cherry-spec/raytrace-inputs inputs)
-                                  (take!
-                                    (compute-results inputs)
-                                    #(reset! results %))))))]
-    [canvas-component results]
-    (finally
-      (r/dispose! watch))))
+(defprotocol IDataGrid
+  (-insert-row! [table row])
+  (-delete-row! [table n]))
 
-(defn surfaces-table [surfaces]
-  [:<>
-    [:nav.level
-      [:div.level-left
-         [:div.level-item
-           [:p.subtitle "Surfaces"]]]
-      [:div.level-right
-        [:p.level-item
-          [:div.field.is-grouped
-            [:p.control>button.button {:on-click #(reset! surfaces (surfaces-and-gaps->rows cherry-spec/planoconvex))} "Planoconvex"]
-            [:p.control>button.button {:on-click #(reset! surfaces (surfaces-and-gaps->rows cherry-spec/petzval))} "Petzval"]
-            [:p.control>button.button {:on-click #(reset! surfaces (into [] (gen/sample (s/gen ::row) 5)))} "I'm Feeling Lucky"]
-            [:p.control>button.button.is-success [:button.button.is-success {:on-click #(swap! surfaces conj nil)} "New"]]]]]]
-    [:div.table-container
-      [:table.table
-         [:thead
-           [:tr
-             [:th "Surface type"]
-             (for [p parameters]
-               ^{:key p} [:th {:style {:width "12%"}} p])
-             [:th "Actions"]]]
-         [:tbody
-           (for [[i s] (map vector (range) @surfaces)]
-             ^{:key i}
-             [:tr
-               [:td [surface-dropdown s (fn [selected-type]
-                                          (swap! surfaces update i #(prefill-row % selected-type)))]]
-               (for [p parameters]
-                 ^{:key p}
-                 [:td
-                   (when (get s p)
-                     [param-input p
-                                  (r/track #(get-in @surfaces [i p]))
-                                  #(swap! surfaces assoc-in [i p] %)])])
-               [:td
-                 [:button.button {:on-click #(swap! surfaces vec-remove i)} "Delete"]]])]]]])
+(defprotocol IPrefill
+  (-prefill! [ui data]))
 
-(defn entrance-pupil [value]
-  [:<>
-    [:nav.level
-      [:div.level-left
-         [:div.level-item
-           [:p.subtitle "Aperture"]]]
-      [:div.level-right]]
-    [:div.field
-      [:label.label "Entrance pupil diameter"]
-      [param-input ::cherry-spec/diam value #(reset! value %)]]])
+(defn- tbody [table]
+  (first (dom/getElementsByTagName "tbody" table)))
 
-(defonce surfaces (r/atom (vec (gen/sample (s/gen ::row) 3))))
+(extend-type js/HTMLTableElement
+  IDataGrid
+  (-insert-row! [table row]
+    (-insert-row! (tbody table) row))
+  (-delete-row! [table n]
+    (-delete-row! (tbody table) (dec n)))
 
-(defn main []
-  (r/with-let [results (r/atom nil)
-               aperture (r/atom 25)]
-    [:<>
-       [:section.section
-         [:h1.title "Cherry Raytracer"]
-         [results-viewer-component surfaces aperture results]
-         [surfaces-table surfaces]
-         [entrance-pupil aperture]]
-       [:section.section
-         [data-viewer-component surfaces results]]]))
+  IPrefill
+  (-prefill! [table rows]
+    (-prefill! (tbody table) rows)))
 
-(defonce dom-root
-   (rclient/create-root (gdom/getElement "app")))
+(extend-type js/HTMLTableRowElement
+  IPrefill
+  (-prefill! [row data]
+    (dom/removeChildren row)
+    ; Surface select combo-box
+    (dom/appendChild row
+      (dom/createDom "td" {}
+        (dom/createDom "div" #js {:class "select"}
+          (dom/createDom "select" {}
+            ; Default option to promt the user to select
+            (dom/createDom "option" #js {:selected (nil? (:surface-type data))
+                                         :disabled true
+                                         :hidden true}
+                           "Select")
+            ; Surface types
+            (clj->js
+              (for [[k v] surface-types]
+                (dom/createDom "option" #js {:value (str k)
+                                             :selected (= k (:surface-type data))}
+                               (:display-name v))))))))
+    ; Parameter columns
+    (doseq [k parameters]
+      (dom/appendChild row
+        (dom/createDom "td" {}
+          (when-let [value (get data k)]
+            (dom/createDom "input" #js {:class "input" :value value})))))
+    ; Actions
+    (dom/appendChild row
+      (dom/createDom "td" {}
+        (dom/createDom "button" #js {:class "button"} "Delete")))))
+
+(extend-type js/HTMLTableSectionElement
+  IDataGrid
+  (-insert-row! [table row-data]
+    (let [row (.insertRow table)]
+      (-prefill! row row-data)))
+
+  (-delete-row! [table n]
+    (.deleteRow table n))
+
+  IPrefill
+  (-prefill! [table rows]
+    (let [tbody (dom/createElement "tbody")]
+      (doseq [r rows]
+        (-insert-row! tbody r))
+      (dom/replaceNode tbody table))))
+
+(defonce state (atom {:event-handlers #{}}))
+
+(defn tag-match [tag]
+  (fn [el]
+    (when-let [tag-name (.-tagName el)]
+      (= tag (.toLowerCase tag-name)))))
+
+(defn table-coords [el]
+  (let [col (.closest el "td")
+        row (.closest col "tr")]
+    [(.-rowIndex row) (.-cellIndex col)]))
+
+(defn listen-events! [{:keys [preset param-input row-edit select resize]}]
+  (let [table (dom/getElement "surfaces-table")
+        event-keys [(goog.events.listen js/window events/EventType.RESIZE
+                       #(async/put! resize %))
+
+                    (goog.events.listen (dom/getElement "new-row-button") events/EventType.CLICK
+                       #(async/put! row-edit [:insert-row -1]))
+
+                    (goog.events.listen (dom/getElement "preset-planoconvex-button") events/EventType.CLICK
+                       #(async/put! preset cherry-spec/planoconvex))
+
+                    (goog.events.listen (dom/getElement "preset-petzval-button") events/EventType.CLICK
+                       #(async/put! preset cherry-spec/petzval))
+
+                    (goog.events.listen (dom/getElement "preset-random-button") events/EventType.CLICK
+                       #(async/put! preset (into [] (gen/sample (s/gen ::row) 5))))
+
+                    (goog.events.listen table events/EventType.CLICK
+                      (fn [e]
+                        (let [el (.. e -target)]
+                          (when ((tag-match "button") el)
+                            (let [[row _col] (table-coords el)]
+                              (async/put! row-edit [:delete-row (dec row)]))))))
+
+                    (goog.events.listen table events/EventType.INPUT
+                      (throttle
+                        (fn [e]
+                          (let [el (.. e -target)
+                                [row col] (table-coords el)]
+                            (cond
+                              ((tag-match "input") el)
+                              (let [spec (get parameters (dec col))]
+                                (async/put! param-input [el row spec (.-value el)]))
+
+                              ((tag-match "select") el)
+                              (let [tr (.closest el "tr")
+                                    value (edn/read-string (.-value el))]
+                                (async/put! select [tr row value])))))
+                        250))]]
+    (swap! state update :event-handlers #(into % event-keys))))
+
+(defn unlisten-events! []
+  (doseq [k (@state :event-handlers)]
+    (events/unlistenByKey k))
+  (swap! state assoc :event-handlers #{}))
+
+(def done (async/chan))
 
 ; https://code.thheller.com/blog/shadow-cljs/2019/08/25/hot-reload-in-clojurescript.html
 (defn ^:dev/after-load start []
-  (rclient/render dom-root [main]))
+  (let [table (dom/getElement "surfaces-table")
+        canvas (dom/getElement "systemModel")
+        preset (async/chan)
+        param-input (async/chan)
+        row-edit (async/chan)
+        select (async/chan)
+        result (async/chan)
+        resize (async/chan)]
+    (listen-events! {:preset preset :param-input param-input :row-edit row-edit :select select :resize resize})
+    ; Input process
+    (async/go-loop [rows []]
+      ; If we have valid inputs, send it to the raytracer
+      (let [inputs {:aperture (entrance-pupil-diameter->aperture 20)
+                    :surfaces-and-gaps (rows->surfaces-and-gaps rows)}]
+        (if (s/valid? ::cherry-spec/raytrace-inputs inputs)
+          (>! result (<! (compute-results inputs)))))
+
+      ; Wait for events
+      (async/alt!
+        done ([_] ::done)
+        preset ([d] (let [data (surfaces-and-gaps->rows d)]
+                      (-prefill! table data)
+                      (recur data)))
+        row-edit ([[op row]] (case op
+                               :insert-row (do (-insert-row! table {})
+                                               (recur (conj rows {})))
+                               :delete-row (do (-delete-row! table (inc row))
+                                               (recur (vec-remove rows row)))))
+        select ([[tr row value]] (let [new-row (prefill-row (get rows (dec row)) value)]
+                                   (-prefill! tr new-row)
+                                   (recur (assoc rows (dec row) new-row))))
+        param-input ([[el row spec value]] (if-let [n (valid-number value spec)]
+                                             (do (-set-valid! el)
+                                                 (recur (assoc-in rows [(dec row) spec] n)))
+                                             (do (-set-invalid! el)
+                                                 (recur rows))))))
+    ; Render process
+    (async/go-loop [r {}]
+      (let [{:keys [surface-samples ray-samples]} r
+            width (.-clientWidth (.closest canvas "div"))
+            aspect-ratio 3]
+         (set! (.-width canvas) width)
+         (set! (.-height canvas) 150)
+         (render canvas surface-samples ray-samples))
+      (async/alt!
+        done ([_] ::done)
+        result ([d] (recur d))
+        resize ([_] (recur r))))))
+
+(defn ^:dev/before-load stop []
+  (unlisten-events!)
+  (async/close! stop))
 
 (defn init []
   (start))
