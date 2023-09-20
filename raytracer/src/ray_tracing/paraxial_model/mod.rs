@@ -371,7 +371,7 @@ impl ParaxialModel {
 
         // Find the index of the element that is the aperture stop.
         let idx = self.id_to_index(aperture_stop_id)?;
-        println!("idx: {}", idx);
+
         // If the element is the first surface after the object and object space gap, return 0.0.
         if idx == 2 {
             return Ok(0.0);
