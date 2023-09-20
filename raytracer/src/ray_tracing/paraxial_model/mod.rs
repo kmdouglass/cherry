@@ -204,6 +204,7 @@ impl ParaxialModel {
         surface_1: Surface,
         gap: Gap,
     ) -> Result<()> {
+        // TODO Investigate why the refractive index isn't set correctly for flats
         let pair = SurfacePair(surface_0, surface_1);
         let parax_surf = ParaxElem::from(&pair);
         let parax_gap = ParaxElem::from(gap);
@@ -259,6 +260,14 @@ impl ParaxialModel {
     fn is_empty(&self) -> bool {
         // The paraxial model always has an object plane, object space, and image plane.
         self.parax_elems.len() == 3
+    }
+
+    fn is_obj_at_infinity(&self) -> bool {
+        if let ParaxElem::Gap { id: _, rtm } = self.parax_elems[1] {
+            rtm[0][1].is_infinite()
+        } else {
+            false
+        }
     }
 
     /// Set the distance of the object plane from the first optical surface.
@@ -317,22 +326,30 @@ impl ParaxialModel {
         results
     }
 
-    /// Find the ID of the surface that is the aperture stop of the paraxial model.
+    /// Find the ID of the surface that is the aperture stop of the system.
+    ///
+    /// This algorithm works by launching a ray from the object space the system and finds the
+    /// surface where the ray is the closest to the optical axis. For objects at infinity, a ray
+    /// parallel to the axis is traced starting from the first surface.
     pub fn aperture_stop(&self) -> Result<usize> {
         if self.is_empty() {
             bail!("The paraxial model is empty.");
         };
 
         let init_ray = self.init_ray()?;
-        let results = ParaxialModel::trace(&self.parax_elems, init_ray);
-
-        // Remove the image plane result.
-        let results = &results[0..results.len() - 1];
+        let results = if self.is_obj_at_infinity() {
+            // Don't trace the ray through the object space.
+            ParaxialModel::trace(&self.parax_elems[2..], init_ray)
+        } else {
+            ParaxialModel::trace(&self.parax_elems, init_ray)
+        };
 
         // Find the ID of the non-gap, non-image plane element with the smallest ratio of surface radius to ray height.
         let mut min_ratio = f32::MAX;
         let mut min_id = 0;
-        for result in results.iter() {
+
+        // Don't include the last result, which is the ray striking the image plane.
+        for result in results.iter().take(results.len() - 1) {
             let ratio = result.elem_radius / result.ray.y();
             if ratio < min_ratio {
                 min_ratio = ratio;
@@ -354,6 +371,11 @@ impl ParaxialModel {
 
         // Find the index of the element that is the aperture stop.
         let idx = self.id_to_index(aperture_stop_id)?;
+        println!("idx: {}", idx);
+        // If the element is the first surface after the object and object space gap, return 0.0.
+        if idx == 2 {
+            return Ok(0.0);
+        }
 
         // Launch a ray from the aperture stop from the axis backwards through the system.
         let elems = &self.parax_elems[0..idx];
