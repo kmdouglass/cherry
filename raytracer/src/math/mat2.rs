@@ -18,6 +18,40 @@ impl Mat2 {
             e: [[1.0, 0.0], [0.0, 1.0]],
         }
     }
+
+    /// Computes the determinant of the matrix.
+    pub fn det(&self) -> f32 {
+        let e00 = self.e[0][0];
+        let e01 = self.e[0][1];
+        let e10 = self.e[1][0];
+        let e11 = self.e[1][1];
+
+        e00 * e11 - e01 * e10
+    }
+
+    /// Computes the inverse of the matrix.
+    /// If the matrix is not invertible, None is returned.
+    pub fn inv(&self) -> Option<Self> {
+        let det = self.det();
+
+        if det == 0.0 {
+            return None;
+        }
+
+        let e00 = self.e[0][0];
+        let e01 = self.e[0][1];
+        let e10 = self.e[1][0];
+        let e11 = self.e[1][1];
+
+        let inv_det = 1.0 / det;
+
+        Some(Self {
+            e: [
+                [e11 * inv_det, -e01 * inv_det],
+                [-e10 * inv_det, e00 * inv_det],
+            ],
+        })
+    }
 }
 
 macro_rules! mat2 {
@@ -28,7 +62,7 @@ macro_rules! mat2 {
 
 pub(crate) use mat2;
 
-impl std::ops::Mul<&Vec2> for &Mat2 {
+impl std::ops::Mul<&Vec2> for Mat2 {
     type Output = Vec2;
 
     fn mul(self, rhs: &Vec2) -> Vec2 {

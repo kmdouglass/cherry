@@ -151,10 +151,11 @@ impl From<&Surface> for SurfaceSpec {
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
 
-    #[test]
-    fn test_insert_surface_and_gap() {
+    fn planoconvex_lens_obj_at_inf() -> SystemModel {
+        // The image is located at the lens back focal plane.
         let mut system_model = SystemModel::new();
         let mut model = system_model.seq_model_mut();
 
@@ -164,12 +165,45 @@ mod tests {
                 Surface::new_refr_circ_conic(
                     Vec3::new(0.0, 0.0, 0.0),
                     Vec3::new(0.0, 0.0, 0.0),
-                    25.0,
+                    25.8,
                     1.5,
-                    25.0,
+                    25.8,
                     0.0,
                 ),
-                Gap::new(1.0, 1.0),
+                Gap::new(1.5, 5.3),
+            )
+            .unwrap();
+        model
+            .insert_surface_and_gap(
+                2,
+                Surface::new_refr_circ_flat(
+                    Vec3::new(0.0, 0.0, 5.3),
+                    Vec3::new(0.0, 0.0, 0.0),
+                    25.0,
+                    1.0,
+                ),
+                Gap::new(1.0, 46.6),
+            )
+            .unwrap();
+
+        system_model
+    }
+
+    fn planoconvex_lens_img_at_inf() -> SystemModel {
+        // The object is located at the lens front focal plane.
+        let mut system_model = SystemModel::new();
+        let mut model = system_model.seq_model_mut();
+
+        model
+            .insert_surface_and_gap(
+                1,
+                Surface::new_refr_circ_flat(
+                    Vec3::new(0.0, 0.0, 0.0),
+                    Vec3::new(0.0, 0.0, 0.0),
+                    25.0,
+                    1.5,
+                ),
+                Gap::new(1.5, 5.3),
             )
             .unwrap();
         model
@@ -178,22 +212,30 @@ mod tests {
                 Surface::new_refr_circ_conic(
                     Vec3::new(0.0, 0.0, 0.0),
                     Vec3::new(0.0, 0.0, 0.0),
-                    25.0,
+                    -25.8,
                     1.0,
-                    -25.0,
+                    -25.8,
                     0.0,
                 ),
-                Gap::new(1.0, 10.0),
+                Gap::new(1.0, f32::INFINITY),
             )
             .unwrap();
+
+        system_model
+    }
+
+    #[test]
+    fn test_insert_surface_and_gap() {
+        let system_model = planoconvex_lens_obj_at_inf();
+        let model = system_model.seq_model();
 
         // 2 surfaces + object plane + image plane
         assert_eq!(model.surfaces.len(), 4);
         assert_eq!(model.gaps.len(), 3);
         assert_eq!(model.surfaces[0].pos(), Vec3::new(0.0, 0.0, -1.0));
         assert_eq!(model.surfaces[1].pos(), Vec3::new(0.0, 0.0, 0.0));
-        assert_eq!(model.surfaces[2].pos(), Vec3::new(0.0, 0.0, 1.0));
-        assert_eq!(model.surfaces[3].pos(), Vec3::new(0.0, 0.0, 11.0));
+        assert_eq!(model.surfaces[2].pos(), Vec3::new(0.0, 0.0, 5.3));
+        assert_eq!(model.surfaces[3].pos(), Vec3::new(0.0, 0.0, 51.9));
     }
 
     #[test]
@@ -248,37 +290,8 @@ mod tests {
 
     #[test]
     fn test_remove_surface_and_gap() {
-        let mut system_model = SystemModel::new();
-        let mut model = system_model.seq_model_mut();
-
-        model
-            .insert_surface_and_gap(
-                1,
-                Surface::new_refr_circ_conic(
-                    Vec3::new(0.0, 0.0, 0.0),
-                    Vec3::new(0.0, 0.0, 0.0),
-                    25.0,
-                    1.5,
-                    1.0,
-                    0.0,
-                ),
-                Gap::new(1.5, 1.0),
-            )
-            .unwrap();
-        model
-            .insert_surface_and_gap(
-                2,
-                Surface::new_refr_circ_conic(
-                    Vec3::new(0.0, 0.0, 0.0),
-                    Vec3::new(0.0, 0.0, 0.0),
-                    25.0,
-                    1.0,
-                    -1.0,
-                    0.0,
-                ),
-                Gap::new(1.0, 10.0),
-            )
-            .unwrap();
+        let mut system_model = planoconvex_lens_obj_at_inf();
+        let model = system_model.seq_model_mut();
 
         assert_eq!(model.surfaces.len(), 4);
         assert_eq!(model.gaps.len(), 3);
@@ -289,46 +302,17 @@ mod tests {
         assert_eq!(model.gaps.len(), 2);
         assert_eq!(model.surfaces[0].pos(), Vec3::new(0.0, 0.0, -1.0));
         assert_eq!(model.surfaces[1].pos(), Vec3::new(0.0, 0.0, 0.0));
-        assert_eq!(model.surfaces[2].pos(), Vec3::new(0.0, 0.0, 1.0));
+        assert_eq!(model.surfaces[2].pos(), Vec3::new(0.0, 0.0, 5.3));
     }
 
     #[test]
     fn test_surf_distance_from_origin() {
-        let mut system_model = SystemModel::new();
-        let mut model = system_model.seq_model_mut();
-
-        model
-            .insert_surface_and_gap(
-                1,
-                Surface::new_refr_circ_conic(
-                    Vec3::new(0.0, 0.0, 0.0),
-                    Vec3::new(0.0, 0.0, 0.0),
-                    25.0,
-                    1.5,
-                    1.0,
-                    0.0,
-                ),
-                Gap::new(1.5, 1.0),
-            )
-            .unwrap();
-        model
-            .insert_surface_and_gap(
-                2,
-                Surface::new_refr_circ_conic(
-                    Vec3::new(0.0, 0.0, 0.0),
-                    Vec3::new(0.0, 0.0, 0.0),
-                    25.0,
-                    1.0,
-                    -1.0,
-                    0.0,
-                ),
-                Gap::new(1.0, 10.0),
-            )
-            .unwrap();
+        let mut system_model = planoconvex_lens_obj_at_inf();
+        let model = system_model.seq_model_mut();
 
         assert_eq!(model.surf_distance_from_origin(0), 1.0);
         assert_eq!(model.surf_distance_from_origin(1), 0.0);
-        assert_eq!(model.surf_distance_from_origin(2), 1.0);
-        assert_eq!(model.surf_distance_from_origin(3), 11.0);
+        assert_eq!(model.surf_distance_from_origin(2), 5.3);
+        assert_eq!(model.surf_distance_from_origin(3), 5.3 + 46.6);
     }
 }
