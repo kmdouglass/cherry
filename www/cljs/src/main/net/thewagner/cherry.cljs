@@ -235,14 +235,11 @@
            [:p.subtitle "Surfaces"]]]
       [:div.level-right
         [:p.level-item
-          [:button.button {:on-click #(reset! surfaces (surfaces-and-gaps->rows cherry-spec/planoconvex))} "Planoconvex"]]
-        [:p.level-item
-          [:button.button {:on-click #(reset! surfaces (surfaces-and-gaps->rows cherry-spec/petzval))} "Petzval"]]
-        [:p.level-item
-          [:button.button {:on-click #(reset! surfaces (into [] (gen/sample (s/gen ::row) 5)))}
-           "I'm Feeling Lucky"]]
-        [:p.level-item
-          [:button.button.is-success {:on-click #(swap! surfaces conj nil)} "New"]]]]
+          [:div.field.is-grouped
+            [:p.control>button.button {:on-click #(reset! surfaces (surfaces-and-gaps->rows cherry-spec/planoconvex))} "Planoconvex"]
+            [:p.control>button.button {:on-click #(reset! surfaces (surfaces-and-gaps->rows cherry-spec/petzval))} "Petzval"]
+            [:p.control>button.button {:on-click #(reset! surfaces (into [] (gen/sample (s/gen ::row) 5)))} "I'm Feeling Lucky"]
+            [:p.control>button.button.is-success [:button.button.is-success {:on-click #(swap! surfaces conj nil)} "New"]]]]]]
     [:div.table-container
       [:table.table
          [:thead
