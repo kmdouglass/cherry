@@ -45,6 +45,7 @@
             ghp-import
             yarn
 
+            binaryen
             rust
             wasm-pack
             curl
