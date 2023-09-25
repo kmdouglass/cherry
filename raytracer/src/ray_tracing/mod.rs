@@ -90,7 +90,7 @@ impl SystemModel {
         let surface: Surface = Surface::from((&surface_spec, &gap));
         let preceding_surface = seq_model
             .surfaces()
-            .get(idx)
+            .get(idx - 1)
             .ok_or(anyhow!(
                 "Surface index is out of bounds: {} >= {}",
                 idx,
@@ -144,14 +144,14 @@ impl SystemModel {
         self.seq_model.surfaces()[0]
     }
 
-    pub fn set_obj_space(&mut self, n:f32, thickness: f32) -> Result<()> {
+    pub fn set_obj_space(&mut self, n: f32, thickness: f32) -> Result<()> {
         if thickness <= 0.0 {
             return Err(anyhow::anyhow!("Object space thickness must be positive"));
         };
 
         self.seq_model.set_obj_space(Gap::new(n, thickness));
         self.parax_model.set_obj_dist(thickness);
-        
+
         Ok(())
     }
 
@@ -461,6 +461,49 @@ impl EntrancePupil {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    struct ExpectedTestResults {
+        entrance_pupil_pos: f32,
+        entrance_pupil_diam: f32,
+    }
+
+    fn verification_planoconvex_lens_obj_at_inf() -> (SystemModel, ExpectedTestResults) {
+        // A f = +50.1 mm planoconvex lens: https://www.thorlabs.com/thorproduct.cfm?partnumber=LA1255
+        // Object is at infinity; aperture stop is the first surface.
+        let surf_1 = SurfaceSpec::RefractingCircularConic {
+            diam: 25.0,
+            roc: 25.8,
+            k: 0.0,
+        };
+        let gap_1 = Gap::new(1.515, 5.3);
+        let surf_2 = SurfaceSpec::RefractingCircularFlat { diam: 25.0 };
+        let gap_2 = Gap::new(1.0, 46.6);
+
+        let mut model = SystemModel::new();
+        model.insert_surface_and_gap(1, surf_1, gap_1).unwrap();
+        model.insert_surface_and_gap(2, surf_2, gap_2).unwrap();
+        model.set_obj_space(1.0, f32::INFINITY).unwrap();
+
+        let expected = ExpectedTestResults {
+            entrance_pupil_pos: 0.0,
+            entrance_pupil_diam: 25.0,
+        };
+
+        (model, expected)
+    }
+
+    #[test]
+    fn verify_planoconvex_lens_obj_at_inf() {
+        let (model, expected) = verification_planoconvex_lens_obj_at_inf();
+
+        let entrance_pupil = model.entrance_pupil().unwrap();
+
+        assert_eq!(
+            entrance_pupil.pos(),
+            Vec3::new(0.0, 0.0, expected.entrance_pupil_pos)
+        );
+        assert_eq!(entrance_pupil.diam(), expected.entrance_pupil_diam);
+    }
 
     #[test]
     fn test_sample_yz_object_plane_at_infinity() {
