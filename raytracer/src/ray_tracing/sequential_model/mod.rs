@@ -75,9 +75,8 @@ impl SequentialModel {
     }
 
     pub fn set_obj_space(&mut self, gap: Gap) {
-        // Surfaces should not need to be readjusted because the first non-object surface is
-        // anchored at z=0.
         self.gaps[0] = gap;
+        self.surfaces[0].set_pos(Vec3::new(0.0, 0.0, -gap.thickness()));
     }
 
     fn readjust_surfaces(&mut self, idx: usize) {

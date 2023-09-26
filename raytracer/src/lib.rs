@@ -97,12 +97,19 @@ impl WasmSystemModel {
     pub fn rayTrace(&self) -> Result<JsValue, JsError> {
         let wavelength = 0.000532_f32;
 
-        // Generate a ray fan to fill the entrance pupil
-        let num_rays = 5;
-        let rays = self
-            .system_model
-            .pupil_ray_fan(num_rays, PI / 2.0, 0.0)
-            .map_err(|e| JsError::new(&e.to_string()))?;
+        // Generate a ray fan for each field to fill the entrance pupil
+        let num_rays = 3;
+        let fields = self.system_model.fields();
+        let mut rays = Vec::with_capacity(num_rays * fields.len());
+
+        for field in fields {
+            let ray_fan = self
+                .system_model
+                .pupil_ray_fan(num_rays, PI / 2.0, field.angle() * PI / 180.0)
+                .map_err(|e| JsError::new(&e.to_string()))?;
+
+            rays.extend(ray_fan);
+        }
 
         let results = ray_tracing::trace::trace(&self.seq_model().surfaces(), rays, wavelength);
 

@@ -81,19 +81,20 @@ impl Vec3 {
     /// Create a fan of uniformly spaced vectors with endpoints in a given z-plane.
     ///
     /// The vectors have endpoints at an angle theta with respect to the x-axis and extend from
-    /// distances -r to r from the point (0, 0, z).
+    /// distances (-r + radial_offset) to (r + radial_offset) from the point (0, 0, z).
     ///
     /// # Arguments
     /// - n: Number of vectors to create
     /// - r: Radial span of vector endpoints from [-r, r]
     /// - theta: Angle of vectors with respect to x
     /// - z: z-coordinate of endpoints
-    pub fn fan(n: usize, r: f32, theta: f32, z: f32) -> Vec<Self> {
+    /// - radial_offset: Offset the radial position of the vectors by this amount
+    pub fn fan(n: usize, r: f32, theta: f32, z: f32, radial_offset: f32) -> Vec<Self> {
         let mut vecs = Vec::with_capacity(n);
         let step = 2.0 * r / (n - 1) as f32;
         for i in 0..n {
-            let x = (-r + i as f32 * step) * theta.cos();
-            let y = (-r + i as f32 * step) * theta.sin();
+            let x = (-r + i as f32 * step) * theta.cos() + radial_offset;
+            let y = (-r + i as f32 * step) * theta.sin() + radial_offset;
             vecs.push(Vec3::new(x, y, z));
         }
         vecs
