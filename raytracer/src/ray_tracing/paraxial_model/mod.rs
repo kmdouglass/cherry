@@ -507,13 +507,14 @@ impl From<&SurfacePair> for ParaxElem {
         let n_1 = surface_pair.1.n();
 
         match surf {
+            Surface::ImagePlane(surf) => ParaxElem::new_img_plane(surf.diam / 2.0),
             Surface::RefractingCircularConic(surf) => {
                 ParaxElem::new_refr_curved_surf(surf.diam / 2.0, n_0, n_1, surf.roc)
             }
             Surface::RefractingCircularFlat(surf) => {
                 ParaxElem::new_refr_flat_surf(surf.diam / 2.0, n_0, n_1)
             }
-            Surface::ObjectOrImagePlane(surf) => ParaxElem::new_no_op_surf(surf.diam / 2.0),
+            Surface::ObjectPlane(surf) => ParaxElem::new_obj_plane(surf.diam / 2.0),
             Surface::Stop(surf) => ParaxElem::new_no_op_surf(surf.diam / 2.0),
         }
     }
