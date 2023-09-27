@@ -253,10 +253,6 @@ impl ParaxialModel {
         Ok(())
     }
 
-    fn elements(&self) -> &[ParaxElem] {
-        &self.parax_elems
-    }
-
     fn is_empty(&self) -> bool {
         // The paraxial model always has an object plane, object space, and image plane.
         self.parax_elems.len() == 3
@@ -277,18 +273,51 @@ impl ParaxialModel {
         }
     }
 
-    fn trace(parax_elems: &[ParaxElem], mut ray: Vec2) -> Vec<ParaxTraceResult> {
+    /// Trace a ray through the paraxial model.
+    ///
+    /// # Arguments
+    /// * `parax_elems` - The paraxial elements to trace the ray through.
+    /// * `ray` - The ray to trace.
+    /// * `reverse` - If true, the ray is traced backwards through the paraxial model. This has the
+    ///   effect that the inverses of the ray transfer matrices are used.
+    fn trace(
+        parax_elems: &[ParaxElem],
+        mut ray: Vec2,
+        reverse: bool,
+    ) -> Result<Vec<ParaxTraceResult>> {
+        let mut forward_iter;
+        let mut reverse_iter;
+        let elems_iter: &mut dyn Iterator<Item = &ParaxElem> = if reverse {
+            reverse_iter = parax_elems.iter().rev();
+            &mut reverse_iter
+        } else {
+            forward_iter = parax_elems.iter();
+            &mut forward_iter
+        };
+
         // There's always one more non-gap element than there are gaps.
         let num_non_gaps = parax_elems.len() / 2 + 1;
         let mut results = Vec::with_capacity(num_non_gaps);
 
         // Trace the ray through the paraxial model and save the results at each surface.
-        for elem in parax_elems {
+        for elem in elems_iter {
             match elem {
                 ParaxElem::Gap { id: _, rtm } => {
+                    let rtm = if reverse {
+                        rtm.inv()
+                            .ok_or(anyhow!("The ray transfer matrix has no inverse."))?
+                    } else {
+                        *rtm
+                    };
                     ray = rtm * &ray;
                 }
                 ParaxElem::ImagePlane { id, radius, rtm } => {
+                    let rtm = if reverse {
+                        rtm.inv()
+                            .ok_or(anyhow!("The ray transfer matrix has no inverse."))?
+                    } else {
+                        *rtm
+                    };
                     ray = rtm * &ray;
                     results.push(ParaxTraceResult {
                         ray: ray.clone(),
@@ -297,6 +326,12 @@ impl ParaxialModel {
                     });
                 }
                 ParaxElem::ObjectPlane { id, radius, rtm } => {
+                    let rtm = if reverse {
+                        rtm.inv()
+                            .ok_or(anyhow!("The ray transfer matrix has no inverse."))?
+                    } else {
+                        *rtm
+                    };
                     ray = rtm * &ray;
                     results.push(ParaxTraceResult {
                         ray: ray.clone(),
@@ -305,6 +340,12 @@ impl ParaxialModel {
                     });
                 }
                 ParaxElem::Surf { id, radius, rtm } => {
+                    let rtm = if reverse {
+                        rtm.inv()
+                            .ok_or(anyhow!("The ray transfer matrix has no inverse."))?
+                    } else {
+                        *rtm
+                    };
                     ray = rtm * &ray;
                     results.push(ParaxTraceResult {
                         ray: ray.clone(),
@@ -313,6 +354,12 @@ impl ParaxialModel {
                     });
                 }
                 ParaxElem::ThinLens { id, radius, rtm } => {
+                    let rtm = if reverse {
+                        rtm.inv()
+                            .ok_or(anyhow!("The ray transfer matrix has no inverse."))?
+                    } else {
+                        *rtm
+                    };
                     ray = rtm * &ray;
                     results.push(ParaxTraceResult {
                         ray: ray.clone(),
@@ -323,7 +370,7 @@ impl ParaxialModel {
             }
         }
 
-        results
+        Ok(results)
     }
 
     /// Find the ID of the surface that is the aperture stop of the system.
@@ -339,9 +386,9 @@ impl ParaxialModel {
         let init_ray = self.init_ray()?;
         let results = if self.is_obj_at_infinity() {
             // Don't trace the ray through the object space.
-            ParaxialModel::trace(&self.parax_elems[2..], init_ray)
+            ParaxialModel::trace(&self.parax_elems[2..], init_ray, false)?
         } else {
-            ParaxialModel::trace(&self.parax_elems, init_ray)
+            ParaxialModel::trace(&self.parax_elems, init_ray, false)?
         };
 
         // Find the ID of the non-gap, non-image plane element with the smallest ratio of surface radius to ray height.
@@ -362,8 +409,8 @@ impl ParaxialModel {
 
     /// Find the distance of the entrance pupil from the first optical surface.
     ///
-    /// Following this module's sign conventions, a positive distance means the entrance pupil is
-    /// virtual, i.e. to the right of the first optical surface. A negative distance means the
+    /// Following this module's sign conventions, a negative distance means the entrance pupil is
+    /// virtual, i.e. to the right of the first optical surface. A positive distance means the
     /// entrance pupil is a real image of the aperture stop, i.e. to the left of the first optical
     /// surface.
     pub fn entrance_pupil(&self) -> Result<f32> {
@@ -379,9 +426,8 @@ impl ParaxialModel {
 
         // Launch a ray from the aperture stop from the axis backwards through the system.
         let elems = &self.parax_elems[0..idx];
-        let elems_reversed = ParaxialModel::reverse_surfaces(elems);
         let init_ray = Vec2::new(0.0, INIT_ANGLE);
-        let results = ParaxialModel::trace(&elems_reversed, init_ray);
+        let results = ParaxialModel::trace(&elems, init_ray, true)?;
 
         // Get the next-to-last result, which is the ray traveling in the object space from the
         // first surface to the object plane.
@@ -429,13 +475,6 @@ impl ParaxialModel {
         } else {
             Ok(Vec2::new(0.0, INIT_ANGLE))
         }
-    }
-
-    /// Reverses a sequence of paraxial elements.
-    fn reverse_surfaces(surfs: &[ParaxElem]) -> Vec<ParaxElem> {
-        let mut reversed_surfs = Vec::with_capacity(surfs.len());
-        reversed_surfs.extend(surfs.iter().rev().cloned());
-        reversed_surfs
     }
 }
 
@@ -525,7 +564,7 @@ mod tests {
 
         let expected = ExpectedTestResults {
             aperture_stop_idx: 4,
-            entrance_pupil: 33.3333,
+            entrance_pupil: -33.3333,
         };
 
         (parax_model, expected)
@@ -535,7 +574,7 @@ mod tests {
     fn verify_two_lens_system_aperture_stop() {
         let (parax_model, expected) = two_lens_system_verification();
         let idx = if let ParaxElem::Surf { id, .. } =
-            parax_model.elements()[expected.aperture_stop_idx]
+            parax_model.parax_elems[expected.aperture_stop_idx]
         {
             id
         } else {
@@ -562,7 +601,7 @@ mod tests {
 
         parax_model.insert_element_and_gap(1, lens, gap).unwrap();
 
-        let elements = parax_model.elements();
+        let elements = parax_model.parax_elems;
 
         // Object plane, object space, lens, image space, image plane.
         assert_eq!(elements.len(), 5);
@@ -599,7 +638,7 @@ mod tests {
         parax_model.insert_element_and_gap(1, lens, gap).unwrap();
         parax_model.remove_element_and_gap(1).unwrap();
 
-        let elements = parax_model.elements();
+        let elements = parax_model.parax_elems;
 
         // Object plane, object space, image plane.
         assert_eq!(elements.len(), 3);
@@ -614,7 +653,7 @@ mod tests {
         parax_model.insert_element_and_gap(1, lens, gap).unwrap();
         parax_model.set_obj_dist(200.0);
 
-        let elements = parax_model.elements();
+        let elements = parax_model.parax_elems;
 
         // Object plane, object space, lens, image space, image plane.
         assert_eq!(elements.len(), 5);

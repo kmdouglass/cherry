@@ -5,7 +5,7 @@ pub mod sequential_model;
 pub mod surface_types;
 pub mod trace;
 
-use std::{borrow::BorrowMut, f32::consts::PI};
+use std::f32::consts::PI;
 
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
@@ -86,6 +86,7 @@ impl SystemModel {
         gap: Gap,
     ) -> Result<()> {
         // TODO Can this be made atomic across all the submodels?
+        // Yes... only build the system once and make it immutable.
         let seq_model = self.seq_model_mut();
         let surface: Surface = Surface::from((&surface_spec, &gap));
         let preceding_surface = seq_model
@@ -135,7 +136,7 @@ impl SystemModel {
         let entrance_pupil_dist = self.parax_model.entrance_pupil()?;
 
         let pos = self.seq_model.surfaces()[1].pos();
-        let pos = Vec3::new(pos.x(), pos.y(), pos.z() + entrance_pupil_dist);
+        let pos = Vec3::new(pos.x(), pos.y(), pos.z() - entrance_pupil_dist);
 
         Ok(EntrancePupil { pos, diam })
     }
@@ -495,6 +496,44 @@ mod tests {
     #[test]
     fn verify_planoconvex_lens_obj_at_inf() {
         let (model, expected) = verification_planoconvex_lens_obj_at_inf();
+
+        let entrance_pupil = model.entrance_pupil().unwrap();
+
+        assert_eq!(
+            entrance_pupil.pos(),
+            Vec3::new(0.0, 0.0, expected.entrance_pupil_pos)
+        );
+        assert_eq!(entrance_pupil.diam(), expected.entrance_pupil_diam);
+    }
+
+    fn verification_planoconvex_lens_finite_obj() -> (SystemModel, ExpectedTestResults) {
+        // A f = +50.1 mm planoconvex lens: https://www.thorlabs.com/thorproduct.cfm?partnumber=LA1255
+        // Object is at -46.6 mm from the flat surface; aperture stop is the second surface.
+        let surf_1 = SurfaceSpec::RefractingCircularFlat { diam: 25.0 };
+        let gap_1 = Gap::new(1.515, 5.3);
+        let surf_2 = SurfaceSpec::RefractingCircularConic {
+            diam: 25.0,
+            roc: -25.8,
+            k: 0.0,
+        };
+        let gap_2 = Gap::new(1.0, f32::INFINITY);
+
+        let mut model = SystemModel::new();
+        model.insert_surface_and_gap(1, surf_1, gap_1).unwrap();
+        model.insert_surface_and_gap(2, surf_2, gap_2).unwrap();
+        model.set_obj_space(1.0, 46.6).unwrap();
+
+        let expected = ExpectedTestResults {
+            entrance_pupil_pos: 3.4983,
+            entrance_pupil_diam: 25.0,
+        };
+
+        (model, expected)
+    }
+
+    #[test]
+    fn verify_planoconvex_lens_finite_obj() {
+        let (model, expected) = verification_planoconvex_lens_finite_obj();
 
         let entrance_pupil = model.entrance_pupil().unwrap();
 
