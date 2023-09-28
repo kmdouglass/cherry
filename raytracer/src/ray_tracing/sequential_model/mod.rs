@@ -115,7 +115,8 @@ impl SequentialModel {
 /// A surface in a sequential model of an optical system.
 #[derive(Debug, Serialize, Deserialize)]
 pub enum SurfaceSpec {
-    ObjectOrImagePlane { diam: f32 },
+    ImagePlane { diam: f32 },
+    ObjectPlane { diam: f32 },
     RefractingCircularConic { diam: f32, roc: f32, k: f32 },
     RefractingCircularFlat { diam: f32 },
     Stop { diam: f32 },
@@ -124,8 +125,12 @@ pub enum SurfaceSpec {
 impl From<&Surface> for SurfaceSpec {
     fn from(value: &Surface) -> Self {
         match value {
-            Surface::ObjectOrImagePlane(surf) => {
-                let surf = SurfaceSpec::ObjectOrImagePlane { diam: surf.diam };
+            Surface::ImagePlane(surf) => {
+                let surf = SurfaceSpec::ImagePlane { diam: surf.diam };
+                surf
+            }
+            Surface::ObjectPlane(surf) => {
+                let surf = SurfaceSpec::ObjectPlane { diam: surf.diam };
                 surf
             }
             Surface::RefractingCircularConic(surf) => {

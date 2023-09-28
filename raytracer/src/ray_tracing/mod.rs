@@ -17,7 +17,9 @@ use component_model::ComponentModel;
 use paraxial_model::ParaxialModel;
 use rays::Ray;
 use sequential_model::{SequentialModel, SurfaceSpec};
-use surface_types::{ObjectOrImagePlane, RefractingCircularConic, RefractingCircularFlat, Stop};
+use surface_types::{
+    ImagePlane, ObjectPlane, RefractingCircularConic, RefractingCircularFlat, Stop,
+};
 
 const INIT_DIAM: f32 = 25.0;
 
@@ -36,12 +38,12 @@ impl SystemModel {
     ///
     /// By convention, the first non-object surface lies at z = 0.
     pub fn new() -> Self {
-        let obj_plane = Surface::new_obj_or_img_plane(
+        let obj_plane = Surface::new_obj_plane(
             Vec3::new(0.0, 0.0, -1.0),
             Vec3::new(0.0, 0.0, 0.0),
             INIT_DIAM,
         );
-        let img_plane = Surface::new_obj_or_img_plane(
+        let img_plane = Surface::new_img_plane(
             Vec3::new(0.0, 0.0, 0.0),
             Vec3::new(0.0, 0.0, 0.0),
             INIT_DIAM,
@@ -213,16 +215,22 @@ impl SystemModel {
 /// A surface in an optical system that can interact with light rays.
 #[derive(Debug, Clone, Copy)]
 pub enum Surface {
-    ObjectOrImagePlane(ObjectOrImagePlane),
+    ImagePlane(ImagePlane),
+    ObjectPlane(ObjectPlane),
     RefractingCircularConic(RefractingCircularConic),
     RefractingCircularFlat(RefractingCircularFlat),
     Stop(Stop),
 }
 
 impl Surface {
-    pub fn new_obj_or_img_plane(pos: Vec3, dir: Vec3, diam: f32) -> Self {
+    pub fn new_img_plane(pos: Vec3, dir: Vec3, diam: f32) -> Self {
         let n = 1.0;
-        Self::ObjectOrImagePlane(ObjectOrImagePlane::new(pos, dir, diam, n))
+        Self::ImagePlane(ImagePlane::new(pos, dir, diam, n))
+    }
+
+    pub fn new_obj_plane(pos: Vec3, dir: Vec3, diam: f32) -> Self {
+        let n = 1.0;
+        Self::ObjectPlane(ObjectPlane::new(pos, dir, diam, n))
     }
 
     pub fn new_refr_circ_conic(pos: Vec3, dir: Vec3, diam: f32, n: f32, roc: f32, k: f32) -> Self {
@@ -240,7 +248,8 @@ impl Surface {
     /// Compute the surface sag and surface normals at a given position.
     pub fn sag_norm(&self, pos: Vec3) -> (f32, Vec3) {
         match self {
-            Self::ObjectOrImagePlane(surf) => surf.sag_norm(pos),
+            Self::ImagePlane(surf) => surf.sag_norm(pos),
+            Self::ObjectPlane(surf) => surf.sag_norm(pos),
             Self::RefractingCircularConic(surf) => surf.sag_norm(pos),
             Self::RefractingCircularFlat(surf) => surf.sag_norm(pos),
             Self::Stop(surf) => surf.sag_norm(pos),
@@ -251,7 +260,8 @@ impl Surface {
     #[inline]
     pub fn pos(&self) -> Vec3 {
         match self {
-            Self::ObjectOrImagePlane(surf) => surf.pos,
+            Self::ImagePlane(surf) => surf.pos,
+            Self::ObjectPlane(surf) => surf.pos,
             Self::RefractingCircularConic(surf) => surf.pos,
             Self::RefractingCircularFlat(surf) => surf.pos,
             Self::Stop(surf) => surf.pos,
@@ -260,7 +270,8 @@ impl Surface {
 
     pub fn set_pos(&mut self, pos: Vec3) {
         match self {
-            Self::ObjectOrImagePlane(surf) => surf.pos = pos,
+            Self::ImagePlane(surf) => surf.pos = pos,
+            Self::ObjectPlane(surf) => surf.pos = pos,
             Self::RefractingCircularConic(surf) => surf.pos = pos,
             Self::RefractingCircularFlat(surf) => surf.pos = pos,
             Self::Stop(surf) => surf.pos = pos,
@@ -271,7 +282,8 @@ impl Surface {
     #[inline]
     pub fn rot_mat(&self) -> Mat3 {
         match self {
-            Self::ObjectOrImagePlane(surf) => surf.rot_mat,
+            Self::ImagePlane(surf) => surf.rot_mat,
+            Self::ObjectPlane(surf) => surf.rot_mat,
             Self::RefractingCircularConic(surf) => surf.rot_mat,
             Self::RefractingCircularFlat(surf) => surf.rot_mat,
             Self::Stop(surf) => surf.rot_mat,
@@ -282,7 +294,8 @@ impl Surface {
     #[inline]
     pub fn diam(&self) -> f32 {
         match self {
-            Self::ObjectOrImagePlane(surf) => surf.diam,
+            Self::ImagePlane(surf) => surf.diam,
+            Self::ObjectPlane(surf) => surf.diam,
             Self::RefractingCircularConic(surf) => surf.diam,
             Self::RefractingCircularFlat(surf) => surf.diam,
             Self::Stop(surf) => surf.diam,
@@ -293,7 +306,8 @@ impl Surface {
     #[inline]
     pub fn n(&self) -> f32 {
         match self {
-            Self::ObjectOrImagePlane(surf) => surf.n,
+            Self::ImagePlane(surf) => surf.n,
+            Self::ObjectPlane(surf) => surf.n,
             Self::RefractingCircularConic(surf) => surf.n,
             Self::RefractingCircularFlat(surf) => surf.n,
             Self::Stop(surf) => surf.n,
@@ -304,7 +318,8 @@ impl Surface {
     #[inline]
     pub fn roc(&self) -> f32 {
         match self {
-            Self::ObjectOrImagePlane(_) => f32::INFINITY,
+            Self::ImagePlane(_) => f32::INFINITY,
+            Self::ObjectPlane(_) => f32::INFINITY,
             Self::RefractingCircularConic(surf) => surf.roc,
             Self::RefractingCircularFlat(_) => f32::INFINITY,
             Self::Stop(_) => f32::INFINITY,
@@ -314,10 +329,18 @@ impl Surface {
     /// Determine sequential point samples on the surface in the y-z plane.
     pub fn sample_yz(&self, num_samples: usize) -> Vec<Vec3> {
         // Skip object or image planes at infinity
-        if let Self::ObjectOrImagePlane(surf) = self {
-            if surf.pos.z().abs() == f32::INFINITY {
-                return Vec::new();
+        match self {
+            Self::ObjectPlane(surf) => {
+                if surf.pos.z().abs() == f32::INFINITY {
+                    return Vec::new();
+                }
             }
+            Self::ImagePlane(surf) => {
+                if surf.pos.z().abs() == f32::INFINITY {
+                    return Vec::new();
+                }
+            }
+            _ => {}
         }
 
         let diam = self.diam();
@@ -330,7 +353,8 @@ impl Surface {
         let mut samples = Vec::with_capacity(sample_points.len());
         for point in sample_points {
             let (sag, _) = match self {
-                Self::ObjectOrImagePlane(surf) => surf.sag_norm(point),
+                Self::ImagePlane(surf) => surf.sag_norm(point),
+                Self::ObjectPlane(surf) => surf.sag_norm(point),
                 Self::RefractingCircularConic(surf) => surf.sag_norm(point),
                 Self::RefractingCircularFlat(surf) => surf.sag_norm(point),
                 Self::Stop(surf) => surf.sag_norm(point),
@@ -375,8 +399,12 @@ impl From<(&SurfaceSpec, &Gap)> for Surface {
         let dir = Vec3::new(0.0, 0.0, 0.0);
 
         match surf {
-            SurfaceSpec::ObjectOrImagePlane { diam } => {
-                let surf = Surface::new_obj_or_img_plane(pos, dir, *diam);
+            SurfaceSpec::ImagePlane { diam } => {
+                let surf = Surface::new_img_plane(pos, dir, *diam);
+                surf
+            }
+            SurfaceSpec::ObjectPlane { diam } => {
+                let surf = Surface::new_obj_plane(pos, dir, *diam);
                 surf
             }
             SurfaceSpec::RefractingCircularConic { diam, roc, k } => {
@@ -402,7 +430,11 @@ impl From<SurfacePair> for (Surface, Gap) {
     fn from(value: SurfacePair) -> Self {
         let thickness = value.1.pos().z() - value.0.pos().z();
         match value.0 {
-            Surface::ObjectOrImagePlane(surf) => {
+            Surface::ImagePlane(surf) => {
+                let gap = Gap::new(surf.n, thickness);
+                (value.0, gap)
+            }
+            Surface::ObjectPlane(surf) => {
                 let gap = Gap::new(surf.n, thickness);
                 (value.0, gap)
             }
@@ -588,7 +620,7 @@ mod tests {
 
     #[test]
     fn test_sample_yz_object_plane_at_infinity() {
-        let surf = Surface::new_obj_or_img_plane(
+        let surf = Surface::new_obj_plane(
             Vec3::new(0.0, 0.0, f32::NEG_INFINITY),
             Vec3::new(0.0, 0.0, 1.0),
             4.0,
@@ -599,7 +631,7 @@ mod tests {
 
     #[test]
     fn test_sample_yz_image_plane_at_infinity() {
-        let surf = Surface::new_obj_or_img_plane(
+        let surf = Surface::new_img_plane(
             Vec3::new(0.0, 0.0, f32::INFINITY),
             Vec3::new(0.0, 0.0, 1.0),
             4.0,
@@ -610,8 +642,7 @@ mod tests {
 
     #[test]
     fn test_sample_yz_finite_object_plane() {
-        let surf =
-            Surface::new_obj_or_img_plane(Vec3::new(0.0, 0.0, -1.0), Vec3::new(0.0, 0.0, 1.0), 4.0);
+        let surf = Surface::new_obj_plane(Vec3::new(0.0, 0.0, -1.0), Vec3::new(0.0, 0.0, 1.0), 4.0);
         let samples = surf.sample_yz(20);
         assert_eq!(samples.len(), 20);
     }

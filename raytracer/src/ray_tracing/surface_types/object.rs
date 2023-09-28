@@ -1,9 +1,9 @@
 use crate::math::mat3::Mat3;
 use crate::math::vec3::Vec3;
 
-/// Represents the object or image plane in an optical system.
+/// Represents the object plane in an optical system.
 #[derive(Debug, Clone, Copy)]
-pub struct ObjectOrImagePlane {
+pub struct ObjectPlane {
     // Position of the center of the object plane
     pub pos: Vec3,
 
@@ -20,7 +20,7 @@ pub struct ObjectOrImagePlane {
     pub(crate) n: f32,
 }
 
-impl ObjectOrImagePlane {
+impl ObjectPlane {
     pub fn new(pos: Vec3, dir: Vec3, diam: f32, n: f32) -> Self {
         let rot_mat = Mat3::from_euler_angles(dir.x(), dir.y(), dir.z());
         Self {
