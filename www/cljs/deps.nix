@@ -458,19 +458,6 @@ let repos = [
   }
 
   rec {
-    name = "reagent/reagent";
-    src = fetchMavenArtifact {
-      inherit repos;
-      artifactId = "reagent";
-      groupId = "reagent";
-      sha512 = "c15ceec91a05ac90d69f9499a8f1088ea794fc017ffec7b9d941f4e46a5c731704893e301f1b4d887082dc807294547e5846784a5a21ee4d768508c47b493d3a";
-      version = "1.2.0";
-
-    };
-    paths = [ src ];
-  }
-
-  rec {
     name = "msgpack/org.msgpack";
     src = fetchMavenArtifact {
       inherit repos;

@@ -164,14 +164,19 @@
 
 (extend-type js/HTMLTableElement
   IDataGrid
-  (-insert-row! [table row]
-    (-insert-row! (tbody table) row))
+  (-insert-row! [table data]
+    (let [row (dom/createDom "tr")]
+      (-prefill! row data)
+      (dom/appendChild (tbody table) row)))
+
   (-delete-row! [table n]
-    (-delete-row! (tbody table) (dec n)))
+    (.deleteRow table (inc n)))
 
   IPrefill
   (-prefill! [table rows]
-    (-prefill! (tbody table) rows)))
+    (dom/removeChildren (tbody table))
+    (doseq [r rows]
+      (-insert-row! table r))))
 
 (extend-type js/HTMLTableRowElement
   IPrefill
@@ -203,22 +208,6 @@
     (dom/appendChild row
       (dom/createDom "td" {}
         (dom/createDom "button" #js {:class "button"} "Delete")))))
-
-(extend-type js/HTMLTableSectionElement
-  IDataGrid
-  (-insert-row! [table row-data]
-    (let [row (.insertRow table)]
-      (-prefill! row row-data)))
-
-  (-delete-row! [table n]
-    (.deleteRow table n))
-
-  IPrefill
-  (-prefill! [table rows]
-    (let [tbody (dom/createElement "tbody")]
-      (doseq [r rows]
-        (-insert-row! tbody r))
-      (dom/replaceNode tbody table))))
 
 (defonce state (atom {:event-handlers #{}}))
 
@@ -308,14 +297,14 @@
         row-edit ([[op row]] (case op
                                :insert-row (do (-insert-row! table {})
                                                (recur (conj rows {})))
-                               :delete-row (do (-delete-row! table (inc row))
+                               :delete-row (do (-delete-row! table row)
                                                (recur (vec-remove rows row)))))
-        select ([[tr row value]] (let [new-row (prefill-row (get rows (dec row)) value)]
+        select ([[tr row value]] (let [new-row (prefill-row (get rows row) value)]
                                    (-prefill! tr new-row)
-                                   (recur (assoc rows (dec row) new-row))))
+                                   (recur (assoc rows row new-row))))
         param-input ([[el row spec value]] (if-let [n (valid-number value spec)]
                                              (do (-set-valid! el)
-                                                 (recur (assoc-in rows [(dec row) spec] n)))
+                                                 (recur (assoc-in rows [row spec] n)))
                                              (do (-set-invalid! el)
                                                  (recur rows))))))
     ; Render process
