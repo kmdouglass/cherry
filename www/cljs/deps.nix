@@ -445,19 +445,6 @@ let repos = [
   }
 
   rec {
-    name = "priority-queue/shams";
-    src = fetchMavenArtifact {
-      inherit repos;
-      artifactId = "priority-queue";
-      groupId = "shams";
-      sha512 = "0fe37b55324e7c6bfcd338e7f72cdbaa5987c918877469685e3e23a34da0e8657c6453bf8af5378bb21ba2eff57c767857306ebcba4676525602e07c91194f8c";
-      version = "0.1.2";
-
-    };
-    paths = [ src ];
-  }
-
-  rec {
     name = "msgpack/org.msgpack";
     src = fetchMavenArtifact {
       inherit repos;
