@@ -28,6 +28,7 @@ pub(crate) struct SystemModel {
     parax_model: ParaxialModel,
     seq_model: SequentialModel,
     aperture: ApertureSpec,
+    fields: Vec<FieldSpec>,
 }
 
 impl SystemModel {
@@ -55,11 +56,14 @@ impl SystemModel {
         let component_model = ComponentModel::from(&sequential_model);
         let paraxial_model = ParaxialModel::from(sequential_model.surfaces());
 
+        let fields = vec![FieldSpec { angle: 0.0 }, FieldSpec { angle: 5.0 }];
+
         Self {
             comp_model: component_model,
             seq_model: SequentialModel::new(&surfaces),
             parax_model: paraxial_model,
             aperture: ApertureSpec::EntrancePupilDiameter { diam: INIT_DIAM },
+            fields: fields,
         }
     }
 
@@ -73,10 +77,6 @@ impl SystemModel {
 
     pub fn seq_model_mut(&mut self) -> &mut SequentialModel {
         &mut self.seq_model
-    }
-
-    pub fn aperture(&self) -> &ApertureSpec {
-        &self.aperture
     }
 
     pub fn insert_surface_and_gap(
@@ -114,6 +114,10 @@ impl SystemModel {
         Ok(())
     }
 
+    pub fn aperture(&self) -> &ApertureSpec {
+        &self.aperture
+    }
+
     pub fn set_aperture(&mut self, aperture: ApertureSpec) -> Result<()> {
         if let ApertureSpec::EntrancePupilDiameter { diam } = aperture {
             if diam <= 0.0 {
@@ -124,6 +128,10 @@ impl SystemModel {
         self.aperture = aperture;
 
         Ok(())
+    }
+
+    pub fn fields(&self) -> &[FieldSpec] {
+        &self.fields
     }
 
     /// Determine the entrance pupil for the system.
@@ -166,21 +174,39 @@ impl SystemModel {
     ///
     /// * `num_rays` - The number of rays in the fan.
     /// * `theta` - The polar angle of the ray fan in the x-y plane.
-    /// * `phi` - The angle of the ray w.rt. the z-axis.
+    /// * `phi` - The angle of the ray w.r.t. the z-axis.
     pub(crate) fn pupil_ray_fan(&self, num_rays: usize, theta: f32, phi: f32) -> Result<Vec<Ray>> {
-        // TODO Handle off-axis rays
         let ep = self.entrance_pupil()?;
+        let obj_z = self.object_plane().pos().z();
+        let sur_z = self.seq_model.surfaces()[1].pos().z();
+        let enp_z = ep.pos().z();
 
-        // If the object plane is at infinity, launch the rays from one unit in front of the first surface
-        let launch_point_z = if self.object_plane().pos().z() == f32::NEG_INFINITY {
-            self.seq_model.surfaces()[1].pos().z() - 1.0
-        } else {
-            self.object_plane().pos().z()
-        };
+        let launch_point_z = self.axial_launch_point(obj_z, sur_z, enp_z);
 
-        let rays = Ray::fan(num_rays, ep.diam() / 2.0, theta, launch_point_z, phi);
+        // Determine the radial distance from the axis at the launch point for the center of the
+        // ray fan.
+        let dz = enp_z - launch_point_z;
+        let dr = -dz * phi.tan();
+
+        let rays = Ray::fan(num_rays, ep.diam() / 2.0, theta, launch_point_z, phi, dr);
 
         Ok(rays)
+    }
+
+    /// Determine the axial launch point for the rays.
+    ///
+    /// If the object plane is at infinity, and if the first surface lies before the entrance
+    /// pupil, then launch the rays from one unit to the left of the first surface. If the object
+    /// plane is at infinity, and if it comes after the entrance pupil, then launch the rays from
+    /// one unit in front of the entrance pupil. Otherwise, launch the rays from the object plane.
+    fn axial_launch_point(&self, obj_z: f32, sur_z: f32, enp_z: f32) -> f32 {
+        if obj_z == f32::NEG_INFINITY && sur_z <= enp_z {
+            sur_z - 1.0
+        } else if obj_z == f32::NEG_INFINITY && sur_z > enp_z {
+            enp_z - 1.0
+        } else {
+            obj_z
+        }
     }
 }
 
@@ -297,7 +323,7 @@ impl Surface {
         let diam = self.diam();
 
         // Sample the surface in in the y,z plane by creating uniformally spaced (0,y,z) coordinates
-        let sample_points = Vec3::fan(num_samples, diam / 2.0, PI / 2.0, 0.0);
+        let sample_points = Vec3::fan(num_samples, diam / 2.0, PI / 2.0, 0.0, 0.0);
 
         let mut sample: Vec3;
         let mut rot_sample: Vec3;
@@ -424,6 +450,22 @@ impl<'a> Iterator for SurfacePairIterator<'a> {
         self.idx += 1;
 
         Some(SurfacePair(surf1, surf2))
+    }
+}
+
+/// Specifies a field.
+///
+#[derive(Debug, Serialize, Deserialize)]
+pub(crate) struct FieldSpec {
+    /// The angle the field makes with the optical axis, in degrees.
+    angle: f32,
+}
+
+impl FieldSpec {
+    /// Return the angle the field makes with the optical axis, in degrees.
+    #[inline]
+    pub fn angle(&self) -> f32 {
+        self.angle
     }
 }
 
@@ -607,5 +649,38 @@ mod tests {
         } else {
             panic!("ApertureSpec is not EntrancePupilDiameter");
         }
+    }
+
+    #[test]
+    fn test_axial_launch_point() {
+        let model = SystemModel::new();
+
+        let obj_z = f32::NEG_INFINITY;
+        let sur_z = 0.0;
+        let enp_z = 0.0;
+
+        let launch_point = model.axial_launch_point(obj_z, sur_z, enp_z);
+        assert_eq!(launch_point, sur_z - 1.0);
+
+        let obj_z = f32::NEG_INFINITY;
+        let sur_z = 0.0;
+        let enp_z = 1.0;
+
+        let launch_point = model.axial_launch_point(obj_z, sur_z, enp_z);
+        assert_eq!(launch_point, sur_z - 1.0);
+
+        let obj_z = f32::NEG_INFINITY;
+        let sur_z = 0.0;
+        let enp_z = -5.0;
+
+        let launch_point = model.axial_launch_point(obj_z, sur_z, enp_z);
+        assert_eq!(launch_point, enp_z - 1.0);
+
+        let obj_z = -10.0;
+        let sur_z = 0.0;
+        let enp_z = 0.0;
+
+        let launch_point = model.axial_launch_point(obj_z, sur_z, enp_z);
+        assert_eq!(launch_point, obj_z);
     }
 }
