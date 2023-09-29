@@ -64,6 +64,13 @@
           gap)))
     (partition 2 2 surfaces-and-gaps)))
 
+(defn random-surfaces-and-gaps []
+  (-> (s/tuple ::cherry-spec/surface ::cherry-spec/gap)
+      (s/gen)
+      (gen/sample 5)
+      flatten
+      vec))
+
 (defn wasm-system-model [constructor {:keys [aperture surfaces-and-gaps]}]
   (let [^js/WasmSystemModel m (new constructor)]
     (doseq [[i [s g]] (map vector (range) surfaces-and-gaps)]
@@ -236,7 +243,7 @@
                        #(async/put! preset cherry-spec/petzval))
 
                     (goog.events.listen (dom/getElement "preset-random-button") events/EventType.CLICK
-                       #(async/put! preset (into [] (gen/sample (s/gen ::row) 5))))
+                       #(async/put! preset (random-surfaces-and-gaps)))
 
                     (goog.events.listen table events/EventType.CLICK
                       (fn [e]
