@@ -39,7 +39,7 @@
       [:meta {:name "viewport" :content "width=device-width, initial-scale=1"}]
       [:meta {:http-equiv "x-ua-compatible" :content "ie=edge"}]
       [:title "🍒 Cherry Raytracer"]
-      [:link {:rel "stylesheet" :href "css/cherry.css"}]]
+      [:link {:rel "stylesheet" :href "./cherry.css"}]]
     [:body
       [:section.section
         [:h1.title "Cherry Raytracer"]

@@ -4,7 +4,7 @@
         {:infer-externs true
          :externs ["cherry-externs.js"]}
 
-        :output-dir "build"
+        :output-dir "public/js"
 
         :modules
         {:main {:init-fn net.thewagner.cherry/init}}
@@ -12,7 +12,7 @@
         :js-options
         {:js-provider :external
          :js-package-dirs ["node_modules", "../../node_modules"]
-         :external-index "build/index.js"}
+         :external-index "public/js/index.js"}
 
         :build-hooks
         [(net.thewagner.build/hook)]}}}

@@ -13,9 +13,9 @@ pom.xml.asc
 .nrepl-port
 .cpcache/
 
-build/
 dist/
 result
 public/js
+public/index.html
 .shadow-cljs
 .clj-kondo/
