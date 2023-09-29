@@ -85,7 +85,11 @@
           model (wasm-system-model (.-WasmSystemModel cherry) raytrace-input)
           surfaces (.surfaces model)
           gaps (.gaps model)
-          results (.rayTrace model)
+          results (try
+                    (.rayTrace model)
+                    (catch js/Error e
+                      (js/console.error "Unexpected error in rayTrace." e)
+                      ::runtime-error))
           surfaces-samples (let [num-samples 20]
                              (for [i (range (count surfaces))]
                                {:samples (js->clj (.sampleSurfYZ model i num-samples))}))
