@@ -115,6 +115,8 @@
             installPhase = ''
               mkdir $out
               cp -r dist/* $out
+
+              echo 'browser.science' > $out/CNAME
             '';
           };
 
