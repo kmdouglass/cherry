@@ -3,12 +3,10 @@
             [clojure.spec.gen.alpha :as gen]))
 
 (s/def ::surface (s/or
-                   :ObjectOrImagePlane (s/keys :req [::ObjectOrImagePlane])
                    :RefractingCircularFlat (s/keys :req [::RefractingCircularFlat])
                    :RefractingCircularConic (s/keys :req [::RefractingCircularConic])
                    :Stop (s/keys :req [::Stop])))
 
-(s/def ::ObjectOrImagePlane (s/keys :req [::diam]))
 (s/def ::RefractingCircularFlat (s/keys :req [::diam]))
 (s/def ::RefractingCircularConic (s/keys :req [::diam ::roc ::k]))
 (s/def ::Stop (s/keys :req [::diam]))

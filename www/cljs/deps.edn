@@ -1,11 +1,9 @@
 {:paths ["src/main"]
- :deps {shams/priority-queue {:mvn/version "0.1.2"}
-        org.clojure/clojure {:mvn/version "1.11.1"}
+ :deps {org.clojure/clojure {:mvn/version "1.11.1"}
         org.clojure/clojurescript {:mvn/version "1.11.51"}
         org.clojure/core.async {:mvn/version "1.5.648"}
         org.clojure/test.check {:mvn/version "1.1.1"}
         com.google.javascript/closure-compiler-unshaded {:mvn/version "v20220502"}
-        reagent/reagent {:mvn/version "1.2.0"}
         thheller/shadow-cljs {:mvn/version "2.19.0"}}
  :aliases {:test {:extra-paths ["test"]
                   :extra-deps {io.github.cognitect-labs/test-runner

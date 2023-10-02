@@ -445,32 +445,6 @@ let repos = [
   }
 
   rec {
-    name = "priority-queue/shams";
-    src = fetchMavenArtifact {
-      inherit repos;
-      artifactId = "priority-queue";
-      groupId = "shams";
-      sha512 = "0fe37b55324e7c6bfcd338e7f72cdbaa5987c918877469685e3e23a34da0e8657c6453bf8af5378bb21ba2eff57c767857306ebcba4676525602e07c91194f8c";
-      version = "0.1.2";
-
-    };
-    paths = [ src ];
-  }
-
-  rec {
-    name = "reagent/reagent";
-    src = fetchMavenArtifact {
-      inherit repos;
-      artifactId = "reagent";
-      groupId = "reagent";
-      sha512 = "c15ceec91a05ac90d69f9499a8f1088ea794fc017ffec7b9d941f4e46a5c731704893e301f1b4d887082dc807294547e5846784a5a21ee4d768508c47b493d3a";
-      version = "1.2.0";
-
-    };
-    paths = [ src ];
-  }
-
-  rec {
     name = "msgpack/org.msgpack";
     src = fetchMavenArtifact {
       inherit repos;
