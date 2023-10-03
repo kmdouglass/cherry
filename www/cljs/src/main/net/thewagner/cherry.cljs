@@ -333,7 +333,7 @@
 
 (defn ^:dev/before-load stop []
   (unlisten-events!)
-  (async/close! stop))
+  (async/close! done))
 
 (defn init []
   (start))
