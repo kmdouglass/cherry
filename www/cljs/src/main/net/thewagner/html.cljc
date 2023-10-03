@@ -4,7 +4,7 @@
 
 (def table
   (html
-    [:nav.level
+    [:nav.level {:id :surfaces-table-nav}
       [:div.level-left
         [:div.level-item
           [:p.subtitle "Surfaces"]]]
@@ -51,4 +51,4 @@
       [:script {:deferred true :src "./main.js"}]]))
 
 (comment
-  (spit "build/index.html" index))
+  (spit "public/index.html" index))

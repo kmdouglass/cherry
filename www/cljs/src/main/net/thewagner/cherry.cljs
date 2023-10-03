@@ -3,15 +3,17 @@
             [goog.events :as events]
             [goog.functions :refer [throttle]]
             [goog.dom.classlist :as classlist]
+            [clojure.string :as string]
             [cljs.spec.alpha :as s]
             [cljs.spec.gen.alpha :as gen]
-            [cljs.core.async :as async :refer [<! >!]]
+            [cljs.core.async :as async :refer [chan <! >!]]
             [cljs.core.async.interop :refer-macros [<p!]]
             [cljs.tools.reader.edn :as edn]
             [rendering]
             [cherry :as cherry-async]
             [kmdouglass.cherry :as cherry-spec]
-            [clojure.test.check.generators]))
+            [clojure.test.check.generators])
+  (:import [goog.events EventType]))
 
 (defmulti row-type :surface-type)
 (defmethod row-type ::cherry-spec/ObjectPlane [_]
@@ -169,6 +171,21 @@
 (comment
   (prefill-row {::cherry-spec/n 2} ::cherry-spec/Stop))
 
+(defn decimal-padding [s width]
+  (let [[l r] (string/split s ".")
+        diff (max 0 (- width (count r)))
+        pad (apply str (repeat diff "0"))]
+    (if (= s l)
+      (str "." pad)
+      pad)))
+
+(comment
+  (decimal-padding "1.234" 5)
+  (decimal-padding "1" 5))
+
+(defn hidden-padding [pad]
+  (dom/createDom "span" #js {:style "visibility:hidden"} pad))
+
 (defprotocol IValidated
   (-set-valid! [input])
   (-set-invalid! [input]))
@@ -190,6 +207,27 @@
 
 (defprotocol IPrefill
   (-prefill! [ui data]))
+
+(defprotocol IEditable
+  (-start-edit! [ui])
+  (-stop-edit! [ui]))
+
+(extend-type js/HTMLTableCellElement
+  IEditable
+  (-start-edit! [ui]
+    (let [value (.-innerText ui)
+          input (dom/createDom "input" #js {:class "input" :value value})]
+      (dom/replaceNode (dom/createDom "td" {} input)
+                       ui)
+      (.focus input)))
+  (-stop-edit! [ui]
+    (let [input (first (dom/getElementsByTagName "input" ui))
+          value (.-value input)
+          pad (decimal-padding value 5)]
+      (dom/replaceNode (dom/createDom "td" {}
+                         (dom/createTextNode value)
+                         (hidden-padding pad))
+                       ui))))
 
 (defn- tbody [table]
   (first (dom/getElementsByTagName "tbody" table)))
@@ -233,15 +271,16 @@
     ; Parameter columns
     (doseq [k parameters]
       (dom/appendChild row
-        (dom/createDom "td" {}
-          (when-let [value (get data k)]
-            (dom/createDom "input" #js {:class "input" :value value})))))
+        (if-let [value (get data k)]
+          (let [pad (decimal-padding (str value) 5)]
+             (dom/createDom "td" {}
+               (dom/createTextNode value)
+               (hidden-padding pad)))
+          (dom/createDom "td" {}))))
     ; Actions
     (dom/appendChild row
       (dom/createDom "td" {}
         (dom/createDom "button" #js {:class "button"} "Delete")))))
-
-(defonce state (atom {:event-handlers #{}}))
 
 (defn tag-match [tag]
   (fn [el]
@@ -253,65 +292,76 @@
         row (.closest col "tr")]
     [(.-rowIndex row) (.-cellIndex col)]))
 
-(defn listen-events! [{:keys [preset param-input row-edit select resize]}]
-  (let [table (dom/getElement "surfaces-table")
-        event-keys [(goog.events.listen js/window events/EventType.RESIZE
-                       #(async/put! resize %))
+(defonce event-handlers (atom #{}))
 
-                    (goog.events.listen (dom/getElement "new-row-button") events/EventType.CLICK
-                       #(async/put! row-edit [:insert-row -1]))
+(defn listen
+  ([src event-type] (listen src event-type (chan)))
+  ([src event-type c]
+   (let [handler (events/listen src event-type (fn [e] (async/offer! c e)))]
+     (swap! event-handlers conj handler)
+     c)))
 
-                    (goog.events.listen (dom/getElement "preset-planoconvex-button") events/EventType.CLICK
-                       #(async/put! preset cherry-spec/planoconvex))
+(defn unlisten-all! []
+  (doseq [k @event-handlers] (events/unlistenByKey k))
+  (reset! event-handlers #{}))
 
-                    (goog.events.listen (dom/getElement "preset-petzval-button") events/EventType.CLICK
-                       #(async/put! preset cherry-spec/petzval))
+(comment
+  (unlisten-all!)
+  (listen js/window EventType.MOUSEMOVE (chan 1 (map (fn [e] (do (js/console.log e) e))))))
 
-                    (goog.events.listen (dom/getElement "preset-random-button") events/EventType.CLICK
-                       #(async/put! preset (random-surfaces-and-gaps)))
-
-                    (goog.events.listen table events/EventType.CLICK
-                      (fn [e]
-                        (let [el (.. e -target)]
-                          (when ((tag-match "button") el)
-                            (let [[row _col] (table-coords el)]
-                              (async/put! row-edit [:delete-row (dec row)]))))))
-
-                    (goog.events.listen table events/EventType.INPUT
-                      (throttle
-                        (fn [e]
-                          (let [el (.. e -target)
-                                [row col] (table-coords el)]
-                            (cond
-                              ((tag-match "input") el)
-                              (let [spec (get parameters (dec col))]
-                                (async/put! param-input [el (dec row) spec (.-value el)]))
-
-                              ((tag-match "select") el)
-                              (let [tr (.closest el "tr")
-                                    value (edn/read-string (.-value el))]
-                                (async/put! select [tr (dec row) value])))))
-                        250))]]
-    (swap! state update :event-handlers #(into % event-keys))))
-
-(defn unlisten-events! []
-  (doseq [k (@state :event-handlers)]
-    (events/unlistenByKey k))
-  (swap! state assoc :event-handlers #{}))
-
-(def done (async/chan))
+(def done (chan))
 
 ; https://code.thheller.com/blog/shadow-cljs/2019/08/25/hot-reload-in-clojurescript.html
 (defn ^:dev/after-load start []
   (let [table (dom/getElement "surfaces-table")
-        canvas (dom/getElement "systemModel")
-        preset (async/chan)
-        param-input (async/chan)
-        row-edit (async/chan)
-        select (async/chan)
-        result (async/chan)
-        resize (async/chan)]
-    (listen-events! {:preset preset :param-input param-input :row-edit row-edit :select select :resize resize})
+        resize (listen js/window EventType/RESIZE)
+        preset (listen (dom/getElement "surfaces-table-nav") EventType/CLICK
+                 (chan 1 (comp (map #(case (.. % -target -id)
+                                           "preset-planoconvex-button" cherry-spec/planoconvex
+                                           "preset-petzval-button"     cherry-spec/petzval
+                                           "preset-random-button"      (random-surfaces-and-gaps)
+                                            nil))
+                               (filter some?))))
+        param-input (listen table EventType/INPUT
+                      (chan 1 (comp
+                                (filter #((tag-match "input") (.. % -target)))
+                                (map (fn [e]
+                                       (let [el (.. e -target)
+                                             [row col] (table-coords el)
+                                             spec (get parameters (dec col))]
+                                         [el (dec row) spec (.-value el)]))))))
+        select (listen table EventType/INPUT
+                 (chan 1 (comp
+                           (filter #((tag-match "select") (.. % -target)))
+                           (map (fn [e]
+                                  (let [el (.. e -target)
+                                        [row col] (table-coords el)
+                                        tr (.closest el "tr")
+                                        value (edn/read-string (.-value el))]
+                                    [tr (dec row) value]))))))
+        row-edit (async/merge
+                   [(listen (dom/getElement "new-row-button") EventType.CLICK
+                      (chan 1 (map (constantly [:insert-row -1]))))
+                    (listen table EventType.CLICK
+                      (chan 1 (comp
+                                (map (fn [e]
+                                       (let [el (.. e -target)
+                                             [row col] (table-coords el)]
+                                         (cond
+                                           ((tag-match "button") el) [:delete-row (dec row)]
+                                           (and ((tag-match "td") el)
+                                                (not (empty? (.-innerText el)))
+                                                (< 0 col 6))
+                                           [:start-edit (dec row) col el]))))
+                                (filter some?))))
+                    (listen table EventType.FOCUSOUT
+                      (chan 1 (comp
+                                (filter #((tag-match "input") (.. % -target)))
+                                (map (fn [e]
+                                       (let [el (.. e -target)
+                                             [row col] (table-coords el)]
+                                         [:stop-edit (dec row) col (.closest el "td")]))))))])
+        result (chan)]
     ; Input process
     (async/go-loop [rows []]
       ; If we have valid inputs, send it to the raytracer
@@ -326,11 +376,16 @@
         preset ([d] (let [data (surfaces-and-gaps->rows d)]
                       (-prefill! table data)
                       (recur data)))
-        row-edit ([[op row]] (case op
-                               :insert-row (do (-insert-row! table {})
-                                               (recur (conj rows {})))
-                               :delete-row (do (-delete-row! table row)
-                                               (recur (vec-remove rows row)))))
+        row-edit ([[op row col el]]
+                  (case op
+                   :start-edit (do (-start-edit! el)
+                                   (recur rows))
+                   :stop-edit (do (-stop-edit! el)
+                                  (recur rows))
+                   :insert-row (do (-insert-row! table {})
+                                   (recur (conj rows {})))
+                   :delete-row (do (-delete-row! table row)
+                                   (recur (vec-remove rows row)))))
         select ([[tr row value]] (let [new-row (prefill-row (get rows row) value)]
                                    (-prefill! tr new-row)
                                    (recur (assoc rows row new-row))))
@@ -341,7 +396,8 @@
                                                  (recur rows))))))
     ; Render process
     (async/go-loop [r {}]
-      (let [{:keys [surface-samples ray-samples]} r
+      (let [canvas (dom/getElement "systemModel")
+            {:keys [surface-samples ray-samples]} r
             width (.-clientWidth (.closest canvas "div"))
             aspect-ratio 3]
          (set! (.-width canvas) width)
@@ -353,7 +409,7 @@
         resize ([_] (recur r))))))
 
 (defn ^:dev/before-load stop []
-  (unlisten-events!)
+  (unlisten-all!)
   (async/close! done))
 
 (defn init []
