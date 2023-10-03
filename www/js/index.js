@@ -1,22 +1,16 @@
 import { WasmSystemModel } from "cherry";
 import { centerOfMass, draw, resultsToRayPaths, scaleFactor, toCanvasCoordinates } from "./modules/rendering.js"
-import { surfaces, gaps } from "./modules/petzval_lens.js";
+import { surfaces, gaps, aperture, fields } from "./modules/petzval_lens.js";
+// import { surfaces, gaps, aperture, fields } from "./modules/planoconvex_lens.js";
 
 let wasmSystemModel = new WasmSystemModel();
 
-// Set the system aperture to an entrance pupil diameter to 40 mm
-let aperture = {"EntrancePupilDiameter": { diam: 40 }};
-wasmSystemModel.setAperture(aperture);
-
-// Loop over surfaces and gaps and insert them into the system model
-for (let i = 0; i < surfaces.length; i++) {
-    let surface = surfaces[i];
-    let gap = gaps[i];
-    wasmSystemModel.insertSurfaceAndGap(i + 1, surface, gap);
-}
-
-// Set the object space thickness to 200 mm
-wasmSystemModel.setObjectSpace(1.0, 200);
+//Build the optical system
+wasmSystemModel.setSurfaces(surfaces);
+wasmSystemModel.setGaps(gaps);
+wasmSystemModel.setApertureV2(aperture);  // TODO Change name once the old setAperture is removed
+wasmSystemModel.setFields(fields);
+wasmSystemModel.build();
 
 console.log("Surfaces:", wasmSystemModel.surfaces());
 console.log("Gaps:", wasmSystemModel.gaps());

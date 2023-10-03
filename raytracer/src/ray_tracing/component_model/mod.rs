@@ -187,7 +187,7 @@ mod tests {
     use crate::ray_tracing::{Gap, SystemModel};
 
     fn system_model() -> SystemModel {
-        let mut system_model = SystemModel::new();
+        let mut system_model = SystemModel::old();
 
         let surf_spec_1 = SurfaceSpec::RefractingCircularConic {
             diam: 25.0,
