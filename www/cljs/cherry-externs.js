@@ -1,7 +1,12 @@
 var WasmSystemModel = {}
-WasmSystemModel.insertSurfaceAndGap = function(index, surface, gap) {}
-WasmSystemModel.setAperture = function(aperture) {}
-WasmSystemModel.surfaces = function() {}
+WasmSystemModel.build = function() {}
 WasmSystemModel.gaps = function() {}
+WasmSystemModel.insertSurfaceAndGap = function(index, surface, gap) {}
 WasmSystemModel.rayTrace = function() {}
 WasmSystemModel.sampleSurfYZ = function(surface, numSamples) {}
+WasmSystemModel.setAperture = function(aperture) {}
+WasmSystemModel.setApertureV2 = function(aperture) {}
+WasmSystemModel.setFields = function(fields) {}
+WasmSystemModel.setGaps = function(gaps) {}
+WasmSystemModel.setSurfaces = function(surfaces) {}
+WasmSystemModel.surfaces = function() {}

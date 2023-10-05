@@ -14,6 +14,12 @@
             [clojure.test.check.generators]))
 
 (defmulti row-type :surface-type)
+(defmethod row-type ::cherry-spec/ObjectPlane [_]
+  (s/merge ::cherry-spec/ObjectPlane ::cherry-spec/gap))
+
+(defmethod row-type ::cherry-spec/ImagePlane [_]
+  ::cherry-spec/ImagePlane)
+
 (defmethod row-type ::cherry-spec/RefractingCircularFlat [_]
   (s/merge ::cherry-spec/RefractingCircularFlat ::cherry-spec/gap))
 
@@ -26,7 +32,15 @@
 (s/def ::row (s/multi-spec row-type :surface-type))
 
 (def surface-types
-  {::cherry-spec/RefractingCircularConic
+  {::cherry-spec/ObjectPlane
+   {:display-name "Object Plane"
+    :default #::cherry-spec{:diam 1 :n 1 :thickness 1}}
+
+   ::cherry-spec/ImagePlane
+   {:display-name "Image Plane"
+    :default #::cherry-spec{:diam 1}}
+
+   ::cherry-spec/RefractingCircularConic
    {:display-name "Conic"
     :default #::cherry-spec{:n 1 :thickness 1 :diam 1 :roc 1 :k 1}}
 
@@ -46,10 +60,15 @@
   (into (subvec coll 0 pos) (subvec coll (inc pos))))
 
 (defn rows->surfaces-and-gaps [rows]
- (for [row rows]
-   (vector
-    {(:surface-type row) (dissoc row :surface-type ::cherry-spec/thickness ::cherry-spec/n)}
-    (select-keys row [::cherry-spec/thickness ::cherry-spec/n]))))
+  (reduce
+    (fn [result row]
+      (let [gap     (select-keys row [::cherry-spec/thickness ::cherry-spec/n])
+            surface (dissoc row :surface-type ::cherry-spec/thickness ::cherry-spec/n)]
+        (cond-> result
+          true          (update :surfaces conj {(row :surface-type) surface})
+          (not= gap {}) (update :gaps conj gap))))
+    {:surfaces [] :gaps []}
+    rows))
 
 (defn entrance-pupil-diameter->aperture [d]
   {::cherry-spec/EntrancePupilDiameter {::cherry-spec/diam d}})
@@ -62,7 +81,7 @@
           {:surface-type surface-type}
           (get surface surface-type)
           gap)))
-    (partition 2 2 surfaces-and-gaps)))
+    (partition 2 2 nil surfaces-and-gaps)))
 
 (defn random-surfaces-and-gaps []
   (-> (s/tuple ::cherry-spec/surface ::cherry-spec/gap)
@@ -71,12 +90,14 @@
       flatten
       vec))
 
-(defn wasm-system-model [constructor {:keys [aperture surfaces-and-gaps]}]
-  (let [^js/WasmSystemModel m (new constructor)]
-    (doseq [[i [s g]] (map vector (range) surfaces-and-gaps)]
-       (.insertSurfaceAndGap m (inc i) (clj->js s) (clj->js g)))
-    (.setAperture m (clj->js aperture))
-    m))
+(defn wasm-system-model [constructor {:keys [surfaces gaps aperture]}]
+  (doto
+    (new constructor)
+    (.setSurfaces (clj->js surfaces))
+    (.setGaps (clj->js gaps))
+    (.setApertureV2 (clj->js aperture))
+    (.setFields (clj->js [{:angle 0} {:angle 5}]))
+    (.build)))
 
 (set! *warn-on-infer* true)
 (defn compute-results [raytrace-input]
@@ -294,9 +315,9 @@
     ; Input process
     (async/go-loop [rows []]
       ; If we have valid inputs, send it to the raytracer
-      (let [inputs {:aperture (entrance-pupil-diameter->aperture 20)
-                    :surfaces-and-gaps (rows->surfaces-and-gaps rows)}]
-        (if (s/valid? ::cherry-spec/raytrace-inputs inputs)
+      (let [inputs (merge (rows->surfaces-and-gaps rows)
+                          {:aperture (entrance-pupil-diameter->aperture 20)})]
+        (when (s/valid? ::cherry-spec/raytrace-inputs inputs)
           (>! result (<! (compute-results inputs)))))
 
       ; Wait for events
