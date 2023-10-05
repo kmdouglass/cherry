@@ -285,12 +285,12 @@
                             (cond
                               ((tag-match "input") el)
                               (let [spec (get parameters (dec col))]
-                                (async/put! param-input [el row spec (.-value el)]))
+                                (async/put! param-input [el (dec row) spec (.-value el)]))
 
                               ((tag-match "select") el)
                               (let [tr (.closest el "tr")
                                     value (edn/read-string (.-value el))]
-                                (async/put! select [tr row value])))))
+                                (async/put! select [tr (dec row) value])))))
                         250))]]
     (swap! state update :event-handlers #(into % event-keys))))
 
