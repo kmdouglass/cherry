@@ -316,7 +316,7 @@
     (async/go-loop [rows []]
       ; If we have valid inputs, send it to the raytracer
       (let [inputs (merge (rows->surfaces-and-gaps rows)
-                          {:aperture (entrance-pupil-diameter->aperture 20)})]
+                          {:aperture (entrance-pupil-diameter->aperture 10)})]
         (when (s/valid? ::cherry-spec/raytrace-inputs inputs)
           (>! result (<! (compute-results inputs)))))
 
