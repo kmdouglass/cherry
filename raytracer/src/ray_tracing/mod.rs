@@ -23,6 +23,54 @@ use surface_types::{
 
 const INIT_DIAM: f32 = 25.0;
 
+#[derive(Debug)]
+pub(crate) struct SystemBuilder {
+    surfaces: Vec<SurfaceSpec>,
+    gaps: Vec<Gap>,
+    aperture: Option<ApertureSpec>,
+    fields: Vec<FieldSpec>,
+}
+
+impl SystemBuilder {
+    pub fn new() -> Self {
+        Self {
+            surfaces: Vec::new(),
+            gaps: Vec::new(),
+            aperture: None,
+            fields: Vec::new(),
+        }
+    }
+
+    pub fn surfaces(&mut self, surfaces: Vec<SurfaceSpec>) -> &mut Self {
+        self.surfaces = surfaces;
+        self
+    }
+
+    pub fn gaps(&mut self, gaps: Vec<Gap>) -> &mut Self {
+        self.gaps = gaps;
+        self
+    }
+
+    pub fn aperture(&mut self, aperture: ApertureSpec) -> &mut Self {
+        self.aperture = Some(aperture);
+        self
+    }
+
+    pub fn fields(&mut self, fields: Vec<FieldSpec>) -> &mut Self {
+        self.fields = fields;
+        self
+    }
+
+    pub fn build(&self) -> Result<SystemModel> {
+        let aperture = self
+            .aperture
+            .ok_or(anyhow!("The system aperture must be specified."))?;
+        let model = SystemModel::new(&self.surfaces, &self.gaps, &aperture, &self.fields)?;
+
+        Ok(model)
+    }
+}
+
 /// A model of an optical system.
 #[derive(Debug)]
 pub(crate) struct SystemModel {
@@ -34,10 +82,105 @@ pub(crate) struct SystemModel {
 }
 
 impl SystemModel {
+    pub fn new(
+        surface_specs: &[SurfaceSpec],
+        gaps: &[Gap],
+        aperture: &ApertureSpec,
+        fields: &[FieldSpec],
+    ) -> Result<SystemModel> {
+        SystemModel::validate_surface_specs_and_gaps(surface_specs, gaps)?;
+        let surfaces = Self::specs_to_surfs(surface_specs, gaps);
+
+        let sequential_model = SequentialModel::new(&surfaces);
+        let component_model = ComponentModel::from(&sequential_model);
+        let paraxial_model = ParaxialModel::from(sequential_model.surfaces());
+
+        let model = Self {
+            comp_model: component_model,
+            seq_model: sequential_model,
+            parax_model: paraxial_model,
+            aperture: aperture.clone(),
+            fields: fields.to_vec(),
+        };
+
+        Ok(model)
+    }
+
+    fn validate_surface_specs_and_gaps(surfaces: &[SurfaceSpec], gaps: &[Gap]) -> Result<()> {
+        if surfaces.len() < 2 {
+            return Err(anyhow::anyhow!("At least two surfaces are required"));
+        }
+
+        if surfaces.len() != gaps.len() + 1 {
+            return Err(anyhow::anyhow!(
+                "The number of gaps must be one less than the number of surfaces"
+            ));
+        }
+
+        let first_surface = surfaces
+            .first()
+            .expect("At least two surfaces are required");
+        if let SurfaceSpec::ObjectPlane { .. } = first_surface {
+        } else {
+            return Err(anyhow::anyhow!("The first surface must be an object plane"));
+        }
+
+        let last_surface = surfaces.last().expect("At least two surfaces are required");
+        if let SurfaceSpec::ImagePlane { .. } = last_surface {
+        } else {
+            return Err(anyhow::anyhow!("The last surface must be an image plane"));
+        }
+
+        for surf in surfaces[1..surfaces.len() - 1].iter() {
+            if let SurfaceSpec::ObjectPlane { .. } = surf {
+                return Err(anyhow::anyhow!("There can only be one object surface"));
+            }
+
+            if let SurfaceSpec::ImagePlane { .. } = surf {
+                return Err(anyhow::anyhow!("There can only be one image surface"));
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Convert surface specs into surface objects.
+    fn specs_to_surfs(surface_specs: &[SurfaceSpec], gaps: &[Gap]) -> Vec<Surface> {
+        // Construct surfaces from the surface specs and gaps
+        let mut surfaces = Vec::new();
+        for (surf, gap) in surface_specs.iter().zip(gaps.iter()) {
+            let surface: Surface = Surface::from((surf, gap));
+            surfaces.push(surface);
+        }
+
+        // Add the image plane, which was left out of the zip iterator above
+        let pos = Vec3::new(0.0, 0.0, 0.0);
+        let dir = Vec3::new(0.0, 0.0, 0.0);
+        let diam = if let SurfaceSpec::ImagePlane { diam } = surface_specs.last().unwrap() {
+            *diam
+        } else {
+            panic!("The last surface must be an image plane");
+        };
+        let img_plane = Surface::new_img_plane(pos, dir, diam);
+        surfaces.push(img_plane);
+
+        // Shift all surfaces so that the first non-object surface is at z = 0
+        let obj_z = -gaps[0].thickness;
+        surfaces[0].set_pos(Vec3::new(0.0, 0.0, obj_z));
+        surfaces[1].set_pos(pos);
+        let mut dist = 0.0;
+        for (surf, gap) in surfaces[2..].iter_mut().zip(gaps[1..].iter()) {
+            dist += gap.thickness;
+            surf.set_pos(pos + Vec3::new(0.0, 0.0, dist));
+        }
+
+        surfaces
+    }
+
     /// Creates a new SystemModel with an object plane and an image plane.
     ///
     /// By convention, the first non-object surface lies at z = 0.
-    pub fn new() -> Self {
+    pub fn old() -> Self {
         let obj_plane = Surface::new_obj_plane(
             Vec3::new(0.0, 0.0, -1.0),
             Vec3::new(0.0, 0.0, 0.0),
@@ -87,8 +230,6 @@ impl SystemModel {
         surface_spec: SurfaceSpec,
         gap: Gap,
     ) -> Result<()> {
-        // TODO Can this be made atomic across all the submodels?
-        // Yes... only build the system once and make it immutable.
         let seq_model = self.seq_model_mut();
         let surface: Surface = Surface::from((&surface_spec, &gap));
         let preceding_surface = seq_model
@@ -109,7 +250,6 @@ impl SystemModel {
     }
 
     pub fn remove_surface_and_gap(&mut self, idx: usize) -> Result<()> {
-        // TODO Can this be made atomic across all the submodels?
         self.seq_model.remove_surface_and_gap(idx)?;
         self.parax_model.remove_element_and_gap(idx)?;
 
@@ -487,7 +627,7 @@ impl<'a> Iterator for SurfacePairIterator<'a> {
 
 /// Specifies a field.
 ///
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct FieldSpec {
     /// The angle the field makes with the optical axis, in degrees.
     angle: f32,
@@ -505,7 +645,7 @@ impl FieldSpec {
 ///
 /// For the moment, the entrance pupil is assumed to lie at the first surface, but this is not
 /// valid in general.
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, Copy, Deserialize, Serialize)]
 pub(crate) enum ApertureSpec {
     EntrancePupilDiameter { diam: f32 },
 }
@@ -554,7 +694,7 @@ mod tests {
         let surf_2 = SurfaceSpec::RefractingCircularFlat { diam: 25.0 };
         let gap_2 = Gap::new(1.0, 46.6);
 
-        let mut model = SystemModel::new();
+        let mut model = SystemModel::old();
         model.insert_surface_and_gap(1, surf_1, gap_1).unwrap();
         model.insert_surface_and_gap(2, surf_2, gap_2).unwrap();
         model.set_obj_space(1.0, f32::INFINITY).unwrap();
@@ -592,7 +732,7 @@ mod tests {
         };
         let gap_2 = Gap::new(1.0, f32::INFINITY);
 
-        let mut model = SystemModel::new();
+        let mut model = SystemModel::old();
         model.insert_surface_and_gap(1, surf_1, gap_1).unwrap();
         model.insert_surface_and_gap(2, surf_2, gap_2).unwrap();
         model.set_obj_space(1.0, 46.6).unwrap();
@@ -667,7 +807,7 @@ mod tests {
     // Test set_aperture_spec
     #[test]
     fn test_set_aperture_spec() {
-        let mut model = SystemModel::new();
+        let mut model = SystemModel::old();
         let aperture = ApertureSpec::EntrancePupilDiameter { diam: 10.0 };
 
         let result = model.set_aperture(aperture);
@@ -684,7 +824,7 @@ mod tests {
 
     #[test]
     fn test_axial_launch_point() {
-        let model = SystemModel::new();
+        let model = SystemModel::old();
 
         let obj_z = f32::NEG_INFINITY;
         let sur_z = 0.0;

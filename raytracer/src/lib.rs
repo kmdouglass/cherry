@@ -7,7 +7,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use wasm_bindgen::prelude::*;
 
 use ray_tracing::sequential_model::{SequentialModel, SurfaceSpec};
-use ray_tracing::{ApertureSpec, Gap, SystemModel};
+use ray_tracing::{ApertureSpec, Gap, SystemBuilder, SystemModel};
 
 static COUNTER: AtomicUsize = AtomicUsize::new(1);
 
@@ -19,6 +19,7 @@ fn get_id() -> usize {
 #[wasm_bindgen]
 #[derive(Debug)]
 pub struct WasmSystemModel {
+    builder: SystemBuilder,
     system_model: SystemModel,
 }
 
@@ -27,9 +28,50 @@ pub struct WasmSystemModel {
 impl WasmSystemModel {
     #[wasm_bindgen(constructor)]
     pub fn new() -> WasmSystemModel {
-        let system_model = SystemModel::new();
+        let builder = SystemBuilder::new();
+        let system_model = SystemModel::old();
 
-        WasmSystemModel { system_model }
+        WasmSystemModel {
+            builder,
+            system_model,
+        }
+    }
+
+    pub fn setSurfaces(&mut self, surfaces: JsValue) -> Result<(), JsError> {
+        let surfaces: Vec<SurfaceSpec> = serde_wasm_bindgen::from_value(surfaces)?;
+        self.builder.surfaces(surfaces);
+        Ok(())
+    }
+
+    pub fn setGaps(&mut self, gaps: JsValue) -> Result<(), JsError> {
+        let gaps: Vec<Gap> = serde_wasm_bindgen::from_value(gaps)?;
+        self.builder.gaps(gaps);
+        Ok(())
+    }
+
+    pub fn setApertureV2(&mut self, aperture: JsValue) -> Result<(), JsError> {
+        // TODO Rename this once the old setAperture is removed
+        let aperture: ApertureSpec = serde_wasm_bindgen::from_value(aperture)?;
+        self.builder.aperture(aperture);
+        Ok(())
+    }
+
+    pub fn setFields(&mut self, fields: JsValue) -> Result<(), JsError> {
+        let fields: Vec<ray_tracing::FieldSpec> = serde_wasm_bindgen::from_value(fields)?;
+        self.builder.fields(fields);
+        Ok(())
+    }
+
+    /// Build the system model from the builder's components.
+    ///
+    /// We don't return the new system model to JS because it would be removed from Rust's memory
+    /// management, likely causing memory leaks.
+    pub fn build(&mut self) -> Result<(), JsError> {
+        self.system_model = self
+            .builder
+            .build()
+            .map_err(|e| JsError::new(&e.to_string()))?;
+        Ok(())
     }
 
     pub fn insertSurfaceAndGap(

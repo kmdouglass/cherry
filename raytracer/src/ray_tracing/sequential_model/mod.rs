@@ -160,7 +160,7 @@ mod tests {
 
     fn planoconvex_lens_obj_at_inf() -> SystemModel {
         // The image is located at the lens back focal plane.
-        let mut system_model = SystemModel::new();
+        let mut system_model = SystemModel::old();
         let mut model = system_model.seq_model_mut();
 
         model
@@ -195,7 +195,7 @@ mod tests {
 
     fn planoconvex_lens_img_at_inf() -> SystemModel {
         // The object is located at the lens front focal plane.
-        let mut system_model = SystemModel::new();
+        let mut system_model = SystemModel::old();
         let mut model = system_model.seq_model_mut();
 
         model
@@ -244,7 +244,7 @@ mod tests {
 
     #[test]
     fn test_insert_surface_and_gap_before_another_surface() {
-        let mut system_model = SystemModel::new();
+        let mut system_model = SystemModel::old();
         let mut model = system_model.seq_model_mut();
 
         model
