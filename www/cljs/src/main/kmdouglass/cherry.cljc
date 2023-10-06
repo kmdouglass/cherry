@@ -3,17 +3,21 @@
             [clojure.spec.gen.alpha :as gen]))
 
 (s/def ::surface (s/or
+                   :ObjectPlane (s/keys :req [::ObjectPlane])
+                   :ImagePlane (s/keys :req [::ImagePlane])
                    :RefractingCircularFlat (s/keys :req [::RefractingCircularFlat])
                    :RefractingCircularConic (s/keys :req [::RefractingCircularConic])
                    :Stop (s/keys :req [::Stop])))
 
+(s/def ::ObjectPlane (s/keys :req [::diam]))
+(s/def ::ImagePlane (s/keys :req [::diam]))
 (s/def ::RefractingCircularFlat (s/keys :req [::diam]))
 (s/def ::RefractingCircularConic (s/keys :req [::diam ::roc ::k]))
 (s/def ::Stop (s/keys :req [::diam]))
 
 (s/def ::gap (s/keys :req [::n ::thickness]))
-(s/def ::surface-and-gap (s/cat :surface ::surface :gap ::gap))
-(s/def ::surfaces-and-gaps (s/coll-of ::surface-and-gap :min-count 1))
+(s/def ::surfaces (s/coll-of ::surface :min-count 2))
+(s/def ::gaps (s/coll-of ::gap))
 
 (def pos-number?
   (s/with-gen (s/and number? pos?)
@@ -35,7 +39,9 @@
 (s/def ::EntrancePupilDiameter (s/keys :req [::diam]))
 
 ; Ray-trace inputs
-(s/def ::raytrace-inputs (s/keys :req-un [::aperture ::surfaces-and-gaps]))
+(s/def ::raytrace-inputs (s/and (s/keys :req-un [::surfaces ::gaps ::aperture])
+                                (fn [{:keys [surfaces gaps]}] (= (count gaps) (dec (count surfaces))))
+                                (fn [{:keys [surfaces]}] (= :ObjectPlane (ffirst surfaces)))))
 
 ; Ray-race results
 (s/def ::raytrace-results (s/and (s/coll-of ::ray)
@@ -48,13 +54,18 @@
 (s/def ::samples (s/coll-of (s/tuple number? number? number?) :min-count 1))
 
 (def planoconvex
-  [{::RefractingCircularConic {::diam 25.0 ::roc 25.8 ::k 0.0}}
+  [{::ObjectPlane {::diam 50}}
+   {::n 1 ::thickness 50}
+   {::RefractingCircularConic {::diam 25.0 ::roc 25.8 ::k 0.0}}
    {::n 1.515 ::thickness 5.3}
    {::RefractingCircularFlat {::diam 25.0}}
-   {::n 1.0 ::thickness 46.6 ::diam 25.0}])
+   {::n 1.0 ::thickness 46.6 ::diam 25.0}
+   {::ImagePlane {::diam 50}}])
 
 (def petzval
-  [{::RefractingCircularConic {::diam 56.956, ::roc 99.56266, ::k 0.0}}
+  [{::ObjectPlane {::diam 50}}
+   {::n 1 ::thickness 200}
+   {::RefractingCircularConic {::diam 56.956, ::roc 99.56266, ::k 0.0}}
    {::n 1.5168 ::thickness 13.0}
    {::RefractingCircularConic {::diam 52.552, ::roc -86.84002, ::k 0.0}}
    {::n 1.6645 ::thickness 4.0}
@@ -71,7 +82,8 @@
    {::RefractingCircularConic {::diam 34.594, ::roc -38.17110, ::k 0.0}}
    {::n 1.6727 ::thickness 2.0}
    {::RefractingCircularFlat {::diam 37.88}}
-   {::n 1.0 ::thickness 1.87179}])
+   {::n 1.0 ::thickness 1.87179}
+   {::ImagePlane {::diam 50}}])
 
 (comment
   (def ex [[{:pos [8.74227794156468e-7 -20 -1], :dir [0 0 1], :terminated false}
