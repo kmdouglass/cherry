@@ -41,7 +41,8 @@
 ; Ray-trace inputs
 (s/def ::raytrace-inputs (s/and (s/keys :req-un [::surfaces ::gaps ::aperture])
                                 (fn [{:keys [surfaces gaps]}] (= (count gaps) (dec (count surfaces))))
-                                (fn [{:keys [surfaces]}] (= :ObjectPlane (ffirst surfaces)))))
+                                (fn [{:keys [surfaces]}] (= :ObjectPlane (ffirst surfaces)))
+                                (fn [{:keys [surfaces]}] (= :ImagePlane (first (last surfaces))))))
 
 ; Ray-race results
 (s/def ::raytrace-results (s/and (s/coll-of ::ray)
