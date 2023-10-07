@@ -13,7 +13,7 @@
             [cherry :as cherry-async]
             [kmdouglass.cherry :as cherry-spec]
             [clojure.test.check.generators])
-  (:import [goog.events EventType]))
+  (:import [goog.events EventType KeyCodes KeyHandler]))
 
 (defmulti row-type :surface-type)
 (defmethod row-type ::cherry-spec/ObjectPlane [_]
@@ -342,6 +342,14 @@
         row-edit (async/merge
                    [(listen (dom/getElement "new-row-button") EventType.CLICK
                       (chan 1 (map (constantly [:insert-row -1]))))
+                    (listen (KeyHandler. table) KeyHandler/EventType.KEY
+                      (chan 1 (comp
+                                (filter #((tag-match "input") (.. % -target)))
+                                (filter #(= (.-keyCode %) KeyCodes/ENTER))
+                                (map (fn [e]
+                                       (let [el (.. e -target)
+                                             [row col] (table-coords el)]
+                                         [:stop-edit (dec row) col (.closest el "td")]))))))
                     (listen table EventType.CLICK
                       (chan 1 (comp
                                 (map (fn [e]
