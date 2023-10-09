@@ -217,17 +217,16 @@
   (-start-edit! [ui]
     (let [value (.-innerText ui)
           input (dom/createDom "input" #js {:class "input" :value value})]
-      (dom/replaceNode (dom/createDom "td" {} input)
-                       ui)
+      (dom/removeChildren ui)
+      (dom/appendChild ui input)
       (.focus input)))
   (-stop-edit! [ui]
     (let [input (first (dom/getElementsByTagName "input" ui))
           value (.-value input)
           pad (decimal-padding value 5)]
-      (dom/replaceNode (dom/createDom "td" {}
-                         (dom/createTextNode value)
-                         (hidden-padding pad))
-                       ui))))
+      (dom/removeChildren ui)
+      (dom/appendChild ui (dom/createTextNode value))
+      (dom/appendChild ui (hidden-padding pad)))))
 
 (defn- tbody [table]
   (first (dom/getElementsByTagName "tbody" table)))
