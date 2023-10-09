@@ -286,11 +286,6 @@
     (when-let [tag-name (.-tagName el)]
       (= tag (.toLowerCase tag-name)))))
 
-(defn table-coords [el]
-  (let [col (.closest el "td")
-        row (.closest col "tr")]
-    [(.-rowIndex row) (.-cellIndex col)]))
-
 (defonce event-handlers (atom #{}))
 
 (defn listen
@@ -338,51 +333,45 @@
                                (filter some?))))
         param-input (listen table EventType/INPUT
                       (chan 1 (comp
-                                (filter #((tag-match "input") (.. % -target)))
-                                (map (fn [e]
-                                       (let [el (.. e -target)
-                                             [row col] (table-coords el)
-                                             spec (get parameters (dec col))]
-                                         [el (dec row) spec (.-value el)]))))))
+                                (map #(.-target %))
+                                (filter (tag-match "input"))
+                                (map locate-in-table))))
         select (listen table EventType/INPUT
                  (chan 1 (comp
-                           (filter #((tag-match "select") (.. % -target)))
-                           (map (fn [e]
-                                  (let [el (.. e -target)
-                                        [row col] (table-coords el)
-                                        tr (.closest el "tr")
-                                        value (edn/read-string (.-value el))]
-                                    [tr (dec row) value]))))))
+                           (map #(.-target %))
+                           (filter (tag-match "select"))
+                           (map locate-in-table)
+                           (map #(update % :value edn/read-string)))))
         row-edit (async/merge
                    [(listen (dom/getElement "new-row-button") EventType.CLICK
-                      (chan 1 (map (constantly [:insert-row -1]))))
+                      (chan 1 (map (constantly {:op :insert-row}))))
                     (listen (KeyHandler. table) KeyHandler/EventType.KEY
                       (chan 1 (comp
-                                (filter #((tag-match "input") (.. % -target)))
                                 (filter #(= (.-keyCode %) KeyCodes/ENTER))
-                                (map (fn [e]
-                                       (let [el (.. e -target)
-                                             [row col] (table-coords el)]
-                                         [:stop-edit (dec row) col (.closest el "td")]))))))
+                                (map #(.-target %))
+                                (filter (tag-match "input"))
+                                (map locate-in-table)
+                                (map #(assoc % :op :stop-edit)))))
                     (listen table EventType.CLICK
                       (chan 1 (comp
-                                (map (fn [e]
-                                       (let [el (.. e -target)
-                                             [row col] (table-coords el)]
-                                         (cond
-                                           ((tag-match "button") el) [:delete-row (dec row)]
-                                           (and ((tag-match "td") el)
-                                                (not (empty? (.-innerText el)))
-                                                (< 0 col 6))
-                                           [:start-edit (dec row) col el]))))
+                                (map #(.-target %))
+                                (map locate-in-table)
+                                (map (fn [{:keys [node column-index] :as loc}]
+                                       (cond
+                                         ((tag-match "button") node)
+                                         (assoc loc :op :delete-row)
+
+                                         (and ((tag-match "td") node)
+                                              (not (empty? (.-innerText node)))
+                                              (<= 0 column-index 5))
+                                         (assoc loc :op :start-edit))))
                                 (filter some?))))
                     (listen table EventType.FOCUSOUT
                       (chan 1 (comp
-                                (filter #((tag-match "input") (.. % -target)))
-                                (map (fn [e]
-                                       (let [el (.. e -target)
-                                             [row col] (table-coords el)]
-                                         [:stop-edit (dec row) col (.closest el "td")]))))))])
+                                (map #(.-target %))
+                                (filter (tag-match "input"))
+                                (map locate-in-table)
+                                (map #(assoc % :op :stop-edit)))))])
         result (chan)]
     ; Input process
     (async/go-loop [rows []]
@@ -398,24 +387,26 @@
         preset ([d] (let [data (surfaces-and-gaps->rows d)]
                       (-prefill! table data)
                       (recur data)))
-        row-edit ([[op row col el]]
+        row-edit ([{:keys [op td row-index]}]
                   (case op
-                   :start-edit (do (-start-edit! el)
+                   :start-edit (do (-start-edit! td)
                                    (recur rows))
-                   :stop-edit (do (-stop-edit! el)
+                   :stop-edit (do (-stop-edit! td)
                                   (recur rows))
                    :insert-row (do (-insert-row! table {})
                                    (recur (conj rows {})))
-                   :delete-row (do (-delete-row! table row)
-                                   (recur (vec-remove rows row)))))
-        select ([[tr row value]] (let [new-row (prefill-row (get rows row) value)]
-                                   (-prefill! tr new-row)
-                                   (recur (assoc rows row new-row))))
-        param-input ([[el row spec value]] (if-let [n (valid-number value spec)]
-                                             (do (-set-valid! el)
-                                                 (recur (assoc-in rows [row spec] n)))
-                                             (do (-set-invalid! el)
-                                                 (recur rows))))))
+                   :delete-row (do (-delete-row! table row-index)
+                                   (recur (vec-remove rows row-index)))))
+        select ([{:keys [tr row-index value]}]
+                (let [new-row (prefill-row (get rows row-index) value)]
+                 (-prefill! tr new-row)
+                 (recur (assoc rows row-index new-row))))
+        param-input ([{:keys [node row-index column value]}]
+                     (if-let [n (valid-number value column)]
+                       (do (-set-valid! node)
+                           (recur (assoc-in rows [row-index column] n)))
+                       (do (-set-invalid! node)
+                           (recur rows))))))
     ; Render process
     (async/go-loop [r {}]
       (let [canvas (dom/getElement "systemModel")
