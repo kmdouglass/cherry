@@ -310,6 +310,21 @@
 
 (def done (chan))
 
+(defn locate-in-table
+  "Locate the provided node in the nearest <table>"
+  [node]
+  (let [td (.closest node "td")
+        tr (.closest td "tr")
+        column-index (dec (.-cellIndex td))
+        row-index (dec (.-rowIndex tr))]
+    {:node node
+     :value (.-value node)
+     :column (get parameters column-index)
+     :tr tr
+     :td td
+     :row-index row-index
+     :column-index column-index}))
+
 ; https://code.thheller.com/blog/shadow-cljs/2019/08/25/hot-reload-in-clojurescript.html
 (defn ^:dev/after-load start []
   (let [table (dom/getElement "surfaces-table")
