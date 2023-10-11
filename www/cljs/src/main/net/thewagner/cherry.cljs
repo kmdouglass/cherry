@@ -355,6 +355,7 @@
                     (listen table EventType.CLICK
                       (chan 1 (comp
                                 (map #(.-target %))
+                                (filter #(contains? #{"button" "td"} (.. % -tagName toLowerCase)))
                                 (map locate-in-table)
                                 (map (fn [{:keys [node column-index] :as loc}]
                                        (cond
