@@ -41,7 +41,7 @@
         devShell = pkgs.mkShell {
           buildInputs = with pkgs; [
             clj2nix.defaultPackage.${system}
-            clojure
+            (clojure.override { jdk = openjdk_headless; })
             ghp-import
             yarn
 
@@ -86,7 +86,10 @@
           site = pkgs.stdenv.mkDerivation {
             name = "cherry-web-${version}";
 
-            buildInputs = [ pkgs.clojure pkgs.yarn ];
+            buildInputs = [
+              (pkgs.clojure.override { jdk = pkgs.openjdk_headless; })
+              pkgs.yarn
+            ];
 
             nodeModules = pkgs.mkYarnModules rec {
               pname = "cherry-web";
