@@ -159,7 +159,7 @@
                                                         (clj->js comSamples)
                                                         (clj->js canvasCenterCoords)
                                                         sf)]
-          (rendering/draw canvasRays ctx "red" 1.0))))))
+          (rendering/draw canvasRays ctx "#cc252c" 1.0))))))
 
 (defn prefill-row [old selected]
   (let [default (get-in surface-types [selected :default])]
