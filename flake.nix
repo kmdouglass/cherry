@@ -76,7 +76,7 @@
               export PKG_CONFIG_PATH="${pkgs.openssl.dev}/lib/pkgconfig"
 
               mkdir -p $out
-              wasm-pack build --target bundler --out-dir $out
+              wasm-pack build --release --target bundler --out-dir $out
             '';
 
             dontInstall = true;
