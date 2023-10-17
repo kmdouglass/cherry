@@ -1,5 +1,5 @@
 (ns net.thewagner.cherry
-  (:require [goog.dom :as dom]
+  (:require [goog.dom :as gdom]
             [goog.events :as events]
             [goog.functions :refer [throttle]]
             [goog.dom.classlist :as classlist]
@@ -12,7 +12,8 @@
             [rendering]
             [cherry :as cherry-async]
             [kmdouglass.cherry :as cherry-spec]
-            [clojure.test.check.generators])
+            [clojure.test.check.generators]
+            [science.browser.cherry.dom :as dom])
   (:import [goog.events EventType KeyCodes KeyHandler]))
 
 (defmulti row-type :surface-type)
@@ -184,7 +185,7 @@
   (decimal-padding "1" 5))
 
 (defn hidden-padding [pad]
-  (dom/createDom "span" #js {:style "visibility:hidden"} pad))
+  (dom/build [:span {:style "visibility:hidden"} pad]))
 
 (defprotocol IValidated
   (-set-valid! [input])
@@ -215,71 +216,62 @@
 (extend-type js/HTMLTableCellElement
   IEditable
   (-start-edit! [ui]
-    (let [value (.-innerText ui)
-          input (dom/createDom "input" #js {:class "input" :value value})]
-      (dom/removeChildren ui)
-      (dom/appendChild ui input)
+    (let [input (dom/build [:input.input {:value (.-innerText ui)}])]
+      (dom/remove-children ui)
+      (dom/append ui input)
       (.focus input)))
   (-stop-edit! [ui]
-    (let [input (first (dom/getElementsByTagName "input" ui))
+    (let [input (first (gdom/getElementsByTagName "input" ui))
           value (.-value input)
           pad (decimal-padding value 5)]
-      (dom/removeChildren ui)
-      (dom/appendChild ui (dom/createTextNode value))
-      (dom/appendChild ui (hidden-padding pad)))))
+      (-> (dom/remove-children ui)
+          (dom/append (dom/text value))
+          (dom/append (hidden-padding pad))))))
 
 (defn- tbody [table]
-  (first (dom/getElementsByTagName "tbody" table)))
+  (first (gdom/getElementsByTagName "tbody" table)))
 
 (extend-type js/HTMLTableElement
   IDataGrid
   (-insert-row! [table data]
-    (let [row (dom/createDom "tr")]
+    (let [row (dom/build [:tr])]
       (-prefill! row data)
-      (dom/appendChild (tbody table) row)))
+      (dom/append (tbody table) row)))
 
   (-delete-row! [table n]
     (.deleteRow table (inc n)))
 
   IPrefill
   (-prefill! [table rows]
-    (dom/removeChildren (tbody table))
+    (dom/remove-children (tbody table))
     (doseq [r rows]
       (-insert-row! table r))))
 
 (extend-type js/HTMLTableRowElement
   IPrefill
   (-prefill! [row data]
-    (dom/removeChildren row)
+    (dom/remove-children row)
     ; Surface select combo-box
-    (dom/appendChild row
-      (dom/createDom "td" {}
-        (dom/createDom "div" #js {:class "select"}
-          (dom/createDom "select" {}
-            ; Default option to promt the user to select
-            (dom/createDom "option" #js {:selected (nil? (:surface-type data))
-                                         :disabled true
-                                         :hidden true}
-                           "Select")
-            ; Surface types
-            (clj->js
-              (for [[k v] surface-types]
-                (dom/createDom "option" #js {:value (str k)
-                                             :selected (= k (:surface-type data))}
-                               (:display-name v))))))))
+    (dom/append row
+      (dom/build
+        [:td
+          [:div.select
+           (into
+             [:select
+               [:option {:selected (nil? (:surface-type data)) :disabled true :hidden true} "Select"]]
+             (for [[k v] surface-types]
+               [:option {:selected (= k (:surface-type data)) :value (str k)} (:display-name v)]))]]))
+
     ; Parameter columns
     (doseq [k parameters]
-      (dom/appendChild row
-        (if-let [value (get data k)]
-          (let [pad (decimal-padding (str value) 5)]
-             (dom/createDom "td" {}
-               (dom/createTextNode value)
-               (hidden-padding pad)))
-          (dom/createDom "td" {}))))
+      (dom/append row
+        (dom/build
+          (if-let [value (get data k)]
+            (let [pad (decimal-padding (str value) 5)]
+              [:td (dom/text value) (hidden-padding pad)])
+            [:td]))))
     ; Actions
-    (dom/appendChild row
-      (dom/createDom "td" {}
-        (dom/createDom "button" #js {:class "button"} "Delete")))))
+    (dom/append row (dom/build [:td [:button.button "Delete"]]))))
 
 (defn tag-match [tag]
   (fn [el]
@@ -291,7 +283,8 @@
 (defn listen
   ([src event-type] (listen src event-type (chan)))
   ([src event-type c]
-   (let [handler (events/listen src event-type (fn [e] (async/offer! c e)))]
+   (let [node (if (keyword? src) (dom/get-element src) src)
+         handler (events/listen node event-type (fn [e] (async/offer! c e)))]
      (swap! event-handlers conj handler)
      c)))
 
@@ -322,9 +315,9 @@
 
 ; https://code.thheller.com/blog/shadow-cljs/2019/08/25/hot-reload-in-clojurescript.html
 (defn ^:dev/after-load start []
-  (let [table (dom/getElement "surfaces-table")
+  (let [table (dom/get-element :surfaces-table)
         resize (listen js/window EventType/RESIZE)
-        preset (listen (dom/getElement "surfaces-table-nav") EventType/CLICK
+        preset (listen :surfaces-table-nav EventType/CLICK
                  (chan 1 (comp (map #(case (.. % -target -id)
                                            "preset-planoconvex-button" cherry-spec/planoconvex
                                            "preset-petzval-button"     cherry-spec/petzval
@@ -343,7 +336,7 @@
                            (map locate-in-table)
                            (map #(update % :value edn/read-string)))))
         row-edit (async/merge
-                   [(listen (dom/getElement "new-row-button") EventType.CLICK
+                   [(listen :new-row-button EventType.CLICK
                       (chan 1 (map (constantly {:op :insert-row}))))
                     (listen (KeyHandler. table) KeyHandler/EventType.KEY
                       (chan 1 (comp
@@ -364,7 +357,7 @@
 
                                          (and ((tag-match "td") node)
                                               (not (empty? (.-innerText node)))
-                                              (<= 0 column-index 5))
+                                              (<= 0 column-index 4))
                                          (assoc loc :op :start-edit))))
                                 (filter some?))))
                     (listen table EventType.FOCUSOUT
@@ -410,7 +403,7 @@
                            (recur rows))))))
     ; Render process
     (async/go-loop [r {}]
-      (let [canvas (dom/getElement "systemModel")
+      (let [canvas (dom/get-element :systemModel)
             {:keys [surface-samples ray-samples]} r
             width (.-clientWidth (.closest canvas "div"))
             aspect-ratio 3]
