@@ -203,7 +203,8 @@
     (and (s/valid? spec number) number)))
 
 (defprotocol IDataGrid
-  (-insert-row! [table row])
+  (-append-row! [table row])
+  (-insert-row-at! [table row index])
   (-delete-row! [table n]))
 
 (defprotocol IPrefill
@@ -233,10 +234,15 @@
 
 (extend-type js/HTMLTableElement
   IDataGrid
-  (-insert-row! [table data]
+  (-append-row! [table data]
     (let [row (dom/build [:tr])]
       (-prefill! row data)
       (dom/append (tbody table) row)))
+
+  (-insert-row-at! [table data index]
+    (let [row (dom/build [:tr])]
+      (-prefill! row data)
+      (gdom/insertChildAt (tbody table) row index)))
 
   (-delete-row! [table n]
     (.deleteRow table (inc n)))
@@ -245,7 +251,7 @@
   (-prefill! [table rows]
     (dom/remove-children (tbody table))
     (doseq [r rows]
-      (-insert-row! table r))))
+      (-append-row! table r))))
 
 (def object-or-image-plane? #{::cherry-spec/ObjectPlane ::cherry-spec/ImagePlane})
 
@@ -395,8 +401,8 @@
                                    (recur rows))
                    :stop-edit (do (-stop-edit! td)
                                   (recur rows))
-                   :insert-row (do (-insert-row! table {})
-                                   (recur (conj rows {})))
+                   :insert-row (do (-insert-row-at! table {} (dec (count rows)))
+                                   (recur (vec (concat (butlast rows) [{} (last rows)]))))
                    :delete-row (do (-delete-row! table row-index)
                                    (recur (vec-remove rows row-index)))))
         select ([{:keys [tr row-index value]}]
