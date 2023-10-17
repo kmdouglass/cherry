@@ -247,20 +247,24 @@
     (doseq [r rows]
       (-insert-row! table r))))
 
+(def object-or-image-plane? #{::cherry-spec/ObjectPlane ::cherry-spec/ImagePlane})
+
 (extend-type js/HTMLTableRowElement
   IPrefill
-  (-prefill! [row data]
+  (-prefill! [row {:keys [surface-type] :as data}]
     (dom/remove-children row)
     ; Surface select combo-box
     (dom/append row
       (dom/build
         [:td
-          [:div.select
-           (into
-             [:select
-               [:option {:selected (nil? (:surface-type data)) :disabled true :hidden true} "Select"]]
-             (for [[k v] surface-types]
-               [:option {:selected (= k (:surface-type data)) :value (str k)} (:display-name v)]))]]))
+         (if (object-or-image-plane? surface-type)
+           (dom/text (get-in surface-types [surface-type :display-name]))
+           [:div.select
+             (into
+               [:select
+                 [:option {:selected (nil? surface-type) :disabled true :hidden true} "Select"]]
+               (for [[k v] (remove #(object-or-image-plane? (first %)) surface-types)]
+                 [:option {:selected (= k surface-type) :value (str k)} (:display-name v)]))])]))
 
     ; Parameter columns
     (doseq [k parameters]
@@ -271,7 +275,11 @@
               [:td (dom/text value) (hidden-padding pad)])
             [:td]))))
     ; Actions
-    (dom/append row (dom/build [:td [:button.button "Delete"]]))))
+    (dom/append row
+      (dom/build
+        (if (object-or-image-plane? surface-type)
+          [:td]
+          [:td [:button.button "Delete"]])))))
 
 (defn tag-match [tag]
   (fn [el]
