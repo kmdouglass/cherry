@@ -38,6 +38,38 @@
     [:div.navbar-brand
       [:a.navbar-item {:href "https://browser.science"} cherry-raytracer]]])
 
+(defn tabs-nav [active]
+  (letfn [(current [t] (if (= t active) {:class :is-active} {}))]
+    [:ul
+      [:li (current :surfaces) [:a#surfaces "Surfaces"]]
+      [:li (current :fields) [:a#fields "Fields"]]
+      [:li (current :aperture) [:a#aperture "Aperture"]]]))
+
+(defn tabs-body [active]
+  (case active
+    :surfaces [:div.container table-nav table]
+    :aperture [:div.container
+                [:div.field.is-horizontal
+                  [:div.field-label.is-normal
+                    [:label.label "Entrance pupil diameter"]]
+                  [:div.field-body
+                    [:div.field
+                      [:p.control
+                        [:input.input {:disabled true :type "text" :value "10"}]]]]]]
+    :fields   [:div.container
+                [:div.columns.is-centered
+                  [:div.column.is-half
+                    [:table.table.is-fullwidth
+                      [:tr
+                        [:th "#"]
+                        [:th "Angle"]]
+                      [:tr
+                        [:th "1"]
+                        [:td "0"]]
+                      [:tr
+                        [:th "2"]
+                        [:td "5"]]]]]]))
+
 (def index-head
   [:head
       [:meta {:charset "UTF-8"}]
@@ -52,8 +84,9 @@
    [:section.section
      [:div.container
        [:canvas#systemModel]]
-     [:div.container
-       table-nav
-       table]]
+     [:div#system-parameters.tabs.is-centered
+       (tabs-nav :surfaces)]
+     [:div#tab-body
+       (tabs-body :surfaces)]]
    [:script {:deferred true :src "./index.js"}]
    [:script {:deferred true :src "./main.js"}]])
