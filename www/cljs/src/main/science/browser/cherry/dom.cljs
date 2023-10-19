@@ -26,10 +26,16 @@
 (defn normalize-args [tag args]
   (let [parts (string/split (name tag) #"(\.|#)")
         [tag attrs] [(first parts)
-                     (apply hash-map (map #(cond (= % ".") :class
-                                                 (= % "#") :id
-                                                 :else %)
-                                          (rest parts)))]]
+                     (reduce
+                       (fn [res [separator value]]
+                          (case separator
+                            "#" (assoc res :id value)
+                            "." (assoc res :class
+                                  (if-some [c (res :class)]
+                                     (string/join " " [c value])
+                                     value))))
+                       {}
+                       (partition 2 (rest parts)))]]
     (if (map? (first args))
       [tag (merge attrs (first args)) (rest args)]
       [tag attrs args])))
