@@ -29,6 +29,7 @@ pub(crate) struct SystemBuilder {
     gaps: Vec<Gap>,
     aperture: Option<ApertureSpec>,
     fields: Vec<FieldSpec>,
+    background: f32,
 }
 
 impl SystemBuilder {
@@ -38,6 +39,7 @@ impl SystemBuilder {
             gaps: Vec::new(),
             aperture: None,
             fields: Vec::new(),
+            background: 1.0,  // The background refractive index; hardcoded to air for now
         }
     }
 
@@ -65,7 +67,7 @@ impl SystemBuilder {
         let aperture = self
             .aperture
             .ok_or(anyhow!("The system aperture must be specified."))?;
-        let model = SystemModel::new(&self.surfaces, &self.gaps, &aperture, &self.fields)?;
+        let model = SystemModel::new(&self.surfaces, &self.gaps, &aperture, &self.fields, self.background)?;
 
         Ok(model)
     }
@@ -73,12 +75,13 @@ impl SystemBuilder {
 
 /// A model of an optical system.
 #[derive(Debug)]
-pub(crate) struct SystemModel {
+pub struct SystemModel {
     comp_model: ComponentModel,
     parax_model: ParaxialModel,
     seq_model: SequentialModel,
     aperture: ApertureSpec,
     fields: Vec<FieldSpec>,
+    background: f32,
 }
 
 impl SystemModel {
@@ -87,12 +90,13 @@ impl SystemModel {
         gaps: &[Gap],
         aperture: &ApertureSpec,
         fields: &[FieldSpec],
+        background: f32,
     ) -> Result<SystemModel> {
         SystemModel::validate_surface_specs_and_gaps(surface_specs, gaps)?;
         let surfaces = Self::specs_to_surfs(surface_specs, gaps);
 
         let sequential_model = SequentialModel::new(&surfaces);
-        let component_model = ComponentModel::from(&sequential_model);
+        let component_model = ComponentModel::new(&surfaces, background);
         let paraxial_model = ParaxialModel::from(sequential_model.surfaces());
 
         let model = Self {
@@ -101,6 +105,7 @@ impl SystemModel {
             parax_model: paraxial_model,
             aperture: aperture.clone(),
             fields: fields.to_vec(),
+            background: background,
         };
 
         Ok(model)
@@ -198,7 +203,7 @@ impl SystemModel {
         surfaces.push(img_plane);
 
         let sequential_model = SequentialModel::new(&surfaces);
-        let component_model = ComponentModel::from(&sequential_model);
+        let component_model = ComponentModel::new(&surfaces, 1.0f32);
         let paraxial_model = ParaxialModel::from(sequential_model.surfaces());
 
         let fields = vec![FieldSpec { angle: 0.0 }, FieldSpec { angle: 5.0 }];
@@ -209,6 +214,7 @@ impl SystemModel {
             parax_model: paraxial_model,
             aperture: ApertureSpec::EntrancePupilDiameter { diam: INIT_DIAM },
             fields: fields,
+            background: 1.0,
         }
     }
 
@@ -274,6 +280,11 @@ impl SystemModel {
 
     pub fn fields(&self) -> &[FieldSpec] {
         &self.fields
+    }
+
+    /// Return the background refractive index.
+    pub fn background(&self) -> f32 {
+        self.background
     }
 
     /// Determine the entrance pupil for the system.
@@ -628,12 +639,16 @@ impl<'a> Iterator for SurfacePairIterator<'a> {
 /// Specifies a field.
 ///
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub(crate) struct FieldSpec {
+pub struct FieldSpec {
     /// The angle the field makes with the optical axis, in degrees.
     angle: f32,
 }
 
 impl FieldSpec {
+    pub fn new(angle: f32) -> Self {
+        Self { angle }
+    }
+
     /// Return the angle the field makes with the optical axis, in degrees.
     #[inline]
     pub fn angle(&self) -> f32 {
@@ -646,7 +661,7 @@ impl FieldSpec {
 /// For the moment, the entrance pupil is assumed to lie at the first surface, but this is not
 /// valid in general.
 #[derive(Debug, Clone, Copy, Deserialize, Serialize)]
-pub(crate) enum ApertureSpec {
+pub enum ApertureSpec {
     EntrancePupilDiameter { diam: f32 },
 }
 
