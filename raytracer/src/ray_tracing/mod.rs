@@ -39,7 +39,7 @@ impl SystemBuilder {
             gaps: Vec::new(),
             aperture: None,
             fields: Vec::new(),
-            background: 1.0,  // The background refractive index; hardcoded to air for now
+            background: 1.0, // The background refractive index; hardcoded to air for now
         }
     }
 
@@ -67,7 +67,13 @@ impl SystemBuilder {
         let aperture = self
             .aperture
             .ok_or(anyhow!("The system aperture must be specified."))?;
-        let model = SystemModel::new(&self.surfaces, &self.gaps, &aperture, &self.fields, self.background)?;
+        let model = SystemModel::new(
+            &self.surfaces,
+            &self.gaps,
+            &aperture,
+            &self.fields,
+            self.background,
+        )?;
 
         Ok(model)
     }

@@ -6,37 +6,15 @@ use crate::ray_tracing::{Surface, SurfacePair, SurfacePairIterator};
 
 /// A component is a part of an optical system that can interact with light rays.
 ///
-/// Components come in two types: surfaces and elements. Surfaces are just single, isolated
-/// surfaces such as optical interfaces to a different medium. Elements are the most basic compound 
-/// optical components and are represented as sets of surfaces pairs.
+/// Components come in two types: elements, and stops. Elements are the most basic compound optical
+/// component and are represented as a set of surfaces pairs. Stops are hard stops that block light
+/// rays.
 ///
 /// To avoid copying data, only indexes are stored from the sequential models are stored.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Component {
-    Element {
-        surf_idxs: (usize, usize),
-    },
-    Surface {
-        surf_idx: usize,
-    },
-}
-
-impl Component {
-    pub fn new(surf_idxs: Vec<usize>) -> Result<Self> {
-        if surf_idxs.is_empty() {
-            bail!("Component must have at least one surface");
-        }
-
-        if surf_idxs.len() == 1 {
-            return Ok(Self::Surface { surf_idx: surf_idxs[0] });
-        }
-
-        if surf_idxs.len() == 2 {
-            return Ok(Self::Element { surf_idxs: (surf_idxs[0], surf_idxs[1]) });
-        }
-
-        bail!("Component must have at most two surfaces");
-    }
+    Element { surf_idxs: (usize, usize) },
+    Stop { stop_idx: usize },
 }
 
 #[derive(Debug)]
@@ -46,10 +24,10 @@ pub struct ComponentModel {
 
 impl ComponentModel {
     /// Build the component model from a collection of surfaces.
-    /// 
+    ///
     /// The surfaces must be in sequential order, with the first surface being the object plane and
     /// the last surface being the image plane.
-    /// 
+    ///
     /// # Arguments
     /// * `surfaces` - The surfaces to build the component model from.
     /// * `background` - The refractive index of the background medium.
@@ -58,15 +36,27 @@ impl ComponentModel {
 
         let mut surf_pairs = SurfacePairIterator::new(surfaces).enumerate();
         let max_idx = surfaces.len() - 1;
-        
+
         if max_idx < 2 {
             // There are no components because only the object and image plane exist.
-            return Self { components: components };
+            return Self {
+                components: components,
+            };
         }
 
         while let Some((i, surf_pair)) = surf_pairs.next() {
             if i == 0 || i == max_idx {
                 // Don't include the object or image plane surfaces
+                continue;
+            }
+
+            if let Surface::Stop(_) = surf_pair.0 {
+                // Stops are special, so be sure that they're added before anything else.
+                components.insert(Component::Stop { stop_idx: i });
+            }
+
+            if let Surface::Stop(_) = surf_pair.1 {
+                // Ensure that stops following surfaces are NOT added as a component
                 continue;
             }
 
@@ -76,16 +66,9 @@ impl ComponentModel {
                 continue;
             }
 
-            components.insert(Component::Surface { surf_idx: i });
-        }
-
-        // If the last non-image plane surface goes from background to another medium, then add it
-        // as a single isolated surface.
-        let last_surf = surfaces[max_idx - 1];
-        let next_to_last_surf = surfaces[max_idx - 2];
-        if ComponentModel::same_medium(next_to_last_surf.n(), background) &&
-            !ComponentModel::same_medium(last_surf.n(), background) {
-            components.insert(Component::Surface { surf_idx: max_idx - 1 });
+            components.insert(Component::Element {
+                surf_idxs: (i, i + 1),
+            });
         }
 
         Self {
@@ -102,15 +85,61 @@ impl ComponentModel {
 mod tests {
     use super::*;
 
-    use crate::test_cases::empty_system;
+    use crate::test_cases::{
+        empty_system, planoconvex_lens_obj_at_inf, silly_single_surface_and_stop,
+        wollaston_landscape_lens,
+    };
 
     #[test]
     fn test_new_no_components() {
         let system_model = empty_system();
 
-        let component_model = ComponentModel::new(system_model.seq_model.surfaces(), system_model.background());
+        let component_model =
+            ComponentModel::new(system_model.seq_model.surfaces(), system_model.background());
 
         assert_eq!(component_model.components.len(), 0);
     }
+
+    #[test]
+    fn test_planoconvex_lens() {
+        let system_model = planoconvex_lens_obj_at_inf();
+
+        let component_model =
+            ComponentModel::new(system_model.seq_model.surfaces(), system_model.background());
+
+        assert_eq!(component_model.components.len(), 1);
+        assert!(component_model
+            .components
+            .contains(&Component::Element { surf_idxs: (1, 2) }));
+    }
+
+    #[test]
+    fn test_silly_single_surface_and_stop() {
+        // This is not a useful system but a good test.
+        let system_model = silly_single_surface_and_stop();
+
+        let component_model =
+            ComponentModel::new(system_model.seq_model.surfaces(), system_model.background());
+
+        assert_eq!(component_model.components.len(), 1);
+        assert!(component_model
+            .components
+            .contains(&Component::Stop { stop_idx: 2 })); // Hard stop
+    }
+
+    #[test]
+    fn test_wollaston_landscape_lens() {
+        let system_model = wollaston_landscape_lens();
+
+        let component_model =
+            ComponentModel::new(system_model.seq_model.surfaces(), system_model.background());
+
+        assert_eq!(component_model.components.len(), 2);
+        assert!(component_model
+            .components
+            .contains(&Component::Stop { stop_idx: 1 })); // Hard stop
+        assert!(component_model
+            .components
+            .contains(&Component::Element { surf_idxs: (2, 3) })); // Lens
+    }
 }
-            
