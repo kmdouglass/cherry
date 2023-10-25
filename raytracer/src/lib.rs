@@ -1,5 +1,6 @@
 mod math;
 mod ray_tracing;
+pub(crate) mod test_cases;
 
 use std::f32::consts::PI;
 use std::sync::atomic::{AtomicUsize, Ordering};
