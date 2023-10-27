@@ -12,8 +12,7 @@ wasmSystemModel.setApertureV2(aperture);  // TODO Change name once the old setAp
 wasmSystemModel.setFields(fields);
 wasmSystemModel.build();
 
-console.log("Surfaces:", wasmSystemModel.surfaces());
-console.log("Gaps:", wasmSystemModel.gaps());
+console.log(wasmSystemModel.describe());
 
 // Plot the surfaces
 const canvas = document.getElementById("systemModelCanvas");
