@@ -7,6 +7,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use wasm_bindgen::prelude::*;
 
+use ray_tracing::description::SystemDescription;
 use ray_tracing::sequential_model::SequentialModel;
 use ray_tracing::{ApertureSpec, Gap, SurfaceSpec, SystemBuilder, SystemModel};
 
@@ -36,6 +37,13 @@ impl WasmSystemModel {
             builder,
             system_model,
         }
+    }
+
+    pub fn describe(&self) -> Result<JsValue, JsError> {
+        let descr = SystemDescription::new(&self.system_model);
+        let descr = serde_wasm_bindgen::to_value(&descr)?;
+
+        Ok(descr)
     }
 
     pub fn setSurfaces(&mut self, surfaces: JsValue) -> Result<(), JsError> {

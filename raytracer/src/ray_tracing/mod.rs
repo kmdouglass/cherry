@@ -15,6 +15,7 @@ use crate::math::mat3::Mat3;
 use crate::math::vec3::Vec3;
 
 use component_model::ComponentModel;
+use description::SystemDescription;
 use paraxial_model::ParaxialModel;
 use rays::Ray;
 use sequential_model::SequentialModel;
@@ -116,6 +117,11 @@ impl SystemModel {
         };
 
         Ok(model)
+    }
+
+    /// Returns a description of the system.
+    pub fn describe(&self) -> SystemDescription {
+        SystemDescription::new(self)
     }
 
     fn validate_surface_specs_and_gaps(surfaces: &[SurfaceSpec], gaps: &[Gap]) -> Result<()> {

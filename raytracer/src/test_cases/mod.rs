@@ -1,6 +1,4 @@
-use crate::ray_tracing::{
-    ApertureSpec, FieldSpec, Gap, SurfaceSpec, SystemBuilder, SystemModel,
-};
+use crate::ray_tracing::{ApertureSpec, FieldSpec, Gap, SurfaceSpec, SystemBuilder, SystemModel};
 
 pub fn empty_system() -> SystemModel {
     let surf_0 = SurfaceSpec::ObjectPlane { diam: 25.0 };

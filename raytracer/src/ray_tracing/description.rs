@@ -1,6 +1,5 @@
 /// Description of an optical system.
-
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use serde::{Deserialize, Serialize};
 
@@ -9,7 +8,7 @@ use crate::ray_tracing::{Component, Surface, SystemModel};
 
 const NUM_SAMPLES_PER_SURFACE: usize = 20;
 
-type SurfaceSamples = Vec<Vec<Vec3>>;
+type SurfaceSamples = HashMap<usize, Vec<Vec3>>;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SystemDescription {
@@ -50,10 +49,10 @@ struct SequentialModelDescr {
 
 impl SequentialModelDescr {
     fn new(surfaces: &[Surface], num_samples_per_surf: usize) -> Self {
-
-        let mut surface_samples = Vec::new();
-        for surface in surfaces {
-            surface_samples.push(surface.sample_yz(num_samples_per_surf));
+        let mut surface_samples = HashMap::new();
+        for (idx, surface) in surfaces.iter().enumerate() {
+            let samples = surface.sample_yz(num_samples_per_surf);
+            surface_samples.insert(idx, samples);
         }
 
         Self {
