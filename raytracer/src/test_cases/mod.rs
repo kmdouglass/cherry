@@ -1,5 +1,5 @@
 use crate::ray_tracing::{
-    sequential_model::SurfaceSpec, ApertureSpec, FieldSpec, Gap, SystemBuilder, SystemModel,
+    ApertureSpec, FieldSpec, Gap, SurfaceSpec, SystemBuilder, SystemModel,
 };
 
 pub fn empty_system() -> SystemModel {

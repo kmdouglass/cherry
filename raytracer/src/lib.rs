@@ -7,8 +7,8 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use wasm_bindgen::prelude::*;
 
-use ray_tracing::sequential_model::{SequentialModel, SurfaceSpec};
-use ray_tracing::{ApertureSpec, Gap, SystemBuilder, SystemModel};
+use ray_tracing::sequential_model::SequentialModel;
+use ray_tracing::{ApertureSpec, Gap, SurfaceSpec, SystemBuilder, SystemModel};
 
 static COUNTER: AtomicUsize = AtomicUsize::new(1);
 

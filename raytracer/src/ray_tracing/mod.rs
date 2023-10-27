@@ -1,4 +1,5 @@
 pub mod component_model;
+pub mod description;
 mod paraxial_model;
 pub mod rays;
 pub mod sequential_model;
@@ -16,7 +17,7 @@ use crate::math::vec3::Vec3;
 use component_model::ComponentModel;
 use paraxial_model::ParaxialModel;
 use rays::Ray;
-use sequential_model::{SequentialModel, SurfaceSpec};
+use sequential_model::SequentialModel;
 use surface_types::{
     ImagePlane, ObjectPlane, RefractingCircularConic, RefractingCircularFlat, Stop,
 };
@@ -639,6 +640,60 @@ impl<'a> Iterator for SurfacePairIterator<'a> {
         self.idx += 1;
 
         Some(SurfacePair(surf1, surf2))
+    }
+}
+
+/// A component is a part of an optical system that can interact with light rays.
+///
+/// Components come in two types: elements, and stops. Elements are the most basic compound optical
+/// component and are represented as a set of surfaces pairs. Stops are hard stops that block light
+/// rays.
+///
+/// To avoid copying data, only indexes are stored from the sequential models are stored.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum Component {
+    Element { surf_idxs: (usize, usize) },
+    Stop { stop_idx: usize },
+}
+
+/// Specifies a surface.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum SurfaceSpec {
+    ImagePlane { diam: f32 },
+    ObjectPlane { diam: f32 },
+    RefractingCircularConic { diam: f32, roc: f32, k: f32 },
+    RefractingCircularFlat { diam: f32 },
+    Stop { diam: f32 },
+}
+
+impl From<&Surface> for SurfaceSpec {
+    fn from(value: &Surface) -> Self {
+        match value {
+            Surface::ImagePlane(surf) => {
+                let surf = SurfaceSpec::ImagePlane { diam: surf.diam };
+                surf
+            }
+            Surface::ObjectPlane(surf) => {
+                let surf = SurfaceSpec::ObjectPlane { diam: surf.diam };
+                surf
+            }
+            Surface::RefractingCircularConic(surf) => {
+                let surf = SurfaceSpec::RefractingCircularConic {
+                    diam: surf.diam,
+                    roc: surf.roc,
+                    k: surf.k,
+                };
+                surf
+            }
+            Surface::RefractingCircularFlat(surf) => {
+                let surf = SurfaceSpec::RefractingCircularFlat { diam: surf.diam };
+                surf
+            }
+            Surface::Stop(surf) => {
+                let surf = SurfaceSpec::Stop { diam: surf.diam };
+                surf
+            }
+        }
     }
 }
 

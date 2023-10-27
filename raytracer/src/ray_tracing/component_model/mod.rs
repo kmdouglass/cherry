@@ -1,21 +1,7 @@
 use std::collections::HashSet;
 
-use anyhow::{bail, Result};
+use crate::ray_tracing::{Component, Surface, SurfacePairIterator};
 
-use crate::ray_tracing::{Surface, SurfacePair, SurfacePairIterator};
-
-/// A component is a part of an optical system that can interact with light rays.
-///
-/// Components come in two types: elements, and stops. Elements are the most basic compound optical
-/// component and are represented as a set of surfaces pairs. Stops are hard stops that block light
-/// rays.
-///
-/// To avoid copying data, only indexes are stored from the sequential models are stored.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum Component {
-    Element { surf_idxs: (usize, usize) },
-    Stop { stop_idx: usize },
-}
 
 #[derive(Debug)]
 pub struct ComponentModel {
@@ -74,6 +60,10 @@ impl ComponentModel {
         Self {
             components: components,
         }
+    }
+
+    pub fn components(&self) -> &HashSet<Component> {
+        &self.components
     }
 
     fn same_medium(n1: f32, n2: f32) -> bool {
