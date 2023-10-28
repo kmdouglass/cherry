@@ -295,9 +295,13 @@
     ; Actions
     (dom/append row
       (dom/build
-        (if (object-or-image-plane? surface-type)
-          [:td]
-          [:td [:button.button "Delete"]])))))
+        [:td
+          (cond-> [:div.field.is-grouped]
+            (not= surface-type ::cherry-spec/ImagePlane)
+            (conj [:p.control [:button.button.action-insert "Insert"]])
+
+            (not (object-or-image-plane? surface-type))
+            (conj [:p.control [:button.button.action-delete "Delete"]]))]))))
 
 (defprotocol ITabs
   (-set-active! [ui tab-name])
@@ -388,10 +392,8 @@
 
 (defn table-events [table]
   (let [preset (chan 1 (comp (map #(.. % -target -id))
-                             (keep {"preset-planoconvex-button" cherry-spec/planoconvex
-                                    "preset-petzval-button"     cherry-spec/petzval
-                                    "preset-random-button"      (random-surfaces-and-gaps)})))
-        new-row (chan 1 (map (constantly {:op :insert-row})))
+                             (keep {"preset-planoconvex" cherry-spec/planoconvex
+                                    "preset-petzval"     cherry-spec/petzval})))
         cell-click (chan 1
                      (comp
                        (map #(.-target %))
@@ -399,7 +401,10 @@
                        (map locate-in-table)
                        (keep (fn [{:keys [node column-index] :as loc}]
                                (cond
-                                 (isHtmlButtonElement node)
+                                 (and (isHtmlButtonElement node) (classlist/contains node "action-insert"))
+                                 (assoc loc :op :insert-row)
+
+                                 (and (isHtmlButtonElement node) (classlist/contains node "action-delete"))
                                  (assoc loc :op :delete-row)
 
                                  (and (isHtmlTableCellElement node)
@@ -412,10 +417,10 @@
                           (map locate-in-table)
                           (map #(update % :value edn/read-string))
                           (map #(assoc % :op :change-row-type))))]
-    (listen! :surfaces-table-nav EventType/CLICK preset)
+    (listen! (.querySelector js/document "nav.navbar") EventType/CLICK preset)
     (listen! table EventType.CLICK cell-click)
     (listen! table EventType.INPUT select)
-    {:preset preset :row-edit (async/merge [new-row cell-click select])}))
+    {:preset preset :row-edit (async/merge [cell-click select])}))
 
 (defn start-table!
   "Data grid process"
@@ -432,7 +437,8 @@
       ([{:keys [op tr td column row-index value] :as cmd}]
        (let [new-rows (case op
                         :edit-cell       (assoc-in rows [row-index column] value)
-                        :insert-row      (vec (concat (butlast rows) [{} (last rows)]))
+                        :insert-row      (let [[before after] (split-at (inc row-index) rows)]
+                                           (vec (concat before [{}] after)))
                         :delete-row      (vec-remove rows row-index)
                         :change-row-type (assoc rows row-index (prefill-row (get rows row-index) value))
                         rows)]
@@ -446,7 +452,7 @@
                (-stop-edit! td)
                (async/close! valid-values)))
            :insert-row
-           (-insert-row-at! table {} (dec (count rows)))
+           (-insert-row-at! table {} (inc row-index))
            :delete-row
            (-delete-row! table row-index)
            :change-row-type
@@ -475,10 +481,11 @@
   [done & {:keys [tabs input]}]
   (let [tab-done (chan)]
     (async/go-loop [active-tab :surfaces
-                    tab-proc (start-table! tab-done (merge (table-events (dom/get-element :surfaces-table))
-                                                           {:table (dom/get-element :surfaces-table)
-                                                            :rows []
-                                                            :out-ch input}))
+                    tab-proc (start-table! tab-done
+                                           (merge (table-events (dom/get-element :surfaces-table))
+                                                  {:table (dom/get-element :surfaces-table)
+                                                   :rows (surfaces-and-gaps->rows cherry-spec/object-and-image-plane)
+                                                   :out-ch input}))
                     tabs-state {}]
       (async/alt!
         done ([_] ::done)
@@ -495,7 +502,7 @@
                tab
                (when (= tab :surfaces)
                  (let [table (dom/get-element :surfaces-table)]
-                   (start-table! tab-done (merge {:table table :rows [] :out-ch input}
+                   (start-table! tab-done (merge {:table table :out-ch input}
                                                  (table-events table)
                                                  (tabs-state tab)))))
                (assoc tabs-state active-tab state)))))))))
@@ -515,8 +522,16 @@
     (start-tabs! done :tabs tabs :input input)
     (start-render! done :canvas (dom/get-element :systemModel) :result result)))
 
+(def burger-toggle-handler
+  (let [burger (.querySelector js/document ".navbar-burger")]
+    (events/listen burger EventType/CLICK
+      (fn [_]
+        (classlist/toggle burger "is-active")
+        (classlist/toggle (gdom/getElement (.. burger -dataset -target)) "is-active")))))
+
 (defn ^:dev/before-load stop []
-  (async/close! done))
+  (async/close! done)
+  (unlisten! burger-toggle-handler))
 
 (defn init []
   (start))
