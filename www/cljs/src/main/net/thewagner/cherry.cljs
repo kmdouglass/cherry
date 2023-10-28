@@ -1,5 +1,6 @@
 (ns net.thewagner.cherry
   (:require [goog.dom :as gdom]
+            [goog.dom.element :refer [isHtmlAnchorElement isHtmlButtonElement isHtmlElementOfType]]
             [goog.events :as events]
             [goog.dom.classlist :as classlist]
             [clojure.string :as string]
@@ -15,7 +16,8 @@
             [science.browser.cherry.dom :as dom]
             [net.thewagner.html :as html])
 
-  (:import [goog.events EventType KeyCodes KeyHandler]))
+  (:import [goog.events EventType KeyCodes KeyHandler]
+           [goog.dom TagName]))
 
 (defmulti row-type :surface-type)
 (defmethod row-type ::cherry-spec/ObjectPlane [_]
@@ -185,6 +187,9 @@
   (decimal-padding "1.234" 5)
   (decimal-padding "1" 5))
 
+(defn isHtmlTableCellElement [el] (isHtmlElementOfType el TagName/TD))
+(defn isHtmlSelectElement [el] (isHtmlElementOfType el TagName/SELECT))
+
 (defn hidden-padding [pad]
   (dom/build [:span {:style "visibility:hidden"} pad]))
 
@@ -308,11 +313,6 @@
     (dom/remove-children ui)
     (dom/append ui (dom/build (html/tabs-body tab-name)))))
 
-(defn tag-match [tag]
-  (fn [el]
-    (when-let [tag-name (.-tagName el)]
-      (= tag (.toLowerCase tag-name)))))
-
 (defn listen! [src event-type c]
   (let [node (if (keyword? src) (dom/get-element src) src)]
     (events/listen node event-type (fn [e] (async/put! c e)))))
@@ -388,29 +388,27 @@
 
 (defn table-events [table]
   (let [preset (chan 1 (comp (map #(.. % -target -id))
-                             (map {"preset-planoconvex-button" cherry-spec/planoconvex
-                                   "preset-petzval-button"     cherry-spec/petzval
-                                   "preset-random-button"      (random-surfaces-and-gaps)})
-                             (filter some?)))
+                             (keep {"preset-planoconvex-button" cherry-spec/planoconvex
+                                    "preset-petzval-button"     cherry-spec/petzval
+                                    "preset-random-button"      (random-surfaces-and-gaps)})))
         new-row (chan 1 (map (constantly {:op :insert-row})))
         cell-click (chan 1
                      (comp
                        (map #(.-target %))
-                       (filter #(contains? #{"button" "td"} (.. % -tagName toLowerCase)))
+                       (filter (some-fn isHtmlButtonElement isHtmlTableCellElement))
                        (map locate-in-table)
-                       (map (fn [{:keys [node column-index] :as loc}]
-                              (cond
-                                ((tag-match "button") node)
-                                (assoc loc :op :delete-row)
+                       (keep (fn [{:keys [node column-index] :as loc}]
+                               (cond
+                                 (isHtmlButtonElement node)
+                                 (assoc loc :op :delete-row)
 
-                                (and ((tag-match "td") node)
-                                     (seq (.-innerText node))
-                                     (<= 0 column-index 4))
-                                (assoc loc :op :start-edit))))
-                       (filter some?)))
+                                 (and (isHtmlTableCellElement node)
+                                      (seq (.-innerText node))
+                                      (<= 0 column-index 4))
+                                 (assoc loc :op :start-edit))))))
          select (chan 1 (comp
                           (map #(.-target %))
-                          (filter (tag-match "select"))
+                          (filter isHtmlSelectElement)
                           (map locate-in-table)
                           (map #(update % :value edn/read-string))
                           (map #(assoc % :op :change-row-type))))]
@@ -506,7 +504,7 @@
 (defn ^:dev/after-load start []
   (let [tabs (chan 1 (comp
                        (map #(.-target %))
-                       (filter (tag-match "a"))
+                       (filter isHtmlAnchorElement)
                        (map (fn [el] [(.closest el "div") (keyword (.-id el))]))))
         input (chan)
         result (chan)]
