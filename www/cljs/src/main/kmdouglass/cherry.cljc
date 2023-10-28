@@ -54,6 +54,11 @@
 (s/def ::surface-samples (s/coll-of (s/keys :req-un [::samples])))
 (s/def ::samples (s/coll-of (s/tuple number? number? number?) :min-count 1))
 
+(def object-and-image-plane
+  [{::ObjectPlane {::diam 50}}
+   {::n 1 ::thickness 50}
+   {::ImagePlane {::diam 50}}])
+
 (def planoconvex
   [{::ObjectPlane {::diam 50}}
    {::n 1 ::thickness 50}

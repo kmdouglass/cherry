@@ -1,22 +1,5 @@
 (ns net.thewagner.html)
 
-(def table-nav
-  [:nav.level {:id :surfaces-table-nav}
-    [:div.level-left
-      [:div.level-item
-        [:p.subtitle "Surfaces"]]]
-    [:div.level-right
-      [:div.level-item
-        [:div.field.is-grouped
-          [:p.control
-            [:button.button {:id :preset-planoconvex-button} "Planoconvex"]]
-          [:p.control
-            [:button.button {:id :preset-petzval-button} "Petzval"]]
-          [:p.control
-            [:button.button {:id :preset-random-button} "I'm Feeling Lucky"]]
-          [:p.control
-            [:button.button.is-success {:id :new-row-button} "New"]]]]]])
-
 (def table
   [:div.table-container
     [:table.table {:id "surfaces-table"}
@@ -36,7 +19,19 @@
 (def navbar
   [:nav.navbar {:role "navigation" :aria-label "main navigation"}
     [:div.navbar-brand
-      [:a.navbar-item {:href "https://browser.science"} cherry-raytracer]]])
+      [:a.navbar-item {:href "https://browser.science"} cherry-raytracer]
+      [:a.navbar-burger {:role "button" :aria-label "menu" :aria-expanded "false"
+                         :data-target :navMenu}
+        [:span {:aria-hidden true}]
+        [:span {:aria-hidden true}]
+        [:span {:aria-hidden true}]]]
+    [:div#navMenu.navbar-menu
+      [:div.navbar-start
+        [:div.navbar-item.has-dropdown.is-hoverable
+          [:a.navbar-link "Examples"]
+          [:div.navbar-dropdown
+            [:a#preset-planoconvex.navbar-item "Planoconvex lens"]
+            [:a#preset-petzval.navbar-item "Petzval objective"]]]]]])
 
 (defn tabs-nav [active]
   (letfn [(current [t] (if (= t active) {:class :is-active} {}))]
@@ -47,7 +42,7 @@
 
 (defn tabs-body [active]
   (case active
-    :surfaces [:div.container table-nav table]
+    :surfaces [:div.container table]
     :aperture [:div.container
                 [:div.field.is-horizontal
                   [:div.field-label.is-normal
