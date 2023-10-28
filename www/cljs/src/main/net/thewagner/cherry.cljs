@@ -1,7 +1,6 @@
 (ns net.thewagner.cherry
   (:require [goog.dom :as gdom]
             [goog.events :as events]
-            [goog.functions :refer [throttle]]
             [goog.dom.classlist :as classlist]
             [clojure.string :as string]
             [cljs.spec.alpha :as s]
@@ -13,7 +12,9 @@
             [cherry :as cherry-async]
             [kmdouglass.cherry :as cherry-spec]
             [clojure.test.check.generators]
-            [science.browser.cherry.dom :as dom])
+            [science.browser.cherry.dom :as dom]
+            [net.thewagner.html :as html])
+
   (:import [goog.events EventType KeyCodes KeyHandler]))
 
 (defmulti row-type :surface-type)
@@ -215,6 +216,12 @@
   (-stop-edit! [ui]))
 
 (extend-type js/HTMLTableCellElement
+  IValidated
+  (-set-valid! [ui]
+    (-set-valid! (first (gdom/getElementsByTagName "input" ui))))
+  (-set-invalid! [ui]
+    (-set-invalid! (first (gdom/getElementsByTagName "input" ui))))
+
   IEditable
   (-start-edit! [ui]
     (let [input (dom/build [:input.input {:value (.-innerText ui)}])]
@@ -287,30 +294,82 @@
           [:td]
           [:td [:button.button "Delete"]])))))
 
+(defprotocol ITabs
+  (-set-active! [ui tab-name])
+  (-render-tab! [ui tab-name]))
+
+(extend-type js/HTMLDivElement
+  ITabs
+  (-set-active! [ui tab-name]
+    (-> ui
+        (dom/remove-children)
+        (dom/append (dom/build (html/tabs-nav tab-name)))))
+  (-render-tab! [ui tab-name]
+    (dom/remove-children ui)
+    (dom/append ui (dom/build (html/tabs-body tab-name)))))
+
 (defn tag-match [tag]
   (fn [el]
     (when-let [tag-name (.-tagName el)]
       (= tag (.toLowerCase tag-name)))))
 
-(defonce event-handlers (atom #{}))
+(defn listen! [src event-type c]
+  (let [node (if (keyword? src) (dom/get-element src) src)]
+    (events/listen node event-type (fn [e] (async/put! c e)))))
 
-(defn listen
-  ([src event-type] (listen src event-type (chan)))
-  ([src event-type c]
-   (let [node (if (keyword? src) (dom/get-element src) src)
-         handler (events/listen node event-type (fn [e] (async/offer! c e)))]
-     (swap! event-handlers conj handler)
-     c)))
-
-(defn unlisten-all! []
-  (doseq [k @event-handlers] (events/unlistenByKey k))
-  (reset! event-handlers #{}))
-
-(comment
-  (unlisten-all!)
-  (listen js/window EventType.MOUSEMOVE (chan 1 (map (fn [e] (do (js/console.log e) e))))))
+(defn unlisten! [& ks]
+  (doseq [k ks]
+    (events/unlistenByKey k)))
 
 (def done (chan))
+
+(defn start-render!
+  "Listen on the result channel and display the surface and ray samples on the canvas.
+   Stop when the done channel closes."
+  [done & {:keys [canvas result]}]
+  (async/go
+    (let [resize (chan)
+          handler (listen! js/window EventType/RESIZE resize)]
+      (try
+        (loop [r {}]
+          (let [{:keys [surface-samples ray-samples]} r
+                width (.-clientWidth (.closest canvas "div"))]
+             (set! (.-width canvas) width)
+             (set! (.-height canvas) 150)
+             (render canvas surface-samples ray-samples))
+          (async/alt!
+            done ([_] ::done)
+            result ([d] (recur d))
+            resize ([_] (recur r))))
+
+        (finally
+          (unlisten! handler))))))
+
+(defn start-validator!
+  "Validate values from the UI element element and put the valid values to out-ch"
+  [done & {:keys [ui spec out-ch]}]
+  (async/go
+    (let [keypress-ch (chan 1 (filter #(= (.-keyCode %) KeyCodes/ENTER)))
+          input-ch (chan 1 (map #(.. % -target -value)))
+          focusout-ch (chan)
+          keypress-handler (listen! (KeyHandler. ui) KeyHandler/EventType.KEY keypress-ch)
+          input-handler (listen! ui EventType/INPUT input-ch)
+          focusout-handler (listen! ui EventType/FOCUSOUT focusout-ch)]
+      (try
+        (loop []
+          (async/alt!
+            [done focusout-ch keypress-ch]
+            ([_] ::done)
+
+            input-ch
+            ([value] (if-let [n (valid-number value spec)]
+                       (do (-set-valid! ui)
+                         (async/offer! out-ch n)
+                         (recur))
+                       (do (-set-invalid! ui)
+                         (recur))))))
+        (finally
+          (unlisten! keypress-handler input-handler focusout-handler))))))
 
 (defn locate-in-table
   "Locate the provided node in the nearest <table>"
@@ -327,110 +386,138 @@
      :row-index row-index
      :column-index column-index}))
 
+(defn table-events [table]
+  (let [preset (chan 1 (comp (map #(.. % -target -id))
+                             (map {"preset-planoconvex-button" cherry-spec/planoconvex
+                                   "preset-petzval-button"     cherry-spec/petzval
+                                   "preset-random-button"      (random-surfaces-and-gaps)})
+                             (filter some?)))
+        new-row (chan 1 (map (constantly {:op :insert-row})))
+        cell-click (chan 1
+                     (comp
+                       (map #(.-target %))
+                       (filter #(contains? #{"button" "td"} (.. % -tagName toLowerCase)))
+                       (map locate-in-table)
+                       (map (fn [{:keys [node column-index] :as loc}]
+                              (cond
+                                ((tag-match "button") node)
+                                (assoc loc :op :delete-row)
+
+                                (and ((tag-match "td") node)
+                                     (seq (.-innerText node))
+                                     (<= 0 column-index 4))
+                                (assoc loc :op :start-edit))))
+                       (filter some?)))
+         select (chan 1 (comp
+                          (map #(.-target %))
+                          (filter (tag-match "select"))
+                          (map locate-in-table)
+                          (map #(update % :value edn/read-string))
+                          (map #(assoc % :op :change-row-type))))]
+    (listen! :surfaces-table-nav EventType/CLICK preset)
+    (listen! table EventType.CLICK cell-click)
+    (listen! table EventType.INPUT select)
+    {:preset preset :row-edit (async/merge [new-row cell-click select])}))
+
+(defn start-table!
+  "Data grid process"
+  [done & {:keys [table rows preset row-edit out-ch]}]
+  (-prefill! table rows)
+  (async/go-loop [rows rows]
+    (async/alt!
+      done ([_] {:rows rows})
+      preset ([d] (let [data (surfaces-and-gaps->rows d)]
+                    (-prefill! table data)
+                    (async/offer! out-ch data)
+                    (recur data)))
+      row-edit
+      ([{:keys [op tr td column row-index value] :as cmd}]
+       (let [new-rows (case op
+                        :edit-cell       (assoc-in rows [row-index column] value)
+                        :insert-row      (vec (concat (butlast rows) [{} (last rows)]))
+                        :delete-row      (vec-remove rows row-index)
+                        :change-row-type (assoc rows row-index (prefill-row (get rows row-index) value))
+                        rows)]
+         (case op
+           :start-edit
+           (let [valid-values (chan 1 (map (fn [v] (assoc cmd :op :edit-cell :value v))))]
+             (async/pipe valid-values row-edit false)
+             (-start-edit! td)
+             (async/go
+               (<! (start-validator! done :ui td :spec column :out-ch valid-values))
+               (-stop-edit! td)
+               (async/close! valid-values)))
+           :insert-row
+           (-insert-row-at! table {} (dec (count rows)))
+           :delete-row
+           (-delete-row! table row-index)
+           :change-row-type
+           (-prefill! tr (get new-rows row-index))
+           ::noop)
+        (async/offer! out-ch new-rows)
+        (recur new-rows))))))
+
+(defn start-input!
+  "Send valid values from the input channel to the raytracer. The output of the
+  ray tracer is sent to result.  Returns when done closes."
+  [done & {:keys [input result]}]
+  (async/go-loop []
+   (async/alt!
+      done ([_] ::done)
+      input
+      ([new-rows] (let [inputs (merge (rows->surfaces-and-gaps new-rows)
+                                      {:aperture (entrance-pupil-diameter->aperture 10)})]
+                    (when (s/valid? ::cherry-spec/raytrace-inputs inputs)
+                      (>! result (<! (compute-results inputs))))
+                    (recur))))))
+
+(defn start-tabs!
+  "Start the Tabs process and listen on the tabs channel. Returns when done
+  closes."
+  [done & {:keys [tabs input]}]
+  (let [tab-done (chan)]
+    (async/go-loop [active-tab :surfaces
+                    tab-proc (start-table! tab-done (merge (table-events (dom/get-element :surfaces-table))
+                                                           {:table (dom/get-element :surfaces-table)
+                                                            :rows []
+                                                            :out-ch input}))
+                    tabs-state {}]
+      (async/alt!
+        done ([_] ::done)
+        tabs
+        ([[el tab]]
+         (if (= active-tab tab)
+           (recur active-tab tab-proc tabs-state)
+           (let [state (when tab-proc
+                         (>! tab-done ::done) ; ask the tab proces to close
+                         (<! tab-proc))]      ; wait for the process to exit
+             (-set-active! el tab)
+             (-render-tab! (dom/get-element :tab-body) tab)
+             (recur
+               tab
+               (when (= tab :surfaces)
+                 (let [table (dom/get-element :surfaces-table)]
+                   (start-table! tab-done (merge {:table table :rows [] :out-ch input}
+                                                 (table-events table)
+                                                 (tabs-state tab)))))
+               (assoc tabs-state active-tab state)))))))))
+
 ; https://code.thheller.com/blog/shadow-cljs/2019/08/25/hot-reload-in-clojurescript.html
 (defn ^:dev/after-load start []
-  (let [table (dom/get-element :surfaces-table)
-        resize (listen js/window EventType/RESIZE)
-        preset (listen :surfaces-table-nav EventType/CLICK
-                 (chan 1 (comp (map #(case (.. % -target -id)
-                                           "preset-planoconvex-button" cherry-spec/planoconvex
-                                           "preset-petzval-button"     cherry-spec/petzval
-                                           "preset-random-button"      (random-surfaces-and-gaps)
-                                            nil))
-                               (filter some?))))
-        param-input (listen table EventType/INPUT
-                      (chan 1 (comp
-                                (map #(.-target %))
-                                (filter (tag-match "input"))
-                                (map locate-in-table))))
-        select (listen table EventType/INPUT
-                 (chan 1 (comp
-                           (map #(.-target %))
-                           (filter (tag-match "select"))
-                           (map locate-in-table)
-                           (map #(update % :value edn/read-string)))))
-        row-edit (async/merge
-                   [(listen :new-row-button EventType.CLICK
-                      (chan 1 (map (constantly {:op :insert-row}))))
-                    (listen (KeyHandler. table) KeyHandler/EventType.KEY
-                      (chan 1 (comp
-                                (filter #(= (.-keyCode %) KeyCodes/ENTER))
-                                (map #(.-target %))
-                                (filter (tag-match "input"))
-                                (map locate-in-table)
-                                (map #(assoc % :op :stop-edit)))))
-                    (listen table EventType.CLICK
-                      (chan 1 (comp
-                                (map #(.-target %))
-                                (filter #(contains? #{"button" "td"} (.. % -tagName toLowerCase)))
-                                (map locate-in-table)
-                                (map (fn [{:keys [node column-index] :as loc}]
-                                       (cond
-                                         ((tag-match "button") node)
-                                         (assoc loc :op :delete-row)
-
-                                         (and ((tag-match "td") node)
-                                              (not (empty? (.-innerText node)))
-                                              (<= 0 column-index 4))
-                                         (assoc loc :op :start-edit))))
-                                (filter some?))))
-                    (listen table EventType.FOCUSOUT
-                      (chan 1 (comp
-                                (map #(.-target %))
-                                (filter (tag-match "input"))
-                                (map locate-in-table)
-                                (map #(assoc % :op :stop-edit)))))])
+  (let [tabs (chan 1 (comp
+                       (map #(.-target %))
+                       (filter (tag-match "a"))
+                       (map (fn [el] [(.closest el "div") (keyword (.-id el))]))))
+        input (chan)
         result (chan)]
-    ; Input process
-    (async/go-loop [rows []]
-      ; If we have valid inputs, send it to the raytracer
-      (let [inputs (merge (rows->surfaces-and-gaps rows)
-                          {:aperture (entrance-pupil-diameter->aperture 10)})]
-        (when (s/valid? ::cherry-spec/raytrace-inputs inputs)
-          (>! result (<! (compute-results inputs)))))
 
-      ; Wait for events
-      (async/alt!
-        done ([_] ::done)
-        preset ([d] (let [data (surfaces-and-gaps->rows d)]
-                      (-prefill! table data)
-                      (recur data)))
-        row-edit ([{:keys [op td row-index]}]
-                  (case op
-                   :start-edit (do (-start-edit! td)
-                                   (recur rows))
-                   :stop-edit (do (-stop-edit! td)
-                                  (recur rows))
-                   :insert-row (do (-insert-row-at! table {} (dec (count rows)))
-                                   (recur (vec (concat (butlast rows) [{} (last rows)]))))
-                   :delete-row (do (-delete-row! table row-index)
-                                   (recur (vec-remove rows row-index)))))
-        select ([{:keys [tr row-index value]}]
-                (let [new-row (prefill-row (get rows row-index) value)]
-                 (-prefill! tr new-row)
-                 (recur (assoc rows row-index new-row))))
-        param-input ([{:keys [node row-index column value]}]
-                     (if-let [n (valid-number value column)]
-                       (do (-set-valid! node)
-                           (recur (assoc-in rows [row-index column] n)))
-                       (do (-set-invalid! node)
-                           (recur rows))))))
-    ; Render process
-    (async/go-loop [r {}]
-      (let [canvas (dom/get-element :systemModel)
-            {:keys [surface-samples ray-samples]} r
-            width (.-clientWidth (.closest canvas "div"))
-            aspect-ratio 3]
-         (set! (.-width canvas) width)
-         (set! (.-height canvas) 150)
-         (render canvas surface-samples ray-samples))
-      (async/alt!
-        done ([_] ::done)
-        result ([d] (recur d))
-        resize ([_] (recur r))))))
+    (listen! :system-parameters EventType.CLICK tabs)
+
+    (start-input! done :input input :result result)
+    (start-tabs! done :tabs tabs :input input)
+    (start-render! done :canvas (dom/get-element :systemModel) :result result)))
 
 (defn ^:dev/before-load stop []
-  (unlisten-all!)
   (async/close! done))
 
 (defn init []
