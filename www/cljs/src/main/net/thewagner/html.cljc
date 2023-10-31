@@ -40,7 +40,7 @@
       [:li (current :fields) [:a#fields "Fields"]]
       [:li (current :aperture) [:a#aperture "Aperture"]]]))
 
-(defn tabs-body [active]
+(defn tabs-body [active & {:keys [default-value] :or {default-value 10}}]
   (case active
     :surfaces [:div.container table]
     :aperture [:div.container
@@ -50,7 +50,7 @@
                   [:div.field-body
                     [:div.field
                       [:p.control
-                        [:input.input {:disabled true :type "text" :value "10"}]]]]]]
+                        [:input#aperture-input.input {:type "text" :value (str default-value)}]]]]]]
     :fields   [:div.container
                 [:div.columns.is-centered
                   [:div.column.is-half
