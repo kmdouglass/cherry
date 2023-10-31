@@ -305,7 +305,7 @@
 
 (defprotocol ITabs
   (-set-active! [ui tab-name])
-  (-render-tab! [ui tab-name]))
+  (-render-tab! [ui tab-name opts]))
 
 (extend-type js/HTMLDivElement
   ITabs
@@ -313,9 +313,9 @@
     (-> ui
         (dom/remove-children)
         (dom/append (dom/build (html/tabs-nav tab-name)))))
-  (-render-tab! [ui tab-name]
+  (-render-tab! [ui tab-name opts]
     (dom/remove-children ui)
-    (dom/append ui (dom/build (html/tabs-body tab-name)))))
+    (dom/append ui (dom/build (html/tabs-body tab-name opts)))))
 
 (defn listen! [src event-type c]
   (let [node (if (keyword? src) (dom/get-element src) src)]
@@ -351,7 +351,7 @@
 
 (defn start-validator!
   "Validate values from the UI element element and put the valid values to out-ch"
-  [done & {:keys [ui spec out-ch]}]
+  [done & {:keys [ui default-value spec out-ch]}]
   (async/go
     (let [keypress-ch (chan 1 (filter #(= (.-keyCode %) KeyCodes/ENTER)))
           input-ch (chan 1 (map #(.. % -target -value)))
@@ -360,18 +360,18 @@
           input-handler (listen! ui EventType/INPUT input-ch)
           focusout-handler (listen! ui EventType/FOCUSOUT focusout-ch)]
       (try
-        (loop []
+        (loop [last-valid default-value]
           (async/alt!
             [done focusout-ch keypress-ch]
-            ([_] ::done)
+            ([_] {:default-value last-valid})
 
             input-ch
             ([value] (if-let [n (valid-number value spec)]
                        (do (-set-valid! ui)
                          (async/offer! out-ch n)
-                         (recur))
+                         (recur value))
                        (do (-set-invalid! ui)
-                         (recur))))))
+                         (recur last-valid))))))
         (finally
           (unlisten! keypress-handler input-handler focusout-handler))))))
 
@@ -391,10 +391,7 @@
      :column-index column-index}))
 
 (defn table-events [table]
-  (let [preset (chan 1 (comp (map #(.. % -target -id))
-                             (keep {"preset-planoconvex" cherry-spec/planoconvex
-                                    "preset-petzval"     cherry-spec/petzval})))
-        cell-click (chan 1
+  (let [cell-click (chan 1
                      (comp
                        (map #(.-target %))
                        (filter (some-fn isHtmlButtonElement isHtmlTableCellElement))
@@ -417,10 +414,9 @@
                           (map locate-in-table)
                           (map #(update % :value edn/read-string))
                           (map #(assoc % :op :change-row-type))))]
-    (listen! (.querySelector js/document "nav.navbar") EventType/CLICK preset)
     (listen! table EventType.CLICK cell-click)
     (listen! table EventType.INPUT select)
-    {:preset preset :row-edit (async/merge [cell-click select])}))
+    {:row-edit (async/merge [cell-click select])}))
 
 (defn start-table!
   "Data grid process"
@@ -429,10 +425,8 @@
   (async/go-loop [rows rows]
     (async/alt!
       done ([_] {:rows rows})
-      preset ([d] (let [data (surfaces-and-gaps->rows d)]
-                    (-prefill! table data)
-                    (async/offer! out-ch data)
-                    (recur data)))
+      preset ([data] (do (-prefill! table data)
+                         (recur data)))
       row-edit
       ([{:keys [op tr td column row-index value] :as cmd}]
        (let [new-rows (case op
@@ -464,62 +458,85 @@
 (defn start-input!
   "Send valid values from the input channel to the raytracer. The output of the
   ray tracer is sent to result.  Returns when done closes."
-  [done & {:keys [input result]}]
-  (async/go-loop []
+  [done & {:keys [input preset result]}]
+  (async/go-loop [raytrace-inputs {}]
+   (when (s/valid? ::cherry-spec/raytrace-inputs raytrace-inputs)
+     (>! result (<! (compute-results raytrace-inputs))))
    (async/alt!
       done ([_] ::done)
-      input
-      ([new-rows] (let [inputs (merge (rows->surfaces-and-gaps new-rows)
-                                      {:aperture (entrance-pupil-diameter->aperture 10)})]
-                    (when (s/valid? ::cherry-spec/raytrace-inputs inputs)
-                      (>! result (<! (compute-results inputs))))
-                    (recur))))))
+      [preset input]
+      ([new-rows] (if (number? new-rows)
+                    (recur (merge raytrace-inputs
+                                  {:aperture (entrance-pupil-diameter->aperture new-rows)}))
+                    (recur (merge {:aperture (entrance-pupil-diameter->aperture 10)}
+                                  raytrace-inputs
+                                  (rows->surfaces-and-gaps new-rows))))))))
 
 (defn start-tabs!
   "Start the Tabs process and listen on the tabs channel. Returns when done
   closes."
-  [done & {:keys [tabs input]}]
-  (let [tab-done (chan)]
-    (async/go-loop [active-tab :surfaces
-                    tab-proc (start-table! tab-done
-                                           (merge (table-events (dom/get-element :surfaces-table))
-                                                  {:table (dom/get-element :surfaces-table)
-                                                   :rows (surfaces-and-gaps->rows cherry-spec/object-and-image-plane)
-                                                   :out-ch input}))
-                    tabs-state {}]
-      (async/alt!
-        done ([_] ::done)
-        tabs
-        ([[el tab]]
-         (if (= active-tab tab)
-           (recur active-tab tab-proc tabs-state)
-           (let [state (when tab-proc
-                         (>! tab-done ::done) ; ask the tab proces to close
-                         (<! tab-proc))]      ; wait for the process to exit
-             (-set-active! el tab)
-             (-render-tab! (dom/get-element :tab-body) tab)
+  [done & {:keys [tabs input preset]}]
+  (async/go-loop [active-tab :surfaces
+                  tab-done (chan)
+                  tab-proc (start-table! tab-done
+                                         (merge (table-events (dom/get-element :surfaces-table))
+                                                {:table (dom/get-element :surfaces-table)
+                                                 :rows (surfaces-and-gaps->rows cherry-spec/object-and-image-plane)
+                                                 :preset preset
+                                                 :out-ch input}))
+                  tabs-state {}]
+    (async/alt!
+      done ([_] ::done)
+      tabs
+      ([[el tab]]
+       (if (= active-tab tab)
+         (recur active-tab tab-done tab-proc tabs-state)
+         (let [state (when tab-proc
+                       (async/close! tab-done) ; ask the tab proces to close
+                       (<! tab-proc))]         ; wait for the process to exit
+           (-set-active! el tab)
+           (-render-tab! (dom/get-element :tab-body) tab (tabs-state tab))
+           (let [tab-done (chan)]
              (recur
                tab
-               (when (= tab :surfaces)
+               tab-done
+               (case tab
+                 :surfaces
                  (let [table (dom/get-element :surfaces-table)]
-                   (start-table! tab-done (merge {:table table :out-ch input}
-                                                 (table-events table)
-                                                 (tabs-state tab)))))
+                   (start-table! tab-done (merge {:table table :preset preset :out-ch input}
+                                             (table-events table)
+                                             (tabs-state tab))))
+                 :aperture
+                 (let [ui (dom/get-element :aperture-input)]
+                   (start-validator! tab-done (merge {:ui ui :spec ::cherry-spec/diam :out-ch input}
+                                                     (tabs-state tab))))
+                 nil)
                (assoc tabs-state active-tab state)))))))))
 
 ; https://code.thheller.com/blog/shadow-cljs/2019/08/25/hot-reload-in-clojurescript.html
 (defn ^:dev/after-load start []
-  (let [tabs (chan 1 (comp
+  (let [preset (chan 1 (comp (map #(.. % -target -id))
+                             (keep {"preset-planoconvex" cherry-spec/planoconvex
+                                    "preset-petzval"     cherry-spec/petzval})
+                             (map surfaces-and-gaps->rows)))
+        preset-mult (async/mult preset)
+        preset->input (chan)
+        preset->tabs (chan (async/sliding-buffer 1))
+        tabs (chan 1 (comp
                        (map #(.-target %))
                        (filter isHtmlAnchorElement)
                        (map (fn [el] [(.closest el "div") (keyword (.-id el))]))))
         input (chan)
         result (chan)]
 
+    (listen! (.querySelector js/document "nav.navbar") EventType/CLICK preset)
     (listen! :system-parameters EventType.CLICK tabs)
 
-    (start-input! done :input input :result result)
-    (start-tabs! done :tabs tabs :input input)
+    (async/tap preset-mult preset->input)
+    (async/tap preset-mult preset->tabs)
+
+    (start-input! done :input input :result result :preset preset->input)
+    (start-tabs! done :tabs tabs :input input :preset preset->tabs)
     (start-render! done :canvas (dom/get-element :systemModel) :result result)))
 
 (def burger-toggle-handler
