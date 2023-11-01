@@ -24,6 +24,32 @@ export function centerOfMass(surfaces) {
 }
 
 /*
+    * Computes the center of mass of a system description from its surface samples.
+    * descr: a description of the optical system
+    * returns: com, the coordinates of the center of mass
+*/
+export function centerOfMassV2(descr) {
+    let com = [0, 0, 0];
+    let nPoints = 0;
+    
+    const samples = descr.sequential_model.surface_samples;
+    for (let surfSamples of samples.values()) {
+        for (let sample of surfSamples) {
+            com[0] += sample[0];
+            com[1] += sample[1];
+            com[2] += sample[2];
+            nPoints++;
+        }
+    }
+
+    com[0] /= nPoints;
+    com[1] /= nPoints;
+    com[2] /= nPoints;
+
+    return com;
+}
+
+/*
     * Compute the bounding box of a system of surfaces.
     * surfaces: an array of surface objects.
     * returns: [yMin, zMin, yMax, zMax]
