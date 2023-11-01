@@ -12,13 +12,27 @@ wasmSystemModel.setApertureV2(aperture);  // TODO Change name once the old setAp
 wasmSystemModel.setFields(fields);
 wasmSystemModel.build();
 
-console.log(wasmSystemModel.describe());
+const descr = wasmSystemModel.describe();
+console.log(descr);
 
-// Plot the surfaces
+// Render the system -- SVG
+const SVG_NS = "http://www.w3.org/2000/svg";
+
+const rendering = document.getElementById("systemRendering");
+
+const svg = document.createElementNS(SVG_NS, "svg");
+svg.setAttribute("width", window.innerWidth * 0.5);
+svg.setAttribute("height", window.innerHeight * 0.5);
+svg.setAttribute("fill", "none");
+svg.setAttribute("stroke", "black");
+
+rendering.appendChild(svg);
+
+// Render the surfaces -- canvas
 const canvas = document.getElementById("systemModelCanvas");
 const ctx = canvas.getContext("2d");
-canvas.width = window.innerWidth * 0.8;
-canvas.height = window.innerHeight * 0.8;
+canvas.width = window.innerWidth * 0.5;
+canvas.height = window.innerHeight * 0.5;
 
 let numSamplesPerSurface = 20;
 let surfSamples = [];
