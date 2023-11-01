@@ -29,10 +29,10 @@ export function centerOfMass(surfaces) {
     * returns: com, the coordinates of the center of mass
 */
 export function centerOfMassV2(descr) {
-    let com = [0, 0, 0];
-    let nPoints = 0;
-    
     const samples = descr.sequential_model.surface_samples;
+
+    let com = [0, 0, 0];
+    let nPoints = 0;    
     for (let surfSamples of samples.values()) {
         for (let sample of surfSamples) {
             com[0] += sample[0];
@@ -73,6 +73,29 @@ function boundingBox(surfaces) {
 }
 
 /*
+    * Compute the bounding box of a system description's surface samples.
+    * samples: the surface samples of a system description
+    * returns: [yMin, zMin, yMax, zMax]
+*/
+function boundingBoxV2(samples) {
+    let yMin = Infinity;
+    let yMax = -Infinity;
+    let zMin = Infinity;
+    let zMax = -Infinity;
+
+    for (let surfSamples of samples.values()) {
+        for (let sample of surfSamples) {
+            yMin = Math.min(yMin, sample[1]);
+            yMax = Math.max(yMax, sample[1]);
+            zMin = Math.min(zMin, sample[2]);
+            zMax = Math.max(zMax, sample[2]);
+        }
+    }
+
+    return [yMin, zMin, yMax, zMax];
+}
+
+/*
     * Determine a scaling factor to fit a system of surfaces into a canvas.
     * surfaces: an array of surfaces, each of which is an array of [r, z] points
     * canvasWidth: the width of the canvas
@@ -85,6 +108,24 @@ export function scaleFactor(surfaces, canvasWidth, canvasHeight, fillFactor = 0.
     let yRange = yMax - yMin;
     let zRange = zMax - zMin;
     let scaleFactor = fillFactor * Math.min(canvasHeight / yRange, canvasWidth / zRange);
+    return scaleFactor;
+}
+
+/*
+    * Determine a scaling factor to fit a system of surfaces into a rendering area.
+    * descr: a description of the optical system
+    * width: the width of the drawing area
+    * height: the height of the canvas
+    * fillFactor: the fraction of the drawing area to fill in the bigger dimension
+    * returns: the scaling factor
+*/
+export function scaleFactorV2(descr, width, height, fillFactor = 0.9) {
+    const samples = descr.sequential_model.surface_samples;
+
+    let [yMin, zMin, yMax, zMax] = boundingBoxV2(samples);
+    let yRange = yMax - yMin;
+    let zRange = zMax - zMin;
+    let scaleFactor = fillFactor * Math.min(height / yRange, width / zRange);
     return scaleFactor;
 }
 

@@ -1,5 +1,5 @@
 import { WasmSystemModel } from "cherry";
-import { centerOfMass, centerOfMassV2, draw, resultsToRayPaths, scaleFactor, toCanvasCoordinates } from "./modules/rendering.js"
+import { centerOfMass, centerOfMassV2, draw, resultsToRayPaths, scaleFactor, scaleFactorV2, toCanvasCoordinates } from "./modules/rendering.js"
 import { surfaces, gaps, aperture, fields } from "./modules/petzval_lens.js";
 // import { surfaces, gaps, aperture, fields } from "./modules/planoconvex_lens.js";
 
@@ -28,7 +28,9 @@ svg.setAttribute("stroke", "black");
 
 rendering.appendChild(svg);
 
+const sfSVG = scaleFactorV2(descr, svg.getAttribute("width"), svg.getAttribute("height"), 0.5);
 const comSamplesSVG = centerOfMassV2(descr);
+console.log(sfSVG);
 console.log(comSamplesSVG);
 
 // Render the surfaces -- canvas
