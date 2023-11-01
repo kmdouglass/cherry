@@ -1,26 +1,16 @@
 /*
-    * Computes the center of mass of a system of surfaces by averaging the coordinates.
+    * Computes the geometrical center of the surfaces' bounding box.
     * surfaces: an array of surface objects
     * returns: com, the coordinates of the center of mass
 */
-export function centerOfMass(surfaces) {
-    let com = [0, 0, 0];
-    let nPoints = 0;
+export function center(surfaces) {
+    let [xMin, yMin, zMin, xMax, yMax, zMax] = boundingBox(surfaces);
 
-    for (let surface of surfaces) {
-        for (let sample of surface.samples) {
-            com[0] += sample[0];
-            com[1] += sample[1];
-            com[2] += sample[2];
-            nPoints++;
-        }
-    }
-
-    com[0] /= nPoints;
-    com[1] /= nPoints;
-    com[2] /= nPoints;
-
-    return com;
+    return [
+        (xMin + xMax) / 2,
+        (yMin + yMax) / 2,
+        (zMin + zMax) / 2,
+    ];
 }
 
 /*
@@ -29,6 +19,8 @@ export function centerOfMass(surfaces) {
     * returns: [yMin, zMin, yMax, zMax]
 */
 function boundingBox(surfaces) {
+    let xMin = Infinity;
+    let xMax = -Infinity;
     let yMin = Infinity;
     let yMax = -Infinity;
     let zMin = Infinity;
@@ -36,6 +28,8 @@ function boundingBox(surfaces) {
 
     for (let surface of surfaces) {
         for (let sample of surface.samples) {
+            xMin = Math.min(xMin, sample[0]);
+            xMax = Math.max(xMax, sample[0]);
             yMin = Math.min(yMin, sample[1]);
             yMax = Math.max(yMax, sample[1]);
             zMin = Math.min(zMin, sample[2]);
@@ -43,7 +37,7 @@ function boundingBox(surfaces) {
         }
     }
 
-    return [yMin, zMin, yMax, zMax];
+    return [xMin, yMin, zMin, xMax, yMax, zMax];
 }
 
 /*
@@ -55,7 +49,7 @@ function boundingBox(surfaces) {
     * returns: the scaling factor
 */
 export function scaleFactor(surfaces, canvasWidth, canvasHeight, fillFactor = 0.9) {
-    let [yMin, zMin, yMax, zMax] = boundingBox(surfaces);
+    let [_xMin, yMin, zMin, _xMax, yMax, zMax] = boundingBox(surfaces);
     let yRange = yMax - yMin;
     let zRange = zMax - zMin;
     let scaleFactor = fillFactor * Math.min(canvasHeight / yRange, canvasWidth / zRange);
@@ -65,22 +59,22 @@ export function scaleFactor(surfaces, canvasWidth, canvasHeight, fillFactor = 0.
 /*
     * Transforms a system of elements into the canvas coordinate system.
     * surfaces: an array of elements (surfaces or rays)
-    * comSamples: the center of mass of the system in system coordinates
+    * centerSamples: the center of the system in system coordinates
     * canvasCenterCoords: the center of the canvas in x, y canvas coordinates
     * scaleFactor: the factor by which to scale the surfaces
     * returns: an array of transformed elements
 */
-export function toCanvasCoordinates(elements, comSamples, canvasCenterCoords, scaleFactor = 6) {
+export function toCanvasCoordinates(elements, centerSamples, canvasCenterCoords, scaleFactor = 6) {
     let transformedSurfaces = [];
     for (let surface of elements) {
         let transformedSamples = [];
         for (let sample of surface.samples) {
             // Transpose the y and z coordinates because the canvas y-axis points down.
             // Take the negative of the y-coordinate because it points down the screen.
-            // Shift the center of mass of the samples to that of the canvas.
+            // Shift the center of the samples to that of the canvas.
             transformedSamples.push([
-                canvasCenterCoords[0] + scaleFactor * (sample[2] - comSamples[2]),
-                canvasCenterCoords[1] - scaleFactor * (sample[1] - comSamples[1])
+                canvasCenterCoords[0] + scaleFactor * (sample[2] - centerSamples[2]),
+                canvasCenterCoords[1] - scaleFactor * (sample[1] - centerSamples[1])
             ]);
         }
         transformedSurfaces.push({"samples": transformedSamples});
