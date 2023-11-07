@@ -127,7 +127,7 @@ impl WasmSystemModel {
     }
 
     pub fn aperture(&self) -> JsValue {
-        serde_wasm_bindgen::to_value(self.system_model.aperture()).unwrap()
+        serde_wasm_bindgen::to_value(self.system_model.aperture_spec()).unwrap()
     }
 
     pub fn setAperture(&mut self, aperture: JsValue) -> Result<(), JsError> {
@@ -150,7 +150,7 @@ impl WasmSystemModel {
 
         // Generate a ray fan for each field to fill the entrance pupil
         let num_rays = 3;
-        let fields = self.system_model.fields();
+        let fields = self.system_model.field_specs();
         let mut rays = Vec::with_capacity(num_rays * fields.len());
 
         for field in fields {

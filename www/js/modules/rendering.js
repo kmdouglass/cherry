@@ -29,7 +29,7 @@ export function centerOfMass(surfaces) {
     * returns: com, the coordinates of the center of mass
 */
 export function centerOfMassV2(descr) {
-    const samples = descr.sequential_model.surface_samples;
+    const samples = descr.surface_model.surface_samples;
 
     let com = [0, 0, 0];
     let nPoints = 0;    
@@ -120,7 +120,7 @@ export function scaleFactor(surfaces, canvasWidth, canvasHeight, fillFactor = 0.
     * returns: the scaling factor
 */
 export function scaleFactorV2(descr, width, height, fillFactor = 0.9) {
-    const samples = descr.sequential_model.surface_samples;
+    const samples = descr.surface_model.surface_samples;
 
     let [yMin, zMin, yMax, zMax] = boundingBoxV2(samples);
     let yRange = yMax - yMin;
