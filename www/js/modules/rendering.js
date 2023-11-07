@@ -24,29 +24,19 @@ export function centerOfMass(surfaces) {
 }
 
 /*
-    * Computes the center of mass of a system description from its surface samples.
+    * Computes the center of the system's bounding box.
     * descr: a description of the optical system
     * returns: com, the coordinates of the center of mass
 */
-export function centerOfMassV2(descr) {
+export function center(descr) {
     const samples = descr.surface_model.surface_samples;
+    let [xMin, yMin, zMin, xMax, yMax, zMax] = boundingBoxV2(samples);
 
-    let com = [0, 0, 0];
-    let nPoints = 0;    
-    for (let surfSamples of samples.values()) {
-        for (let sample of surfSamples) {
-            com[0] += sample[0];
-            com[1] += sample[1];
-            com[2] += sample[2];
-            nPoints++;
-        }
-    }
-
-    com[0] /= nPoints;
-    com[1] /= nPoints;
-    com[2] /= nPoints;
-
-    return com;
+    return [
+        (xMin + xMax) / 2,
+        (yMin + yMax) / 2,
+        (zMin + zMax) / 2,
+    ];
 }
 
 /*
@@ -75,9 +65,11 @@ function boundingBox(surfaces) {
 /*
     * Compute the bounding box of a system description's surface samples.
     * samples: the surface samples of a system description
-    * returns: [yMin, zMin, yMax, zMax]
+    * returns: [xMin, yMin, zMin, xMax, yMax, zMax]
 */
 function boundingBoxV2(samples) {
+    let xMin = Infinity;
+    let xMax = -Infinity;
     let yMin = Infinity;
     let yMax = -Infinity;
     let zMin = Infinity;
@@ -85,6 +77,8 @@ function boundingBoxV2(samples) {
 
     for (let surfSamples of samples.values()) {
         for (let sample of surfSamples) {
+            xMin = Math.min(xMin, sample[0]);
+            xMax = Math.max(xMax, sample[0]);
             yMin = Math.min(yMin, sample[1]);
             yMax = Math.max(yMax, sample[1]);
             zMin = Math.min(zMin, sample[2]);
@@ -92,7 +86,7 @@ function boundingBoxV2(samples) {
         }
     }
 
-    return [yMin, zMin, yMax, zMax];
+    return [xMin, yMin, zMin, xMax, yMax, zMax];
 }
 
 /*
