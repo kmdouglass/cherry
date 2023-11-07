@@ -87,6 +87,9 @@ pub struct SystemModel {
     comp_model: ComponentModel,
     parax_model: ParaxialModel,
     seq_model: SequentialModel,
+
+    surface_specs: Vec<SurfaceSpec>,
+    gaps: Vec<Gap>,
     aperture: ApertureSpec,
     fields: Vec<FieldSpec>,
     background: f32,
@@ -111,6 +114,8 @@ impl SystemModel {
             comp_model: component_model,
             seq_model: sequential_model,
             parax_model: paraxial_model,
+            surface_specs: surface_specs.to_vec(),
+            gaps: gaps.to_vec(),
             aperture: aperture.clone(),
             fields: fields.to_vec(),
             background: background,
@@ -198,6 +203,8 @@ impl SystemModel {
     /// Creates a new SystemModel with an object plane and an image plane.
     ///
     /// By convention, the first non-object surface lies at z = 0.
+    /// 
+    /// DEPRECATED
     pub fn old() -> Self {
         let obj_plane = Surface::new_obj_plane(
             Vec3::new(0.0, 0.0, -1.0),
@@ -225,6 +232,8 @@ impl SystemModel {
             comp_model: component_model,
             seq_model: SequentialModel::new(&surfaces),
             parax_model: paraxial_model,
+            surface_specs: Vec::new(),
+            gaps: Vec::new(),
             aperture: ApertureSpec::EntrancePupilDiameter { diam: INIT_DIAM },
             fields: fields,
             background: 1.0,
