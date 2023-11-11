@@ -473,45 +473,28 @@
                                   (rows->surfaces-and-gaps new-rows))))))))
 
 (defn start-tabs!
-  "Start the Tabs process and listen on the tabs channel. Returns when done
-  closes."
-  [done & {:keys [tabs input preset]}]
-  (async/go-loop [active-tab :surfaces
-                  tab-done (chan)
-                  tab-proc (start-table! tab-done
-                                         (merge (table-events (dom/get-element :surfaces-table))
-                                                {:table (dom/get-element :surfaces-table)
-                                                 :rows (surfaces-and-gaps->rows cherry-spec/object-and-image-plane)
-                                                 :preset preset
-                                                 :out-ch input}))
-                  tabs-state {}]
-    (async/alt!
-      done ([_] ::done)
-      tabs
-      ([[el tab]]
-       (if (= active-tab tab)
-         (recur active-tab tab-done tab-proc tabs-state)
-         (let [state (when tab-proc
-                       (async/close! tab-done) ; ask the tab proces to close
-                       (<! tab-proc))]         ; wait for the process to exit
-           (-set-active! el tab)
-           (-render-tab! (dom/get-element :tab-body) tab (tabs-state tab))
-           (let [tab-done (chan)]
-             (recur
-               tab
-               tab-done
-               (case tab
-                 :surfaces
-                 (let [table (dom/get-element :surfaces-table)]
-                   (start-table! tab-done (merge {:table table :preset preset :out-ch input}
-                                             (table-events table)
-                                             (tabs-state tab))))
-                 :aperture
-                 (let [ui (dom/get-element :aperture-input)]
-                   (start-validator! tab-done (merge {:ui ui :spec ::cherry-spec/diam :out-ch input}
-                                                     (tabs-state tab))))
-                 nil)
-               (assoc tabs-state active-tab state)))))))))
+  [done procs-list & {:keys [tabs]}]
+  (let [procs (into {} (map vec (partition 2 2 procs-list)))
+        start! (fn [t done-ch state] (when-let [p (get procs t)] (p done-ch (state t))))]
+    (async/go-loop [active (first procs-list)
+                    tab-done (chan)
+                    tab-state {}
+                    tab-proc (start! active tab-done tab-state)]
+      (async/alt!
+        done ([_] ::done)
+        tabs
+        ([[el selected]]
+         (if (= active selected)
+           (recur active tab-done tab-state tab-proc)
+           (let [state (when tab-proc
+                         (async/close! tab-done) ; ask the tab proces to close
+                         (<! tab-proc))]         ; wait for the process to exit
+             (-set-active! el selected)
+             (-render-tab! (dom/get-element :tab-body) selected (tab-state selected))
+             (let [new-tab-done (chan)
+                   new-tab-state (assoc tab-state active state)
+                   new-tab-proc (start! selected new-tab-done tab-state)]
+               (recur selected new-tab-done new-tab-state new-tab-proc)))))))))
 
 ; https://code.thheller.com/blog/shadow-cljs/2019/08/25/hot-reload-in-clojurescript.html
 (defn ^:dev/after-load start []
@@ -536,7 +519,20 @@
     (async/tap preset-mult preset->tabs)
 
     (start-input! done :input input :result result :preset preset->input)
-    (start-tabs! done :tabs tabs :input input :preset preset->tabs)
+    (start-tabs! done [:surfaces
+                       (fn [done state]
+                         (start-table! done
+                                       (merge {:table (dom/get-element :surfaces-table)
+                                               :preset preset->tabs :out-ch input}
+                                              (table-events (dom/get-element :surfaces-table))
+                                              state)))
+                       :aperture
+                       (fn [done state]
+                         (start-validator! done (merge {:ui (dom/get-element :aperture-input)
+                                                        :spec ::cherry-spec/diam :out-ch input
+                                                        :default-value 10}
+                                                       state)))]
+                      {:tabs tabs})
     (start-render! done :canvas (dom/get-element :systemModel) :result result)))
 
 (def burger-toggle-handler
