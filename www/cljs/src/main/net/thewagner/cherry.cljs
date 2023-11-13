@@ -487,7 +487,7 @@
          (if (= active selected)
            (recur active tab-done tab-state tab-proc)
            (let [state (when tab-proc
-                         (async/close! tab-done) ; ask the tab proces to close
+                         (async/close! tab-done) ; ask the tab process to close
                          (<! tab-proc))]         ; wait for the process to exit
              (-set-active! el selected)
              (-render-tab! (dom/get-element :tab-body) selected (tab-state selected))
