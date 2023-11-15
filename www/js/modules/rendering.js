@@ -152,6 +152,40 @@ export function toCanvasCoordinates(elements, comSamples, canvasCenterCoords, sc
 }
 
 /*
+    * Transforms surface samples from a system description into the SVG coordinate system.
+    * descr: a description of the optical system
+    * systemCenter: the center of the system in system coordinates
+    * svgCenter: the center of the SVG in x, y SVG coordinates
+    * scaleFactor: the factor by which to scale the surfaces
+    * returns: the system description containing the transformed surface samples
+*/
+export function toSVGCoordinates(descr, systemCenter, svgCenter, scaleFactor = 6) {
+    const samples = descr.surface_model.surface_samples;
+    let transformedSamples = new Map();
+    for (let [surfId, surfSamples] of samples.entries()) {
+        let transformedSurfSamples = [];
+        for (let sample of surfSamples) {
+            // Transpose the y and z coordinates because the SVG y-axis points down.
+            // Take the negative of the y-coordinate because it points down the screen.
+            // Shift the center of mass of the samples to that of the SVG.
+            transformedSurfSamples.push([
+                svgCenter[0] + scaleFactor * (sample[2] - systemCenter[2]),
+                svgCenter[1] - scaleFactor * (sample[1] - systemCenter[1])
+            ]);
+        }
+        transformedSamples.set(surfId, transformedSurfSamples);
+    }
+
+    // descr.mods contains any additional modifications to the system description not returned by the WASM layer
+    // Create a mods key if it doesn't exist, then add {"svg_surface_samples": transformedSamples} to it
+    let mods = descr.mods || {};
+    mods = {...mods, ...{"svg_surface_samples": transformedSamples}};
+    descr = {...descr, ...{"mods": mods}};
+
+    return descr;
+}
+
+/*
     * Converts rays trace results to a series of points (ray paths) to draw on the canvas.
     * rays: an array of an array of ray objects at each surface
     * returns: an array of an array of points to draw on the canvas

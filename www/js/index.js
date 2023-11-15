@@ -1,5 +1,5 @@
 import { WasmSystemModel } from "cherry";
-import { center, centerOfMass, draw, resultsToRayPaths, scaleFactor, scaleFactorV2, toCanvasCoordinates } from "./modules/rendering.js"
+import { center, centerOfMass, draw, resultsToRayPaths, scaleFactor, scaleFactorV2, toCanvasCoordinates, toSVGCoordinates } from "./modules/rendering.js"
 import { surfaces, gaps, aperture, fields } from "./modules/petzval_lens.js";
 // import { surfaces, gaps, aperture, fields } from "./modules/planoconvex_lens.js";
 
@@ -12,8 +12,7 @@ wasmSystemModel.setApertureV2(aperture);  // TODO Change name once the old setAp
 wasmSystemModel.setFields(fields);
 wasmSystemModel.build();
 
-const descr = wasmSystemModel.describe();
-console.log(descr);
+let descr = wasmSystemModel.describe();
 
 // Render the system -- SVG
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -29,9 +28,14 @@ svg.setAttribute("stroke", "black");
 rendering.appendChild(svg);
 
 const sfSVG = scaleFactorV2(descr, svg.getAttribute("width"), svg.getAttribute("height"), 0.5);
-const centerSVG = center(descr);
+const centerSystem = center(descr);
+const centerSVG = [svg.getAttribute("width") / 2, svg.getAttribute("height") / 2];
+descr = toSVGCoordinates(descr, centerSystem, centerSVG, sfSVG);
+
 console.log(sfSVG);
+console.log(centerSystem);
 console.log(centerSVG);
+console.log(descr);
 
 // Render the surfaces -- canvas
 const canvas = document.getElementById("systemModelCanvas");
