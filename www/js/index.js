@@ -1,5 +1,5 @@
 import { WasmSystemModel } from "cherry";
-import { center, centerOfMass, draw, resultsToRayPaths, scaleFactor, scaleFactorV2, toCanvasCoordinates, toSVGCoordinates } from "./modules/rendering.js"
+import { center, centerOfMass, draw, drawSVG, resultsToRayPaths, scaleFactor, scaleFactorV2, toCanvasCoordinates, toSVGCoordinates } from "./modules/rendering.js"
 import { surfaces, gaps, aperture, fields } from "./modules/petzval_lens.js";
 // import { surfaces, gaps, aperture, fields } from "./modules/planoconvex_lens.js";
 
@@ -37,6 +37,9 @@ console.log(centerSystem);
 console.log(centerSVG);
 console.log(descr);
 
+drawSVG(descr, svg, "black", 1.0);
+
+
 // Render the surfaces -- canvas
 const canvas = document.getElementById("systemModelCanvas");
 const ctx = canvas.getContext("2d");
@@ -52,6 +55,7 @@ for (let i = 0; i < numSurfaces; i++) {
 }
 
 let sf = scaleFactor(surfSamples, canvas.width, canvas.height, 0.5);
+console.log(sf);
 let comSamples = centerOfMass(surfSamples);  // system x, y, z coordinates
 let canvasCenterCoords = [canvas.width / 2, canvas.height / 2];  // canvas x, y coordinates
 let canvasSurfs = toCanvasCoordinates(surfSamples, comSamples, canvasCenterCoords, sf);
