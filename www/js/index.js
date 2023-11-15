@@ -1,5 +1,5 @@
 import { WasmSystemModel } from "cherry";
-import { center, centerOfMass, draw, drawSVG, resultsToRayPaths, scaleFactor, scaleFactorV2, toCanvasCoordinates, toSVGCoordinates } from "./modules/rendering.js"
+import { center, centerOfMass, descrToSVGCoordinates, draw, drawSVG, rayPathsToSVGCoordinates, resultsToRayPaths, resultsToRayPathsV2, scaleFactor, scaleFactorV2, toCanvasCoordinates } from "./modules/rendering.js"
 import { surfaces, gaps, aperture, fields } from "./modules/petzval_lens.js";
 // import { surfaces, gaps, aperture, fields } from "./modules/planoconvex_lens.js";
 
@@ -30,16 +30,20 @@ rendering.appendChild(svg);
 const sfSVG = scaleFactorV2(descr, svg.getAttribute("width"), svg.getAttribute("height"), 0.5);
 const centerSystem = center(descr);
 const centerSVG = [svg.getAttribute("width") / 2, svg.getAttribute("height") / 2];
-descr = toSVGCoordinates(descr, centerSystem, centerSVG, sfSVG);
-
-console.log(sfSVG);
-console.log(centerSystem);
-console.log(centerSVG);
+descr = descrToSVGCoordinates(descr, centerSystem, centerSVG, sfSVG);
 console.log(descr);
 
-drawSVG(descr, svg, "black", 1.0);
+drawSVG(descr.mods.svg_surface_samples, svg, "black", 1.0);
 
+// Trace rays through the system
+const results = wasmSystemModel.rayTrace();
+let rayPaths = resultsToRayPathsV2(results);
+let transformedRayPaths = rayPathsToSVGCoordinates(rayPaths, centerSystem, centerSVG, sfSVG);
 
+drawSVG(transformedRayPaths, svg, "red", 1.0);
+
+/////////////////////////////////////////////////
+// HTML5 Canvas
 // Render the surfaces -- canvas
 const canvas = document.getElementById("systemModelCanvas");
 const ctx = canvas.getContext("2d");
@@ -55,7 +59,6 @@ for (let i = 0; i < numSurfaces; i++) {
 }
 
 let sf = scaleFactor(surfSamples, canvas.width, canvas.height, 0.5);
-console.log(sf);
 let comSamples = centerOfMass(surfSamples);  // system x, y, z coordinates
 let canvasCenterCoords = [canvas.width / 2, canvas.height / 2];  // canvas x, y coordinates
 let canvasSurfs = toCanvasCoordinates(surfSamples, comSamples, canvasCenterCoords, sf);
@@ -63,7 +66,7 @@ let canvasSurfs = toCanvasCoordinates(surfSamples, comSamples, canvasCenterCoord
 draw(canvasSurfs, ctx, "black", 1.0);
 
 // Trace rays through the system
-let results = wasmSystemModel.rayTrace();
-let rayPaths = resultsToRayPaths(results);
-let transformedRayPaths = toCanvasCoordinates(rayPaths, comSamples, canvasCenterCoords, sf);
-draw(transformedRayPaths, ctx, "red", 1.0);
+let results2 = wasmSystemModel.rayTrace();
+let rayPaths2 = resultsToRayPaths(results2);
+let transformedRayPaths2 = toCanvasCoordinates(rayPaths2, comSamples, canvasCenterCoords, sf);
+draw(transformedRayPaths2, ctx, "red", 1.0);

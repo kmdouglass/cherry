@@ -201,22 +201,9 @@ export function scaleFactorV2(descr, width, height, fillFactor = 0.9) {
     * scaleFactor: the factor by which to scale the surfaces
     * returns: the system description containing the transformed surface samples
 */
-export function toSVGCoordinates(descr, systemCenter, svgCenter, scaleFactor = 6) {
+export function descrToSVGCoordinates(descr, systemCenter, svgCenter, scaleFactor = 6) {
     const samples = descr.surface_model.surface_samples;
-    let transformedSamples = new Map();
-    for (let [surfId, surfSamples] of samples.entries()) {
-        let transformedSurfSamples = [];
-        for (let sample of surfSamples) {
-            // Transpose the y and z coordinates because the SVG y-axis points down.
-            // Take the negative of the y-coordinate because it points down the screen.
-            // Shift the center of mass of the samples to that of the SVG.
-            transformedSurfSamples.push([
-                svgCenter[0] + scaleFactor * (sample[2] - systemCenter[2]),
-                svgCenter[1] - scaleFactor * (sample[1] - systemCenter[1])
-            ]);
-        }
-        transformedSamples.set(surfId, transformedSurfSamples);
-    }
+    const transformedSamples = toSVGCoordinates(samples, systemCenter, svgCenter, scaleFactor);
 
     // descr.mods contains any additional modifications to the system description not returned by the WASM layer
     // Create a mods key if it doesn't exist, then add {"svg_surface_samples": transformedSamples} to it
@@ -227,21 +214,67 @@ export function toSVGCoordinates(descr, systemCenter, svgCenter, scaleFactor = 6
     return descr;
 }
 
+export function rayPathsToSVGCoordinates(rayPaths, systemCenter, svgCenter, scaleFactor = 6) {
+    const transformedRayPaths = toSVGCoordinates(rayPaths, systemCenter, svgCenter, scaleFactor);
+
+    return transformedRayPaths;
+}
+
 /*
-    * Draws a system description to an SVG.
-    * descr: a description of the optical system
+    * Transforms paths of 3D points to the SVG coordinate system.
+*/
+function toSVGCoordinates(paths, systemCenter, svgCenter, scaleFactor = 6) {
+    let transformedPaths = new Map();
+    for (let [pathId, pathSamples] of paths.entries()) {
+        let transformedPathSamples = [];
+        for (let sample of pathSamples) {
+            // Transpose the y and z coordinates because the SVG y-axis points down.
+            // Take the negative of the y-coordinate because it points down the screen.
+            // Shift the center of mass of the samples to that of the SVG.
+            transformedPathSamples.push([
+                svgCenter[0] + scaleFactor * (sample[2] - systemCenter[2]),
+                svgCenter[1] - scaleFactor * (sample[1] - systemCenter[1])
+            ]);
+        }
+        transformedPaths.set(pathId, transformedPathSamples);
+    }
+
+    return transformedPaths;
+}
+
+/*
+    * Converts rays trace results to a series of points (ray paths) to draw on the SVG.
+    * rays: an array of an array of ray objects at each surface
+    * returns: an array of an array of points to draw on the SVG
+*/
+export function resultsToRayPathsV2(rayTraceResults) {
+    let numRays = rayTraceResults[0].length;
+
+    // Create an empty map of ray paths
+    let rayPaths = new Map();
+    for (let surface of rayTraceResults) {
+        for (let ray_id = 0; ray_id < numRays; ray_id++) {
+            let ray = surface[ray_id];
+            rayPaths.set(ray_id, rayPaths.get(ray_id) || []);
+            rayPaths.get(ray_id).push(ray.pos);
+        }
+    }
+
+    return rayPaths;
+}
+
+/*
+    * Draws paths defined by samples to an SVG.
+    * paths: a map of paths, where each path is an array of 3D coordinates
     * svg: the SVG element to draw to
     * color: the color to draw the elements
     * lineWidth: the width of the lines to draw
 */
-export function drawSVG(descr, svg, color, lineWidth) {
-    const samples = descr.mods.svg_surface_samples;
-    
-    // Draw the surfaces
-    for (let [surfId, surfSamples] of samples.entries()) {
+export function drawSVG(paths, svg, color, lineWidth) {
+    for (let [pathId, samples] of paths.entries()) {
         let path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-        let d = `M ${surfSamples[0][0]} ${surfSamples[0][1]}`;
-        for (let sample of surfSamples) {
+        let d = `M ${samples[0][0]} ${samples[0][1]}`;
+        for (let sample of samples) {
             d += ` L ${sample[0]} ${sample[1]}`;
         }
         path.setAttribute("d", d);
