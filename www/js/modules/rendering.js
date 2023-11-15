@@ -1,3 +1,5 @@
+///////////////////////////////////////////////
+// Canvas rendering
 /*
     * Computes the center of mass of a system of surfaces by averaging the coordinates.
     * surfaces: an array of surface objects
@@ -23,12 +25,24 @@ export function centerOfMass(surfaces) {
     return com;
 }
 
+export function center(samples) {
+    let [xMin, yMin, zMin, xMax, yMax, zMax] = boundingBox(samples);
+
+    return [
+        (xMin + xMax) / 2,
+        (yMin + yMax) / 2,
+        (zMin + zMax) / 2,
+    ];
+}
+
 /*
     * Compute the bounding box of a system of surfaces.
     * surfaces: an array of surface objects.
-    * returns: [yMin, zMin, yMax, zMax]
+    * returns: [xMin, yMin, zMin, xMax, yMax, zMax]
 */
 function boundingBox(surfaces) {
+    let xMin = Infinity;
+    let xMax = -Infinity;
     let yMin = Infinity;
     let yMax = -Infinity;
     let zMin = Infinity;
@@ -36,6 +50,8 @@ function boundingBox(surfaces) {
 
     for (let surface of surfaces) {
         for (let sample of surface.samples) {
+            xMin = Math.min(xMin, sample[0]);
+            xMax = Math.max(xMax, sample[0]);
             yMin = Math.min(yMin, sample[1]);
             yMax = Math.max(yMax, sample[1]);
             zMin = Math.min(zMin, sample[2]);
@@ -43,7 +59,7 @@ function boundingBox(surfaces) {
         }
     }
 
-    return [yMin, zMin, yMax, zMax];
+    return [xMin, yMin, zMin, xMax, yMax, zMax];
 }
 
 /*
@@ -55,7 +71,7 @@ function boundingBox(surfaces) {
     * returns: the scaling factor
 */
 export function scaleFactor(surfaces, canvasWidth, canvasHeight, fillFactor = 0.9) {
-    let [yMin, zMin, yMax, zMax] = boundingBox(surfaces);
+    let [xMin, yMin, zMin, xMax, yMax, zMax] = boundingBox(surfaces);
     let yRange = yMax - yMin;
     let zRange = zMax - zMin;
     let scaleFactor = fillFactor * Math.min(canvasHeight / yRange, canvasWidth / zRange);
@@ -150,7 +166,7 @@ export function draw(elements, ctx, color, lineWidth) {
     * descr: a description of the optical system
     * returns: com, the coordinates of the center of mass
 */
-export function center(descr) {
+export function centerV2(descr) {
     const samples = descr.surface_model.surface_samples;
     let [xMin, yMin, zMin, xMax, yMax, zMax] = boundingBoxV2(samples);
 

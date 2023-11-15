@@ -1,5 +1,5 @@
 import { WasmSystemModel } from "cherry";
-import { center, centerOfMass, descrToSVGCoordinates, draw, drawSVG, rayPathsToSVGCoordinates, resultsToRayPaths, resultsToRayPathsV2, scaleFactor, scaleFactorV2, toCanvasCoordinates } from "./modules/rendering.js"
+import { center, centerV2, centerOfMass, descrToSVGCoordinates, draw, drawSVG, rayPathsToSVGCoordinates, resultsToRayPaths, resultsToRayPathsV2, scaleFactor, scaleFactorV2, toCanvasCoordinates } from "./modules/rendering.js"
 import { surfaces, gaps, aperture, fields } from "./modules/petzval_lens.js";
 // import { surfaces, gaps, aperture, fields } from "./modules/planoconvex_lens.js";
 
@@ -27,8 +27,8 @@ svg.setAttribute("stroke", "black");
 
 rendering.appendChild(svg);
 
-const sfSVG = scaleFactorV2(descr, svg.getAttribute("width"), svg.getAttribute("height"), 0.5);
-const centerSystem = center(descr);
+const sfSVG = scaleFactorV2(descr, svg.getAttribute("width"), svg.getAttribute("height"), 0.9);
+const centerSystem = centerV2(descr);
 const centerSVG = [svg.getAttribute("width") / 2, svg.getAttribute("height") / 2];
 descr = descrToSVGCoordinates(descr, centerSystem, centerSVG, sfSVG);
 console.log(descr);
@@ -58,15 +58,15 @@ for (let i = 0; i < numSurfaces; i++) {
     surfSamples.push({"samples": samples});
 }
 
-let sf = scaleFactor(surfSamples, canvas.width, canvas.height, 0.5);
-let comSamples = centerOfMass(surfSamples);  // system x, y, z coordinates
+let sf = scaleFactor(surfSamples, canvas.width, canvas.height, 0.9);
+let centerSamples = center(surfSamples);  // system x, y, z coordinates
 let canvasCenterCoords = [canvas.width / 2, canvas.height / 2];  // canvas x, y coordinates
-let canvasSurfs = toCanvasCoordinates(surfSamples, comSamples, canvasCenterCoords, sf);
+let canvasSurfs = toCanvasCoordinates(surfSamples, centerSamples, canvasCenterCoords, sf);
 
 draw(canvasSurfs, ctx, "black", 1.0);
 
 // Trace rays through the system
 let results2 = wasmSystemModel.rayTrace();
 let rayPaths2 = resultsToRayPaths(results2);
-let transformedRayPaths2 = toCanvasCoordinates(rayPaths2, comSamples, canvasCenterCoords, sf);
+let transformedRayPaths2 = toCanvasCoordinates(rayPaths2, centerSamples, canvasCenterCoords, sf);
 draw(transformedRayPaths2, ctx, "red", 1.0);
