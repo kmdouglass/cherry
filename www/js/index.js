@@ -13,6 +13,7 @@ wasmSystemModel.setFields(fields);
 wasmSystemModel.build();
 
 let descr = wasmSystemModel.describe();
+console.log(descr);
 
 // Render the system -- SVG
 renderSystem(wasmSystemModel);

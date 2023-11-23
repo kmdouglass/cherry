@@ -16,17 +16,25 @@ export function renderSystem(wasmSystemModel, elementId = "systemRendering") {
 
     rendering.appendChild(svg);
 
+    // Compute quantities required for rendering
     let descr = wasmSystemModel.describe();
     const sfSVG = scaleFactorV2(descr, svg.getAttribute("width"), svg.getAttribute("height"), 0.9);
     const centerSystem = centerV2(descr);
     const centerSVG = [svg.getAttribute("width") / 2, svg.getAttribute("height") / 2];
-    descr = descrToSVGCoordinates(descr, centerSystem, centerSVG, sfSVG);
+    
+    // Draw surfaces
+    let surfaceSamples = new Map();
+    for (let [surfId, samples] of descr.surface_model.surface_samples.entries()) {
+        surfaceSamples.set(surfId, samples);
+    }
+    const transformedSurfaceSamples = toSVGCoordinates(surfaceSamples, centerSystem, centerSVG, sfSVG);
 
-    drawSVG(descr.mods.svg_surface_samples, svg, "black", 1.0);
+    drawSVG(transformedSurfaceSamples, svg, "black", 1.0);
 
+    // Trace rays through the system and draw them
     const results = wasmSystemModel.rayTrace();
     let rayPaths = resultsToRayPathsV2(results);
-    let transformedRayPaths = rayPathsToSVGCoordinates(rayPaths, centerSystem, centerSVG, sfSVG);
+    const transformedRayPaths = toSVGCoordinates(rayPaths, centerSystem, centerSVG, sfSVG);
 
     drawSVG(transformedRayPaths, svg, "red", 1.0);
 }
@@ -182,24 +190,11 @@ export function draw(elements, ctx, color, lineWidth) {
 // SVG rendering
 
 /*
-    * Determine a scaling factor to fit a system of surfaces into a rendering area.
-    * descr: a description of the optical system
-    * width: the width of the drawing area
-    * height: the height of the canvas
-    * fillFactor: the fraction of the drawing area to fill in the bigger dimension
-    * returns: the scaling factor
-*/
-/*
-    * Compute the bounding box of a system description's surface samples.
-    * samples: the surface samples of a system description
-    * returns: [xMin, yMin, zMin, xMax, yMax, zMax]
-*/
-/*
     * Computes the center of the system's bounding box.
     * descr: a description of the optical system
     * returns: com, the coordinates of the center of mass
 */
-export function centerV2(descr) {
+function centerV2(descr) {
     const samples = descr.surface_model.surface_samples;
     let [xMin, yMin, zMin, xMax, yMax, zMax] = boundingBoxV2(samples);
 
@@ -210,6 +205,11 @@ export function centerV2(descr) {
     ];
 }
 
+/*
+    * Compute the bounding box of a system description's surface samples.
+    * samples: the surface samples of a system description
+    * returns: [xMin, yMin, zMin, xMax, yMax, zMax]
+*/
 function boundingBoxV2(samples) {
     let xMin = Infinity;
     let xMax = -Infinity;
@@ -232,7 +232,15 @@ function boundingBoxV2(samples) {
     return [xMin, yMin, zMin, xMax, yMax, zMax];
 }
 
-export function scaleFactorV2(descr, width, height, fillFactor = 0.9) {
+/*
+    * Determine a scaling factor to fit a system of surfaces into a rendering area.
+    * descr: a description of the optical system
+    * width: the width of the drawing area
+    * height: the height of the canvas
+    * fillFactor: the fraction of the drawing area to fill in the bigger dimension
+    * returns: the scaling factor
+*/
+function scaleFactorV2(descr, width, height, fillFactor = 0.9) {
     const samples = descr.surface_model.surface_samples;
 
     let [xMin, yMin, zMin, xMax, yMax, zMax] = boundingBoxV2(samples);
@@ -240,33 +248,6 @@ export function scaleFactorV2(descr, width, height, fillFactor = 0.9) {
     let zRange = zMax - zMin;
     let scaleFactor = fillFactor * Math.min(height / yRange, width / zRange);
     return scaleFactor;
-}
-
-/*
-    * Transforms surface samples from a system description into the SVG coordinate system.
-    * descr: a description of the optical system
-    * systemCenter: the center of the system in system coordinates
-    * svgCenter: the center of the SVG in x, y SVG coordinates
-    * scaleFactor: the factor by which to scale the surfaces
-    * returns: the system description containing the transformed surface samples
-*/
-export function descrToSVGCoordinates(descr, systemCenter, svgCenter, scaleFactor = 6) {
-    const samples = descr.surface_model.surface_samples;
-    const transformedSamples = toSVGCoordinates(samples, systemCenter, svgCenter, scaleFactor);
-
-    // descr.mods contains any additional modifications to the system description not returned by the WASM layer
-    // Create a mods key if it doesn't exist, then add {"svg_surface_samples": transformedSamples} to it
-    let mods = descr.mods || {};
-    mods = {...mods, ...{"svg_surface_samples": transformedSamples}};
-    descr = {...descr, ...{"mods": mods}};
-
-    return descr;
-}
-
-export function rayPathsToSVGCoordinates(rayPaths, systemCenter, svgCenter, scaleFactor = 6) {
-    const transformedRayPaths = toSVGCoordinates(rayPaths, systemCenter, svgCenter, scaleFactor);
-
-    return transformedRayPaths;
 }
 
 /*
@@ -296,7 +277,7 @@ function toSVGCoordinates(paths, systemCenter, svgCenter, scaleFactor = 6) {
     * rays: an array of an array of ray objects at each surface
     * returns: an array of an array of points to draw on the SVG
 */
-export function resultsToRayPathsV2(rayTraceResults) {
+function resultsToRayPathsV2(rayTraceResults) {
     let numRays = rayTraceResults[0].length;
 
     // Create an empty map of ray paths
@@ -319,7 +300,7 @@ export function resultsToRayPathsV2(rayTraceResults) {
     * color: the color to draw the elements
     * lineWidth: the width of the lines to draw
 */
-export function drawSVG(paths, svg, color, lineWidth) {
+function drawSVG(paths, svg, color, lineWidth) {
     for (let [pathId, samples] of paths.entries()) {
         let path = document.createElementNS("http://www.w3.org/2000/svg", "path");
         let d = `M ${samples[0][0]} ${samples[0][1]}`;
