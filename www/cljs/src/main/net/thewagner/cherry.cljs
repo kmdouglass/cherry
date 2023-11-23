@@ -109,61 +109,13 @@
 (defn compute-results [raytrace-input]
   (async/go
     (let [cherry (<p! cherry-async)
-          model (wasm-system-model (.-WasmSystemModel cherry) raytrace-input)
-          surfaces (.surfaces model)
-          gaps (.gaps model)
-          results (try
-                    (.rayTrace model)
-                    (catch js/Error e
-                      (js/console.error "Unexpected error in rayTrace." e)
-                      ::runtime-error))
-          surfaces-samples (let [num-samples 20]
-                             (for [i (range (count surfaces))]
-                               {:samples (js->clj (.sampleSurfYZ model i num-samples))}))
-
-          valid-surfaces? (s/valid? ::cherry-spec/surface-samples surfaces-samples)
-          valid-results? (s/valid? ::cherry-spec/raytrace-results
-                                   (js->clj results {:keywordize-keys true}))]
-
-      (cond->
-        {:surfaces (js->clj surfaces)
-         :gaps (js->clj gaps)}
-
-        valid-surfaces?
-        (assoc :surface-samples surfaces-samples)
-
-        valid-results?
-        (assoc :ray-samples (js->clj (rendering/resultsToRayPaths results)))
-
-        (not valid-surfaces?)
-        (assoc ::surface-sample-problems
-               (::s/problems (s/explain-data ::cherry-spec/surface-samples surfaces-samples)))
-
-        (not valid-results?)
-        (assoc ::raytrace-results-problems
-               (::s/problems (s/explain-data ::cherry-spec/raytrace-results
-                                             (js->clj results {:keywordize-keys true}))))))))
-
-(defn render [canvas surface-samples ray-samples]
-  (when surface-samples
-    (let [ctx (.getContext canvas "2d")
-          w (.-width canvas)
-          h (.-height canvas)
-          sf (rendering/scaleFactor (clj->js surface-samples) w h 0.95)
-          centerSamples (rendering/center (clj->js surface-samples))
-          canvasCenterCoords [(/ w 2.) (/ h 2.)]
-          canvasSurfs (rendering/toCanvasCoordinates (clj->js surface-samples)
-                                                     (clj->js centerSamples)
-                                                     (clj->js canvasCenterCoords)
-                                                     sf)]
-      (.clearRect ctx 0 0 w h)
-      (rendering/draw canvasSurfs ctx "black" 1.0)
-      (when ray-samples
-        (let [canvasRays (rendering/toCanvasCoordinates (clj->js ray-samples)
-                                                        (clj->js centerSamples)
-                                                        (clj->js canvasCenterCoords)
-                                                        sf)]
-          (rendering/draw canvasRays ctx "#cc252c" 1.0))))))
+          model (wasm-system-model (.-WasmSystemModel cherry) raytrace-input)]
+      (try
+        (.rayTrace model)
+        (catch js/Error e
+          (js/console.error "Unexpected error in rayTrace." e)
+          ::runtime-error))
+      {:wasmSystemModel model})))
 
 (defn prefill-row [old selected]
   (let [default (get-in surface-types [selected :default])]
@@ -330,22 +282,25 @@
 (defn start-render!
   "Listen on the result channel and display the surface and ray samples on the canvas.
    Stop when the done channel closes."
-  [done & {:keys [canvas result]}]
+  [done & {:keys [result]}]
   (async/go
     (let [resize (chan)
           handler (listen! js/window EventType/RESIZE resize)]
       (try
         (loop [r {}]
-          (let [{:keys [surface-samples ray-samples]} r
-                width (.-clientWidth (.closest canvas "div"))]
-             (set! (.-width canvas) width)
-             (set! (.-height canvas) 150)
-             (render canvas surface-samples ray-samples))
+          (let [{:keys [wasmSystemModel]} r]
+             (when wasmSystemModel
+               (let [s "systemRendering"]
+                 (dom/remove-children (dom/get-element s))
+                 (try
+                   (rendering/renderSystem wasmSystemModel s)
+                   (catch js/Error e
+                     (js/console.error "Unexpected error in renderSystem" e)
+                     ::runtime-error)))))
           (async/alt!
-            done ([_] ::done)
-            result ([d] (recur d))
-            resize ([_] (recur r))))
-
+              done ([_] ::done)
+              result ([d] (recur d))
+              resize ([_] (recur r))))
         (finally
           (unlisten! handler))))))
 
@@ -533,7 +488,7 @@
                                                         :default-value 10}
                                                        state)))]
                       {:tabs tabs})
-    (start-render! done :canvas (dom/get-element :systemModel) :result result)))
+    (start-render! done :result result)))
 
 (def burger-toggle-handler
   (let [burger (.querySelector js/document ".navbar-burger")]
