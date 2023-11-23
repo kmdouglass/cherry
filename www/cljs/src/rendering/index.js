@@ -9,8 +9,8 @@ export function renderSystem(wasmSystemModel, elementId = "systemRendering") {
     const rendering = document.getElementById(elementId);
 
     const svg = document.createElementNS(SVG_NS, "svg");
-    svg.setAttribute("width", window.innerWidth * 0.5);
-    svg.setAttribute("height", window.innerHeight * 0.5);
+    svg.setAttribute("width", window.innerWidth);
+    svg.setAttribute("height", 150);
     svg.setAttribute("fill", "none");
     svg.setAttribute("stroke", "black");
 
