@@ -77,8 +77,7 @@
  [:body
    navbar
    [:section.section
-     [:div.container
-       [:canvas#systemModel]]
+     [:div#systemRendering.container]
      [:div#system-parameters.tabs.is-centered
        (tabs-nav :surfaces)]
      [:div#tab-body
