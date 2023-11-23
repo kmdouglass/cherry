@@ -179,9 +179,11 @@ function resultsToRayPathsV2(rayTraceResults) {
     let rayPaths = new Map();
     for (let surface of rayTraceResults) {
         for (let ray_id = 0; ray_id < numRays; ray_id++) {
-            let ray = surface[ray_id];
-            rayPaths.set(ray_id, rayPaths.get(ray_id) || []);
-            rayPaths.get(ray_id).push(ray.pos);
+            if (ray_id < surface.length) {
+                let ray = surface[ray_id];
+                rayPaths.set(ray_id, rayPaths.get(ray_id) || []);
+                rayPaths.get(ray_id).push(ray.pos);
+            }
         }
     }
 
@@ -329,8 +331,10 @@ export function resultsToRayPaths(rayTraceResults) {
     let rayPaths = Array.from(Array(numRays), () => {return {"samples": []};});
     for (let surface of rayTraceResults) {
         for (let ray_id = 0; ray_id < numRays; ray_id++) {
-            let ray = surface[ray_id];
-            rayPaths[ray_id].samples.push(ray.pos);
+            if (ray_id < surface.length) {
+                let ray = surface[ray_id];
+                rayPaths[ray_id].samples.push(ray.pos);
+            }
         }
     }
 
