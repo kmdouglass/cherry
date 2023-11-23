@@ -8,6 +8,7 @@ use crate::ray_tracing::{ApertureSpec, Component, FieldSpec, Gap, Surface, Surfa
 
 const NUM_SAMPLES_PER_SURFACE: usize = 20;
 
+type Diameters = HashMap<usize, f32>;
 type SurfaceSamples = HashMap<usize, Vec<Vec3>>;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -62,18 +63,24 @@ impl ComponentModelDescr {
 #[derive(Debug, Serialize, Deserialize)]
 struct SurfaceModelDescr {
     surface_samples: SurfaceSamples,
+    diameters: Diameters,
 }
 
 impl SurfaceModelDescr {
     fn new(surfaces: &[Surface], num_samples_per_surf: usize) -> Self {
         let mut surface_samples = HashMap::new();
+        let mut diameters = HashMap::new();
+
         for (idx, surface) in surfaces.iter().enumerate() {
             let samples = surface.sample_yz(num_samples_per_surf);
             surface_samples.insert(idx, samples);
+
+            diameters.insert(idx, surface.diam());
         }
 
         Self {
             surface_samples: surface_samples,
+            diameters: diameters,
         }
     }
 }
