@@ -37,7 +37,7 @@ export function renderSystem(wasmSystemModel, elementId = "systemRendering") {
     let rayPaths = resultsToRayPathsV2(results);
     const transformedRayPaths = toSVGCoordinates(rayPaths, centerSystem, centerSVG, sfSVG);
 
-    drawSVG(transformedRayPaths, svg, "red", 1.0);
+    drawSVG(transformedRayPaths, svg, "#cc252c", 1.0);
 }
 
 ///////////////////////////////////////////////////////////
