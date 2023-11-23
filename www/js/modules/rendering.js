@@ -1,3 +1,36 @@
+/*
+    * Renders a system of surfaces.
+    * wasmSystemModel: an optical system model
+    * elementId: the id of the DOM element to render to
+*/
+export function renderSystem(wasmSystemModel, elementId = "systemRendering") {
+    const SVG_NS = "http://www.w3.org/2000/svg";
+
+    const rendering = document.getElementById(elementId);
+
+    const svg = document.createElementNS(SVG_NS, "svg");
+    svg.setAttribute("width", window.innerWidth * 0.5);
+    svg.setAttribute("height", window.innerHeight * 0.5);
+    svg.setAttribute("fill", "none");
+    svg.setAttribute("stroke", "black");
+
+    rendering.appendChild(svg);
+
+    let descr = wasmSystemModel.describe();
+    const sfSVG = scaleFactorV2(descr, svg.getAttribute("width"), svg.getAttribute("height"), 0.9);
+    const centerSystem = centerV2(descr);
+    const centerSVG = [svg.getAttribute("width") / 2, svg.getAttribute("height") / 2];
+    descr = descrToSVGCoordinates(descr, centerSystem, centerSVG, sfSVG);
+
+    drawSVG(descr.mods.svg_surface_samples, svg, "black", 1.0);
+
+    const results = wasmSystemModel.rayTrace();
+    let rayPaths = resultsToRayPathsV2(results);
+    let transformedRayPaths = rayPathsToSVGCoordinates(rayPaths, centerSystem, centerSVG, sfSVG);
+
+    drawSVG(transformedRayPaths, svg, "red", 1.0);
+}
+
 ///////////////////////////////////////////////
 // Canvas rendering
 /*

@@ -1,5 +1,5 @@
 import { WasmSystemModel } from "cherry";
-import { center, centerV2, centerOfMass, descrToSVGCoordinates, draw, drawSVG, rayPathsToSVGCoordinates, resultsToRayPaths, resultsToRayPathsV2, scaleFactor, scaleFactorV2, toCanvasCoordinates } from "./modules/rendering.js"
+import { center, draw, renderSystem, resultsToRayPaths, scaleFactor, toCanvasCoordinates } from "./modules/rendering.js"
 import { surfaces, gaps, aperture, fields } from "./modules/petzval_lens.js";
 // import { surfaces, gaps, aperture, fields } from "./modules/planoconvex_lens.js";
 
@@ -15,32 +15,7 @@ wasmSystemModel.build();
 let descr = wasmSystemModel.describe();
 
 // Render the system -- SVG
-const SVG_NS = "http://www.w3.org/2000/svg";
-
-const rendering = document.getElementById("systemRendering");
-
-const svg = document.createElementNS(SVG_NS, "svg");
-svg.setAttribute("width", window.innerWidth * 0.5);
-svg.setAttribute("height", window.innerHeight * 0.5);
-svg.setAttribute("fill", "none");
-svg.setAttribute("stroke", "black");
-
-rendering.appendChild(svg);
-
-const sfSVG = scaleFactorV2(descr, svg.getAttribute("width"), svg.getAttribute("height"), 0.9);
-const centerSystem = centerV2(descr);
-const centerSVG = [svg.getAttribute("width") / 2, svg.getAttribute("height") / 2];
-descr = descrToSVGCoordinates(descr, centerSystem, centerSVG, sfSVG);
-console.log(descr);
-
-drawSVG(descr.mods.svg_surface_samples, svg, "black", 1.0);
-
-// Trace rays through the system
-const results = wasmSystemModel.rayTrace();
-let rayPaths = resultsToRayPathsV2(results);
-let transformedRayPaths = rayPathsToSVGCoordinates(rayPaths, centerSystem, centerSVG, sfSVG);
-
-drawSVG(transformedRayPaths, svg, "red", 1.0);
+renderSystem(wasmSystemModel);
 
 /////////////////////////////////////////////////
 // HTML5 Canvas
