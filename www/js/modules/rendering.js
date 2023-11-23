@@ -28,6 +28,7 @@ export function renderSystem(wasmSystemModel, elementId = "systemRendering") {
         surfaceSamples.set(surfId, samples);
     }
     surfaceSamples = surfacesIntoLenses(surfaceSamples, descr);
+    surfaceSamples = stopsAsApertures(surfaceSamples, descr);
     const transformedSurfaceSamples = toSVGCoordinates(surfaceSamples, centerSystem, centerSVG, sfSVG);
 
     drawSVG(transformedSurfaceSamples, svg, "black", 1.0);
@@ -79,6 +80,28 @@ function surfacesIntoLenses(surfaceSamples, descr) {
             // Note that we go from the smaller surface to the larger one
             surfaceSamples.get(surfIds[smallerSurfIdx]).unshift([bottomEndpoints[smallerSurfIdx][0], bottomEndpoints[smallerSurfIdx][1], bottomEndpoints[biggerSurfIdx][2]]);
             surfaceSamples.get(surfIds[smallerSurfIdx]).push([topEndpoints[smallerSurfIdx][0], topEndpoints[smallerSurfIdx][1], topEndpoints[biggerSurfIdx][2]]);
+        }
+    }
+    return surfaceSamples;
+}
+
+/*
+    * Converts paths for stops into apertures.
+    * surfaceSamples: a map of surface samples
+    * descr: a description of the optical system
+    * returns: a map of surface samples and connecting surfaces to form apertures
+*/
+function stopsAsApertures(surfaceSamples, descr) {
+    const bbox = boundingBoxV2(surfaceSamples);
+    const yMin = bbox[1];
+    const yMax = bbox[4];
+    for (let component of descr.component_model.components) {
+        if (component["Stop"]) {
+            const surfId = component["Stop"]["stop_idx"];
+            const surfSamples = surfaceSamples.get(surfId);
+            const x = surfSamples[0][0];
+            const z = surfSamples[0][2];
+            surfaceSamples.set(surfId, [[x, yMin, z], [x, yMax, z]]);
         }
     }
     return surfaceSamples;
