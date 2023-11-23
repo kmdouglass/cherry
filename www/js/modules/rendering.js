@@ -1,3 +1,216 @@
+/*
+    * Renders a system of surfaces.
+    * wasmSystemModel: an optical system model
+    * elementId: the id of the DOM element to render to
+*/
+export function renderSystem(wasmSystemModel, elementId = "systemRendering") {
+    const SVG_NS = "http://www.w3.org/2000/svg";
+
+    const rendering = document.getElementById(elementId);
+
+    const svg = document.createElementNS(SVG_NS, "svg");
+    svg.setAttribute("width", window.innerWidth * 0.5);
+    svg.setAttribute("height", window.innerHeight * 0.5);
+    svg.setAttribute("fill", "none");
+    svg.setAttribute("stroke", "black");
+
+    rendering.appendChild(svg);
+
+    // Compute quantities required for rendering
+    let descr = wasmSystemModel.describe();
+    const sfSVG = scaleFactorV2(descr, svg.getAttribute("width"), svg.getAttribute("height"), 0.9);
+    const centerSystem = centerV2(descr);
+    const centerSVG = [svg.getAttribute("width") / 2, svg.getAttribute("height") / 2];
+    
+    // Draw surfaces
+    let surfaceSamples = new Map();
+    for (let [surfId, samples] of descr.surface_model.surface_samples.entries()) {
+        surfaceSamples.set(surfId, samples);
+    }
+    surfaceSamples = surfacesIntoLenses(surfaceSamples, descr);
+    const transformedSurfaceSamples = toSVGCoordinates(surfaceSamples, centerSystem, centerSVG, sfSVG);
+
+    drawSVG(transformedSurfaceSamples, svg, "black", 1.0);
+
+    // Trace rays through the system and draw them
+    const results = wasmSystemModel.rayTrace();
+    let rayPaths = resultsToRayPathsV2(results);
+    const transformedRayPaths = toSVGCoordinates(rayPaths, centerSystem, centerSVG, sfSVG);
+
+    drawSVG(transformedRayPaths, svg, "red", 1.0);
+}
+
+///////////////////////////////////////////////////////////
+// SVG rendering
+
+/*
+    * Converts paths defined by surface samples to paths for lenses.
+    * surfaceSamples: a map of surface samples
+    * descr: a description of the optical system
+    * returns: a map of surface samples and connecting surfaces to form lenses
+*/ 
+function surfacesIntoLenses(surfaceSamples, descr) {
+    for (let component of descr.component_model.components) {
+        if (component["Element"]) {
+            const surfIds = component["Element"]["surf_idxs"];
+            let surfSamples = [descr.surface_model.surface_samples.get(surfIds[0]), descr.surface_model.surface_samples.get(surfIds[1])];
+            const surfDiams = [descr.surface_model.diameters.get(surfIds[0]), descr.surface_model.diameters.get(surfIds[1])];
+
+            // Find which surface has the smaller diameter
+            let smallerSurfIdx = 0;
+            let biggerSurfIdx = 1;
+            if (surfDiams[0] > surfDiams[1]) {
+                smallerSurfIdx = 1;
+                biggerSurfIdx = 0;
+            }
+            const yExtent = surfDiams[biggerSurfIdx] / 2;
+
+            // Extend the smaller surface to the same diameter as the larger surface by adding y points
+            const firstPoint = surfSamples[smallerSurfIdx][0];
+            const lastPoint = surfSamples[smallerSurfIdx][surfSamples[smallerSurfIdx].length - 1];
+            
+            surfaceSamples.get(surfIds[smallerSurfIdx]).unshift([firstPoint[0], -yExtent, firstPoint[2]]);
+            surfaceSamples.get(surfIds[smallerSurfIdx]).push([lastPoint[0], yExtent, lastPoint[2]]);
+
+            // Connect the lens surface endpoints to form a lens
+            let bottomEndpoints = [surfaceSamples.get(surfIds[0])[0], surfaceSamples.get(surfIds[1])[0]];
+            let topEndpoints = [surfaceSamples.get(surfIds[0])[surfaceSamples.get(surfIds[0]).length - 1], surfaceSamples.get(surfIds[1])[surfaceSamples.get(surfIds[1]).length - 1]];
+
+            // Note that we go from the smaller surface to the larger one
+            surfaceSamples.get(surfIds[smallerSurfIdx]).unshift([bottomEndpoints[smallerSurfIdx][0], bottomEndpoints[smallerSurfIdx][1], bottomEndpoints[biggerSurfIdx][2]]);
+            surfaceSamples.get(surfIds[smallerSurfIdx]).push([topEndpoints[smallerSurfIdx][0], topEndpoints[smallerSurfIdx][1], topEndpoints[biggerSurfIdx][2]]);
+        }
+    }
+    return surfaceSamples;
+}
+
+/*
+    * Computes the center of the system's bounding box.
+    * descr: a description of the optical system
+    * returns: com, the coordinates of the center of mass
+*/
+function centerV2(descr) {
+    const samples = descr.surface_model.surface_samples;
+    let [xMin, yMin, zMin, xMax, yMax, zMax] = boundingBoxV2(samples);
+
+    return [
+        (xMin + xMax) / 2,
+        (yMin + yMax) / 2,
+        (zMin + zMax) / 2,
+    ];
+}
+
+/*
+    * Compute the bounding box of a system description's surface samples.
+    * samples: the surface samples of a system description
+    * returns: [xMin, yMin, zMin, xMax, yMax, zMax]
+*/
+function boundingBoxV2(samples) {
+    let xMin = Infinity;
+    let xMax = -Infinity;
+    let yMin = Infinity;
+    let yMax = -Infinity;
+    let zMin = Infinity;
+    let zMax = -Infinity;
+
+    for (let surfSamples of samples.values()) {
+        for (let sample of surfSamples) {
+            xMin = Math.min(xMin, sample[0]);
+            xMax = Math.max(xMax, sample[0]);
+            yMin = Math.min(yMin, sample[1]);
+            yMax = Math.max(yMax, sample[1]);
+            zMin = Math.min(zMin, sample[2]);
+            zMax = Math.max(zMax, sample[2]);
+        }
+    }
+
+    return [xMin, yMin, zMin, xMax, yMax, zMax];
+}
+
+/*
+    * Determine a scaling factor to fit a system of surfaces into a rendering area.
+    * descr: a description of the optical system
+    * width: the width of the drawing area
+    * height: the height of the canvas
+    * fillFactor: the fraction of the drawing area to fill in the bigger dimension
+    * returns: the scaling factor
+*/
+function scaleFactorV2(descr, width, height, fillFactor = 0.9) {
+    const samples = descr.surface_model.surface_samples;
+
+    let [xMin, yMin, zMin, xMax, yMax, zMax] = boundingBoxV2(samples);
+    let yRange = yMax - yMin;
+    let zRange = zMax - zMin;
+    let scaleFactor = fillFactor * Math.min(height / yRange, width / zRange);
+    return scaleFactor;
+}
+
+/*
+    * Transforms paths of 3D points to the SVG coordinate system.
+*/
+function toSVGCoordinates(paths, systemCenter, svgCenter, scaleFactor = 6) {
+    let transformedPaths = new Map();
+    for (let [pathId, pathSamples] of paths.entries()) {
+        let transformedPathSamples = [];
+        for (let sample of pathSamples) {
+            // Transpose the y and z coordinates because the SVG y-axis points down.
+            // Take the negative of the y-coordinate because it points down the screen.
+            // Shift the center of mass of the samples to that of the SVG.
+            transformedPathSamples.push([
+                svgCenter[0] + scaleFactor * (sample[2] - systemCenter[2]),
+                svgCenter[1] - scaleFactor * (sample[1] - systemCenter[1])
+            ]);
+        }
+        transformedPaths.set(pathId, transformedPathSamples);
+    }
+
+    return transformedPaths;
+}
+
+/*
+    * Converts rays trace results to a series of points (ray paths) to draw on the SVG.
+    * rays: an array of an array of ray objects at each surface
+    * returns: an array of an array of points to draw on the SVG
+*/
+function resultsToRayPathsV2(rayTraceResults) {
+    let numRays = rayTraceResults[0].length;
+
+    // Create an empty map of ray paths
+    let rayPaths = new Map();
+    for (let surface of rayTraceResults) {
+        for (let ray_id = 0; ray_id < numRays; ray_id++) {
+            let ray = surface[ray_id];
+            rayPaths.set(ray_id, rayPaths.get(ray_id) || []);
+            rayPaths.get(ray_id).push(ray.pos);
+        }
+    }
+
+    return rayPaths;
+}
+
+/*
+    * Draws paths defined by samples to an SVG.
+    * paths: a map of paths, where each path is an array of 3D coordinates
+    * svg: the SVG element to draw to
+    * color: the color to draw the elements
+    * lineWidth: the width of the lines to draw
+*/
+function drawSVG(paths, svg, color, lineWidth) {
+    for (let [pathId, samples] of paths.entries()) {
+        let path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        let d = `M ${samples[0][0]} ${samples[0][1]}`;
+        for (let sample of samples) {
+            d += ` L ${sample[0]} ${sample[1]}`;
+        }
+        path.setAttribute("d", d);
+        path.setAttribute("stroke", color);
+        path.setAttribute("stroke-width", lineWidth);
+        path.setAttribute("fill", "none");
+        svg.appendChild(path);
+    }
+}
+
+
 ///////////////////////////////////////////////
 // Canvas rendering
 /*
@@ -143,160 +356,4 @@ export function draw(elements, ctx, color, lineWidth) {
     }
 
     ctx.stroke();
-}
-
-///////////////////////////////////////////////////////////
-// SVG rendering
-
-/*
-    * Determine a scaling factor to fit a system of surfaces into a rendering area.
-    * descr: a description of the optical system
-    * width: the width of the drawing area
-    * height: the height of the canvas
-    * fillFactor: the fraction of the drawing area to fill in the bigger dimension
-    * returns: the scaling factor
-*/
-/*
-    * Compute the bounding box of a system description's surface samples.
-    * samples: the surface samples of a system description
-    * returns: [xMin, yMin, zMin, xMax, yMax, zMax]
-*/
-/*
-    * Computes the center of the system's bounding box.
-    * descr: a description of the optical system
-    * returns: com, the coordinates of the center of mass
-*/
-export function centerV2(descr) {
-    const samples = descr.surface_model.surface_samples;
-    let [xMin, yMin, zMin, xMax, yMax, zMax] = boundingBoxV2(samples);
-
-    return [
-        (xMin + xMax) / 2,
-        (yMin + yMax) / 2,
-        (zMin + zMax) / 2,
-    ];
-}
-
-function boundingBoxV2(samples) {
-    let xMin = Infinity;
-    let xMax = -Infinity;
-    let yMin = Infinity;
-    let yMax = -Infinity;
-    let zMin = Infinity;
-    let zMax = -Infinity;
-
-    for (let surfSamples of samples.values()) {
-        for (let sample of surfSamples) {
-            xMin = Math.min(xMin, sample[0]);
-            xMax = Math.max(xMax, sample[0]);
-            yMin = Math.min(yMin, sample[1]);
-            yMax = Math.max(yMax, sample[1]);
-            zMin = Math.min(zMin, sample[2]);
-            zMax = Math.max(zMax, sample[2]);
-        }
-    }
-
-    return [xMin, yMin, zMin, xMax, yMax, zMax];
-}
-
-export function scaleFactorV2(descr, width, height, fillFactor = 0.9) {
-    const samples = descr.surface_model.surface_samples;
-
-    let [xMin, yMin, zMin, xMax, yMax, zMax] = boundingBoxV2(samples);
-    let yRange = yMax - yMin;
-    let zRange = zMax - zMin;
-    let scaleFactor = fillFactor * Math.min(height / yRange, width / zRange);
-    return scaleFactor;
-}
-
-/*
-    * Transforms surface samples from a system description into the SVG coordinate system.
-    * descr: a description of the optical system
-    * systemCenter: the center of the system in system coordinates
-    * svgCenter: the center of the SVG in x, y SVG coordinates
-    * scaleFactor: the factor by which to scale the surfaces
-    * returns: the system description containing the transformed surface samples
-*/
-export function descrToSVGCoordinates(descr, systemCenter, svgCenter, scaleFactor = 6) {
-    const samples = descr.surface_model.surface_samples;
-    const transformedSamples = toSVGCoordinates(samples, systemCenter, svgCenter, scaleFactor);
-
-    // descr.mods contains any additional modifications to the system description not returned by the WASM layer
-    // Create a mods key if it doesn't exist, then add {"svg_surface_samples": transformedSamples} to it
-    let mods = descr.mods || {};
-    mods = {...mods, ...{"svg_surface_samples": transformedSamples}};
-    descr = {...descr, ...{"mods": mods}};
-
-    return descr;
-}
-
-export function rayPathsToSVGCoordinates(rayPaths, systemCenter, svgCenter, scaleFactor = 6) {
-    const transformedRayPaths = toSVGCoordinates(rayPaths, systemCenter, svgCenter, scaleFactor);
-
-    return transformedRayPaths;
-}
-
-/*
-    * Transforms paths of 3D points to the SVG coordinate system.
-*/
-function toSVGCoordinates(paths, systemCenter, svgCenter, scaleFactor = 6) {
-    let transformedPaths = new Map();
-    for (let [pathId, pathSamples] of paths.entries()) {
-        let transformedPathSamples = [];
-        for (let sample of pathSamples) {
-            // Transpose the y and z coordinates because the SVG y-axis points down.
-            // Take the negative of the y-coordinate because it points down the screen.
-            // Shift the center of mass of the samples to that of the SVG.
-            transformedPathSamples.push([
-                svgCenter[0] + scaleFactor * (sample[2] - systemCenter[2]),
-                svgCenter[1] - scaleFactor * (sample[1] - systemCenter[1])
-            ]);
-        }
-        transformedPaths.set(pathId, transformedPathSamples);
-    }
-
-    return transformedPaths;
-}
-
-/*
-    * Converts rays trace results to a series of points (ray paths) to draw on the SVG.
-    * rays: an array of an array of ray objects at each surface
-    * returns: an array of an array of points to draw on the SVG
-*/
-export function resultsToRayPathsV2(rayTraceResults) {
-    let numRays = rayTraceResults[0].length;
-
-    // Create an empty map of ray paths
-    let rayPaths = new Map();
-    for (let surface of rayTraceResults) {
-        for (let ray_id = 0; ray_id < numRays; ray_id++) {
-            let ray = surface[ray_id];
-            rayPaths.set(ray_id, rayPaths.get(ray_id) || []);
-            rayPaths.get(ray_id).push(ray.pos);
-        }
-    }
-
-    return rayPaths;
-}
-
-/*
-    * Draws paths defined by samples to an SVG.
-    * paths: a map of paths, where each path is an array of 3D coordinates
-    * svg: the SVG element to draw to
-    * color: the color to draw the elements
-    * lineWidth: the width of the lines to draw
-*/
-export function drawSVG(paths, svg, color, lineWidth) {
-    for (let [pathId, samples] of paths.entries()) {
-        let path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-        let d = `M ${samples[0][0]} ${samples[0][1]}`;
-        for (let sample of samples) {
-            d += ` L ${sample[0]} ${sample[1]}`;
-        }
-        path.setAttribute("d", d);
-        path.setAttribute("stroke", color);
-        path.setAttribute("stroke-width", lineWidth);
-        path.setAttribute("fill", "none");
-        svg.appendChild(path);
-    }
 }
