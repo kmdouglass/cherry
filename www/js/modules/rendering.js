@@ -28,7 +28,6 @@ export function renderSystem(wasmSystemModel, elementId = "systemRendering") {
         surfaceSamples.set(surfId, samples);
     }
     surfaceSamples = surfacesIntoLenses(surfaceSamples, descr);
-    surfaceSamples = stopsAsApertures(surfaceSamples, descr);
     const transformedSurfaceSamples = toSVGCoordinates(surfaceSamples, centerSystem, centerSVG, sfSVG);
 
     drawSVG(transformedSurfaceSamples, svg, "black", 1.0);
@@ -39,6 +38,10 @@ export function renderSystem(wasmSystemModel, elementId = "systemRendering") {
     const transformedRayPaths = toSVGCoordinates(rayPaths, centerSystem, centerSVG, sfSVG);
 
     drawSVG(transformedRayPaths, svg, "red", 1.0);
+
+    // Prototype rendering by commands
+    const cmds = commands(descr);
+    console.log(cmds);
 }
 
 ///////////////////////////////////////////////////////////
@@ -86,26 +89,57 @@ function surfacesIntoLenses(surfaceSamples, descr) {
 }
 
 /*
-    * Converts paths for stops into apertures.
-    * surfaceSamples: a map of surface samples
+    * Creates the path for a surface of type Stop.
+    * surfaceSamples: a map of surface samples for the stop surface
     * descr: a description of the optical system
-    * returns: a map of surface samples and connecting surfaces to form apertures
+    * returns: an array of paths for the stop surface
 */
-function stopsAsApertures(surfaceSamples, descr) {
-    const bbox = boundingBoxV2(surfaceSamples);
+function stopPath(surfaceSamples, descr) {
+    const bbox = boundingBoxV2(descr.surface_model.surface_samples);
     const yMin = bbox[1];
     const yMax = bbox[4];
-    for (let component of descr.component_model.components) {
-        if (component["Stop"]) {
-            const surfId = component["Stop"]["stop_idx"];
-            const surfSamples = surfaceSamples.get(surfId);
-            const x = surfSamples[0][0];
-            const z = surfSamples[0][2];
-            surfaceSamples.set(surfId, [[x, yMin, z], [x, yMax, z]]);
+
+    const surfYMin = surfaceSamples[0][1];
+    const surfYMax = surfaceSamples[surfaceSamples.length - 1][1];
+    const x = surfaceSamples[0][0];
+    const z = surfaceSamples[0][2];
+
+    let paths = [
+        [[x, yMin, z], [x, surfYMin, z]],
+        [[x, surfYMax, z], [x, yMax, z]]
+    ];
+
+    return paths;
+}
+
+/*
+    * Converts a set of surface samples to a set of rendering commands.
+    * samples: a map of surface samples
+    * descr: a description of the optical system
+    * returns: an array of commands for the renderer
+*/
+function commands(descr) {
+    let commands = [];
+    for (let [surfId, surfSamples] of descr.surface_model.surface_samples.entries()) {
+        const surfType = descr.surface_model.surface_types.get(surfId);
+
+        if (surfType === "Stop") {
+            let paths = stopPath(surfSamples, descr);
+
+            // A command is just an object containing data for the renderer
+            commands.push({
+                "type": surfType,
+                "paths": paths,
+                "colors": ["black"],
+          });
+        }
+        else {
+            // TODO
         }
     }
-    return surfaceSamples;
-}
+
+    return commands;
+}   
 
 /*
     * Computes the center of the system's bounding box.

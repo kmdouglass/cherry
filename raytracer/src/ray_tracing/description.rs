@@ -10,6 +10,7 @@ const NUM_SAMPLES_PER_SURFACE: usize = 20;
 
 type Diameters = HashMap<usize, f32>;
 type SurfaceSamples = HashMap<usize, Vec<Vec3>>;
+type SurfaceTypes = HashMap<usize, String>;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SystemDescription {
@@ -62,25 +63,37 @@ impl ComponentModelDescr {
 
 #[derive(Debug, Serialize, Deserialize)]
 struct SurfaceModelDescr {
-    surface_samples: SurfaceSamples,
     diameters: Diameters,
+    surface_samples: SurfaceSamples,
+    surface_types: SurfaceTypes,
 }
 
 impl SurfaceModelDescr {
     fn new(surfaces: &[Surface], num_samples_per_surf: usize) -> Self {
-        let mut surface_samples = HashMap::new();
         let mut diameters = HashMap::new();
+        let mut surface_samples = HashMap::new();
+        let mut surface_types = HashMap::new();
 
         for (idx, surface) in surfaces.iter().enumerate() {
             let samples = surface.sample_yz(num_samples_per_surf);
             surface_samples.insert(idx, samples);
 
             diameters.insert(idx, surface.diam());
+
+            let surface_type = match surface {
+                Surface::ObjectPlane(_) => "ObjectPlane".to_string(),
+                Surface::ImagePlane(_) => "ImagePlane".to_string(),
+                Surface::RefractingCircularConic(_) => "RefractingCircularConic".to_string(),
+                Surface::RefractingCircularFlat(_) => "RefractingCircularFlat".to_string(),
+                Surface::Stop(_) => "Stop".to_string(),
+            };
+            surface_types.insert(idx, surface_type);
         }
 
         Self {
-            surface_samples: surface_samples,
             diameters: diameters,
+            surface_samples: surface_samples,
+            surface_types: surface_types,
         }
     }
 }
