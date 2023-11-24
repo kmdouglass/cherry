@@ -71,9 +71,14 @@ function commands(descr) {
                 "paths": [surfSamples],
                 "colors": ["#dcdcdc"],
             });
-        }
-        else {
-            // TODO
+        } else if (surfType === "RefractingCircularConic" || surfType === "RefractingCircularFlat") {
+            commands.push({
+                "type": surfType,
+                "paths": [surfSamples],
+                "colors": ["black"],
+            });
+        } else {
+            console.error(`Unknown surface type: ${surfType}`);
         }
     }
 
