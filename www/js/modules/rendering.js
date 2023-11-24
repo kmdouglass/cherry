@@ -21,6 +21,10 @@ export function renderSystem(wasmSystemModel, elementId = "systemRendering") {
     const sfSVG = scaleFactorV2(descr, svg.getAttribute("width"), svg.getAttribute("height"), 0.9);
     const centerSystem = centerV2(descr);
     const centerSVG = [svg.getAttribute("width") / 2, svg.getAttribute("height") / 2];
+
+    // Prototype rendering by commands
+    const cmds = commands(descr);
+    console.log(cmds);
     
     // Draw surfaces
     let surfaceSamples = new Map();
@@ -38,10 +42,42 @@ export function renderSystem(wasmSystemModel, elementId = "systemRendering") {
     const transformedRayPaths = toSVGCoordinates(rayPaths, centerSystem, centerSVG, sfSVG);
 
     drawSVG(transformedRayPaths, svg, "red", 1.0);
+}
 
-    // Prototype rendering by commands
-    const cmds = commands(descr);
-    console.log(cmds);
+/*
+    * Converts a set of surface samples to a set of rendering commands.
+    * samples: a map of surface samples
+    * descr: a description of the optical system
+    * returns: an array of commands for the renderer
+*/
+function commands(descr) {
+    let commands = [];
+    for (let [surfId, surfSamples] of descr.surface_model.surface_samples.entries()) {
+        const surfType = descr.surface_model.surface_types.get(surfId);
+        let paths;
+
+        if (surfType === "Stop") {
+            paths = stopPath(surfSamples, descr);
+
+            // A command is just an object containing data for the renderer
+            commands.push({
+                "type": surfType,
+                "paths": paths,
+                "colors": ["black"],
+          });
+        } else if (surfType === "ObjectPlane" || surfType === "ImagePlane") {
+            commands.push({
+                "type": surfType,
+                "paths": [surfSamples],
+                "colors": ["#dcdcdc"],
+            });
+        }
+        else {
+            // TODO
+        }
+    }
+
+    return commands;
 }
 
 ///////////////////////////////////////////////////////////
@@ -111,35 +147,6 @@ function stopPath(surfaceSamples, descr) {
 
     return paths;
 }
-
-/*
-    * Converts a set of surface samples to a set of rendering commands.
-    * samples: a map of surface samples
-    * descr: a description of the optical system
-    * returns: an array of commands for the renderer
-*/
-function commands(descr) {
-    let commands = [];
-    for (let [surfId, surfSamples] of descr.surface_model.surface_samples.entries()) {
-        const surfType = descr.surface_model.surface_types.get(surfId);
-
-        if (surfType === "Stop") {
-            let paths = stopPath(surfSamples, descr);
-
-            // A command is just an object containing data for the renderer
-            commands.push({
-                "type": surfType,
-                "paths": paths,
-                "colors": ["black"],
-          });
-        }
-        else {
-            // TODO
-        }
-    }
-
-    return commands;
-}   
 
 /*
     * Computes the center of the system's bounding box.
