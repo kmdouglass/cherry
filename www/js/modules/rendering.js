@@ -23,10 +23,13 @@ export function renderSystem(wasmSystemModel, elementId = "systemRendering") {
     const centerSVG = [svg.getAttribute("width") / 2, svg.getAttribute("height") / 2];
 
     // Prototype rendering by commands
-    const cmds = commands(descr);
+    const cmds = commands(descr, centerSystem, centerSVG, sfSVG);
     console.log(cmds);
     
+    drawCommands(cmds, svg);
+
     // Draw surfaces
+    /*
     let surfaceSamples = new Map();
     for (let [surfId, samples] of descr.surface_model.surface_samples.entries()) {
         surfaceSamples.set(surfId, samples);
@@ -42,6 +45,7 @@ export function renderSystem(wasmSystemModel, elementId = "systemRendering") {
     const transformedRayPaths = toSVGCoordinates(rayPaths, centerSystem, centerSVG, sfSVG);
 
     drawSVG(transformedRayPaths, svg, "red", 1.0);
+    */
 }
 
 /*
@@ -50,7 +54,7 @@ export function renderSystem(wasmSystemModel, elementId = "systemRendering") {
     * descr: a description of the optical system
     * returns: an array of commands for the renderer
 */
-function commands(descr) {
+function commands(descr, centerSystem, centerSVG, sf) {
     let commands = [];
     for (let [surfId, surfSamples] of descr.surface_model.surface_samples.entries()) {
         const surfType = descr.surface_model.surface_types.get(surfId);
@@ -58,35 +62,116 @@ function commands(descr) {
 
         if (surfType === "Stop") {
             paths = stopPath(surfSamples, descr);
+            paths = toSVGCoordinatesV2(paths, centerSystem, centerSVG, sf);
 
             // A command is just an object containing data for the renderer
             commands.push({
                 "type": surfType,
                 "paths": paths,
                 "colors": ["black"],
+                "stroke-width": [1.0],
           });
         } else if (surfType === "ObjectPlane" || surfType === "ImagePlane") {
+            paths = toSVGCoordinatesV2([surfSamples], centerSystem, centerSVG, sf);
             commands.push({
                 "type": surfType,
-                "paths": [surfSamples],
-                "colors": ["#dcdcdc"],
+                "paths": paths,
+                "colors": ["#999999"],
+                "stroke-width": [1.0],
             });
         } else if (surfType === "RefractingCircularConic" || surfType === "RefractingCircularFlat") {
+            paths = toSVGCoordinatesV2([surfSamples], centerSystem, centerSVG, sf);
             commands.push({
                 "type": surfType,
-                "paths": [surfSamples],
+                "paths": paths,
                 "colors": ["black"],
+                "stroke-width": [1.0],
             });
         } else {
             console.error(`Unknown surface type: ${surfType}`);
         }
+
+        // Create paths that connect lenses
+        paths = surfacesIntoLensesV2(descr);
+        paths = toSVGCoordinatesV2(paths, centerSystem, centerSVG, sf);
+        commands.push({
+            "type": "LensConnectors",
+            "paths": paths,
+            "colors": Array(paths.length).fill("black"),
+            "stroke-width": Array(paths.length).fill(1.0),
+        });
     }
 
     return commands;
 }
 
+function drawCommands(commands, svg) {
+    for (let command of commands) {
+        command.paths.forEach(function(path, i) {
+            let pathElement = document.createElementNS("http://www.w3.org/2000/svg", "path");
+            let d = `M ${path[0][0]} ${path[0][1]}`;
+            for (let point of path) {
+                d += ` L ${point[0]} ${point[1]}`;
+            }
+            pathElement.setAttribute("d", d);
+            pathElement.setAttribute("stroke", command.colors[i]);
+            pathElement.setAttribute("stroke-width", command["stroke-width"][i] || 1.0);
+            pathElement.setAttribute("fill", "none");
+            svg.appendChild(pathElement);
+        });
+    }
+}
+
 ///////////////////////////////////////////////////////////
 // SVG rendering
+
+function surfacesIntoLensesV2(descr) {
+    const surfaceSamples = descr.surface_model.surface_samples;
+
+    let paths = new Array();
+    let topPath;
+    let bottomPath;
+    for (let component of descr.component_model.components) {
+        if (component["Element"]) {
+            topPath = new Array();
+            bottomPath = new Array();
+
+            const surfIds = component["Element"]["surf_idxs"];
+            const surfSamples = [descr.surface_model.surface_samples.get(surfIds[0]), descr.surface_model.surface_samples.get(surfIds[1])];
+            const surfDiams = [descr.surface_model.diameters.get(surfIds[0]), descr.surface_model.diameters.get(surfIds[1])];
+
+            // Find which surface has the smaller diameter
+            let smallerSurfIdx = 0;
+            let biggerSurfIdx = 1;
+            if (surfDiams[0] > surfDiams[1]) {
+                smallerSurfIdx = 1;
+                biggerSurfIdx = 0;
+            }
+            const yExtent = surfDiams[biggerSurfIdx] / 2;
+
+            // Extend the smaller surface to the same diameter as the larger surface by adding y points
+            const firstPoint = surfSamples[smallerSurfIdx][0];
+            const lastPoint = surfSamples[smallerSurfIdx][surfSamples[smallerSurfIdx].length - 1];
+
+            topPath.push(lastPoint);
+            bottomPath.push(firstPoint);
+            topPath.push([lastPoint[0], yExtent, lastPoint[2]]);
+            bottomPath.push([firstPoint[0], -yExtent, firstPoint[2]]);
+
+            // Connect the lens surface endpoints to form a lens
+            let bottomEndpoints = [surfaceSamples.get(surfIds[0])[0], surfaceSamples.get(surfIds[1])[0]];
+            let topEndpoints = [surfaceSamples.get(surfIds[0])[surfaceSamples.get(surfIds[0]).length - 1], surfaceSamples.get(surfIds[1])[surfaceSamples.get(surfIds[1]).length - 1]];
+
+            // Note that we go from the smaller surface to the larger one
+            topPath.push([topEndpoints[smallerSurfIdx][0], yExtent, topEndpoints[biggerSurfIdx][2]]);
+            bottomPath.push([bottomEndpoints[smallerSurfIdx][0], -yExtent, bottomEndpoints[biggerSurfIdx][2]]);
+
+            paths.push(topPath);
+            paths.push(bottomPath);
+        }
+    }
+    return paths;
+}            
 
 /*
     * Converts paths defined by surface samples to paths for lenses.
@@ -235,6 +320,26 @@ function toSVGCoordinates(paths, systemCenter, svgCenter, scaleFactor = 6) {
 
     return transformedPaths;
 }
+
+function toSVGCoordinatesV2(paths, systemCenter, svgCenter, scaleFactor = 6) {
+    let transformedPaths = new Array();
+    for (let [_pathId, pathSamples] of paths.entries()) {
+        let transformedPathSamples = [];
+        for (let sample of pathSamples) {
+            // Transpose the y and z coordinates because the SVG y-axis points down.
+            // Take the negative of the y-coordinate because it points down the screen.
+            // Shift the center of mass of the samples to that of the SVG.
+            transformedPathSamples.push([
+                svgCenter[0] + scaleFactor * (sample[2] - systemCenter[2]),
+                svgCenter[1] - scaleFactor * (sample[1] - systemCenter[1])
+            ]);
+        }
+        transformedPaths.push(transformedPathSamples);
+    }
+
+    return transformedPaths;
+}
+
 
 /*
     * Converts rays trace results to a series of points (ray paths) to draw on the SVG.
