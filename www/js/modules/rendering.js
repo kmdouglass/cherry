@@ -153,6 +153,13 @@ function surfacesIntoLenses(descr) {
             
             paths.push(path);
         }
+
+        if (component["UnpairedSurface"]) {
+            const surfId = component["UnpairedSurface"]["surf_idx"];
+            const surfSamples = surfaceSamples.get(surfId);
+
+            paths.push(surfSamples);
+        }
     }
 
     return paths
