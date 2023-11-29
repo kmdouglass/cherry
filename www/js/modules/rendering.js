@@ -68,10 +68,11 @@ function commands(descr, rayPaths, centerSystem, centerSVG, sf) {
     paths = surfacesIntoLenses(descr);
     paths = toSVGCoordinates(paths, centerSystem, centerSVG, sf);
     commands.push({
-        "type": "LensConnectors",
+        "type": "Lens",
         "paths": paths,
         "color": "black",
         "stroke-width": 1.0,
+        "close-path": true,
     });
 
     // Create ray paths
@@ -96,6 +97,9 @@ function drawCommands(commands, svg) {
                 let d = `M ${path[0][0]} ${path[0][1]}`;
                 for (let point of path) {
                     d += ` L ${point[0]} ${point[1]}`;
+                }
+                if (command["close-path"]) {
+                    d += " Z";
                 }
                 pathElement.setAttribute("d", d);
                 pathElement.setAttribute("stroke", command.color);
