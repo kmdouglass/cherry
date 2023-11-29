@@ -203,7 +203,7 @@ impl SystemModel {
     /// Creates a new SystemModel with an object plane and an image plane.
     ///
     /// By convention, the first non-object surface lies at z = 0.
-    /// 
+    ///
     /// DEPRECATED
     pub fn old() -> Self {
         let obj_plane = Surface::new_obj_plane(
@@ -677,6 +677,7 @@ impl<'a> Iterator for SurfacePairIterator<'a> {
 pub enum Component {
     Element { surf_idxs: (usize, usize) },
     Stop { stop_idx: usize },
+    UnpairedSurface { surf_idx: usize },
 }
 
 /// Specifies a surface.
