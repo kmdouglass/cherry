@@ -21,7 +21,8 @@ impl ComponentModel {
 
         let mut surf_pairs = SurfacePairIterator::new(surfaces).enumerate();
         let max_idx = surfaces.len() - 1;
-
+        let mut paired_surfaces = HashSet::new();
+    
         if max_idx < 2 {
             // There are no components because only the object and image plane exist.
             return Self {
@@ -38,6 +39,7 @@ impl ComponentModel {
             if let Surface::Stop(_) = surf_pair.0 {
                 // Stops are special, so be sure that they're added before anything else.
                 components.insert(Component::Stop { stop_idx: i });
+                continue;
             }
 
             if let Surface::Stop(_) = surf_pair.1 {
@@ -51,9 +53,19 @@ impl ComponentModel {
                 continue;
             }
 
+            if let Surface::ImagePlane(_) = surf_pair.1 {
+                // Check whether the next to last surface has already been paired with another.
+                if !paired_surfaces.contains(&i) {
+                    components.insert(Component::UnpairedSurface { surf_idx: i });
+                    continue;
+                }
+            }
+
             components.insert(Component::Element {
                 surf_idxs: (i, i + 1),
             });
+            paired_surfaces.insert(i);
+            paired_surfaces.insert(i + 1);
         }
 
         Self {
@@ -75,7 +87,7 @@ mod tests {
     use super::*;
 
     use crate::test_cases::{
-        empty_system, planoconvex_lens_obj_at_inf, silly_single_surface_and_stop,
+        empty_system, planoconvex_lens_obj_at_inf, silly_single_surface_and_stop, silly_unpaired_surface,
         wollaston_landscape_lens,
     };
 
@@ -114,6 +126,19 @@ mod tests {
         assert!(component_model
             .components
             .contains(&Component::Stop { stop_idx: 2 })); // Hard stop
+    }
+
+    #[test]
+    fn test_silly_unpaired_surface() {
+        // This is not a useful system but a good test.
+        let system_model = silly_unpaired_surface();
+
+        let component_model =
+            ComponentModel::new(system_model.seq_model.surfaces(), system_model.background());
+
+        assert_eq!(component_model.components.len(), 2);
+        assert!(component_model.components.contains(&Component::Element { surf_idxs: (1, 2) }));
+        assert!(component_model.components.contains(&Component::UnpairedSurface { surf_idx: 3 }));
     }
 
     #[test]

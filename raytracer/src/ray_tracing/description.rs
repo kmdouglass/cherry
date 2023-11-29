@@ -4,7 +4,9 @@ use std::collections::{HashMap, HashSet};
 use serde::{Deserialize, Serialize};
 
 use crate::math::vec3::Vec3;
-use crate::ray_tracing::{ApertureSpec, Component, FieldSpec, Gap, Surface, SurfaceSpec, SystemModel};
+use crate::ray_tracing::{
+    ApertureSpec, Component, FieldSpec, Gap, Surface, SurfaceSpec, SystemModel,
+};
 
 const NUM_SAMPLES_PER_SURFACE: usize = 20;
 
