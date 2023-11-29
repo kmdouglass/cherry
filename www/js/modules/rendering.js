@@ -45,24 +45,24 @@ function commands(descr, rayPaths, centerSystem, centerSVG, sf) {
             commands.push({
                 "type": surfType,
                 "paths": paths,
-                "colors": ["black"],
-                "stroke-width": [1.0],
+                "color": "black",
+                "stroke-width": 1.0,
           });
         } else if (surfType === "ObjectPlane" || surfType === "ImagePlane") {
             paths = toSVGCoordinates([surfSamples], centerSystem, centerSVG, sf);
             commands.push({
                 "type": surfType,
                 "paths": paths,
-                "colors": ["#999999"],
-                "stroke-width": [1.0],
+                "color": "#999999",
+                "stroke-width": 1.0,
             });
         } else if (surfType === "RefractingCircularConic" || surfType === "RefractingCircularFlat") {
             paths = toSVGCoordinates([surfSamples], centerSystem, centerSVG, sf);
             commands.push({
                 "type": surfType,
                 "paths": paths,
-                "colors": ["black"],
-                "stroke-width": [1.0],
+                "color": "black",
+                "stroke-width": 1.0,
             });
         } else {
             console.error(`Unknown surface type: ${surfType}`);
@@ -74,8 +74,8 @@ function commands(descr, rayPaths, centerSystem, centerSVG, sf) {
         commands.push({
             "type": "LensConnectors",
             "paths": paths,
-            "colors": Array(paths.length).fill("black"),
-            "stroke-width": Array(paths.length).fill(1.0),
+            "color": "black",
+            "stroke-width": 1.0,
         });
 
         // Create ray paths
@@ -83,8 +83,8 @@ function commands(descr, rayPaths, centerSystem, centerSVG, sf) {
         commands.push({
             "type": "Rays",
             "paths": paths,
-            "colors": Array(paths.length).fill("red"),
-            "stroke-width": Array(paths.length).fill(0.5),
+            "color": "red",
+            "stroke-width": 0.5,
         });
     }
 
@@ -100,8 +100,8 @@ function drawCommands(commands, svg) {
                 d += ` L ${point[0]} ${point[1]}`;
             }
             pathElement.setAttribute("d", d);
-            pathElement.setAttribute("stroke", command.colors[i]);
-            pathElement.setAttribute("stroke-width", command["stroke-width"][i] || 1.0);
+            pathElement.setAttribute("stroke", command.color);
+            pathElement.setAttribute("stroke-width", command["stroke-width"] || 1.0);
             pathElement.setAttribute("fill", "none");
             svg.appendChild(pathElement);
         });
