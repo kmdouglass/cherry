@@ -82,23 +82,27 @@ function commands(descr, rayPaths, centerSystem, centerSVG, sf) {
         "color": "red",
         "stroke-width": 0.5,
     });
-
     return commands;
 }
 
 function drawCommands(commands, svg) {
     for (let command of commands) {
         command.paths.forEach(function(path, i) {
-            let pathElement = document.createElementNS("http://www.w3.org/2000/svg", "path");
-            let d = `M ${path[0][0]} ${path[0][1]}`;
-            for (let point of path) {
-                d += ` L ${point[0]} ${point[1]}`;
+            if (path.length == 0) {
+                // Nothing to draw
+            } else {
+
+                let pathElement = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                let d = `M ${path[0][0]} ${path[0][1]}`;
+                for (let point of path) {
+                    d += ` L ${point[0]} ${point[1]}`;
+                }
+                pathElement.setAttribute("d", d);
+                pathElement.setAttribute("stroke", command.color);
+                pathElement.setAttribute("stroke-width", command["stroke-width"] || 1.0);
+                pathElement.setAttribute("fill", "none");
+                svg.appendChild(pathElement);
             }
-            pathElement.setAttribute("d", d);
-            pathElement.setAttribute("stroke", command.color);
-            pathElement.setAttribute("stroke-width", command["stroke-width"] || 1.0);
-            pathElement.setAttribute("fill", "none");
-            svg.appendChild(pathElement);
         });
     }
 }
