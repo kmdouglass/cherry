@@ -22,8 +22,12 @@ export function renderSystem(wasmSystemModel, elementId = "systemRendering") {
     const centerSystem = centerV2(descr);
     const centerSVG = [svg.getAttribute("width") / 2, svg.getAttribute("height") / 2];
 
+    // Trace rays through the system and draw them
+    const results = wasmSystemModel.rayTrace();
+    let rayPaths = resultsToRayPathsV2(results);
+
     // Prototype rendering by commands
-    const cmds = commands(descr, centerSystem, centerSVG, sfSVG);
+    const cmds = commands(descr, rayPaths, centerSystem, centerSVG, sfSVG);
     console.log(cmds);
     
     drawCommands(cmds, svg);
@@ -48,13 +52,7 @@ export function renderSystem(wasmSystemModel, elementId = "systemRendering") {
     */
 }
 
-/*
-    * Converts a set of surface samples to a set of rendering commands.
-    * samples: a map of surface samples
-    * descr: a description of the optical system
-    * returns: an array of commands for the renderer
-*/
-function commands(descr, centerSystem, centerSVG, sf) {
+function commands(descr, rayPaths, centerSystem, centerSVG, sf) {
     let commands = [];
     for (let [surfId, surfSamples] of descr.surface_model.surface_samples.entries()) {
         const surfType = descr.surface_model.surface_types.get(surfId);
@@ -99,6 +97,15 @@ function commands(descr, centerSystem, centerSVG, sf) {
             "paths": paths,
             "colors": Array(paths.length).fill("black"),
             "stroke-width": Array(paths.length).fill(1.0),
+        });
+
+        // Draw rays
+        paths = toSVGCoordinatesV2(rayPaths, centerSystem, centerSVG, sf);
+        commands.push({
+            "type": "Rays",
+            "paths": paths,
+            "colors": Array(paths.length).fill("red"),
+            "stroke-width": Array(paths.length).fill(0.5),
         });
     }
 
