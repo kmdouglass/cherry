@@ -33,9 +33,9 @@ export function renderSystem(wasmSystemModel, elementId = "systemRendering") {
 
 function commands(descr, rayPaths, centerSystem, centerSVG, sf) {
     let commands = [];
+    let paths;
     for (let [surfId, surfSamples] of descr.surface_model.surface_samples.entries()) {
         const surfType = descr.surface_model.surface_types.get(surfId);
-        let paths;
 
         if (surfType === "Stop") {
             paths = stopPath(surfSamples, descr);
@@ -57,36 +57,31 @@ function commands(descr, rayPaths, centerSystem, centerSVG, sf) {
                 "stroke-width": 1.0,
             });
         } else if (surfType === "RefractingCircularConic" || surfType === "RefractingCircularFlat") {
-            paths = toSVGCoordinates([surfSamples], centerSystem, centerSVG, sf);
-            commands.push({
-                "type": surfType,
-                "paths": paths,
-                "color": "black",
-                "stroke-width": 1.0,
-            });
+            // These will be taken care of by the component model rendering
+            continue;
         } else {
             console.error(`Unknown surface type: ${surfType}`);
         }
-
-        // Create paths that connect lenses
-        paths = surfacesIntoLenses(descr);
-        paths = toSVGCoordinates(paths, centerSystem, centerSVG, sf);
-        commands.push({
-            "type": "LensConnectors",
-            "paths": paths,
-            "color": "black",
-            "stroke-width": 1.0,
-        });
-
-        // Create ray paths
-        paths = toSVGCoordinates(rayPaths, centerSystem, centerSVG, sf);
-        commands.push({
-            "type": "Rays",
-            "paths": paths,
-            "color": "red",
-            "stroke-width": 0.5,
-        });
     }
+
+    // Create paths that connect lenses
+    paths = surfacesIntoLenses(descr);
+    paths = toSVGCoordinates(paths, centerSystem, centerSVG, sf);
+    commands.push({
+        "type": "LensConnectors",
+        "paths": paths,
+        "color": "black",
+        "stroke-width": 1.0,
+    });
+
+    // Create ray paths
+    paths = toSVGCoordinates(rayPaths, centerSystem, centerSVG, sf);
+    commands.push({
+        "type": "Rays",
+        "paths": paths,
+        "color": "red",
+        "stroke-width": 0.5,
+    });
 
     return commands;
 }
@@ -116,6 +111,7 @@ function surfacesIntoLenses(descr) {
     let bottomPath;
     for (let component of descr.component_model.components) {
         if (component["Element"]) {
+            let path = new Array();
             topPath = new Array();
             bottomPath = new Array();
 
@@ -136,8 +132,6 @@ function surfacesIntoLenses(descr) {
             const firstPoint = surfSamples[smallerSurfIdx][0];
             const lastPoint = surfSamples[smallerSurfIdx][surfSamples[smallerSurfIdx].length - 1];
 
-            topPath.push(lastPoint);
-            bottomPath.push(firstPoint);
             topPath.push([lastPoint[0], yExtent, lastPoint[2]]);
             bottomPath.push([firstPoint[0], -yExtent, firstPoint[2]]);
 
@@ -149,11 +143,19 @@ function surfacesIntoLenses(descr) {
             topPath.push([topEndpoints[smallerSurfIdx][0], yExtent, topEndpoints[biggerSurfIdx][2]]);
             bottomPath.push([bottomEndpoints[smallerSurfIdx][0], -yExtent, bottomEndpoints[biggerSurfIdx][2]]);
 
-            paths.push(topPath);
-            paths.push(bottomPath);
+            // Build the path from the bottom of the smaller surface
+            path.push(bottomPath[0]);
+            path = path.concat(surfSamples[smallerSurfIdx]);
+            path = path.concat(topPath);
+            path = path.concat(surfSamples[biggerSurfIdx].toReversed());
+            path.push(bottomPath[1]);
+            path.push(bottomPath[0]);
+            
+            paths.push(path);
         }
     }
-    return paths;
+
+    return paths
 }            
 
 /*
