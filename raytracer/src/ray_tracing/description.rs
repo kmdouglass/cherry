@@ -23,7 +23,7 @@ pub struct SystemDescription {
 
 impl SystemDescription {
     pub fn new(system: &SystemModel) -> Self {
-        let surfaces = system.seq_model.surfaces();
+        let surfaces = system.surf_model.surfaces();
         let component_model = ComponentModelDescr::new(system.comp_model.components());
         let surface_model = SurfaceModelDescr::new(surfaces, NUM_SAMPLES_PER_SURFACE);
 
