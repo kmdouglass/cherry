@@ -72,6 +72,7 @@ function commands(descr, rayPaths, centerSystem, centerSVG, sf) {
         "paths": paths,
         "color": "black",
         "stroke-width": 1.0,
+        "stroke-linejoin": "bevel",
         "close-path": true,
     });
 
@@ -104,6 +105,7 @@ function drawCommands(commands, svg) {
                 pathElement.setAttribute("d", d);
                 pathElement.setAttribute("stroke", command.color);
                 pathElement.setAttribute("stroke-width", command["stroke-width"] || 1.0);
+                pathElement.setAttribute("stroke-linejoin", command["stroke-linejoin"] || "miter");
                 pathElement.setAttribute("fill", "none");
                 svg.appendChild(pathElement);
             }
