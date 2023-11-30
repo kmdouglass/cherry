@@ -2,9 +2,11 @@ mod math;
 mod ray_tracing;
 pub(crate) mod test_cases;
 
+use std::error::Error;
 use std::f32::consts::PI;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+use anyhow::anyhow;
 use wasm_bindgen::prelude::*;
 
 use ray_tracing::description::SystemDescription;
@@ -22,7 +24,7 @@ fn get_id() -> usize {
 #[derive(Debug)]
 pub struct WasmSystemModel {
     builder: SystemBuilder,
-    system_model: SystemModel,
+    system_model: Option<SystemModel>,
 }
 
 #[wasm_bindgen]
@@ -31,7 +33,7 @@ impl WasmSystemModel {
     #[wasm_bindgen(constructor)]
     pub fn new() -> WasmSystemModel {
         let builder = SystemBuilder::new();
-        let system_model = SystemModel::old();
+        let system_model = Option::None;
 
         WasmSystemModel {
             builder,
@@ -40,7 +42,11 @@ impl WasmSystemModel {
     }
 
     pub fn describe(&self) -> Result<JsValue, JsError> {
-        let descr = SystemDescription::new(&self.system_model);
+        let system_model = match self.system_model {
+            Some(ref model) => model,
+            None => return Err(JsError::new("System model is not built")),
+        };
+        let descr = SystemDescription::new(&system_model);
         let descr = serde_wasm_bindgen::to_value(&descr)?;
 
         Ok(descr)
@@ -75,48 +81,61 @@ impl WasmSystemModel {
     /// We don't return the new system model to JS because it would be removed from Rust's memory
     /// management, likely causing memory leaks.
     pub fn build(&mut self) -> Result<(), JsError> {
-        self.system_model = self
-            .builder
-            .build()
-            .map_err(|e| JsError::new(&e.to_string()))?;
+        self.system_model = Option::Some(
+            self.builder
+                .build()
+                .map_err(|e| JsError::new(&e.to_string()))?,
+        );
         Ok(())
     }
 
-    pub fn surfaces(&self) -> JsValue {
+    pub fn surfaces(&self) -> Result<JsValue, JsError> {
+        let surf_model = self.surf_model().map_err(|e| JsError::new(&e.to_string()))?;
         let mut surface_specs: Vec<SurfaceSpec> =
-            Vec::with_capacity(self.surf_model().surfaces().len());
-        for surface in self.surf_model().surfaces() {
+            Vec::with_capacity(surf_model.surfaces().len());
+        for surface in surf_model.surfaces() {
             surface_specs.push(surface.into());
         }
-        serde_wasm_bindgen::to_value(&surface_specs).unwrap()
+        Ok(serde_wasm_bindgen::to_value(&surface_specs).unwrap())
     }
 
-    pub fn gaps(&self) -> JsValue {
-        serde_wasm_bindgen::to_value(self.surf_model().gaps()).unwrap()
+    pub fn gaps(&self) -> Result<JsValue, JsError> {
+        let surf_model = self.surf_model().map_err(|e| JsError::new(&e.to_string()))?;
+        Ok(serde_wasm_bindgen::to_value(surf_model.gaps()).unwrap())
     }
 
-    pub fn aperture(&self) -> JsValue {
-        serde_wasm_bindgen::to_value(self.system_model.aperture_spec()).unwrap()
+    pub fn aperture(&self) -> Result<JsValue, JsError> {
+        let system_model = match self.system_model {
+            Some(ref model) => model,
+            None => return Err(JsError::new("System model is not built")),
+        };
+        Ok(serde_wasm_bindgen::to_value(system_model.aperture_spec()).unwrap())
     }
 
     pub fn rayTrace(&self) -> Result<JsValue, JsError> {
+        let system_model = match self.system_model {
+            Some(ref model) => model,
+            None => return Err(JsError::new("System model is not built")),
+        };
+
+        let surf_model = self.surf_model().map_err(|e| JsError::new(&e.to_string()))?; 
+
         let wavelength = 0.000532_f32;
 
         // Generate a ray fan for each field to fill the entrance pupil
         let num_rays = 3;
-        let fields = self.system_model.field_specs();
+        let fields = system_model.field_specs();
         let mut rays = Vec::with_capacity(num_rays * fields.len());
 
         for field in fields {
-            let ray_fan = self
-                .system_model
+            let ray_fan = system_model
                 .pupil_ray_fan(num_rays, PI / 2.0, field.angle() * PI / 180.0)
                 .map_err(|e| JsError::new(&e.to_string()))?;
 
             rays.extend(ray_fan);
         }
 
-        let results = ray_tracing::trace::trace(&self.surf_model().surfaces(), rays, wavelength);
+        let results = ray_tracing::trace::trace(&surf_model.surfaces(), rays, wavelength);
 
         // Loop over results and remove rays that did not result in an Error
         let sanitized: Vec<Vec<ray_tracing::rays::Ray>> = results
@@ -135,11 +154,19 @@ impl WasmSystemModel {
         Ok(serde_wasm_bindgen::to_value(&sanitized).unwrap())
     }
 
-    fn surf_model(&self) -> &SurfaceModel {
-        self.system_model.surf_model()
+    fn surf_model(&self) -> Result<&SurfaceModel, anyhow::Error> {
+        let system_model = match self.system_model {
+            Some(ref model) => model,
+            None => return Err(anyhow!("System model is not built")),
+        };
+        Ok(system_model.surf_model())
     }
 
-    fn surf_model_mut(&mut self) -> &mut SurfaceModel {
-        self.system_model.surf_model_mut()
+    fn surf_model_mut(&mut self) -> Result<&mut SurfaceModel, anyhow::Error> {
+        let system_model = match self.system_model {
+            Some(ref mut model) => model,
+            None => return Err(anyhow!("System model is not built")),
+        };
+        Ok(system_model.surf_model_mut())
     }
 }

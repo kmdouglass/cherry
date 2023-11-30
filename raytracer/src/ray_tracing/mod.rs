@@ -200,46 +200,6 @@ impl SystemModel {
         surfaces
     }
 
-    /// Creates a new SystemModel with an object plane and an image plane.
-    ///
-    /// By convention, the first non-object surface lies at z = 0.
-    ///
-    /// DEPRECATED
-    pub fn old() -> Self {
-        let obj_plane = Surface::new_obj_plane(
-            Vec3::new(0.0, 0.0, -1.0),
-            Vec3::new(0.0, 0.0, 0.0),
-            INIT_DIAM,
-        );
-        let img_plane = Surface::new_img_plane(
-            Vec3::new(0.0, 0.0, 0.0),
-            Vec3::new(0.0, 0.0, 0.0),
-            INIT_DIAM,
-        );
-
-        let mut surfaces = Vec::new();
-
-        surfaces.push(obj_plane);
-        surfaces.push(img_plane);
-
-        let surface_model = SurfaceModel::new(&surfaces);
-        let component_model = ComponentModel::new(&surfaces, 1.0f32);
-        let paraxial_model = ParaxialModel::from(surface_model.surfaces());
-
-        let fields = vec![FieldSpec { angle: 0.0 }, FieldSpec { angle: 5.0 }];
-
-        Self {
-            comp_model: component_model,
-            surf_model: SurfaceModel::new(&surfaces),
-            parax_model: paraxial_model,
-            surface_specs: Vec::new(),
-            gaps: Vec::new(),
-            aperture: ApertureSpec::EntrancePupilDiameter { diam: INIT_DIAM },
-            fields: fields,
-            background: 1.0,
-        }
-    }
-
     pub fn comp_model(&self) -> &ComponentModel {
         &self.comp_model
     }
