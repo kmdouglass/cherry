@@ -252,38 +252,6 @@ impl SystemModel {
         &mut self.surf_model
     }
 
-    pub fn insert_surface_and_gap(
-        &mut self,
-        idx: usize,
-        surface_spec: SurfaceSpec,
-        gap: Gap,
-    ) -> Result<()> {
-        let seq_model = self.surf_model_mut();
-        let surface: Surface = Surface::from((&surface_spec, &gap));
-        let preceding_surface = seq_model
-            .surfaces()
-            .get(idx - 1)
-            .ok_or(anyhow!(
-                "Surface index is out of bounds: {} >= {}",
-                idx,
-                seq_model.surfaces().len()
-            ))?
-            .clone();
-
-        seq_model.insert_surface_and_gap(idx, surface, gap)?;
-        self.parax_model
-            .insert_surface_and_gap(idx, preceding_surface, surface, gap)?;
-
-        Ok(())
-    }
-
-    pub fn remove_surface_and_gap(&mut self, idx: usize) -> Result<()> {
-        self.surf_model.remove_surface_and_gap(idx)?;
-        self.parax_model.remove_element_and_gap(idx)?;
-
-        Ok(())
-    }
-
     pub fn surface_specs(&self) -> &[SurfaceSpec] {
         &self.surface_specs
     }
@@ -294,18 +262,6 @@ impl SystemModel {
 
     pub fn aperture_spec(&self) -> &ApertureSpec {
         &self.aperture
-    }
-
-    pub fn set_aperture(&mut self, aperture: ApertureSpec) -> Result<()> {
-        if let ApertureSpec::EntrancePupilDiameter { diam } = aperture {
-            if diam <= 0.0 {
-                return Err(anyhow::anyhow!("Entrance pupil diameter must be positive"));
-            }
-        }
-
-        self.aperture = aperture;
-
-        Ok(())
     }
 
     pub fn field_specs(&self) -> &[FieldSpec] {
@@ -334,17 +290,6 @@ impl SystemModel {
 
     pub(crate) fn object_plane(&self) -> Surface {
         self.surf_model.surfaces()[0]
-    }
-
-    pub fn set_obj_space(&mut self, n: f32, thickness: f32) -> Result<()> {
-        if thickness <= 0.0 {
-            return Err(anyhow::anyhow!("Object space thickness must be positive"));
-        };
-
-        self.surf_model.set_obj_space(Gap::new(n, thickness));
-        self.parax_model.set_obj_dist(thickness);
-
-        Ok(())
     }
 
     pub(crate) fn image_plane(&self) -> Surface {
@@ -785,6 +730,8 @@ mod tests {
     fn verification_planoconvex_lens_obj_at_inf() -> (SystemModel, ExpectedTestResults) {
         // A f = +50.1 mm planoconvex lens: https://www.thorlabs.com/thorproduct.cfm?partnumber=LA1255
         // Object is at infinity; aperture stop is the first surface.
+        let surf_0 = SurfaceSpec::ObjectPlane { diam: 25.0 };
+        let gap_0 = Gap::new(1.0, f32::INFINITY);
         let surf_1 = SurfaceSpec::RefractingCircularConic {
             diam: 25.0,
             roc: 25.8,
@@ -793,11 +740,15 @@ mod tests {
         let gap_1 = Gap::new(1.515, 5.3);
         let surf_2 = SurfaceSpec::RefractingCircularFlat { diam: 25.0 };
         let gap_2 = Gap::new(1.0, 46.6);
+        let surf_3 = SurfaceSpec::ImagePlane { diam: 25.0 };
 
-        let mut model = SystemModel::old();
-        model.insert_surface_and_gap(1, surf_1, gap_1).unwrap();
-        model.insert_surface_and_gap(2, surf_2, gap_2).unwrap();
-        model.set_obj_space(1.0, f32::INFINITY).unwrap();
+        let mut builder = SystemBuilder::new();
+        builder
+            .surfaces(vec![surf_0, surf_1, surf_2, surf_3])
+            .gaps(vec![gap_0, gap_1, gap_2])
+            .aperture(ApertureSpec::EntrancePupilDiameter { diam: 25.0 })
+            .fields(vec![FieldSpec { angle: 0.0 }, FieldSpec { angle: 5.0 }]);
+        let model = builder.build().unwrap();
 
         let expected = ExpectedTestResults {
             entrance_pupil_pos: 0.0,
@@ -823,6 +774,8 @@ mod tests {
     fn verification_planoconvex_lens_finite_obj() -> (SystemModel, ExpectedTestResults) {
         // A f = +50.1 mm planoconvex lens: https://www.thorlabs.com/thorproduct.cfm?partnumber=LA1255
         // Object is at -46.6 mm from the flat surface; aperture stop is the second surface.
+        let surf_0 = SurfaceSpec::ObjectPlane { diam: 25.0 };
+        let gap_0 = Gap::new(1.0, 46.6);
         let surf_1 = SurfaceSpec::RefractingCircularFlat { diam: 25.0 };
         let gap_1 = Gap::new(1.515, 5.3);
         let surf_2 = SurfaceSpec::RefractingCircularConic {
@@ -831,11 +784,15 @@ mod tests {
             k: 0.0,
         };
         let gap_2 = Gap::new(1.0, f32::INFINITY);
+        let surf_3 = SurfaceSpec::ImagePlane { diam: 25.0 };
 
-        let mut model = SystemModel::old();
-        model.insert_surface_and_gap(1, surf_1, gap_1).unwrap();
-        model.insert_surface_and_gap(2, surf_2, gap_2).unwrap();
-        model.set_obj_space(1.0, 46.6).unwrap();
+        let mut builder = SystemBuilder::new();
+        builder
+            .surfaces(vec![surf_0, surf_1, surf_2, surf_3])
+            .gaps(vec![gap_0, gap_1, gap_2])
+            .aperture(ApertureSpec::EntrancePupilDiameter { diam: 25.0 })
+            .fields(vec![FieldSpec { angle: 0.0 }, FieldSpec { angle: 5.0 }]);
+        let model = builder.build().unwrap();
 
         let expected = ExpectedTestResults {
             entrance_pupil_pos: 3.4983,
@@ -901,24 +858,6 @@ mod tests {
         let samples = surf.sample_yz(20);
         for sample in samples {
             assert_eq!(sample.x(), 0.0);
-        }
-    }
-
-    // Test set_aperture_spec
-    #[test]
-    fn test_set_aperture_spec() {
-        let mut model = SystemModel::old();
-        let aperture = ApertureSpec::EntrancePupilDiameter { diam: 10.0 };
-
-        let result = model.set_aperture(aperture);
-        assert!(result.is_ok());
-
-        let aperture = model.aperture_spec();
-
-        if let ApertureSpec::EntrancePupilDiameter { diam } = aperture {
-            assert_eq!(*diam, 10.0);
-        } else {
-            panic!("ApertureSpec is not EntrancePupilDiameter");
         }
     }
 

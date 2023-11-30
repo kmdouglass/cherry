@@ -83,66 +83,21 @@ impl WasmSystemModel {
         Ok(())
     }
 
-    pub fn insertSurfaceAndGap(
-        &mut self,
-        idx: usize,
-        surface: JsValue,
-        gap: JsValue,
-    ) -> Result<(), JsError> {
-        let surf_spec: SurfaceSpec = serde_wasm_bindgen::from_value(surface)?;
-        let gap: Gap = serde_wasm_bindgen::from_value(gap)?;
-        self.system_model
-            .insert_surface_and_gap(idx, surf_spec, gap)
-            .map_err(|e| JsError::new(&e.to_string()))?;
-
-        Ok(())
-    }
-
-    pub fn removeSurfaceAndGap(&mut self, idx: usize) -> Result<(), JsError> {
-        self.seq_model_mut()
-            .remove_surface_and_gap(idx)
-            .map_err(|e| JsError::new(&e.to_string()))?;
-        Ok(())
-    }
-
     pub fn surfaces(&self) -> JsValue {
         let mut surface_specs: Vec<SurfaceSpec> =
-            Vec::with_capacity(self.seq_model().surfaces().len());
-        for surface in self.seq_model().surfaces() {
+            Vec::with_capacity(self.surf_model().surfaces().len());
+        for surface in self.surf_model().surfaces() {
             surface_specs.push(surface.into());
         }
         serde_wasm_bindgen::to_value(&surface_specs).unwrap()
     }
 
     pub fn gaps(&self) -> JsValue {
-        serde_wasm_bindgen::to_value(self.seq_model().gaps()).unwrap()
-    }
-
-    /// Return point samples from a surface in the optical system along the y-z plane.
-    pub fn sampleSurfYZ(&self, surf_idx: usize, num_points: usize) -> JsValue {
-        let surf = self.seq_model().surfaces()[surf_idx];
-        let samples = surf.sample_yz(num_points);
-
-        serde_wasm_bindgen::to_value(&samples).unwrap()
+        serde_wasm_bindgen::to_value(self.surf_model().gaps()).unwrap()
     }
 
     pub fn aperture(&self) -> JsValue {
         serde_wasm_bindgen::to_value(self.system_model.aperture_spec()).unwrap()
-    }
-
-    pub fn setAperture(&mut self, aperture: JsValue) -> Result<(), JsError> {
-        let aperture: ApertureSpec = serde_wasm_bindgen::from_value(aperture)?;
-        self.system_model
-            .set_aperture(aperture)
-            .map_err(|e| JsError::new(&e.to_string()))?;
-        Ok(())
-    }
-
-    pub fn setObjectSpace(&mut self, n: f32, thickness: f32) -> Result<(), JsError> {
-        self.system_model
-            .set_obj_space(n, thickness)
-            .map_err(|e| JsError::new(&e.to_string()))?;
-        Ok(())
     }
 
     pub fn rayTrace(&self) -> Result<JsValue, JsError> {
@@ -162,7 +117,7 @@ impl WasmSystemModel {
             rays.extend(ray_fan);
         }
 
-        let results = ray_tracing::trace::trace(&self.seq_model().surfaces(), rays, wavelength);
+        let results = ray_tracing::trace::trace(&self.surf_model().surfaces(), rays, wavelength);
 
         // Loop over results and remove rays that did not result in an Error
         let sanitized: Vec<Vec<ray_tracing::rays::Ray>> = results
@@ -181,11 +136,11 @@ impl WasmSystemModel {
         Ok(serde_wasm_bindgen::to_value(&sanitized).unwrap())
     }
 
-    fn seq_model(&self) -> &SurfaceModel {
+    fn surf_model(&self) -> &SurfaceModel {
         self.system_model.surf_model()
     }
 
-    fn seq_model_mut(&mut self) -> &mut SurfaceModel {
+    fn surf_model_mut(&mut self) -> &mut SurfaceModel {
         self.system_model.surf_model_mut()
     }
 }
