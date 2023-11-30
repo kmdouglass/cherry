@@ -269,7 +269,7 @@ impl SystemModel {
         let sur_z = self.surf_model.surfaces()[1].pos().z();
         let enp_z = ep.pos().z();
 
-        let launch_point_z = self.axial_launch_point(obj_z, sur_z, enp_z);
+        let launch_point_z = SystemModel::axial_launch_point(obj_z, sur_z, enp_z);
 
         // Determine the radial distance from the axis at the launch point for the center of the
         // ray fan.
@@ -287,7 +287,7 @@ impl SystemModel {
     /// pupil, then launch the rays from one unit to the left of the first surface. If the object
     /// plane is at infinity, and if it comes after the entrance pupil, then launch the rays from
     /// one unit in front of the entrance pupil. Otherwise, launch the rays from the object plane.
-    fn axial_launch_point(&self, obj_z: f32, sur_z: f32, enp_z: f32) -> f32 {
+    fn axial_launch_point(obj_z: f32, sur_z: f32, enp_z: f32) -> f32 {
         if obj_z == f32::NEG_INFINITY && sur_z <= enp_z {
             sur_z - 1.0
         } else if obj_z == f32::NEG_INFINITY && sur_z > enp_z {
@@ -823,34 +823,32 @@ mod tests {
 
     #[test]
     fn test_axial_launch_point() {
-        let model = SystemModel::old();
-
         let obj_z = f32::NEG_INFINITY;
         let sur_z = 0.0;
         let enp_z = 0.0;
 
-        let launch_point = model.axial_launch_point(obj_z, sur_z, enp_z);
+        let launch_point = SystemModel::axial_launch_point(obj_z, sur_z, enp_z);
         assert_eq!(launch_point, sur_z - 1.0);
 
         let obj_z = f32::NEG_INFINITY;
         let sur_z = 0.0;
         let enp_z = 1.0;
 
-        let launch_point = model.axial_launch_point(obj_z, sur_z, enp_z);
+        let launch_point = SystemModel::axial_launch_point(obj_z, sur_z, enp_z);
         assert_eq!(launch_point, sur_z - 1.0);
 
         let obj_z = f32::NEG_INFINITY;
         let sur_z = 0.0;
         let enp_z = -5.0;
 
-        let launch_point = model.axial_launch_point(obj_z, sur_z, enp_z);
+        let launch_point = SystemModel::axial_launch_point(obj_z, sur_z, enp_z);
         assert_eq!(launch_point, enp_z - 1.0);
 
         let obj_z = -10.0;
         let sur_z = 0.0;
         let enp_z = 0.0;
 
-        let launch_point = model.axial_launch_point(obj_z, sur_z, enp_z);
+        let launch_point = SystemModel::axial_launch_point(obj_z, sur_z, enp_z);
         assert_eq!(launch_point, obj_z);
     }
 }

@@ -90,9 +90,10 @@ impl WasmSystemModel {
     }
 
     pub fn surfaces(&self) -> Result<JsValue, JsError> {
-        let surf_model = self.surf_model().map_err(|e| JsError::new(&e.to_string()))?;
-        let mut surface_specs: Vec<SurfaceSpec> =
-            Vec::with_capacity(surf_model.surfaces().len());
+        let surf_model = self
+            .surf_model()
+            .map_err(|e| JsError::new(&e.to_string()))?;
+        let mut surface_specs: Vec<SurfaceSpec> = Vec::with_capacity(surf_model.surfaces().len());
         for surface in surf_model.surfaces() {
             surface_specs.push(surface.into());
         }
@@ -100,7 +101,9 @@ impl WasmSystemModel {
     }
 
     pub fn gaps(&self) -> Result<JsValue, JsError> {
-        let surf_model = self.surf_model().map_err(|e| JsError::new(&e.to_string()))?;
+        let surf_model = self
+            .surf_model()
+            .map_err(|e| JsError::new(&e.to_string()))?;
         Ok(serde_wasm_bindgen::to_value(surf_model.gaps()).unwrap())
     }
 
@@ -118,7 +121,9 @@ impl WasmSystemModel {
             None => return Err(JsError::new("System model is not built")),
         };
 
-        let surf_model = self.surf_model().map_err(|e| JsError::new(&e.to_string()))?; 
+        let surf_model = self
+            .surf_model()
+            .map_err(|e| JsError::new(&e.to_string()))?;
 
         let wavelength = 0.000532_f32;
 
