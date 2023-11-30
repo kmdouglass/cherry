@@ -2,7 +2,7 @@ pub mod component_model;
 pub mod description;
 mod paraxial_model;
 pub mod rays;
-pub mod sequential_model;
+pub mod surface_model;
 pub mod surface_types;
 pub mod trace;
 
@@ -18,7 +18,7 @@ use component_model::ComponentModel;
 use description::SystemDescription;
 use paraxial_model::ParaxialModel;
 use rays::Ray;
-use sequential_model::SequentialModel;
+use surface_model::SurfaceModel;
 use surface_types::{
     ImagePlane, ObjectPlane, RefractingCircularConic, RefractingCircularFlat, Stop,
 };
@@ -86,7 +86,7 @@ impl SystemBuilder {
 pub struct SystemModel {
     comp_model: ComponentModel,
     parax_model: ParaxialModel,
-    seq_model: SequentialModel,
+    surf_model: SurfaceModel,
 
     surface_specs: Vec<SurfaceSpec>,
     gaps: Vec<Gap>,
@@ -106,13 +106,13 @@ impl SystemModel {
         SystemModel::validate_surface_specs_and_gaps(surface_specs, gaps)?;
         let surfaces = Self::specs_to_surfs(surface_specs, gaps);
 
-        let sequential_model = SequentialModel::new(&surfaces);
+        let surface_model = SurfaceModel::new(&surfaces);
         let component_model = ComponentModel::new(&surfaces, background);
-        let paraxial_model = ParaxialModel::from(sequential_model.surfaces());
+        let paraxial_model = ParaxialModel::from(surface_model.surfaces());
 
         let model = Self {
             comp_model: component_model,
-            seq_model: sequential_model,
+            surf_model: surface_model,
             parax_model: paraxial_model,
             surface_specs: surface_specs.to_vec(),
             gaps: gaps.to_vec(),
@@ -222,15 +222,15 @@ impl SystemModel {
         surfaces.push(obj_plane);
         surfaces.push(img_plane);
 
-        let sequential_model = SequentialModel::new(&surfaces);
+        let surface_model = SurfaceModel::new(&surfaces);
         let component_model = ComponentModel::new(&surfaces, 1.0f32);
-        let paraxial_model = ParaxialModel::from(sequential_model.surfaces());
+        let paraxial_model = ParaxialModel::from(surface_model.surfaces());
 
         let fields = vec![FieldSpec { angle: 0.0 }, FieldSpec { angle: 5.0 }];
 
         Self {
             comp_model: component_model,
-            seq_model: SequentialModel::new(&surfaces),
+            surf_model: SurfaceModel::new(&surfaces),
             parax_model: paraxial_model,
             surface_specs: Vec::new(),
             gaps: Vec::new(),
@@ -244,12 +244,12 @@ impl SystemModel {
         &self.comp_model
     }
 
-    pub fn seq_model(&self) -> &SequentialModel {
-        &self.seq_model
+    pub fn surf_model(&self) -> &SurfaceModel {
+        &self.surf_model
     }
 
-    pub fn seq_model_mut(&mut self) -> &mut SequentialModel {
-        &mut self.seq_model
+    pub fn surf_model_mut(&mut self) -> &mut SurfaceModel {
+        &mut self.surf_model
     }
 
     pub fn insert_surface_and_gap(
@@ -258,7 +258,7 @@ impl SystemModel {
         surface_spec: SurfaceSpec,
         gap: Gap,
     ) -> Result<()> {
-        let seq_model = self.seq_model_mut();
+        let seq_model = self.surf_model_mut();
         let surface: Surface = Surface::from((&surface_spec, &gap));
         let preceding_surface = seq_model
             .surfaces()
@@ -278,7 +278,7 @@ impl SystemModel {
     }
 
     pub fn remove_surface_and_gap(&mut self, idx: usize) -> Result<()> {
-        self.seq_model.remove_surface_and_gap(idx)?;
+        self.surf_model.remove_surface_and_gap(idx)?;
         self.parax_model.remove_element_and_gap(idx)?;
 
         Ok(())
@@ -326,14 +326,14 @@ impl SystemModel {
 
         let entrance_pupil_dist = self.parax_model.entrance_pupil()?;
 
-        let pos = self.seq_model.surfaces()[1].pos();
+        let pos = self.surf_model.surfaces()[1].pos();
         let pos = Vec3::new(pos.x(), pos.y(), pos.z() - entrance_pupil_dist);
 
         Ok(EntrancePupil { pos, diam })
     }
 
     pub(crate) fn object_plane(&self) -> Surface {
-        self.seq_model.surfaces()[0]
+        self.surf_model.surfaces()[0]
     }
 
     pub fn set_obj_space(&mut self, n: f32, thickness: f32) -> Result<()> {
@@ -341,14 +341,14 @@ impl SystemModel {
             return Err(anyhow::anyhow!("Object space thickness must be positive"));
         };
 
-        self.seq_model.set_obj_space(Gap::new(n, thickness));
+        self.surf_model.set_obj_space(Gap::new(n, thickness));
         self.parax_model.set_obj_dist(thickness);
 
         Ok(())
     }
 
     pub(crate) fn image_plane(&self) -> Surface {
-        self.seq_model.surfaces()[self.seq_model.surfaces().len() - 1]
+        self.surf_model.surfaces()[self.surf_model.surfaces().len() - 1]
     }
 
     /// Create a linear ray fan that passes through the entrance pupil.
@@ -361,7 +361,7 @@ impl SystemModel {
     pub(crate) fn pupil_ray_fan(&self, num_rays: usize, theta: f32, phi: f32) -> Result<Vec<Ray>> {
         let ep = self.entrance_pupil()?;
         let obj_z = self.object_plane().pos().z();
-        let sur_z = self.seq_model.surfaces()[1].pos().z();
+        let sur_z = self.surf_model.surfaces()[1].pos().z();
         let enp_z = ep.pos().z();
 
         let launch_point_z = self.axial_launch_point(obj_z, sur_z, enp_z);
@@ -672,7 +672,7 @@ impl<'a> Iterator for SurfacePairIterator<'a> {
 /// component and are represented as a set of surfaces pairs. Stops are hard stops that block light
 /// rays.
 ///
-/// To avoid copying data, only indexes are stored from the sequential models are stored.
+/// To avoid copying data, only indexes are stored from the surface models are stored.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Component {
     Element { surf_idxs: (usize, usize) },

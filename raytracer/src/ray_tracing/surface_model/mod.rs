@@ -4,13 +4,13 @@ use crate::math::vec3::Vec3;
 use crate::ray_tracing::{Gap, Surface, SurfacePairIterator};
 
 #[derive(Debug)]
-pub struct SequentialModel {
+pub struct SurfaceModel {
     gaps: Vec<Gap>,
     surfaces: Vec<Surface>,
 }
 
-impl SequentialModel {
-    pub fn new(surfaces: &[Surface]) -> SequentialModel {
+impl SurfaceModel {
+    pub fn new(surfaces: &[Surface]) -> SurfaceModel {
         // Iterate over SurfacePairs and convert to Surfaces and Gaps
         let mut gaps = Vec::new();
         let mut surfs = Vec::new();
@@ -120,7 +120,7 @@ mod tests {
     fn planoconvex_lens_obj_at_inf() -> SystemModel {
         // The image is located at the lens back focal plane.
         let mut system_model = SystemModel::old();
-        let mut model = system_model.seq_model_mut();
+        let mut model = system_model.surf_model_mut();
 
         model
             .insert_surface_and_gap(
@@ -155,7 +155,7 @@ mod tests {
     fn planoconvex_lens_img_at_inf() -> SystemModel {
         // The object is located at the lens front focal plane.
         let mut system_model = SystemModel::old();
-        let mut model = system_model.seq_model_mut();
+        let mut model = system_model.surf_model_mut();
 
         model
             .insert_surface_and_gap(
@@ -190,7 +190,7 @@ mod tests {
     #[test]
     fn test_insert_surface_and_gap() {
         let system_model = planoconvex_lens_obj_at_inf();
-        let model = system_model.seq_model();
+        let model = system_model.surf_model();
 
         // 2 surfaces + object plane + image plane
         assert_eq!(model.surfaces.len(), 4);
@@ -204,7 +204,7 @@ mod tests {
     #[test]
     fn test_insert_surface_and_gap_before_another_surface() {
         let mut system_model = SystemModel::old();
-        let mut model = system_model.seq_model_mut();
+        let mut model = system_model.surf_model_mut();
 
         model
             .insert_surface_and_gap(
@@ -254,7 +254,7 @@ mod tests {
     #[test]
     fn test_remove_surface_and_gap() {
         let mut system_model = planoconvex_lens_obj_at_inf();
-        let model = system_model.seq_model_mut();
+        let model = system_model.surf_model_mut();
 
         assert_eq!(model.surfaces.len(), 4);
         assert_eq!(model.gaps.len(), 3);
@@ -271,7 +271,7 @@ mod tests {
     #[test]
     fn test_surf_distance_from_origin() {
         let mut system_model = planoconvex_lens_obj_at_inf();
-        let model = system_model.seq_model_mut();
+        let model = system_model.surf_model_mut();
 
         assert_eq!(model.surf_distance_from_origin(0), 1.0);
         assert_eq!(model.surf_distance_from_origin(1), 0.0);

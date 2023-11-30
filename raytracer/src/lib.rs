@@ -8,7 +8,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use wasm_bindgen::prelude::*;
 
 use ray_tracing::description::SystemDescription;
-use ray_tracing::sequential_model::SequentialModel;
+use ray_tracing::surface_model::SurfaceModel;
 use ray_tracing::{ApertureSpec, Gap, SurfaceSpec, SystemBuilder, SystemModel};
 
 static COUNTER: AtomicUsize = AtomicUsize::new(1);
@@ -181,11 +181,11 @@ impl WasmSystemModel {
         Ok(serde_wasm_bindgen::to_value(&sanitized).unwrap())
     }
 
-    fn seq_model(&self) -> &SequentialModel {
-        self.system_model.seq_model()
+    fn seq_model(&self) -> &SurfaceModel {
+        self.system_model.surf_model()
     }
 
-    fn seq_model_mut(&mut self) -> &mut SequentialModel {
-        self.system_model.seq_model_mut()
+    fn seq_model_mut(&mut self) -> &mut SurfaceModel {
+        self.system_model.surf_model_mut()
     }
 }
