@@ -101,7 +101,7 @@
     (new constructor)
     (.setSurfaces (clj->js surfaces))
     (.setGaps (clj->js gaps))
-    (.setApertureV2 (clj->js aperture))
+    (.setAperture (clj->js aperture))
     (.setFields (clj->js [{:angle 0} {:angle 5}]))
     (.build)))
 
