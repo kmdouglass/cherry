@@ -8,7 +8,7 @@ let wasmSystemModel = new WasmSystemModel();
 //Build the optical system
 wasmSystemModel.setSurfaces(surfaces);
 wasmSystemModel.setGaps(gaps);
-wasmSystemModel.setApertureV2(aperture);  // TODO Change name once the old setAperture is removed
+wasmSystemModel.setAperture(aperture);
 wasmSystemModel.setFields(fields);
 wasmSystemModel.build();
 

@@ -58,8 +58,7 @@ impl WasmSystemModel {
         Ok(())
     }
 
-    pub fn setApertureV2(&mut self, aperture: JsValue) -> Result<(), JsError> {
-        // TODO Rename this once the old setAperture is removed
+    pub fn setAperture(&mut self, aperture: JsValue) -> Result<(), JsError> {
         let aperture: ApertureSpec = serde_wasm_bindgen::from_value(aperture)?;
         self.builder.aperture(aperture);
         Ok(())
