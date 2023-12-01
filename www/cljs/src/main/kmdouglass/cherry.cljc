@@ -60,7 +60,7 @@
 
 (def planoconvex
   [{::ObjectPlane {::diam 50}}
-   {::n 1 ::thickness 50}
+   {::n 1 ::thickness ##Inf}
    {::RefractingCircularConic {::diam 25.0 ::roc 25.8 ::k 0.0}}
    {::n 1.515 ::thickness 5.3}
    {::RefractingCircularFlat {::diam 25.0}}
@@ -69,7 +69,7 @@
 
 (def petzval
   [{::ObjectPlane {::diam 50}}
-   {::n 1 ::thickness 200}
+   {::n 1 ::thickness ##Inf}
    {::RefractingCircularConic {::diam 56.956, ::roc 99.56266, ::k 0.0}}
    {::n 1.5168 ::thickness 13.0}
    {::RefractingCircularConic {::diam 52.552, ::roc -86.84002, ::k 0.0}}
