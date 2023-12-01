@@ -63,7 +63,6 @@ pub fn trace(surfaces: &[Surface], mut rays: Vec<Ray>, wavelength: f32) -> Vec<V
             results[s_ctr + 1].push(Ok(ray.clone()));
         }
     }
-
     results
 }
 
@@ -71,6 +70,8 @@ pub fn trace(surfaces: &[Surface], mut rays: Vec<Ray>, wavelength: f32) -> Vec<V
 mod tests {
     use super::*;
     use std::f32::consts::PI;
+    use crate::math::vec3::Vec3;
+    use crate::ray_tracing::Ray;
     use crate::test_cases::petzval_lens;
 
     #[test]
@@ -78,18 +79,24 @@ mod tests {
         let model = petzval_lens();
         let surfaces = model.surf_model.surfaces();
         let wavelength = 0.5876;
+        let rays = vec![
+            Ray::new(
+                Vec3::new(-5.823648, -5.823648, -1.0),
+                Vec3::new(-3.809699e-9, 0.087155744, 0.9961947)
+            ).unwrap(),
+        ];
 
-        let num_rays = 3;
-        let fields = model.field_specs();
-        let mut rays = Vec::with_capacity(num_rays * fields.len());
+        // let num_rays = 3;
+        // let fields = model.field_specs();
+        // let mut rays = Vec::with_capacity(num_rays * fields.len());
 
-        for field in fields {
-            let ray_fan = model
-                .pupil_ray_fan(num_rays, PI / 2.0, field.angle() * PI / 180.0)
-                .unwrap();
+        // for field in fields {
+        //     let ray_fan = model
+        //         .pupil_ray_fan(num_rays, PI / 2.0, field.angle() * PI / 180.0)
+        //         .unwrap();
 
-            rays.extend(ray_fan);
-        }
+        //     rays.extend(ray_fan);
+        // }
 
         let results = trace(surfaces, rays, wavelength);
     }
