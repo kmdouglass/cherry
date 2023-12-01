@@ -161,3 +161,72 @@ pub fn wollaston_landscape_lens() -> SystemModel {
 
     model
 }
+
+pub fn petzval_lens() -> SystemModel {
+    let surfaces = vec![
+        SurfaceSpec::ObjectPlane { diam: 50.0 },
+        SurfaceSpec::RefractingCircularConic {
+            diam: 56.956,
+            roc: 99.56266,
+            k: 0.0,
+        },
+        SurfaceSpec::RefractingCircularConic {
+            diam: 52.552,
+            roc: -86.84002,
+            k: 0.0,
+        },
+        SurfaceSpec::RefractingCircularConic {
+            diam: 42.02,
+            roc: -1187.63858,
+            k: 0.0,
+        },
+        SurfaceSpec::Stop { diam: 33.262 },
+        SurfaceSpec::RefractingCircularConic {
+            diam: 41.086,
+            roc: 57.47491,
+            k: 0.0,
+        },
+        SurfaceSpec::RefractingCircularConic {
+            diam: 40.148,
+            roc: -54.61685,
+            k: 0.0,
+        },
+        SurfaceSpec::RefractingCircularConic {
+            diam: 32.984,
+            roc: -614.68633,
+            k: 0.0,
+        },
+        SurfaceSpec::RefractingCircularConic {
+            diam: 34.594,
+            roc: -38.17110,
+            k: 0.0,
+        },
+        SurfaceSpec::RefractingCircularFlat { diam: 37.88 },
+        SurfaceSpec::ImagePlane { diam: 50.00 },
+    ];
+    let gaps = vec![
+        Gap::new(1.0, f32::INFINITY),
+        Gap::new(1.5168, 13.0),
+        Gap::new(1.6645, 4.0),
+        Gap::new(1.0, 40.0),
+        Gap::new(1.0, 40.0),
+        Gap::new(1.6074, 12.0),
+        Gap::new(1.6727, 3.0),
+        Gap::new(1.0, 46.82210),
+        Gap::new(1.6727, 2.0),
+        Gap::new(1.0, 1.87179),
+    ];
+    let aperture = ApertureSpec::EntrancePupilDiameter { diam: 20.0 };
+    let fields = vec![FieldSpec::new(0.0), FieldSpec::new(5.0)];
+
+    let mut builder = SystemBuilder::new();
+    let model = builder
+        .surfaces(surfaces)
+        .gaps(gaps)
+        .aperture(aperture)
+        .fields(fields)
+        .build()
+        .unwrap();
+
+    model
+}
