@@ -66,3 +66,32 @@ pub fn trace(surfaces: &[Surface], mut rays: Vec<Ray>, wavelength: f32) -> Vec<V
 
     results
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::f32::consts::PI;
+    use crate::test_cases::petzval_lens;
+
+    #[test]
+    fn test_petzval_lens() {
+        let model = petzval_lens();
+        let surfaces = model.surf_model.surfaces();
+        let wavelength = 0.5876;
+
+        let num_rays = 3;
+        let fields = model.field_specs();
+        let mut rays = Vec::with_capacity(num_rays * fields.len());
+
+        for field in fields {
+            let ray_fan = model
+                .pupil_ray_fan(num_rays, PI / 2.0, field.angle() * PI / 180.0)
+                .unwrap();
+
+            rays.extend(ray_fan);
+        }
+
+        let results = trace(surfaces, rays, wavelength);
+    }
+
+}
