@@ -4,6 +4,8 @@ use serde::{Deserialize, Serialize};
 use super::Surface;
 use crate::math::vec3::Vec3;
 
+const TOL: f32 = 5f32 * std::f32::EPSILON;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Ray {
     pos: Vec3,
@@ -26,7 +28,13 @@ impl Ray {
     /// Finds the intersection point of a ray with a surface and the surface normal at that point.
     ///
     /// If no intersection is found, then this function returns an error.
-    pub fn intersect(&self, surf: &Surface, tol: f32, max_iter: usize) -> Result<(Vec3, Vec3)> {
+    ///
+    /// # Arguments
+    /// - surf: Surface to intersect with
+    /// - tol: Tolerance for convergence of the Newton-Raphson method in integer mutliples of the
+    ///      machine epsilon
+    /// - max_iter: Maximum number of iterations for the Newton-Raphson method
+    pub fn intersect(&self, surf: &Surface, max_iter: usize) -> Result<(Vec3, Vec3)> {
         // Initial guess for the intersection point
         let mut s_1 = 0.0;
 
@@ -45,7 +53,7 @@ impl Ray {
             s = s - (p.z() - sag) / norm.dot(self.dir);
 
             // Check for convergence by comparing the current and previous values of s
-            if (s - s_1).abs() < tol {
+            if (s - s_1).abs() / f32::max(s, s_1) < TOL {
                 break;
             }
 
@@ -179,17 +187,16 @@ mod test {
     #[test]
     fn test_ray_intersection() {
         use super::*;
-        let ray = Ray::new(Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0)).unwrap();
+        let ray = Ray::new(Vec3::new(0.0, 0.0, -1.0), Vec3::new(0.0, 0.0, 1.0)).unwrap();
         let surf = Surface::new_refr_circ_flat(
             Vec3::new(0.0, 0.0, 0.0),
             Vec3::new(0.0, 0.0, 1.0),
             4.0,
             1.5,
         );
-        let tol = 1e-6;
         let max_iter = 1000;
 
-        let (p, _) = ray.intersect(&surf, tol, max_iter).unwrap();
+        let (p, _) = ray.intersect(&surf, max_iter).unwrap();
 
         assert_eq!(p, Vec3::new(0.0, 0.0, 0.0));
     }
@@ -213,10 +220,9 @@ mod test {
             -1.0,
             0.0,
         );
-        let tol = 1e-6;
         let max_iter = 1000;
 
-        let (p, _) = ray.intersect(&surf, tol, max_iter).unwrap();
+        let (p, _) = ray.intersect(&surf, max_iter).unwrap();
 
         assert_eq!(p, Vec3::new(0.0, (PI / 4.0).sin(), (PI / 4.0).cos() - 1.0));
     }

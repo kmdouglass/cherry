@@ -42,7 +42,7 @@ pub fn trace(surfaces: &[Surface], mut rays: Vec<Ray>, wavelength: f32) -> Vec<V
             ray.transform(surf_2);
 
             // Find the ray intersection with the surface
-            let (pos, norm) = match ray.intersect(surf_2, 1e-6, 1000) {
+            let (pos, norm) = match ray.intersect(surf_2, 1000) {
                 Ok((pos, norm)) => (pos, norm),
                 Err(e) => {
                     ray.terminate();
@@ -69,7 +69,6 @@ pub fn trace(surfaces: &[Surface], mut rays: Vec<Ray>, wavelength: f32) -> Vec<V
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::f32::consts::PI;
     use crate::math::vec3::Vec3;
     use crate::ray_tracing::Ray;
     use crate::test_cases::petzval_lens;
@@ -79,12 +78,11 @@ mod tests {
         let model = petzval_lens();
         let surfaces = model.surf_model.surfaces();
         let wavelength = 0.5876;
-        let rays = vec![
-            Ray::new(
-                Vec3::new(-5.823648, -5.823648, -1.0),
-                Vec3::new(-3.809699e-9, 0.087155744, 0.9961947)
-            ).unwrap(),
-        ];
+        let rays = vec![Ray::new(
+            Vec3::new(-5.823648, -5.823648, -1.0),
+            Vec3::new(-3.809699e-9, 0.087155744, 0.9961947),
+        )
+        .unwrap()];
 
         // let num_rays = 3;
         // let fields = model.field_specs();
@@ -100,5 +98,4 @@ mod tests {
 
         let results = trace(surfaces, rays, wavelength);
     }
-
 }
