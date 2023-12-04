@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use super::Surface;
 use crate::math::vec3::Vec3;
 
+/// Tolerance for convergence of the Newton-Raphson method in integer mutliples of the machine epsilon
 const TOL: f32 = 5f32 * std::f32::EPSILON;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -31,8 +32,6 @@ impl Ray {
     ///
     /// # Arguments
     /// - surf: Surface to intersect with
-    /// - tol: Tolerance for convergence of the Newton-Raphson method in integer mutliples of the
-    ///      machine epsilon
     /// - max_iter: Maximum number of iterations for the Newton-Raphson method
     pub fn intersect(&self, surf: &Surface, max_iter: usize) -> Result<(Vec3, Vec3)> {
         // Initial guess for the intersection point

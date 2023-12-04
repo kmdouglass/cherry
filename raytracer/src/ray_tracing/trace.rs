@@ -73,8 +73,12 @@ mod tests {
     use crate::ray_tracing::Ray;
     use crate::test_cases::petzval_lens;
 
+    // Regression test for ray intersection that failed to converge in the Petzval lens
+    //
+    // The ray/surface intersection failed to converge because the tolerance Newton-Raphson method
+    // was too strict. The algo was fixed by checking for relative error instead of absolute error.
     #[test]
-    fn test_petzval_lens() {
+    fn regression_test_petzval_lens() {
         let model = petzval_lens();
         let surfaces = model.surf_model.surfaces();
         let wavelength = 0.5876;
@@ -83,18 +87,6 @@ mod tests {
             Vec3::new(-3.809699e-9, 0.087155744, 0.9961947),
         )
         .unwrap()];
-
-        // let num_rays = 3;
-        // let fields = model.field_specs();
-        // let mut rays = Vec::with_capacity(num_rays * fields.len());
-
-        // for field in fields {
-        //     let ray_fan = model
-        //         .pupil_ray_fan(num_rays, PI / 2.0, field.angle() * PI / 180.0)
-        //         .unwrap();
-
-        //     rays.extend(ray_fan);
-        // }
 
         let results = trace(surfaces, rays, wavelength);
     }
