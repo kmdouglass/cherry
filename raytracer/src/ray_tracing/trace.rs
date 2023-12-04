@@ -67,11 +67,6 @@ pub fn trace(surfaces: &[Surface], mut rays: Vec<Ray>, wavelength: f32) -> Vec<V
             ray.i_transform(surf_2);
 
             results[s_ctr + 1].push(Ok(ray.clone()));
-
-            // Terminate ray if the intersection point is outside the clear aperture of the surface
-            if surf_2.outside_clear_aperture(pos) {
-                    ray.terminate();
-            }
         }
     }
     results
@@ -81,11 +76,7 @@ pub fn trace(surfaces: &[Surface], mut rays: Vec<Ray>, wavelength: f32) -> Vec<V
 mod tests {
     use super::*;
     use crate::math::vec3::Vec3;
-<<<<<<< HEAD
     use crate::ray_tracing::{ApertureSpec, FieldSpec, Ray};
-=======
-    use crate::ray_tracing::{ApertureSpec, Ray};
->>>>>>> 163cb21 (Create regression test for rays outside the entrance pupil)
     use crate::test_cases::{petzval_lens, planoconvex_lens_obj_at_inf};
 
     // Regression test for ray intersection that failed to converge in the Petzval lens
@@ -121,19 +112,11 @@ mod tests {
 
         // Aperture stop is the first surface with diameter of 25, so this overfills the entrance pupil.
         builder.aperture(ApertureSpec::EntrancePupilDiameter { diam: 26.0 });
-<<<<<<< HEAD
         builder.fields(vec![FieldSpec::new(5.0)]);
-=======
->>>>>>> 163cb21 (Create regression test for rays outside the entrance pupil)
         let model = builder.build().unwrap();
 
         let surfaces = model.surf_model.surfaces();
         let wavelength = 0.5876;
-<<<<<<< HEAD
-
-=======
-        
->>>>>>> 163cb21 (Create regression test for rays outside the entrance pupil)
         let num_rays = 3;
         let fields = model.field_specs();
         let mut rays = Vec::with_capacity(num_rays * fields.len());
@@ -145,15 +128,13 @@ mod tests {
 
             rays.extend(ray_fan);
         }
+        println!("{:?}", rays);
 
         let results = trace(surfaces, rays, wavelength);
-<<<<<<< HEAD
-=======
 
         // Check that there are no errors
         for result in results.into_iter().flatten() {
             assert!(result.is_ok());
         }
->>>>>>> 163cb21 (Create regression test for rays outside the entrance pupil)
     }
 }
