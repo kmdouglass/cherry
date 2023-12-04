@@ -77,7 +77,7 @@ pub fn trace(surfaces: &[Surface], mut rays: Vec<Ray>, wavelength: f32) -> Vec<V
 mod tests {
     use super::*;
     use crate::math::vec3::Vec3;
-    use crate::ray_tracing::{ApertureSpec, Ray};
+    use crate::ray_tracing::{ApertureSpec, FieldSpec, Ray};
     use crate::test_cases::{petzval_lens, planoconvex_lens_obj_at_inf};
 
     // Regression test for ray intersection that failed to converge in the Petzval lens
@@ -113,6 +113,7 @@ mod tests {
 
         // Aperture stop is the first surface with diameter of 25, so this overfills the entrance pupil.
         builder.aperture(ApertureSpec::EntrancePupilDiameter { diam: 26.0 });
+        builder.fields(vec![FieldSpec::new(5.0)]);
         let model = builder.build().unwrap();
 
         let surfaces = model.surf_model.surfaces();
