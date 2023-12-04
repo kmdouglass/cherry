@@ -22,7 +22,7 @@ pub fn empty_system() -> SystemModel {
     model
 }
 
-pub fn planoconvex_lens_obj_at_inf() -> SystemModel {
+pub fn planoconvex_lens_obj_at_inf() -> (SystemModel, SystemBuilder) {
     // A f = +50.1 mm planoconvex lens: https://www.thorlabs.com/thorproduct.cfm?partnumber=LA1255
     // Object is at infinity; aperture stop is the first surface.
     // There are two fields: 0 and +5 degrees.
@@ -52,7 +52,7 @@ pub fn planoconvex_lens_obj_at_inf() -> SystemModel {
         .build()
         .unwrap();
 
-    model
+    (model, builder)
 }
 
 pub fn silly_unpaired_surface() -> SystemModel {

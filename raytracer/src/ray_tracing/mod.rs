@@ -26,7 +26,7 @@ use surface_types::{
 const INIT_DIAM: f32 = 25.0;
 
 #[derive(Debug)]
-pub(crate) struct SystemBuilder {
+pub struct SystemBuilder {
     surfaces: Vec<SurfaceSpec>,
     gaps: Vec<Gap>,
     aperture: Option<ApertureSpec>,
