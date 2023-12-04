@@ -81,7 +81,11 @@ pub fn trace(surfaces: &[Surface], mut rays: Vec<Ray>, wavelength: f32) -> Vec<V
 mod tests {
     use super::*;
     use crate::math::vec3::Vec3;
+<<<<<<< HEAD
     use crate::ray_tracing::{ApertureSpec, FieldSpec, Ray};
+=======
+    use crate::ray_tracing::{ApertureSpec, Ray};
+>>>>>>> 163cb21 (Create regression test for rays outside the entrance pupil)
     use crate::test_cases::{petzval_lens, planoconvex_lens_obj_at_inf};
 
     // Regression test for ray intersection that failed to converge in the Petzval lens
