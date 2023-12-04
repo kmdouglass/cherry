@@ -27,7 +27,7 @@ pub fn planoconvex_lens_obj_at_inf() -> (SystemModel, SystemBuilder) {
     // Object is at infinity; aperture stop is the first surface.
     // There are two fields: 0 and +5 degrees.
     let surf_0 = SurfaceSpec::ObjectPlane { diam: 25.0 };
-    let gap_0 = Gap::new(1.0, f32::NEG_INFINITY);
+    let gap_0 = Gap::new(1.0, f32::INFINITY);
     let surf_1 = SurfaceSpec::RefractingCircularConic {
         diam: 25.0,
         roc: 25.8,

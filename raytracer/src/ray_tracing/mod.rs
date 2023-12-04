@@ -23,8 +23,6 @@ use surface_types::{
     ImagePlane, ObjectPlane, RefractingCircularConic, RefractingCircularFlat, Stop,
 };
 
-const INIT_DIAM: f32 = 25.0;
-
 #[derive(Debug)]
 pub struct SystemBuilder {
     surfaces: Vec<SurfaceSpec>,
