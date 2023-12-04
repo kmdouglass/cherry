@@ -412,16 +412,6 @@ impl Surface {
         }
     }
 
-    /// Determines whether a transverse point is outside the clear aperture of the surface.
-    ///
-    /// The axial z-position is ignored.
-    pub fn outside_clear_aperture(&self, point: Vec3) -> bool {
-        let r_transv = point.x() * point.x() + point.y() * point.y();
-        let r_max = self.diam() / 2.0;
-
-        r_transv > r_max * r_max
-    }
-
     /// Determine sequential point samples on the surface in the y-z plane.
     pub fn sample_yz(&self, num_samples: usize) -> Vec<Vec3> {
         // Skip object or image planes at infinity
