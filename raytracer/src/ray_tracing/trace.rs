@@ -67,11 +67,6 @@ pub fn trace(surfaces: &[Surface], mut rays: Vec<Ray>, wavelength: f32) -> Vec<V
             ray.i_transform(surf_2);
 
             results[s_ctr + 1].push(Ok(ray.clone()));
-
-            // Terminate ray if the intersection point is outside the clear aperture of the surface
-            if surf_2.outside_clear_aperture(pos) {
-                    ray.terminate();
-            }
         }
     }
     results
@@ -81,11 +76,7 @@ pub fn trace(surfaces: &[Surface], mut rays: Vec<Ray>, wavelength: f32) -> Vec<V
 mod tests {
     use super::*;
     use crate::math::vec3::Vec3;
-<<<<<<< HEAD
     use crate::ray_tracing::{ApertureSpec, FieldSpec, Ray};
-=======
-    use crate::ray_tracing::{ApertureSpec, Ray};
->>>>>>> 163cb21 (Create regression test for rays outside the entrance pupil)
     use crate::test_cases::{petzval_lens, planoconvex_lens_obj_at_inf};
 
     // Regression test for ray intersection that failed to converge in the Petzval lens
@@ -137,6 +128,7 @@ mod tests {
 
             rays.extend(ray_fan);
         }
+        println!("{:?}", rays);
 
         let results = trace(surfaces, rays, wavelength);
     }
