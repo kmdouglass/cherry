@@ -42,7 +42,7 @@ function commands(descr, rayPaths, centerSystem, centerSVG, sf) {
         "type": "Lens",
         "paths": paths,
         "color": "black",
-        "stroke-width": 1.0,
+        "stroke-width": 0.75,
         "stroke-linejoin": "bevel",
         "close-path": true,
     });
