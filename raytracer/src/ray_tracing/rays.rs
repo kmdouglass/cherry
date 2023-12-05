@@ -131,9 +131,10 @@ impl Ray {
     /// - theta: Angle of vectors with respect to x, radians
     /// - z: z-coordinate of endpoints
     /// - phi: Angle of vectors with respect to z, the optics axis, radians
-    /// - radial_offset: Offset the radial position of the vectors by this amount
-    pub fn fan(n: usize, r: f32, theta: f32, z: f32, phi: f32, radial_offset: f32) -> Vec<Ray> {
-        let pos = Vec3::fan(n, r, theta, z, radial_offset);
+    /// - radial_offset_x: Offset the radial position of the vectors by this amount in x
+    /// - radial_offset_y: Offset the radial position of the vectors by this amount in y
+    pub fn fan(n: usize, r: f32, theta: f32, z: f32, phi: f32, radial_offset_x: f32, radial_offset_y: f32) -> Vec<Ray> {
+        let pos = Vec3::fan(n, r, theta, z, radial_offset_x, radial_offset_y);
         let dir: Vec<Vec3> = pos
             .iter()
             .map(|p| {

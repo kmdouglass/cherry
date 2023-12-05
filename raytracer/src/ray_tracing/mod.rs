@@ -272,9 +272,9 @@ impl SystemModel {
         // Determine the radial distance from the axis at the launch point for the center of the
         // ray fan.
         let dz = enp_z - launch_point_z;
-        let dr = -dz * phi.tan();
+        let dy = -dz * phi.tan();
 
-        let rays = Ray::fan(num_rays, ep.diam() / 2.0, theta, launch_point_z, phi, dr);
+        let rays = Ray::fan(num_rays, ep.diam() / 2.0, theta, launch_point_z, phi, 0.0, dy);
 
         Ok(rays)
     }
@@ -440,7 +440,7 @@ impl Surface {
         let diam = self.diam();
 
         // Sample the surface in in the y,z plane by creating uniformally spaced (0,y,z) coordinates
-        let sample_points = Vec3::fan(num_samples, diam / 2.0, PI / 2.0, 0.0, 0.0);
+        let sample_points = Vec3::fan(num_samples, diam / 2.0, PI / 2.0, 0.0, 0.0, 0.0);
 
         let mut sample: Vec3;
         let mut rot_sample: Vec3;

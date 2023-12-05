@@ -134,7 +134,7 @@ impl WasmSystemModel {
 
         for field in fields {
             let ray_fan = system_model
-                .pupil_ray_fan(num_rays, PI / 2.0, field.angle() * PI / 180.0)
+                .pupil_ray_fan(num_rays, PI / 2.0, field.angle().to_radians())
                 .map_err(|e| JsError::new(&e.to_string()))?;
 
             rays.extend(ray_fan);
