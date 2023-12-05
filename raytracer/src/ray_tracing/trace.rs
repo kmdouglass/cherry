@@ -128,7 +128,6 @@ mod tests {
 
             rays.extend(ray_fan);
         }
-        println!("{:?}", rays);
 
         let results = trace(surfaces, rays, wavelength);
 

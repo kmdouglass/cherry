@@ -24,6 +24,7 @@ export function renderSystem(wasmSystemModel, elementId = "systemRendering") {
 
     // Trace rays through the system and draw them
     const results = wasmSystemModel.rayTrace();
+    console.log(results);
     let rayPaths = resultsToRayPaths(results);
 
     // Create the rendering commands
