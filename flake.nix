@@ -76,7 +76,7 @@
               export PKG_CONFIG_PATH="${pkgs.openssl.dev}/lib/pkgconfig"
 
               mkdir -p $out
-              wasm-pack build --release --target bundler --out-dir $out
+              wasm-pack build --release --target bundler --out-dir $out cherry-js
             '';
 
             dontInstall = true;
@@ -105,7 +105,7 @@
               cp -r $nodeModules/node_modules .
               chmod +w node_modules
 
-              ln -s ${self.packages.${system}.raytracer.out} node_modules/cherry
+              ln -s ${self.packages.${system}.raytracer.out} node_modules/cherry-js
               ln -s ${./www/cljs/src/rendering} node_modules/rendering
             '';
 
