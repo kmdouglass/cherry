@@ -288,12 +288,17 @@ function toSVGCoordinates(paths, systemCenter, svgCenter, scaleFactor = 6) {
 function resultsToRayPaths(rayTraceResults) {
     let numRays = rayTraceResults[0].length;
 
-    // Create an empty map of ray paths
     let rayPaths = new Map();
     for (let surface of rayTraceResults) {
         for (let ray_id = 0; ray_id < numRays; ray_id++) {
             if (ray_id < surface.length) {
                 let ray = surface[ray_id];
+
+                // check if ray is null or undefined
+                if (ray == null) {
+                    continue;
+                }
+
                 rayPaths.set(ray_id, rayPaths.get(ray_id) || []);
                 rayPaths.get(ray_id).push(ray.pos);
             }

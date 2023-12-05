@@ -23,10 +23,8 @@ use surface_types::{
     ImagePlane, ObjectPlane, RefractingCircularConic, RefractingCircularFlat, Stop,
 };
 
-const INIT_DIAM: f32 = 25.0;
-
 #[derive(Debug)]
-pub(crate) struct SystemBuilder {
+pub struct SystemBuilder {
     surfaces: Vec<SurfaceSpec>,
     gaps: Vec<Gap>,
     aperture: Option<ApertureSpec>,
@@ -410,6 +408,16 @@ impl Surface {
             Self::RefractingCircularFlat(_) => f32::INFINITY,
             Self::Stop(_) => f32::INFINITY,
         }
+    }
+
+    /// Determines whether a transverse point is outside the clear aperture of the surface.
+    ///
+    /// The axial z-position is ignored.
+    pub fn outside_clear_aperture(&self, point: Vec3) -> bool {
+        let r_transv = point.x() * point.x() + point.y() * point.y();
+        let r_max = self.diam() / 2.0;
+
+        r_transv > r_max * r_max
     }
 
     /// Determine sequential point samples on the surface in the y-z plane.

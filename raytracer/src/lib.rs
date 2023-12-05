@@ -97,14 +97,14 @@ impl WasmSystemModel {
         for surface in surf_model.surfaces() {
             surface_specs.push(surface.into());
         }
-        Ok(serde_wasm_bindgen::to_value(&surface_specs).unwrap())
+        Ok(serde_wasm_bindgen::to_value(&surface_specs)?)
     }
 
     pub fn gaps(&self) -> Result<JsValue, JsError> {
         let surf_model = self
             .surf_model()
             .map_err(|e| JsError::new(&e.to_string()))?;
-        Ok(serde_wasm_bindgen::to_value(surf_model.gaps()).unwrap())
+        Ok(serde_wasm_bindgen::to_value(surf_model.gaps())?)
     }
 
     pub fn aperture(&self) -> Result<JsValue, JsError> {
@@ -112,7 +112,7 @@ impl WasmSystemModel {
             Some(ref model) => model,
             None => return Err(JsError::new("System model is not built")),
         };
-        Ok(serde_wasm_bindgen::to_value(system_model.aperture_spec()).unwrap())
+        Ok(serde_wasm_bindgen::to_value(system_model.aperture_spec())?)
     }
 
     pub fn rayTrace(&self) -> Result<JsValue, JsError> {
@@ -143,12 +143,12 @@ impl WasmSystemModel {
         let results = ray_tracing::trace::trace(&surf_model.surfaces(), rays, wavelength);
 
         // Loop over results and remove rays that did not result in an Error
-        let sanitized: Vec<Vec<ray_tracing::rays::Ray>> = results
+        let sanitized: Vec<Vec<Option<ray_tracing::rays::Ray>>> = results
             .iter()
             .map(|surf_results| {
                 surf_results
                     .iter()
-                    .filter_map(|res| match res {
+                    .map(|res| match res {
                         Ok(ray) => Some(ray.clone()),
                         Err(_) => None,
                     })
@@ -156,7 +156,7 @@ impl WasmSystemModel {
             })
             .collect();
 
-        Ok(serde_wasm_bindgen::to_value(&sanitized).unwrap())
+        Ok(serde_wasm_bindgen::to_value(&sanitized)?)
     }
 
     fn surf_model(&self) -> Result<&SurfaceModel, anyhow::Error> {
@@ -165,13 +165,5 @@ impl WasmSystemModel {
             None => return Err(anyhow!("System model is not built")),
         };
         Ok(system_model.surf_model())
-    }
-
-    fn surf_model_mut(&mut self) -> Result<&mut SurfaceModel, anyhow::Error> {
-        let system_model = match self.system_model {
-            Some(ref mut model) => model,
-            None => return Err(anyhow!("System model is not built")),
-        };
-        Ok(system_model.surf_model_mut())
     }
 }

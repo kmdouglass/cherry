@@ -105,7 +105,7 @@ mod tests {
 
     #[test]
     fn test_planoconvex_lens() {
-        let system_model = planoconvex_lens_obj_at_inf();
+        let (system_model, _) = planoconvex_lens_obj_at_inf();
 
         let component_model = ComponentModel::new(
             system_model.surf_model.surfaces(),
