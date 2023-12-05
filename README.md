@@ -19,7 +19,7 @@ This will build the contents of the [website](http://browser.science).
 First, build the raytracer's WASM module:
 
 ```
-(cd raytracer/cherry-js && nix develop --command wasm-pack build)
+(cd raytracer && nix develop --command wasm-pack build  cherry-js)
 ```
 
 Then, to develop the ClojureScript frontend interactively, install the dependencies and start the development server:
