@@ -1,7 +1,4 @@
-use anyhow::{bail, Result};
-
-use crate::math::vec3::Vec3;
-use crate::ray_tracing::{Gap, Surface, SurfacePairIterator};
+use crate::{Gap, Surface, SurfacePairIterator};
 
 #[derive(Debug)]
 pub struct SurfaceModel {

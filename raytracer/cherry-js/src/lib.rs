@@ -1,24 +1,13 @@
-mod math;
-mod ray_tracing;
-pub(crate) mod test_cases;
-
-use std::error::Error;
 use std::f32::consts::PI;
-use std::sync::atomic::{AtomicUsize, Ordering};
 
 use anyhow::anyhow;
 use wasm_bindgen::prelude::*;
 
-use ray_tracing::description::SystemDescription;
-use ray_tracing::surface_model::SurfaceModel;
-use ray_tracing::{ApertureSpec, Gap, SurfaceSpec, SystemBuilder, SystemModel};
+use cherry_rs::description::SystemDescription;
+use cherry_rs::surface_model::SurfaceModel;
+use cherry_rs::{ApertureSpec, FieldSpec, Gap, SurfaceSpec, SystemBuilder, SystemModel};
 
-static COUNTER: AtomicUsize = AtomicUsize::new(1);
 
-/// Returns new unique IDs.
-fn get_id() -> usize {
-    COUNTER.fetch_add(1, Ordering::Relaxed)
-}
 
 #[wasm_bindgen]
 #[derive(Debug)]
@@ -71,7 +60,7 @@ impl WasmSystemModel {
     }
 
     pub fn setFields(&mut self, fields: JsValue) -> Result<(), JsError> {
-        let fields: Vec<ray_tracing::FieldSpec> = serde_wasm_bindgen::from_value(fields)?;
+        let fields: Vec<FieldSpec> = serde_wasm_bindgen::from_value(fields)?;
         self.builder.fields(fields);
         Ok(())
     }
@@ -140,10 +129,10 @@ impl WasmSystemModel {
             rays.extend(ray_fan);
         }
 
-        let results = ray_tracing::trace::trace(&surf_model.surfaces(), rays, wavelength);
+        let results = cherry_rs::trace::trace(&surf_model.surfaces(), rays, wavelength);
 
         // Loop over results and remove rays that did not result in an Error
-        let sanitized: Vec<Vec<Option<ray_tracing::rays::Ray>>> = results
+        let sanitized: Vec<Vec<Option<cherry_rs::rays::Ray>>> = results
             .iter()
             .map(|surf_results| {
                 surf_results

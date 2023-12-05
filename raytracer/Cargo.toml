@@ -1,22 +1,6 @@
-[package]
-name = "cherry"
-version = "0.1.0"
-authors = ["Kyle M. Douglass <kyle.m.douglass@gmail.com>"]
-repository = "https://github.com/kmdouglass/cherry"
-edition = "2021"
+[workspace]
 
-[lib]
-crate-type = ["cdylib"]
-
-[dependencies]
-anyhow = "1.0"
-serde = { version = "*", features = ["derive"] }
-serde-wasm-bindgen = "*"
-wasm-bindgen = "0.2"
-wasm-bindgen-cli = "0.2"
-
-[dependencies.web-sys]
-version = "*"
-features = [
-    "console"
+members = [
+    "cherry-rs",
+    "cherry-js",
 ]

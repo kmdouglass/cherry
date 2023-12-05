@@ -4,7 +4,7 @@ use std::collections::{HashMap, HashSet};
 use serde::{Deserialize, Serialize};
 
 use crate::math::vec3::Vec3;
-use crate::ray_tracing::{
+use crate::{
     ApertureSpec, Component, FieldSpec, Gap, Surface, SurfaceSpec, SystemModel,
 };
 

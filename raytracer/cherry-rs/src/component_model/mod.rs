@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use crate::ray_tracing::{Component, Surface, SurfacePairIterator};
+use crate::{Component, Surface, SurfacePairIterator};
 
 #[derive(Debug)]
 pub struct ComponentModel {
