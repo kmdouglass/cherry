@@ -3,13 +3,12 @@
 /// # Sign conventions
 /// - Distances in front of elements are negative; distances after an element are positive.
 /// - Rays counter-clockwise from the optical axis are positive; rays clockwise are negative.
-use std::borrow::Borrow;
 use std::f32::consts::PI;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
-use crate::get_id;
 use crate::math::mat2::{mat2, Mat2};
 use crate::math::vec2::Vec2;
-use crate::ray_tracing::{Gap, Surface, SurfacePair, SurfacePairIterator};
+use crate::{Gap, Surface, SurfacePair, SurfacePairIterator};
 use anyhow::{anyhow, bail, Result};
 
 /// The initial angle of the ray in radians to find the entrance pupil.
@@ -17,6 +16,12 @@ const INIT_ANGLE: f32 = 5.0 * PI / 180.0;
 
 /// The initial radius of the ray to find the entrance pupil.
 const INIT_RADIUS: f32 = 1.0;
+
+/// Returns new unique IDs.
+static COUNTER: AtomicUsize = AtomicUsize::new(1);
+fn get_id() -> usize {
+    COUNTER.fetch_add(1, Ordering::Relaxed)
+}
 
 /// A paraxial element in an optical system.
 ///

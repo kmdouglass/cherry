@@ -1,9 +1,11 @@
 pub mod component_model;
 pub mod description;
 mod paraxial_model;
+mod math;
 pub mod rays;
 pub mod surface_model;
 pub mod surface_types;
+mod test_cases;
 pub mod trace;
 
 use std::f32::consts::PI;
@@ -261,7 +263,7 @@ impl SystemModel {
     /// * `num_rays` - The number of rays in the fan.
     /// * `theta` - The polar angle of the ray fan in the x-y plane.
     /// * `phi` - The angle of the ray w.r.t. the z-axis.
-    pub(crate) fn pupil_ray_fan(&self, num_rays: usize, theta: f32, phi: f32) -> Result<Vec<Ray>> {
+    pub fn pupil_ray_fan(&self, num_rays: usize, theta: f32, phi: f32) -> Result<Vec<Ray>> {
         let ep = self.entrance_pupil()?;
         let obj_z = self.object_plane().pos().z();
         let sur_z = self.surf_model.surfaces()[1].pos().z();
