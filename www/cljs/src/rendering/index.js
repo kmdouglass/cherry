@@ -24,6 +24,7 @@ export function renderSystem(wasmSystemModel, elementId = "systemRendering") {
 
     // Trace rays through the system and draw them
     const results = wasmSystemModel.rayTrace();
+    console.log(results);
     let rayPaths = resultsToRayPaths(results);
 
     // Create the rendering commands
@@ -288,7 +289,6 @@ function toSVGCoordinates(paths, systemCenter, svgCenter, scaleFactor = 6) {
 function resultsToRayPaths(rayTraceResults) {
     let numRays = rayTraceResults[0].length;
 
-    // Create an empty map of ray paths
     let rayPaths = new Map();
     for (let surface of rayTraceResults) {
         for (let ray_id = 0; ray_id < numRays; ray_id++) {
