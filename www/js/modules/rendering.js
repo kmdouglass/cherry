@@ -9,8 +9,8 @@ export function renderSystem(wasmSystemModel, elementId = "systemRendering") {
     const rendering = document.getElementById(elementId);
 
     const svg = document.createElementNS(SVG_NS, "svg");
-    svg.setAttribute("width", window.innerWidth * 0.5);
-    svg.setAttribute("height", window.innerHeight * 0.5);
+    svg.setAttribute("width", rendering.clientWidth);
+    svg.setAttribute("height", 150);
     svg.setAttribute("fill", "none");
     svg.setAttribute("stroke", "black");
 
@@ -34,6 +34,19 @@ export function renderSystem(wasmSystemModel, elementId = "systemRendering") {
 function commands(descr, rayPaths, centerSystem, centerSVG, sf) {
     let commands = [];
     let paths;
+
+    // Create paths that connect lenses (these go in the background)
+    paths = surfacesIntoLenses(descr);
+    paths = toSVGCoordinates(paths, centerSystem, centerSVG, sf);
+    commands.push({
+        "type": "Lens",
+        "paths": paths,
+        "color": "black",
+        "stroke-width": 1.0,
+        "stroke-linejoin": "bevel",
+        "close-path": true,
+    });
+
     for (let [surfId, surfSamples] of descr.surface_model.surface_samples.entries()) {
         const surfType = descr.surface_model.surface_types.get(surfId);
 
@@ -57,24 +70,18 @@ function commands(descr, rayPaths, centerSystem, centerSVG, sf) {
                 "stroke-width": 1.0,
             });
         } else if (surfType === "RefractingCircularConic" || surfType === "RefractingCircularFlat") {
-            // These will be taken care of by the component model rendering
-            continue;
+            // These are the surface clear apertures
+            paths = toSVGCoordinates([surfSamples], centerSystem, centerSVG, sf);
+            commands.push({
+                "type": surfType,
+                "paths": paths,
+                "color": "black",
+                "stroke-width": 1.0,
+        });
         } else {
             console.error(`Unknown surface type: ${surfType}`);
         }
     }
-
-    // Create paths that connect lenses
-    paths = surfacesIntoLenses(descr);
-    paths = toSVGCoordinates(paths, centerSystem, centerSVG, sf);
-    commands.push({
-        "type": "Lens",
-        "paths": paths,
-        "color": "black",
-        "stroke-width": 1.0,
-        "stroke-linejoin": "bevel",
-        "close-path": true,
-    });
 
     // Create ray paths
     paths = toSVGCoordinates(rayPaths, centerSystem, centerSVG, sf);
@@ -162,13 +169,6 @@ function surfacesIntoLenses(descr) {
             path.push(bottomPath[0]);
             
             paths.push(path);
-        }
-
-        if (component["UnpairedSurface"]) {
-            const surfId = component["UnpairedSurface"]["surf_idx"];
-            const surfSamples = surfaceSamples.get(surfId);
-
-            paths.push(surfSamples);
         }
     }
 
@@ -288,7 +288,6 @@ function toSVGCoordinates(paths, systemCenter, svgCenter, scaleFactor = 6) {
 function resultsToRayPaths(rayTraceResults) {
     let numRays = rayTraceResults[0].length;
 
-    // Create an empty map of ray paths
     let rayPaths = new Map();
     for (let surface of rayTraceResults) {
         for (let ray_id = 0; ray_id < numRays; ray_id++) {

@@ -42,7 +42,7 @@ function commands(descr, rayPaths, centerSystem, centerSVG, sf) {
         "type": "Lens",
         "paths": paths,
         "color": "black",
-        "stroke-width": 0.75,
+        "stroke-width": 1.0,
         "stroke-linejoin": "bevel",
         "close-path": true,
     });
@@ -75,8 +75,8 @@ function commands(descr, rayPaths, centerSystem, centerSVG, sf) {
             commands.push({
                 "type": surfType,
                 "paths": paths,
-                "color": "#b9d8eb",
-                "stroke-width": 1.5,
+                "color": "black",
+                "stroke-width": 1.0,
         });
         } else {
             console.error(`Unknown surface type: ${surfType}`);
