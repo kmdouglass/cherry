@@ -59,13 +59,13 @@
    {::ImagePlane {::diam 50}}])
 
 (def planoconvex
-  [{::ObjectPlane {::diam 50}}
+  [{::ObjectPlane {::diam 25.0}}
    {::n 1 ::thickness ##Inf}
    {::RefractingCircularConic {::diam 25.0 ::roc 25.8 ::k 0.0}}
    {::n 1.515 ::thickness 5.3}
    {::RefractingCircularFlat {::diam 25.0}}
    {::n 1.0 ::thickness 46.6 ::diam 25.0}
-   {::ImagePlane {::diam 50}}])
+   {::ImagePlane {::diam 25.0}}])
 
 (def petzval
   [{::ObjectPlane {::diam 50}}

@@ -88,13 +88,14 @@ impl Vec3 {
     /// - r: Radial span of vector endpoints from [-r, r]
     /// - theta: Angle of vectors with respect to x
     /// - z: z-coordinate of endpoints
-    /// - radial_offset: Offset the radial position of the vectors by this amount
-    pub fn fan(n: usize, r: f32, theta: f32, z: f32, radial_offset: f32) -> Vec<Self> {
+    /// - radial_offset_x: Offset the radial position of the vectors by this amount in x
+    /// - radial_offset_y: Offset the radial position of the vectors by this amount in y
+    pub fn fan(n: usize, r: f32, theta: f32, z: f32, radial_offset_x: f32, radial_offset_y: f32) -> Vec<Self> {
         let mut vecs = Vec::with_capacity(n);
         let step = 2.0 * r / (n - 1) as f32;
         for i in 0..n {
-            let x = (-r + i as f32 * step) * theta.cos() + radial_offset;
-            let y = (-r + i as f32 * step) * theta.sin() + radial_offset;
+            let x = (-r + i as f32 * step) * theta.cos() + radial_offset_x;
+            let y = (-r + i as f32 * step) * theta.sin() + radial_offset_y;
             vecs.push(Vec3::new(x, y, z));
         }
         vecs
