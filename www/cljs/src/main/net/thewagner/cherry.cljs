@@ -10,7 +10,7 @@
             [cljs.core.async.interop :refer-macros [<p!]]
             [cljs.tools.reader.edn :as edn]
             [rendering]
-            [cherry :as cherry-async]
+            [cherry-js :as cherry-async]
             [kmdouglass.cherry :as cherry-spec]
             [clojure.test.check.generators]
             [science.browser.cherry.dom :as dom]
