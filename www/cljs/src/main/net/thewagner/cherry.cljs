@@ -105,12 +105,18 @@
     (.setFields (clj->js [{:angle 0} {:angle 5}]))
     (.build)))
 
+(defn download-file [content filename mime-type]
+  (let [blob (js/Blob. (array content) #js {:type mime-type})
+        link (gdom/createDom "a" #js {:href (js/URL.createObjectURL blob)
+                                       :download filename})]
+    (.click link)))
+
 (defn on-file-save-click [event]
   (js/console.log "Save clicked!")
   (let [file-content "Your file content here"
         file-name "example.txt"
         file-mime-type "text/plain"]
-    ;(download-file file-content file-name file-mime-type)
+    (download-file file-content file-name file-mime-type)
     (.preventDefault event)))
 
 (set! *warn-on-infer* true)
