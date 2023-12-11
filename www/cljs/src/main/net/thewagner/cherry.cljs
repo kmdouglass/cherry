@@ -111,13 +111,13 @@
                                        :download filename})]
     (.click link)))
 
-(defn on-file-save-click [event]
-  (js/console.log "Save clicked!")
-  (let [file-content "Your file content here"
-        file-name "example.txt"
-        file-mime-type "text/plain"]
-    (download-file file-content file-name file-mime-type)
-    (.preventDefault event)))
+(defn on-file-save-click [fileContent]
+  (fn [event]
+    (js/console.log "Save clicked!")
+    (let [file-name "example.txt"
+          file-mime-type "text/plain"]
+      (download-file fileContent file-name file-mime-type)
+      (.preventDefault event))))
 
 (set! *warn-on-infer* true)
 (defn compute-results [raytrace-input]
