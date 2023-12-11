@@ -28,6 +28,10 @@
     [:div#navMenu.navbar-menu
       [:div.navbar-start
         [:div.navbar-item.has-dropdown.is-hoverable
+          [:a.navbar-link "File"]
+          [:div.navbar-dropdown
+            [:a#save.navbar-item "Save"]]]
+        [:div.navbar-item.has-dropdown.is-hoverable
           [:a.navbar-link "Examples"]
           [:div.navbar-dropdown
             [:a#preset-planoconvex.navbar-item "Planoconvex lens"]
