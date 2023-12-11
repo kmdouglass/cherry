@@ -30,7 +30,7 @@
         [:div.navbar-item.has-dropdown.is-hoverable
           [:a.navbar-link "File"]
           [:div.navbar-dropdown
-            [:a#save.navbar-item "Save"]]]
+            [:a#file-save.navbar-item "Save"]]]
         [:div.navbar-item.has-dropdown.is-hoverable
           [:a.navbar-link "Examples"]
           [:div.navbar-dropdown
