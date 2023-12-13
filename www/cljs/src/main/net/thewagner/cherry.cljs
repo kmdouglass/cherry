@@ -111,12 +111,14 @@
                                        :download filename})]
     (.click link)))
 
-(defn on-file-save-click [fileContent]
+(defonce global-result (atom {}))
+
+(defn on-file-save-click []
   (fn [event]
     (js/console.log "Save clicked!")
     (let [file-name "example.txt"
           file-mime-type "text/plain"]
-      (download-file fileContent file-name file-mime-type)
+      (download-file @global-result file-name file-mime-type)
       (.preventDefault event))))
 
 (set! *warn-on-infer* true)
@@ -292,8 +294,6 @@
     (events/unlistenByKey k)))
 
 (def done (chan))
-
-(defonce global-result (atom {}))
 
 (defn start-render!
   "Listen on the result channel and display the surface and ray samples on the canvas.
