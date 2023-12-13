@@ -293,6 +293,8 @@
 
 (def done (chan))
 
+(defonce global-result (atom {}))
+
 (defn start-render!
   "Listen on the result channel and display the surface and ray samples on the canvas.
    Stop when the done channel closes."
@@ -304,6 +306,7 @@
         (loop [r {}]
           (let [{:keys [wasmSystemModel]} r]
              (when wasmSystemModel
+               (reset! global-result (js/JSON.stringify (.describe wasmSystemModel)))
                (let [s "systemRendering"]
                  (dom/remove-children (dom/get-element s))
                  (try
@@ -479,7 +482,10 @@
                        (filter isHtmlAnchorElement)
                        (map (fn [el] [(.closest el "div") (keyword (.-id el))]))))
         input (chan)
-        result (chan)]
+        result (chan)
+        result-mult (async/mult result)
+        result->render (chan)
+        result->download (chan (async/sliding-buffer 1))]
 
     (events/listen (.querySelector js/document "nav.navbar")
                    EventType/CLICK
@@ -488,6 +494,9 @@
 
     (async/tap preset-mult preset->input)
     (async/tap preset-mult preset->tabs)
+
+    (async/tap result-mult result->render)
+    (async/tap preset-mult result->download)
 
     (start-input! done :input input :result result :preset preset->input)
     (start-tabs! done [:surfaces
@@ -523,6 +532,7 @@
   (start))
 
 (comment
+  (deref global-result)
   ; Evaluate these lines to enter into a ClojureScript REPL
   (require '[shadow.cljs.devtools.api :as shadow])
   (shadow/repl :app)
