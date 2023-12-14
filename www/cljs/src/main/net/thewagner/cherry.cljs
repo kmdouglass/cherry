@@ -305,7 +305,7 @@
         (loop [r {}]
           (let [{:keys [wasmSystemModel]} r]
              (when wasmSystemModel
-               (reset! global-result (js/JSON.stringify (.describe wasmSystemModel)))
+               (reset! global-result (js/JSON.stringify (.describe wasmSystemModel) nil 4))
                (let [s "systemRendering"]
                  (dom/remove-children (dom/get-element s))
                  (try
