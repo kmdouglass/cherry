@@ -115,9 +115,8 @@
 
 (defn on-file-save-click []
   (fn [event]
-    (js/console.log "Save clicked!")
-    (let [file-name "example.txt"
-          file-mime-type "text/plain"]
+    (let [file-name "cherry.txt"
+          file-mime-type "application/json"]
       (download-file @global-result file-name file-mime-type)
       (.preventDefault event))))
 
