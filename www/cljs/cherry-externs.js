@@ -1,5 +1,6 @@
 var WasmSystemModel = {}
 WasmSystemModel.build = function() {}
+WasmSystemModel.describe = function() {}
 WasmSystemModel.gaps = function() {}
 WasmSystemModel.rayTrace = function() {}
 WasmSystemModel.setAperture = function(aperture) {}
