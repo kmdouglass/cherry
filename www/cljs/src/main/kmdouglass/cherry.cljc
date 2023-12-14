@@ -55,7 +55,7 @@
 
 (def object-and-image-plane
   [{::ObjectPlane {::diam 50}}
-   {::n 1 ::thickness 50}
+   {::n 1 ::thickness ##Inf}
    {::ImagePlane {::diam 50}}])
 
 (def planoconvex
