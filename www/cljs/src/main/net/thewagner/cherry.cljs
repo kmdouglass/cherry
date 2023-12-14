@@ -453,8 +453,8 @@
 
 ; https://code.thheller.com/blog/shadow-cljs/2019/08/25/hot-reload-in-clojurescript.html
 (defn ^:dev/after-load start []
-  (let [preset (chan 1 (comp (map #(.. % -target -id))
-                             (keep {"preset-planoconvex" cherry-spec/planoconvex
+  (let [preset (chan 1 (comp (keep {"preset-empty"       cherry-spec/object-and-image-plane
+                                    "preset-planoconvex" cherry-spec/planoconvex
                                     "preset-petzval"     cherry-spec/petzval})
                              (map surfaces-and-gaps->rows)))
         preset-mult (async/mult preset)
@@ -467,7 +467,9 @@
         input (chan)
         result (chan)]
 
-    (listen! (.querySelector js/document "nav.navbar") EventType/CLICK preset)
+    (events/listen (.querySelector js/document "nav.navbar")
+                   EventType/CLICK
+                   #(async/put! preset (.. % -target -id)))
     (listen! :system-parameters EventType.CLICK tabs)
 
     (async/tap preset-mult preset->input)
@@ -488,7 +490,9 @@
                                                         :default-value 10}
                                                        state)))]
                       {:tabs tabs})
-    (start-render! done :result result)))
+    (start-render! done :result result)
+
+    (async/put! preset "preset-planoconvex")))
 
 (def burger-toggle-handler
   (let [burger (.querySelector js/document ".navbar-burger")]
