@@ -481,10 +481,7 @@
                        (filter isHtmlAnchorElement)
                        (map (fn [el] [(.closest el "div") (keyword (.-id el))]))))
         input (chan)
-        result (chan)
-        result-mult (async/mult result)
-        result->render (chan)
-        result->download (chan (async/sliding-buffer 1))]
+        result (chan)]
 
     (events/listen (.querySelector js/document "nav.navbar")
                    EventType/CLICK
@@ -496,9 +493,6 @@
 
     (async/tap preset-mult preset->input)
     (async/tap preset-mult preset->tabs)
-
-    (async/tap result-mult result->render)
-    (async/tap preset-mult result->download)
 
     (start-input! done :input input :result result :preset preset->input)
     (start-tabs! done [:surfaces
