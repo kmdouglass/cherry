@@ -489,6 +489,9 @@
     (events/listen (.querySelector js/document "nav.navbar")
                    EventType/CLICK
                    #(async/put! preset (.. % -target -id)))
+    (events/listen (.getElementById js/document "file-save")
+                   EventType/CLICK
+                   (on-file-save-click))
     (listen! :system-parameters EventType.CLICK tabs)
 
     (async/tap preset-mult preset->input)
