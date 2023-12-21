@@ -8,7 +8,7 @@ pub mod surface_types;
 mod test_cases;
 pub mod trace;
 
-use std::f32::consts::PI;
+use std::f32::consts::{PI, E};
 
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
@@ -277,6 +277,30 @@ impl SystemModel {
         let dy = -dz * phi.tan();
 
         let rays = Ray::fan(num_rays, ep.diam() / 2.0, theta, launch_point_z, phi, 0.0, dy);
+
+        Ok(rays)
+    }
+
+    /// Create a square grid of rays that passes through the entrance pupil.
+    /// 
+    /// # Arguments
+    /// 
+    /// * `spacing` - The spacing between rays in the grid in normalized pupil distances, i.e.
+    ///   [0, 1]. A spacing of 1.0 means that one ray will lie at the pupil center (the chief ray)
+    ///   and the others will lie at the pupil edge (marginal rays).
+    /// * `phi` - The angle of the ray w.r.t. the z-axis.
+    pub fn pupil_ray_sq_grid(&self, spacing: f32, phi: f32) -> Result<Vec<Ray>> {
+        let ep = self.entrance_pupil()?;
+        let obj_z = self.object_plane().pos().z();
+        let sur_z = self.surf_model.surfaces()[1].pos().z();
+        let enp_z = ep.pos().z();
+
+        let launch_point_z = SystemModel::axial_launch_point(obj_z, sur_z, enp_z);
+
+        let enp_diam = ep.diam();
+        let abs_spacing = enp_diam / 2.0 * spacing;
+
+        let rays = Ray::sq_grid_in_circ(enp_diam / 2.0, abs_spacing, launch_point_z, phi);
 
         Ok(rays)
     }
