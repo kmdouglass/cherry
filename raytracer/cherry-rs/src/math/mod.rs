@@ -1,5 +1,4 @@
-pub mod mat2;
-pub mod mat3;
-pub(crate) mod sampling;
-pub mod vec2;
-pub mod vec3;
+pub (crate) mod mat2;
+pub (crate) mod mat3;
+pub (crate) mod vec2;
+pub (crate) mod vec3;
