@@ -1,3 +1,5 @@
+use std::f32::consts::PI;
+
 use anyhow::{bail, Result};
 use serde::{Deserialize, Serialize};
 
@@ -150,12 +152,37 @@ impl Ray {
             .map(|(p, d)| Ray::new(*p, *d).unwrap())
             .collect()
     }
+
+    /// Create a square grid of uniformly spaced rays within a circle in a given z-plane.
+    ///
+    /// # Arguments
+    /// - `radius`: Radius of the circle
+    /// - `spacing`: Spacing between rays
+    /// - `z`: z-coordinate of endpoints
+    /// - `phi`: Angle of vectors with respect to z, the optics axis, radians
+    pub(crate) fn sq_grid_in_circ(radius: f32, spacing: f32, z: f32, phi: f32) -> Vec<Ray> {
+        let theta = PI / 2.0; // TODO: For now rays are rotated about x only
+
+        let pos: Vec<Vec3> = Vec3::sq_grid_in_circ(radius, spacing, z);
+        let dir: Vec<Vec3> = pos
+            .iter()
+            .map(|p| {
+                let l = phi.sin() * theta.cos();
+                let m = phi.sin() * theta.sin();
+                let n = phi.cos();
+                Vec3::new(l, m, n)
+            })
+            .collect();
+
+        pos.iter()
+            .zip(dir.iter())
+            .map(|(p, d)| Ray::new(*p, *d).unwrap())
+            .collect()
+    }
 }
 
 #[cfg(test)]
 mod test {
-    use std::f32::consts::PI;
-
     // Test the constructor of Ray
     #[test]
     fn test_rays_new() {
