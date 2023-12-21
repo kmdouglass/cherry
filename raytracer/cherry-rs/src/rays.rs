@@ -160,10 +160,12 @@ impl Ray {
     /// - `spacing`: Spacing between rays
     /// - `z`: z-coordinate of endpoints
     /// - `phi`: Angle of vectors with respect to z, the optics axis, radians
-    pub(crate) fn sq_grid_in_circ(radius: f32, spacing: f32, z: f32, phi: f32) -> Vec<Ray> {
+    /// - radial_offset_x: Offset the radial position of the vectors by this amount in x
+    /// - radial_offset_y: Offset the radial position of the vectors by this amount in y
+    pub(crate) fn sq_grid_in_circ(radius: f32, spacing: f32, z: f32, phi: f32, radial_offset_x: f32, radial_offset_y: f32) -> Vec<Ray> {
         let theta = PI / 2.0; // TODO: For now rays are rotated about x only
 
-        let pos: Vec<Vec3> = Vec3::sq_grid_in_circ(radius, spacing, z);
+        let pos: Vec<Vec3> = Vec3::sq_grid_in_circ(radius, spacing, z, radial_offset_x, radial_offset_y);
         let dir: Vec<Vec3> = pos
             .iter()
             .map(|p| {

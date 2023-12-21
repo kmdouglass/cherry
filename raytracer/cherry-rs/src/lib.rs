@@ -300,7 +300,12 @@ impl SystemModel {
         let enp_diam = ep.diam();
         let abs_spacing = enp_diam / 2.0 * spacing;
 
-        let rays = Ray::sq_grid_in_circ(enp_diam / 2.0, abs_spacing, launch_point_z, phi);
+        // Determine the radial distance from the axis at the launch point for the center of the
+        // ray fan.
+        let dz = enp_z - launch_point_z;
+        let dy = -dz * phi.tan();
+
+        let rays = Ray::sq_grid_in_circ(enp_diam / 2.0, abs_spacing, launch_point_z, phi, 0.0, dy);
 
         Ok(rays)
     }
