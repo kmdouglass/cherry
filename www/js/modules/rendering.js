@@ -10,7 +10,7 @@ export function renderSystem(wasmSystemModel, elementId = "systemRendering") {
 
     const svg = document.createElementNS(SVG_NS, "svg");
     svg.setAttribute("width", rendering.clientWidth);
-    svg.setAttribute("height", 150);
+    svg.setAttribute("height", 400);
     svg.setAttribute("fill", "none");
     svg.setAttribute("stroke", "black");
 
@@ -35,9 +35,7 @@ function commands(descr, rayPaths, centerSystem, centerSVG, sf) {
     let commands = [];
     let paths;
 
-    /// =========================
-    /// Component model rendering
-    // Create paths that connect lenses
+    // Create paths that connect lenses (these go in the background)
     paths = surfacesIntoLenses(descr);
     paths = toSVGCoordinates(paths, centerSystem, centerSVG, sf);
     commands.push({
@@ -49,18 +47,6 @@ function commands(descr, rayPaths, centerSystem, centerSVG, sf) {
         "close-path": true,
     });
 
-    // Create paths for unpaired surfaces
-    paths = unpairedSurfaces(descr);
-    paths = toSVGCoordinates(paths, centerSystem, centerSVG, sf);
-    commands.push({
-        "type": "UnpairedSurface",
-        "paths": paths,
-        "color": "black",
-        "stroke-width": 1.0,
-    });
-
-    /// =======================
-    /// Other surface rendering
     for (let [surfId, surfSamples] of descr.surface_model.surface_samples.entries()) {
         const surfType = descr.surface_model.surface_types.get(surfId);
 
@@ -84,8 +70,14 @@ function commands(descr, rayPaths, centerSystem, centerSVG, sf) {
                 "stroke-width": 1.0,
             });
         } else if (surfType === "RefractingCircularConic" || surfType === "RefractingCircularFlat") {
-            // These will be taken care of by the component model rendering
-            continue;
+            // These are the surface clear apertures
+            paths = toSVGCoordinates([surfSamples], centerSystem, centerSVG, sf);
+            commands.push({
+                "type": surfType,
+                "paths": paths,
+                "color": "black",
+                "stroke-width": 1.0,
+        });
         } else {
             console.error(`Unknown surface type: ${surfType}`);
         }
@@ -182,21 +174,6 @@ function surfacesIntoLenses(descr) {
 
     return paths
 }            
-
-function unpairedSurfaces(descr) {
-    const surfaceSamples = descr.surface_model.surface_samples;
-
-    let paths = new Array();
-    for (let component of descr.component_model.components) {
-        if (component["UnpairedSurface"]) {
-            const surfId = component["UnpairedSurface"]["surf_idx"];
-            const surfSamples = surfaceSamples.get(surfId);
-
-            paths.push(surfSamples);
-        }
-    }
-}
-
 
 /*
     * Creates the path for a surface of type Stop.

@@ -14,7 +14,7 @@ export const surfaces = [
 ];
 
 export const gaps = [
-    {"n": 1.0, "thickness": 200.0},
+    {"n": 1.0, "thickness": Infinity},
     {"n": 1.5168, "thickness": 13.0},
     {"n": 1.6645, "thickness": 4.0},
     {"n": 1.0, "thickness": 40.0},
@@ -26,6 +26,9 @@ export const gaps = [
     {"n": 1.0, "thickness": 1.87179},
 ];
 
-export const aperture = {"EntrancePupilDiameter": { diam: 40 }};
+export const aperture = {"EntrancePupilDiameter": { diam: 10 }};
 
-export const fields = [{"angle": 0}, {"angle": 5}]
+export const fields = [
+    {"Angle": {"angle": 0, "wavelength": 0.5876, "sampling": {"SqGrid": {"spacing": 0.1}}}},
+    {"Angle": {"angle": 5, "wavelength": 0.5876, "sampling": {"SqGrid": {"spacing": 0.1}}}}
+]
