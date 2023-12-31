@@ -1,4 +1,4 @@
-import { WasmSystemModel } from "cherry";
+import { WasmSystemModel } from "cherry-js";
 import { renderSystem } from "./modules/rendering.js"
 import { surfaces, gaps, aperture, fields } from "./modules/petzval_lens.js";
 // import { surfaces, gaps, aperture, fields } from "./modules/planoconvex_lens.js";
