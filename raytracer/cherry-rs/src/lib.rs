@@ -665,23 +665,62 @@ impl From<&Surface> for SurfaceSpec {
     }
 }
 
-/// Specifies a field.
-///
+/// Specifies a pupil sampling method.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub enum PupilSampling {
+    /// A square grid of rays in the the entrance pupil.
+    /// 
+    /// Spacing is the spacing between rays in the grid in normalized pupil distances, i.e.
+    /// [0, 1]. A spacing of 1.0 means that one ray will lie at the pupil center (the chief ray),
+    /// and the others will lie at the pupil edge (marginal rays).
+    SqGrid { spacing: f32 },
+}
+
+impl Default for PupilSampling {
+    fn default() -> Self {
+        Self::SqGrid { spacing: 0.1 }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct FieldSpec {
-    /// The angle the field makes with the optical axis, in degrees.
+pub struct Angle {
     angle: f32,
+    wavelength: f32,
+    sampling: PupilSampling,
+}
+
+impl Default for Angle {
+    fn default() -> Self {
+        Self { angle: 0.0, wavelength: 0.5876, sampling: PupilSampling::default() }
+    }
+}
+
+/// Specifies a field.
+/// 
+/// The `Angle` variant is used to specify the angle the field makes with the optical axis.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum FieldSpec {
+    /// The angle the field makes with the optical axis, in degrees. 
+    Angle(Angle),
+}
+
+impl Default for FieldSpec {
+    fn default() -> Self {
+        Self::Angle(Angle { ..Default::default() })
+    }
 }
 
 impl FieldSpec {
-    pub fn new(angle: f32) -> Self {
-        Self { angle }
+    pub fn new_field_angle(angle: f32, wavelength: f32, sampling: PupilSampling) -> Self {
+        Self::Angle(Angle { angle: angle, wavelength: wavelength, sampling: sampling })
     }
 
     /// Return the angle the field makes with the optical axis, in degrees.
     #[inline]
     pub fn angle(&self) -> f32 {
-        self.angle
+        match self {
+            Self::Angle(field_angle) => field_angle.angle,
+        }
     }
 }
 
@@ -741,12 +780,14 @@ mod tests {
         let gap_2 = Gap::new(1.0, 46.6);
         let surf_3 = SurfaceSpec::ImagePlane { diam: 25.0 };
 
+        let wavelength = 0.5876;
+
         let mut builder = SystemBuilder::new();
         builder
             .surfaces(vec![surf_0, surf_1, surf_2, surf_3])
             .gaps(vec![gap_0, gap_1, gap_2])
             .aperture(ApertureSpec::EntrancePupilDiameter { diam: 25.0 })
-            .fields(vec![FieldSpec { angle: 0.0 }, FieldSpec { angle: 5.0 }]);
+            .fields(vec![FieldSpec::Angle(Angle{ angle: 0.0, ..Default::default() }), FieldSpec::Angle(Angle { angle: 5.0, ..Default::default() } )]);
         let model = builder.build().unwrap();
 
         let expected = ExpectedTestResults {
@@ -790,7 +831,7 @@ mod tests {
             .surfaces(vec![surf_0, surf_1, surf_2, surf_3])
             .gaps(vec![gap_0, gap_1, gap_2])
             .aperture(ApertureSpec::EntrancePupilDiameter { diam: 25.0 })
-            .fields(vec![FieldSpec { angle: 0.0 }, FieldSpec { angle: 5.0 }]);
+            .fields(vec![FieldSpec::Angle(Angle { angle: 0.0, ..Default::default() }), FieldSpec::Angle(Angle { angle: 5.0, ..Default::default() })]);
         let model = builder.build().unwrap();
 
         let expected = ExpectedTestResults {

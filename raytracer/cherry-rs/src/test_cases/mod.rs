@@ -1,4 +1,4 @@
-use crate::{ApertureSpec, FieldSpec, Gap, SurfaceSpec, SystemBuilder, SystemModel};
+use crate::{ApertureSpec, FieldSpec, Gap, PupilSampling, SurfaceSpec, SystemBuilder, SystemModel};
 
 pub fn empty_system() -> SystemModel {
     let surf_0 = SurfaceSpec::ObjectPlane { diam: 25.0 };
@@ -8,7 +8,9 @@ pub fn empty_system() -> SystemModel {
     let surfaces = vec![surf_0, surf_1];
     let gaps = vec![gap_0];
     let aperture = ApertureSpec::EntrancePupilDiameter { diam: 25.0 };
-    let fields = vec![FieldSpec::new(0.0)];
+
+    let pupil_sampling = PupilSampling::default();
+    let fields = vec![FieldSpec::new_field_angle(0.0, 0.5867, pupil_sampling)];
 
     let mut builder = SystemBuilder::new();
     let model = builder
@@ -41,7 +43,12 @@ pub fn planoconvex_lens_obj_at_inf() -> (SystemModel, SystemBuilder) {
     let surfaces = vec![surf_0, surf_1, surf_2, surf_3];
     let gaps = vec![gap_0, gap_1, gap_2];
     let aperture = ApertureSpec::EntrancePupilDiameter { diam: 25.0 };
-    let fields = vec![FieldSpec::new(0.0), FieldSpec::new(5.0)];
+
+    let pupil_sampling = PupilSampling::default();
+    let fields = vec![
+        FieldSpec::new_field_angle(0.0, 0.5867, pupil_sampling),
+        FieldSpec::new_field_angle(5.0, 0.5867, pupil_sampling),
+    ];
 
     let mut builder = SystemBuilder::new();
     let model = builder
@@ -79,7 +86,12 @@ pub fn silly_unpaired_surface() -> SystemModel {
     let surfaces = vec![surf_0, surf_1, surf_2, surf_3, surf_4];
     let gaps = vec![gap_0, gap_1, gap_2, gap_3];
     let aperture = ApertureSpec::EntrancePupilDiameter { diam: 25.0 };
-    let fields = vec![FieldSpec::new(0.0), FieldSpec::new(5.0)];
+
+    let pupil_sampling = PupilSampling::default();
+    let fields = vec![
+        FieldSpec::new_field_angle(0.0, 0.5867, pupil_sampling),
+        FieldSpec::new_field_angle(5.0, 0.5867, pupil_sampling),
+    ];
 
     let mut builder = SystemBuilder::new();
     let model = builder
@@ -111,7 +123,9 @@ pub fn silly_single_surface_and_stop() -> SystemModel {
     let surfaces = vec![surf_0, surf_1, surf_2, surf_3];
     let gaps = vec![gap_0, gap_1, gap_2];
     let aperture = ApertureSpec::EntrancePupilDiameter { diam: 25.0 };
-    let fields = vec![FieldSpec::new(0.0)];
+
+    let pupil_sampling = PupilSampling::default();
+    let fields = vec![FieldSpec::new_field_angle(0.0, 0.5867, pupil_sampling)];
 
     let mut builder = SystemBuilder::new();
     let model = builder
@@ -148,7 +162,13 @@ pub fn wollaston_landscape_lens() -> SystemModel {
     let surfaces = vec![surf_0, surf_1, surf_2, surf_3, surf_4];
     let gaps = vec![gap_0, gap_1, gap_2, gap_3];
     let aperture = ApertureSpec::EntrancePupilDiameter { diam: 10.0 };
-    let fields = vec![FieldSpec::new(0.0), FieldSpec::new(10.0)];
+
+    
+    let pupil_sampling = PupilSampling::default();
+    let fields = vec![
+        FieldSpec::new_field_angle(0.0, 0.5867, pupil_sampling),
+        FieldSpec::new_field_angle(10.0, 0.5867, pupil_sampling),
+    ];
 
     let mut builder = SystemBuilder::new();
     let model = builder
@@ -217,8 +237,12 @@ pub fn petzval_lens() -> SystemModel {
         Gap::new(1.0, 1.87179),
     ];
     let aperture = ApertureSpec::EntrancePupilDiameter { diam: 20.0 };
-    let fields = vec![FieldSpec::new(0.0), FieldSpec::new(5.0)];
 
+    let pupil_sampling = PupilSampling::default();
+    let fields = vec![
+        FieldSpec::new_field_angle(0.0, 0.5867, pupil_sampling),
+        FieldSpec::new_field_angle(5.0, 0.5867, pupil_sampling),
+    ];
     let mut builder = SystemBuilder::new();
     let model = builder
         .surfaces(surfaces)
