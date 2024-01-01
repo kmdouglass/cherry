@@ -102,7 +102,12 @@
     (.setSurfaces (clj->js surfaces))
     (.setGaps (clj->js gaps))
     (.setAperture (clj->js aperture))
-    (.setFields (clj->js [{:angle 0} {:angle 5}]))
+    (.setFields (clj->js [{:Angle {:angle 0
+                                   :wavelength 0.5876
+                                   :sampling {:SqGrid {:spacing 0.1}}}}
+                          {:Angle {:angle 5
+                                   :wavelength 0.5876
+                                   :sampling {:SqGrid {:spacing 0.1}}}}]))
     (.build)))
 
 (defn download-file [content filename mime-type]
