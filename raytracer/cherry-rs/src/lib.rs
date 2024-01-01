@@ -252,10 +252,6 @@ impl SystemModel {
         self.surf_model.surfaces()[0]
     }
 
-    pub(crate) fn image_plane(&self) -> Surface {
-        self.surf_model.surfaces()[self.surf_model.surfaces().len() - 1]
-    }
-
     /// Create a linear ray fan that passes through the entrance pupil.
     ///
     /// # Arguments
