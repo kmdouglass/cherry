@@ -8,7 +8,7 @@ pub mod surface_types;
 mod test_cases;
 pub mod trace;
 
-use std::f32::consts::{PI, E};
+use std::f32::consts::PI;
 
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
@@ -234,19 +234,34 @@ impl SystemModel {
     }
 
     /// Returns the rays to trace through the system as defined by the fields.
-    pub fn rays(&self) -> Result<Vec<Ray>> {
+    /// 
+    /// # Arguments
+    /// 
+    /// * `sampling` - The pupil sampling method. This will override the sampling method specified
+    ///  in the field specs for every field if provided.
+    pub fn rays(&self, sampling: Option<PupilSampling>) -> Result<Vec<Ray>> {
         let mut rays = Vec::new();
 
         for (field_id, field) in self.fields.iter().enumerate() {
             match field {
                 FieldSpec::Angle(field_angle) => {
                     let angle = field_angle.angle.to_radians();
-                    let pupil_sampling = field_angle.sampling;
-
+                    
+                    let pupil_sampling = if let Some(sampling) = sampling {
+                        sampling
+                    } else {
+                        field_angle.sampling
+                    };
+                    
                     let rays_field = match pupil_sampling {
                         PupilSampling::SqGrid { spacing } => {
                             self.pupil_ray_sq_grid(spacing, angle, field_id)?
-                        }
+                        },
+                        PupilSampling::ChiefMarginalRays => {
+                            // 3 rays -> two diametrically-opposed marginal rays at the pupil edge
+                            // and a chief ray in the center
+                            self.pupil_ray_fan(3, PI / 2.0, angle, field_id)?
+                        },
                     };
 
                     for ray in rays_field {
@@ -285,7 +300,7 @@ impl SystemModel {
     /// * `num_rays` - The number of rays in the fan.
     /// * `theta` - The polar angle of the ray fan in the x-y plane.
     /// * `phi` - The angle of the ray w.r.t. the z-axis.
-    pub fn pupil_ray_fan(&self, num_rays: usize, theta: f32, phi: f32, field_id: usize) -> Result<Vec<Ray>> {
+    fn pupil_ray_fan(&self, num_rays: usize, theta: f32, phi: f32, field_id: usize) -> Result<Vec<Ray>> {
         let ep = self.entrance_pupil()?;
         let obj_z = self.object_plane().pos().z();
         let sur_z = self.surf_model.surfaces()[1].pos().z();
@@ -312,7 +327,7 @@ impl SystemModel {
     ///   and the others will lie at the pupil edge (marginal rays).
     /// * `phi` - The angle of the ray w.r.t. the z-axis in radians.
     /// * `field_id` - The field ID.
-    pub fn pupil_ray_sq_grid(&self, spacing: f32, phi: f32, field_id: usize) -> Result<Vec<Ray>> {
+    fn pupil_ray_sq_grid(&self, spacing: f32, phi: f32, field_id: usize) -> Result<Vec<Ray>> {
         let ep = self.entrance_pupil()?;
         let obj_z = self.object_plane().pos().z();
         let sur_z = self.surf_model.surfaces()[1].pos().z();
@@ -697,6 +712,9 @@ pub enum PupilSampling {
     /// [0, 1]. A spacing of 1.0 means that one ray will lie at the pupil center (the chief ray),
     /// and the others will lie at the pupil edge (marginal rays).
     SqGrid { spacing: f32 },
+
+    /// The chief and marginal rays.
+    ChiefMarginalRays,
 }
 
 impl Default for PupilSampling {

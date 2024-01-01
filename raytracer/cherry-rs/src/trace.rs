@@ -15,10 +15,10 @@ use super::Surface;
 ///
 /// Index 0 of the results corresponds to the rays' initial states. By convention, this is their
 /// locations and directions at the axial position z = 0.
-pub fn trace(surfaces: &[Surface], mut rays: Vec<Ray>, wavelength: f32) -> Vec<Vec<Result<Ray>>> {
+pub fn trace(surfaces: &[Surface], mut rays: Vec<Ray>) -> Vec<Vec<Result<Ray>>> {
     // Pre-allocate the results. Include the initial ray positions as a "surface."
     let mut results: Vec<Vec<Result<Ray>>> = Vec::with_capacity(surfaces.len() + 1);
-    for i in 0..surfaces.len() {
+    for _ in 0..surfaces.len() {
         results.push(Vec::with_capacity(rays.len()));
     }
 
@@ -87,7 +87,6 @@ mod tests {
     fn regression_test_petzval_lens() {
         let model = petzval_lens();
         let surfaces = model.surf_model.surfaces();
-        let wavelength = 0.5876;
         let field_id = 0;
         let rays = vec![Ray::new(
             Vec3::new(-5.823648, -5.823648, -1.0),
@@ -96,7 +95,7 @@ mod tests {
         )
         .unwrap()];
 
-        let results = trace(surfaces, rays, wavelength);
+        let results = trace(surfaces, rays);
 
         // Check that there are no errors in the flattened results
         for result in results.into_iter().flatten() {
@@ -122,7 +121,6 @@ mod tests {
         let model = builder.build().unwrap();
 
         let surfaces = model.surf_model.surfaces();
-        let wavelength = 0.5876;
         let num_rays = 3;
         let fields = model.field_specs();
         let mut rays = Vec::with_capacity(num_rays * fields.len());
@@ -135,6 +133,6 @@ mod tests {
             rays.extend(ray_fan);
         }
 
-        let results = trace(surfaces, rays, wavelength);
+        let results = trace(surfaces, rays);
     }
 }

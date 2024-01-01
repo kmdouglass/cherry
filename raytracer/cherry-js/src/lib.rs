@@ -5,7 +5,7 @@ use wasm_bindgen::prelude::*;
 
 use cherry_rs::description::SystemDescription;
 use cherry_rs::surface_model::SurfaceModel;
-use cherry_rs::{ApertureSpec, FieldSpec, Gap, SurfaceSpec, SystemBuilder, SystemModel};
+use cherry_rs::{ApertureSpec, FieldSpec, Gap, SurfaceSpec, SystemBuilder, SystemModel, PupilSampling};
 
 
 
@@ -102,6 +102,24 @@ impl WasmSystemModel {
             None => return Err(JsError::new("System model is not built")),
         };
         Ok(serde_wasm_bindgen::to_value(system_model.aperture_spec())?)
+    }
+
+    pub fn traceChiefAndMarginalRays(&self) -> Result<JsValue, JsError> {
+        let system_model = match self.system_model {
+            Some(ref model) => model,
+            None => return Err(JsError::new("System model is not built")),
+        };
+
+        let surf_model = self
+            .surf_model()
+            .map_err(|e| JsError::new(&e.to_string()))?;
+
+        let rays = system_model.rays(Some(PupilSampling::ChiefMarginalRays))
+            .map_err(|e| JsError::new(&e.to_string()))?;
+
+        let results = cherry_rs::trace::trace(&surf_model.surfaces(), rays);
+
+        // TODO: Finish by separating the sanitization method and calling it.
     }
 
     pub fn rayTrace(&self) -> Result<JsValue, JsError> {
