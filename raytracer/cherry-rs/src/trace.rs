@@ -88,9 +88,11 @@ mod tests {
         let model = petzval_lens();
         let surfaces = model.surf_model.surfaces();
         let wavelength = 0.5876;
+        let field_id = 0;
         let rays = vec![Ray::new(
             Vec3::new(-5.823648, -5.823648, -1.0),
             Vec3::new(-3.809699e-9, 0.087155744, 0.9961947),
+            field_id,
         )
         .unwrap()];
 
@@ -125,9 +127,9 @@ mod tests {
         let fields = model.field_specs();
         let mut rays = Vec::with_capacity(num_rays * fields.len());
 
-        for field in fields {
+        for (field_id, field) in fields.iter().enumerate() {
             let ray_fan = model
-                .pupil_ray_fan(num_rays, f32::to_radians(90.0), field.angle().to_radians())
+                .pupil_ray_fan(num_rays, f32::to_radians(90.0), field.angle().to_radians(), field_id)
                 .unwrap();
 
             rays.extend(ray_fan);

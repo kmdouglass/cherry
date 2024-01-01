@@ -9,15 +9,21 @@ use crate::math::vec3::Vec3;
 /// Tolerance for convergence of the Newton-Raphson method in integer mutliples of the machine epsilon
 const TOL: f32 = 5f32 * std::f32::EPSILON;
 
+/// A single ray to be traced through an optical system.
+/// 
+/// # Fields
+/// - pos: Position of the ray
+/// - dir: Direction of the ray (direction cosines)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Ray {
     pos: Vec3,
     dir: Vec3,
     terminated: bool,
+    field_id: usize,
 }
 
 impl Ray {
-    pub fn new(pos: Vec3, dir: Vec3) -> Result<Self> {
+    pub fn new(pos: Vec3, dir: Vec3, field_id: usize) -> Result<Self> {
         if !dir.is_unit() {
             bail!("Ray direction must be a unit vector");
         }
@@ -25,6 +31,7 @@ impl Ray {
             pos,
             dir,
             terminated: false,
+            field_id,
         })
     }
 
@@ -135,7 +142,7 @@ impl Ray {
     /// - phi: Angle of vectors with respect to z, the optics axis, radians
     /// - radial_offset_x: Offset the radial position of the vectors by this amount in x
     /// - radial_offset_y: Offset the radial position of the vectors by this amount in y
-    pub fn fan(n: usize, r: f32, theta: f32, z: f32, phi: f32, radial_offset_x: f32, radial_offset_y: f32) -> Vec<Ray> {
+    pub fn fan(n: usize, r: f32, theta: f32, z: f32, phi: f32, radial_offset_x: f32, radial_offset_y: f32, field_id: usize) -> Vec<Ray> {
         let pos = Vec3::fan(n, r, theta, z, radial_offset_x, radial_offset_y);
         let dir: Vec<Vec3> = pos
             .iter()
@@ -149,7 +156,7 @@ impl Ray {
 
         pos.iter()
             .zip(dir.iter())
-            .map(|(p, d)| Ray::new(*p, *d).unwrap())
+            .map(|(p, d)| Ray::new(*p, *d, field_id).unwrap())
             .collect()
     }
 
@@ -162,7 +169,8 @@ impl Ray {
     /// - `phi`: Angle of vectors with respect to z, the optics axis, radians
     /// - radial_offset_x: Offset the radial position of the vectors by this amount in x
     /// - radial_offset_y: Offset the radial position of the vectors by this amount in y
-    pub(crate) fn sq_grid_in_circ(radius: f32, spacing: f32, z: f32, phi: f32, radial_offset_x: f32, radial_offset_y: f32) -> Vec<Ray> {
+    /// - `field_id`: Field ID of the rays.
+    pub(crate) fn sq_grid_in_circ(radius: f32, spacing: f32, z: f32, phi: f32, radial_offset_x: f32, radial_offset_y: f32, field_id: usize) -> Vec<Ray> {
         let theta = PI / 2.0; // TODO: For now rays are rotated about x only
 
         let pos: Vec<Vec3> = Vec3::sq_grid_in_circ(radius, spacing, z, radial_offset_x, radial_offset_y);
@@ -178,22 +186,22 @@ impl Ray {
 
         pos.iter()
             .zip(dir.iter())
-            .map(|(p, d)| Ray::new(*p, *d).unwrap())
+            .map(|(p, d)| Ray::new(*p, *d, field_id).unwrap())
             .collect()
     }
 }
 
 #[cfg(test)]
 mod test {
+    use super::*;
     // Test the constructor of Ray
     #[test]
     fn test_rays_new() {
-        use super::*;
-
         let pos = Vec3::new(0.0, 0.0, 0.0);
         let dir = Vec3::new(0.0, 0.0, 1.0);
+        let field_id = 0;
 
-        let rays = Ray::new(pos, dir);
+        let rays = Ray::new(pos, dir, field_id);
 
         assert!(rays.is_ok());
     }
@@ -201,13 +209,11 @@ mod test {
     // Test the constructor of Ray with a non-unit direction vector
     #[test]
     fn test_rays_new_non_unit_dir() {
-        use super::*;
-
         let pos = Vec3::new(0.0, 0.0, 0.0);
-
         let dir = Vec3::new(0.0, 0.0, 2.0);
+        let field_id = 0;
 
-        let rays = Ray::new(pos, dir);
+        let rays = Ray::new(pos, dir, field_id);
 
         assert!(rays.is_err());
     }
@@ -215,8 +221,8 @@ mod test {
     // Test the intersection of a ray with a flat surface
     #[test]
     fn test_ray_intersection() {
-        use super::*;
-        let ray = Ray::new(Vec3::new(0.0, 0.0, -1.0), Vec3::new(0.0, 0.0, 1.0)).unwrap();
+        let field_id = 0;
+        let ray = Ray::new(Vec3::new(0.0, 0.0, -1.0), Vec3::new(0.0, 0.0, 1.0), field_id).unwrap();
         let surf = Surface::new_refr_circ_flat(
             Vec3::new(0.0, 0.0, 0.0),
             Vec3::new(0.0, 0.0, 1.0),
@@ -233,12 +239,12 @@ mod test {
     // Test the intersection of a ray with a circular surface
     #[test]
     fn test_ray_intersection_conic() {
-        use super::*;
+        let field_id = 0;
 
         // Ray starts at z = -1.0 and travels at 45 degrees to the optics axis
         let l = 0.7071;
         let m = (1.0_f32 - 0.7071 * 0.7071).sqrt();
-        let ray = Ray::new(Vec3::new(0.0, 0.0, -1.0), Vec3::new(0.0, l, m)).unwrap();
+        let ray = Ray::new(Vec3::new(0.0, 0.0, -1.0), Vec3::new(0.0, l, m), field_id).unwrap();
 
         // Surface has radius of curvature -1.0 and conic constant 0.0, i.e. a circle
         let surf = Surface::new_refr_circ_conic(

@@ -233,6 +233,32 @@ impl SystemModel {
         self.background
     }
 
+    /// Returns the rays to trace through the system as defined by the fields.
+    pub fn rays(&self) -> Result<Vec<Ray>> {
+        let mut rays = Vec::new();
+
+        for (field_id, field) in self.fields.iter().enumerate() {
+            match field {
+                FieldSpec::Angle(field_angle) => {
+                    let angle = field_angle.angle.to_radians();
+                    let pupil_sampling = field_angle.sampling;
+
+                    let rays_field = match pupil_sampling {
+                        PupilSampling::SqGrid { spacing } => {
+                            self.pupil_ray_sq_grid(spacing, angle, field_id)?
+                        }
+                    };
+
+                    for ray in rays_field {
+                        rays.push(ray);
+                    }
+                }
+            }
+        }
+
+        Ok(rays)
+    }
+
     /// Determine the entrance pupil for the system.
     pub(crate) fn entrance_pupil(&self) -> Result<EntrancePupil> {
         // The diameter is the aperture diameter (until more aperture types are supported)
@@ -259,7 +285,7 @@ impl SystemModel {
     /// * `num_rays` - The number of rays in the fan.
     /// * `theta` - The polar angle of the ray fan in the x-y plane.
     /// * `phi` - The angle of the ray w.r.t. the z-axis.
-    pub fn pupil_ray_fan(&self, num_rays: usize, theta: f32, phi: f32) -> Result<Vec<Ray>> {
+    pub fn pupil_ray_fan(&self, num_rays: usize, theta: f32, phi: f32, field_id: usize) -> Result<Vec<Ray>> {
         let ep = self.entrance_pupil()?;
         let obj_z = self.object_plane().pos().z();
         let sur_z = self.surf_model.surfaces()[1].pos().z();
@@ -272,7 +298,7 @@ impl SystemModel {
         let dz = enp_z - launch_point_z;
         let dy = -dz * phi.tan();
 
-        let rays = Ray::fan(num_rays, ep.diam() / 2.0, theta, launch_point_z, phi, 0.0, dy);
+        let rays = Ray::fan(num_rays, ep.diam() / 2.0, theta, launch_point_z, phi, 0.0, dy, field_id);
 
         Ok(rays)
     }
@@ -284,8 +310,9 @@ impl SystemModel {
     /// * `spacing` - The spacing between rays in the grid in normalized pupil distances, i.e.
     ///   [0, 1]. A spacing of 1.0 means that one ray will lie at the pupil center (the chief ray)
     ///   and the others will lie at the pupil edge (marginal rays).
-    /// * `phi` - The angle of the ray w.r.t. the z-axis.
-    pub fn pupil_ray_sq_grid(&self, spacing: f32, phi: f32) -> Result<Vec<Ray>> {
+    /// * `phi` - The angle of the ray w.r.t. the z-axis in radians.
+    /// * `field_id` - The field ID.
+    pub fn pupil_ray_sq_grid(&self, spacing: f32, phi: f32, field_id: usize) -> Result<Vec<Ray>> {
         let ep = self.entrance_pupil()?;
         let obj_z = self.object_plane().pos().z();
         let sur_z = self.surf_model.surfaces()[1].pos().z();
@@ -301,7 +328,7 @@ impl SystemModel {
         let dz = enp_z - launch_point_z;
         let dy = -dz * phi.tan();
 
-        let rays = Ray::sq_grid_in_circ(enp_diam / 2.0, abs_spacing, launch_point_z, phi, 0.0, dy);
+        let rays = Ray::sq_grid_in_circ(enp_diam / 2.0, abs_spacing, launch_point_z, phi, 0.0, dy, field_id);
 
         Ok(rays)
     }
