@@ -23,7 +23,7 @@ export function renderSystem(wasmSystemModel, elementId = "systemRendering") {
     const centerSVG = [svg.getAttribute("width") / 2, svg.getAttribute("height") / 2];
 
     // Trace rays through the system and draw them
-    const results = wasmSystemModel.rayTrace();
+    const results = wasmSystemModel.traceChiefAndMarginalRays();
     let rayPaths = resultsToRayPaths(results);
 
     // Create the rendering commands
