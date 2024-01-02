@@ -19,5 +19,9 @@ console.log(descr);
 renderSystem(wasmSystemModel);
 
 // Perform the full ray trace
+const start = performance.now();
 const results = wasmSystemModel.trace();
+const end = performance.now();
+console.log(`Full ray trace took ${end - start} milliseconds.`);
+
 console.log(results);
