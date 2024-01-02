@@ -46,6 +46,5 @@ fn test_planoconvex_lens_obj_at_inf() {
     let surfaces = model.surf_model().surfaces();
 
     let rays = model.rays(None).expect("Failed to generate rays");
-    //println!("Rays: {:?}", rays.len());
-    //let results = trace(surfaces, rays);
+    trace(surfaces, rays);
 }
