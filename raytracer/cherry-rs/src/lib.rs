@@ -247,10 +247,9 @@ impl SystemModel {
                 FieldSpec::Angle(field_angle) => {
                     let angle = field_angle.angle.to_radians();
                     
-                    let pupil_sampling = if let Some(sampling) = sampling {
-                        sampling
-                    } else {
-                        field_angle.sampling
+                    let pupil_sampling = match sampling {
+                        Some(sampling) => sampling,
+                        None => field_angle.sampling,
                     };
                     
                     let rays_field = match pupil_sampling {
@@ -264,9 +263,7 @@ impl SystemModel {
                         },
                     };
 
-                    for ray in rays_field {
-                        rays.push(ray);
-                    }
+                    rays.extend(rays_field);
                 }
             }
         }
