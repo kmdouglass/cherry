@@ -90,7 +90,7 @@ impl Vec3 {
     ///      every pair of half-integer coordinates.
     /// - radial_offset_x: Offset the radial position of the vectors by this amount in x
     /// - radial_offset_y: Offset the radial position of the vectors by this amount in y
-    pub(crate) fn sq_grid_in_circ(radius: f32, z: f32, spacing: f32, radial_offset_x: f32, radial_offset_y: f32) -> Vec<Self> {
+    pub(crate) fn sq_grid_in_circ(radius: f32, spacing: f32, z: f32, radial_offset_x: f32, radial_offset_y: f32) -> Vec<Self> {
         // Upper bound is established by the Gauss Circle Problem.
         let r_over_s = radius / spacing;
         let num_samples = (PI * r_over_s * r_over_s + 9f32 * r_over_s).ceil() as usize;
@@ -190,19 +190,19 @@ mod test {
 
     #[test]
     fn test_sample_circle_sq_grid_unit_circle() {
-        let samples = Vec3::sq_grid_in_circ(1.0, 0.0, 1.0, 0.0, 0.0);
+        let samples = Vec3::sq_grid_in_circ(1.0, 1.0, 0.0, 0.0, 0.0);
         assert_eq!(samples.len(), 5);
     }
 
     #[test]
     fn test_sample_circle_sq_grid_radius_2_scale_2() {
-        let samples = Vec3::sq_grid_in_circ(2.0, 0.0, 2.0, 0.0, 0.0);
+        let samples = Vec3::sq_grid_in_circ(2.0, 2.0, 0.0, 0.0, 0.0);
         assert_eq!(samples.len(), 5);
     }
 
     #[test]
     fn test_sample_circle_sq_grid_radius_2_scale_1() {
-        let samples = Vec3::sq_grid_in_circ(2.0, 0.0, 1.0, 0.0, 0.0);
+        let samples = Vec3::sq_grid_in_circ(2.0, 1.0, 0.0, 0.0, 0.0);
         assert_eq!(samples.len(), 13);
     }
 }

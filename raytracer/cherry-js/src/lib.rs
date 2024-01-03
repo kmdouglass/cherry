@@ -4,8 +4,10 @@ use anyhow::anyhow;
 use wasm_bindgen::prelude::*;
 
 use cherry_rs::description::SystemDescription;
+use cherry_rs::rays::Ray;
+use cherry_rs::trace::trace;
 use cherry_rs::surface_model::SurfaceModel;
-use cherry_rs::{ApertureSpec, FieldSpec, Gap, SurfaceSpec, SystemBuilder, SystemModel};
+use cherry_rs::{ApertureSpec, FieldSpec, Gap, SurfaceSpec, SystemBuilder, SystemModel, PupilSampling};
 
 
 
@@ -104,7 +106,7 @@ impl WasmSystemModel {
         Ok(serde_wasm_bindgen::to_value(system_model.aperture_spec())?)
     }
 
-    pub fn rayTrace(&self) -> Result<JsValue, JsError> {
+    pub fn traceChiefAndMarginalRays(&self) -> Result<JsValue, JsError> {
         let system_model = match self.system_model {
             Some(ref model) => model,
             None => return Err(JsError::new("System model is not built")),
@@ -114,25 +116,38 @@ impl WasmSystemModel {
             .surf_model()
             .map_err(|e| JsError::new(&e.to_string()))?;
 
-        let wavelength = 0.000532_f32;
+        let rays = system_model.rays(Some(PupilSampling::ChiefMarginalRays))
+            .map_err(|e| JsError::new(&e.to_string()))?;
 
-        // Generate a ray fan for each field to fill the entrance pupil
-        let num_rays = 3;
-        let fields = system_model.field_specs();
-        let mut rays = Vec::with_capacity(num_rays * fields.len());
+        let results = trace(&surf_model.surfaces(), rays);
+        let sanitized: Vec<Vec<Option<Ray>>> = WasmSystemModel::sanitize(results);
 
-        for field in fields {
-            let ray_fan = system_model
-                .pupil_ray_fan(num_rays, PI / 2.0, field.angle().to_radians())
-                .map_err(|e| JsError::new(&e.to_string()))?;
+        Ok(serde_wasm_bindgen::to_value(&sanitized)?)
+    }
 
-            rays.extend(ray_fan);
-        }
+    pub fn trace(&self) -> Result<JsValue, JsError> {
+        let system_model = match self.system_model {
+            Some(ref model) => model,
+            None => return Err(JsError::new("System model is not built")),
+        };
 
-        let results = cherry_rs::trace::trace(&surf_model.surfaces(), rays, wavelength);
+        let surf_model = self
+            .surf_model()
+            .map_err(|e| JsError::new(&e.to_string()))?;
 
-        // Loop over results and remove rays that did not result in an Error
-        let sanitized: Vec<Vec<Option<cherry_rs::rays::Ray>>> = results
+        let rays = system_model.rays(None)
+            .map_err(|e| JsError::new(&e.to_string()))?;
+
+        let results: Vec<Vec<Result<Ray, anyhow::Error>>> = trace(&surf_model.surfaces(), rays);
+        let sanitized: Vec<Vec<Option<Ray>>> = WasmSystemModel::sanitize(results);
+
+        Ok(serde_wasm_bindgen::to_value(&sanitized)?)
+    }
+
+    // Loop over results and remove rays that did not result in an Error
+    #[inline]
+    fn sanitize(results: Vec<Vec<Result<Ray, anyhow::Error>>>) -> Vec<Vec<Option<Ray>>> {
+        results
             .iter()
             .map(|surf_results| {
                 surf_results
@@ -143,9 +158,7 @@ impl WasmSystemModel {
                     })
                     .collect()
             })
-            .collect();
-
-        Ok(serde_wasm_bindgen::to_value(&sanitized)?)
+            .collect()
     }
 
     fn surf_model(&self) -> Result<&SurfaceModel, anyhow::Error> {
