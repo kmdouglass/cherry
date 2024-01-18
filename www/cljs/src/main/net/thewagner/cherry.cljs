@@ -48,7 +48,7 @@
 
    ::cherry-spec/RefractingCircularConic
    {:display-name "Conic"
-    :default #::cherry-spec{:n 1 :thickness 1 :diam 1 :roc 1 :k 1}}
+    :default #::cherry-spec{:n 1 :thickness 1 :diam 1 :roc 1 :k 0}}
 
    ::cherry-spec/RefractingCircularFlat
    {:display-name "Flat"
@@ -58,7 +58,7 @@
    {:display-name "Stop"
     :default #::cherry-spec{:n 1 :thickness 1 :diam 1}}})
 
-(def parameters [::cherry-spec/n ::cherry-spec/thickness ::cherry-spec/diam ::cherry-spec/roc ::cherry-spec/k])
+(def parameters [::cherry-spec/n ::cherry-spec/thickness ::cherry-spec/diam ::cherry-spec/roc])
 
 (defn vec-remove
   "remove elem in coll"
