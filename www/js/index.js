@@ -4,24 +4,36 @@ import { renderSystem } from "./modules/rendering.js"
 import { surfaces, gaps, aperture, fields } from "./modules/planoconvex_lens.js";
 
 const WorkerHandle = class {
-    results;
     #isBusy = false;
     #queue = [];
     constructor() {
         this.worker = new Worker(new URL("./modules/worker.js", import.meta.url));
+    }
+
+    async #initWithTimeout() {
+        return new Promise((resolve, reject) => {
+            setTimeout(() => {
+                reject("Timeout");
+            }, 1000);
+
+            this.worker.onmessage = (event) => {
+                resolve(event.data);
+            };
+        });
+    }
+
+    async init() {
+        this.worker.postMessage("init");
+        await this.#initWithTimeout();
 
         this.worker.onmessage = (event) => {
-            this.results = event.data;
+            console.log("Received message from worker: ", event.data);
 
             this.#isBusy = false;
             if (this.#queue.length > 0) {
                 this.postMessage(this.#queue.shift());
             }
         };
-    }
-
-    get isBusy() {
-        return this.#isBusy;
     }
 
     postMessage(message) {
@@ -45,8 +57,10 @@ const WorkerHandle = class {
     }
 }
 
-init().then(() => {
+init().then(async () => {
     let workerHandle = new WorkerHandle();
+    await workerHandle.init();
+
     let wasmSystemModel = new WasmSystemModel();
 
     //Build the optical system
@@ -62,11 +76,16 @@ init().then(() => {
     // Render the system -- SVG
     renderSystem(wasmSystemModel);
 
-    // Perform the full ray trace
-    const start = performance.now();
-    const results = wasmSystemModel.trace();
-    const end = performance.now();
-    console.log(`Full ray trace took ${end - start} milliseconds.`);
+    // Send the data to the worker
+    let message = {
+        surfaces: surfaces,
+        gaps: gaps,
+        aperture: aperture,
+        fields: fields
+    };
+    workerHandle.postMessage(message);
 
-    console.log(results);
+    
+
+    // console.log(results);
 });
