@@ -3,7 +3,50 @@ import { renderSystem } from "./modules/rendering.js"
 //import { surfaces, gaps, aperture, fields } from "./modules/petzval_lens.js";
 import { surfaces, gaps, aperture, fields } from "./modules/planoconvex_lens.js";
 
+const WorkerHandle = class {
+    results;
+    #isBusy = false;
+    #queue = [];
+    constructor() {
+        this.worker = new Worker(new URL("./modules/worker.js", import.meta.url));
+
+        this.worker.onmessage = (event) => {
+            this.results = event.data;
+
+            this.#isBusy = false;
+            if (this.#queue.length > 0) {
+                this.postMessage(this.#queue.shift());
+            }
+        };
+    }
+
+    get isBusy() {
+        return this.#isBusy;
+    }
+
+    postMessage(message) {
+        // Keep one message maximum in the queue
+        if (this.#queue.length > 0) {
+            this.#queue.length = 0;
+        }
+
+        // Queue the message if the worker is busy
+        if (this.#isBusy) {
+            this.#queue.push(message);
+            return;
+        }
+
+        this.#isBusy = true;
+        this.worker.postMessage(message);
+    }
+
+    terminate() {
+        this.worker.terminate();
+    }
+}
+
 init().then(() => {
+    let workerHandle = new WorkerHandle();
     let wasmSystemModel = new WasmSystemModel();
 
     //Build the optical system
