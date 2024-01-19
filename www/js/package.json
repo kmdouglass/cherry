@@ -1,36 +1,12 @@
 {
-  "name": "create-wasm-app",
-  "version": "0.1.0",
-  "description": "create an app to consume rust-generated wasm packages",
-  "main": "index.js",
-  "bin": {
-    "create-wasm-app": ".bin/create-wasm-app.js"
-  },
+  "private": true,
   "scripts": {
-    "build": "webpack --config webpack.config.js",
+    "build:wasm": "RUSTFLAGS='-C target-feature=+atomics,+bulk-memory,+mutable-globals' rustup run nightly-2024-01-12 wasm-pack build --target web --out-dir ../../www/js/pkg ../../raytracer/cherry-js -- -Z build-std=panic_abort,std",
+    "build": "npm run build:wasm && webpack --config webpack.config.js",
     "start": "webpack-dev-server"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/rustwasm/create-wasm-app.git"
-  },
-  "keywords": [
-    "webassembly",
-    "wasm",
-    "rust",
-    "webpack"
-  ],
-  "author": "Ashley Williams <ashley666ashley@gmail.com>",
-  "license": "(MIT OR Apache-2.0)",
-  "bugs": {
-    "url": "https://github.com/rustwasm/create-wasm-app/issues"
-  },
-  "homepage": "https://github.com/rustwasm/create-wasm-app#readme",
-  "dependencies": {
-    "cherry": "file:../../raytracer/cherry-js/pkg"
-  },
   "devDependencies": {
-    "@webpack-cli/serve": "^2.0.5",
+    "@webpack-cli/serve": "*",
     "copy-webpack-plugin": "*",
     "webpack": "*",
     "webpack-cli": "*",
