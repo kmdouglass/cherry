@@ -84,8 +84,4 @@ init().then(async () => {
         fields: fields
     };
     workerHandle.postMessage(message);
-
-    
-
-    // console.log(results);
 });
