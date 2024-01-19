@@ -10,7 +10,6 @@
            [:th {:style "width: 14%"} "thickness"]
            [:th {:style "width: 14%"} "diam"]
            [:th {:style "width: 14%"} "roc"]
-           [:th {:style "width: 14%"} "k"]
            [:th {:style "width: 14%"} "Actions"]]]
        [:tbody]]])
 
