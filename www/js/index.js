@@ -61,6 +61,11 @@ init().then(async () => {
     let workerHandle = new WorkerHandle();
     await workerHandle.init();
 
+    // Fetch JSON data for the glass catalog
+    const response = await fetch("/assets/catalog-nk.json");
+    const catalog = await response.json();
+    console.log(catalog);
+
     let wasmSystemModel = new WasmSystemModel();
 
     //Build the optical system
