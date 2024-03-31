@@ -9,7 +9,12 @@ module.exports = {
   },
   mode: "development",
   plugins: [
-    new CopyWebpackPlugin({patterns: ['index.html']})
+    new CopyWebpackPlugin({
+      patterns: [
+        'index.html',
+        { from: 'assets/catalog-nk.json', to: 'assets/catalog-nk.json' }
+      ],
+    })
   ],
   "experiments": {
     "asyncWebAssembly": true
