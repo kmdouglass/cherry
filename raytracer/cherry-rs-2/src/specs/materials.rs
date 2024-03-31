@@ -1,6 +1,8 @@
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
-use crate::Float;
+use crate::core::Float;
+use crate::core::RefractiveIndex;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum RefractiveIndexSpec {
@@ -49,4 +51,12 @@ pub enum RefractiveIndexSpec {
         wavelength_range: [Float; 2],
         coefficients: Vec<Float>,
     },
+}
+
+impl RefractiveIndexSpec {
+    pub fn to_eta(&self, wavelength: Float) -> Result<RefractiveIndex> {
+        !unimplemented!("RefractiveIndexSpec::to_refractive_index");
+
+        Ok(RefractiveIndex::new(1.515, 0.0))
+    }
 }

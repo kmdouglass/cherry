@@ -1,6 +1,4 @@
-mod materials;
+mod core;
 
 // API
-pub use materials::RefractiveIndexSpec;
-
-type Float = f64;
+pub mod specs;
