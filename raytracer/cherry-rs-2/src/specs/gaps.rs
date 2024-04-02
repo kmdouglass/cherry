@@ -3,14 +3,21 @@ use serde::{Deserialize, Serialize};
 use crate::core::Float;
 
 #[derive(Serialize, Deserialize, Debug)]
-pub enum RefractiveIndexSpec {
-    N { n: DataSpec },
-    NAndKSeparate { n: DataSpec, k: DataSpec },
-    NAndKTogether { nk: DataSpec },
+pub struct GapSpec {
+    pub thickness: Float,
+    pub refractive_index: RefractiveIndexSpec,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-pub enum DataSpec {
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum RefractiveIndexSpec {
+    N { n: RIDataSpec },
+    NAndKSeparate { n: RIDataSpec, k: RIDataSpec },
+    NAndKTogether { nk: RIDataSpec },
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum RIDataSpec {
+    Constant(Float),
     TabulatedN {
         data: Vec<[Float; 2]>,
     },

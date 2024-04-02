@@ -1,10 +1,18 @@
-use cherry_rs_2::specs::materials::{DataSpec, RefractiveIndexSpec};
+use std::vec;
 
-#[test]
+use cherry_rs_2::specs::{
+    fields::FieldSpec,
+    gaps::{GapSpec, RIDataSpec, RefractiveIndexSpec},
+};
+use cherry_rs_2::systems::SeqSysBuilder;
+
 fn setup() {
+    let air = RefractiveIndexSpec::N {
+        n: RIDataSpec::Constant(1.0),
+    };
     // Glass: N-BK7
-    let _ = RefractiveIndexSpec::NAndKSeparate {
-        n: DataSpec::Formula2 {
+    let nbk7 = RefractiveIndexSpec::NAndKSeparate {
+        n: RIDataSpec::Formula2 {
             wavelength_range: [0.3, 2.5],
             coefficients: vec![
                 0.0,
@@ -16,7 +24,7 @@ fn setup() {
                 103.560653,
             ],
         },
-        k: DataSpec::TabulatedK {
+        k: RIDataSpec::TabulatedK {
             data: vec![
                 [0.3, 2.8607e-6],
                 [0.31, 1.3679e-6],
@@ -46,4 +54,36 @@ fn setup() {
             ],
         },
     };
+
+    let gap_0 = GapSpec {
+        thickness: f64::INFINITY,
+        refractive_index: air.clone(),
+    };
+    let gap_1 = GapSpec {
+        thickness: 5.3,
+        refractive_index: nbk7,
+    };
+    let gap_2 = GapSpec {
+        thickness: 46.6,
+        refractive_index: air,
+    };
+    let gaps = vec![gap_0, gap_1, gap_2];
+
+    let fields: Vec<FieldSpec> = vec![
+        FieldSpec::Angle {
+            wavelength: 0.55,
+            angle: 0.0,
+        },
+        FieldSpec::Angle {
+            wavelength: 0.55,
+            angle: 5.0,
+        },
+    ];
+
+    let builder = SeqSysBuilder::new().fields(fields).gaps(gaps);
+}
+
+#[test]
+fn test_setup() {
+    setup();
 }

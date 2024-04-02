@@ -1,7 +1,8 @@
 /// Shared data types for modeling ray tracing systems.
 pub(super) mod math;
+pub(crate) mod seq;
 
-use crate::specs::materials::{DataSpec, RefractiveIndexSpec};
+use crate::specs::gaps::{RIDataSpec, RefractiveIndexSpec};
 
 use math::Complex;
 
@@ -14,6 +15,16 @@ pub(crate) struct RefractiveIndex {
 
 impl RefractiveIndex {
     pub(crate) fn from_spec(spec: &RefractiveIndexSpec, wavelength: Float) -> Self {
-        unimplemented!("TODO: Implement RefractiveIndex::from_spec")
+        match spec {
+            RefractiveIndexSpec::N { n } => {
+                unimplemented!();
+            }
+            RefractiveIndexSpec::NAndKSeparate { n, k } => {
+                unimplemented!();
+            }
+            RefractiveIndexSpec::NAndKTogether { nk } => {
+                unimplemented!();
+            }
+        }
     }
 }
