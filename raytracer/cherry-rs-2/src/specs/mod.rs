@@ -1,3 +1,1 @@
-mod materials;
-
-pub use materials::RefractiveIndexSpec;
+pub mod materials;
