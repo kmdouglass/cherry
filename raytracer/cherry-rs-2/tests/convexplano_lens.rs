@@ -4,10 +4,11 @@ use cherry_rs_2::specs::{
     aperture::ApertureSpec,
     fields::FieldSpec,
     gaps::{GapSpec, RIDataSpec, RefractiveIndexSpec},
+    surfaces::{SurfaceSpec, SurfaceType},
 };
-use cherry_rs_2::systems::SeqSysBuilder;
+use cherry_rs_2::systems::{SeqSysBuilder, SeqSystem};
 
-fn setup() {
+fn setup() -> SeqSystem {
     let aperture = ApertureSpec::EntrancePupil {
         semi_diameter: 12.5,
     };
@@ -79,13 +80,32 @@ fn setup() {
         FieldSpec::Angle { angle: 5.0 },
     ];
 
+    let surf_0 = SurfaceSpec::Object;
+    let surf_1 = SurfaceSpec::Conic {
+        semi_diameter: 12.5,
+        radius_of_curvature: 25.8,
+        conic_constant: 0.0,
+        surf_type: SurfaceType::Refracting,
+    };
+    let surf_2 = SurfaceSpec::Conic {
+        semi_diameter: 12.5,
+        radius_of_curvature: f64::INFINITY,
+        conic_constant: 0.0,
+        surf_type: SurfaceType::Refracting,
+    };
+    let surf_3 = SurfaceSpec::Image;
+    let surfaces = vec![surf_0, surf_1, surf_2, surf_3];
+
     let wavelengths: Vec<f64> = vec![0.567, 0.632];
 
-    let builder = SeqSysBuilder::new()
+    SeqSysBuilder::new()
         .aperture(aperture)
         .fields(fields)
         .gaps(gaps)
-        .wavelengths(wavelengths);
+        .surfaces(surfaces)
+        .wavelengths(wavelengths)
+        .build()
+        .unwrap()
 }
 
 #[test]

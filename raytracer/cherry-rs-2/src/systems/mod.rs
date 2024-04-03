@@ -1,8 +1,10 @@
 use anyhow::{anyhow, Result};
 
 use crate::core::Float;
-use crate::specs::aperture;
-use crate::specs::{aperture::ApertureSpec, fields::FieldSpec, gaps::GapSpec};
+use crate::specs::surfaces;
+use crate::specs::{
+    aperture::ApertureSpec, fields::FieldSpec, gaps::GapSpec, surfaces::SurfaceSpec,
+};
 
 type ParaxialModelID = (usize, Axis);
 
@@ -18,6 +20,7 @@ pub struct SeqSystem {
     aperture: ApertureSpec,
     fields: Vec<FieldSpec>,
     gaps: Vec<GapSpec>,
+    surfaces: Vec<SurfaceSpec>,
     wavelengths: Vec<Float>,
 }
 
@@ -27,6 +30,7 @@ pub struct SeqSysBuilder {
     aperture: Option<ApertureSpec>,
     fields: Option<Vec<FieldSpec>>,
     gaps: Option<Vec<GapSpec>>,
+    surfaces: Option<Vec<SurfaceSpec>>,
     wavelengths: Option<Vec<Float>>,
 }
 
@@ -51,6 +55,7 @@ impl SeqSysBuilder {
             aperture: None,
             fields: None,
             gaps: None,
+            surfaces: None,
             wavelengths: None,
         }
     }
@@ -73,6 +78,12 @@ impl SeqSysBuilder {
         self
     }
 
+    /// Sets the surfaces of the optical system.
+    pub fn surfaces(mut self, surfaces: Vec<SurfaceSpec>) -> Self {
+        self.surfaces = Some(surfaces);
+        self
+    }
+
     pub fn wavelengths(mut self, wavelengths: Vec<Float>) -> Self {
         self.wavelengths = Some(wavelengths);
         self
@@ -89,6 +100,9 @@ impl SeqSysBuilder {
         let gaps = self
             .gaps
             .ok_or(anyhow!("The system's gaps must be specified."))?;
+        let surfaces = self
+            .surfaces
+            .ok_or(anyhow!("The system's surfaces must be specified."))?;
         let wavelengths = self
             .wavelengths
             .ok_or(anyhow!("The system's wavelengths must be specified."))?;
@@ -97,6 +111,7 @@ impl SeqSysBuilder {
             aperture,
             fields,
             gaps,
+            surfaces,
             wavelengths,
         })
     }
