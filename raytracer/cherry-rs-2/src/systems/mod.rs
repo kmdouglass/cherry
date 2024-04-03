@@ -1,9 +1,13 @@
+use anyhow::{anyhow, Result};
+
+use crate::core::Float;
 use crate::specs::{fields::FieldSpec, gaps::GapSpec};
 
 #[derive(Debug)]
 pub struct SeqSystem {
     fields: Vec<FieldSpec>,
     gaps: Vec<GapSpec>,
+    wavelengths: Vec<Float>,
 }
 
 /// Builds a sequential optical system from user specs.
@@ -11,6 +15,7 @@ pub struct SeqSystem {
 pub struct SeqSysBuilder {
     fields: Option<Vec<FieldSpec>>,
     gaps: Option<Vec<GapSpec>>,
+    wavelengths: Option<Vec<Float>>,
 }
 
 impl SeqSysBuilder {
@@ -19,6 +24,7 @@ impl SeqSysBuilder {
         Self {
             fields: None,
             gaps: None,
+            wavelengths: None,
         }
     }
 
@@ -34,11 +40,27 @@ impl SeqSysBuilder {
         self
     }
 
+    pub fn wavelengths(mut self, wavelengths: Vec<Float>) -> Self {
+        self.wavelengths = Some(wavelengths);
+        self
+    }
+
     /// Builds the sequential optical system.
-    pub fn build(self) -> SeqSystem {
-        SeqSystem {
-            fields: self.fields.unwrap(),
-            gaps: self.gaps.unwrap(),
-        }
+    pub fn build(self) -> Result<SeqSystem> {
+        let fields = self
+            .fields
+            .ok_or(anyhow!("The system's fields must be specified."))?;
+        let gaps = self
+            .gaps
+            .ok_or(anyhow!("The system's gaps must be specified."))?;
+        let wavelengths = self
+            .wavelengths
+            .ok_or(anyhow!("The system's wavelenghts must be specified."))?;
+
+        Ok(SeqSystem {
+            fields,
+            gaps,
+            wavelengths,
+        })
     }
 }

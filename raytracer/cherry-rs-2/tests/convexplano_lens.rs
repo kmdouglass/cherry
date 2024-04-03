@@ -70,17 +70,16 @@ fn setup() {
     let gaps = vec![gap_0, gap_1, gap_2];
 
     let fields: Vec<FieldSpec> = vec![
-        FieldSpec::Angle {
-            wavelength: 0.55,
-            angle: 0.0,
-        },
-        FieldSpec::Angle {
-            wavelength: 0.55,
-            angle: 5.0,
-        },
+        FieldSpec::Angle { angle: 0.0 },
+        FieldSpec::Angle { angle: 5.0 },
     ];
 
-    let builder = SeqSysBuilder::new().fields(fields).gaps(gaps);
+    let wavelengths: Vec<f64> = vec![0.567, 0.632];
+
+    let builder = SeqSysBuilder::new()
+        .fields(fields)
+        .gaps(gaps)
+        .wavelengths(wavelengths);
 }
 
 #[test]
