@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::core::Float;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone, Copy)]
 pub enum SurfaceType {
     Refracting,
     Reflecting,
