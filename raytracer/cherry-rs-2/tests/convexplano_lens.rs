@@ -1,12 +1,17 @@
 use std::vec;
 
 use cherry_rs_2::specs::{
+    aperture::ApertureSpec,
     fields::FieldSpec,
     gaps::{GapSpec, RIDataSpec, RefractiveIndexSpec},
 };
 use cherry_rs_2::systems::SeqSysBuilder;
 
 fn setup() {
+    let aperture = ApertureSpec::EntrancePupil {
+        semi_diameter: 12.5,
+    };
+
     let air = RefractiveIndexSpec::N {
         n: RIDataSpec::Constant(1.0),
     };
@@ -77,6 +82,7 @@ fn setup() {
     let wavelengths: Vec<f64> = vec![0.567, 0.632];
 
     let builder = SeqSysBuilder::new()
+        .aperture(aperture)
         .fields(fields)
         .gaps(gaps)
         .wavelengths(wavelengths);

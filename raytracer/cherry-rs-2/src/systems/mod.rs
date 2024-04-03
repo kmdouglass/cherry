@@ -1,7 +1,8 @@
 use anyhow::{anyhow, Result};
 
 use crate::core::Float;
-use crate::specs::{fields::FieldSpec, gaps::GapSpec};
+use crate::specs::aperture;
+use crate::specs::{aperture::ApertureSpec, fields::FieldSpec, gaps::GapSpec};
 
 type ParaxialModelID = (usize, Axis);
 
@@ -14,6 +15,7 @@ enum Axis {
 
 #[derive(Debug)]
 pub struct SeqSystem {
+    aperture: ApertureSpec,
     fields: Vec<FieldSpec>,
     gaps: Vec<GapSpec>,
     wavelengths: Vec<Float>,
@@ -22,6 +24,7 @@ pub struct SeqSystem {
 /// Builds a sequential optical system from user specs.
 #[derive(Debug)]
 pub struct SeqSysBuilder {
+    aperture: Option<ApertureSpec>,
     fields: Option<Vec<FieldSpec>>,
     gaps: Option<Vec<GapSpec>>,
     wavelengths: Option<Vec<Float>>,
@@ -45,10 +48,17 @@ impl SeqSysBuilder {
     /// Creates a new sequential optical system builder.
     pub fn new() -> Self {
         Self {
+            aperture: None,
             fields: None,
             gaps: None,
             wavelengths: None,
         }
+    }
+
+    /// Sets the aperture of the optical system.
+    pub fn aperture(mut self, aperture: ApertureSpec) -> Self {
+        self.aperture = Some(aperture);
+        self
     }
 
     /// Sets the fields of the optical system.
@@ -70,6 +80,9 @@ impl SeqSysBuilder {
 
     /// Builds the sequential optical system.
     pub fn build(self) -> Result<SeqSystem> {
+        let aperture = self
+            .aperture
+            .ok_or(anyhow!("The system's aperture must be specified."))?;
         let fields = self
             .fields
             .ok_or(anyhow!("The system's fields must be specified."))?;
@@ -81,6 +94,7 @@ impl SeqSysBuilder {
             .ok_or(anyhow!("The system's wavelengths must be specified."))?;
 
         Ok(SeqSystem {
+            aperture,
             fields,
             gaps,
             wavelengths,
