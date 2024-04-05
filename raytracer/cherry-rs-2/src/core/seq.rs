@@ -50,7 +50,7 @@ pub(crate) struct Toric {
 }
 
 impl Gap {
-    fn from_spec(spec: &GapSpec, wavelength: Float) -> Self {
+    pub(crate) fn from_spec(spec: &GapSpec, wavelength: Float) -> Self {
         let thickness = spec.thickness;
         let refractive_index = RefractiveIndex::from_spec(&spec.refractive_index, wavelength);
         Self {

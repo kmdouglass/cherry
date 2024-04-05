@@ -6,9 +6,9 @@ use cherry_rs_2::specs::{
     gaps::{GapSpec, RIDataSpec, RefractiveIndexSpec},
     surfaces::{SurfaceSpec, SurfaceType},
 };
-use cherry_rs_2::systems::{SeqSysBuilder, SeqSystem};
+use cherry_rs_2::systems::{SeqSys, SeqSysBuilder};
 
-fn setup() -> SeqSystem {
+fn setup() -> SeqSys {
     let aperture = ApertureSpec::EntrancePupil {
         semi_diameter: 12.5,
     };
