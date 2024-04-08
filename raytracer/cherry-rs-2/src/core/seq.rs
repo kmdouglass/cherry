@@ -1,4 +1,6 @@
 /// Data types for modeling sequential ray tracing systems.
+use anyhow::Result;
+
 use crate::core::{Float, RefractiveIndex};
 use crate::specs::{gaps::GapSpec, surfaces::SurfaceType};
 
@@ -50,13 +52,13 @@ pub(crate) struct Toric {
 }
 
 impl Gap {
-    pub(crate) fn from_spec(spec: &GapSpec, wavelength: Float) -> Self {
+    pub(crate) fn try_from_spec(spec: &GapSpec, wavelength: Option<Float>) -> Result<Self> {
         let thickness = spec.thickness;
-        let refractive_index = RefractiveIndex::from_spec(&spec.refractive_index, wavelength);
-        Self {
+        let refractive_index = RefractiveIndex::try_from_spec(&spec.refractive_index, wavelength)?;
+        Ok(Self {
             thickness,
             refractive_index,
-        }
+        })
     }
 }
 

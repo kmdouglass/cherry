@@ -9,23 +9,16 @@ pub struct GapSpec {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub enum RefractiveIndexSpec {
-    N { n: RIDataSpec },
-    NAndKSeparate { n: RIDataSpec, k: RIDataSpec },
-    NAndKTogether { nk: RIDataSpec },
+pub struct RefractiveIndexSpec {
+    pub real: RealSpec,
+    pub imag: Option<ImagSpec>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub enum RIDataSpec {
+pub enum RealSpec {
     Constant(Float),
     TabulatedN {
         data: Vec<[Float; 2]>,
-    },
-    TabulatedK {
-        data: Vec<[Float; 2]>,
-    },
-    TabulatedNK {
-        data: Vec<[Float; 3]>,
     },
     Formula1 {
         wavelength_range: [Float; 2],
@@ -63,4 +56,31 @@ pub enum RIDataSpec {
         wavelength_range: [Float; 2],
         coefficients: Vec<Float>,
     },
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum ImagSpec {
+    Constant(Float),
+    TabulatedK { data: Vec<[Float; 2]> },
+}
+
+impl RefractiveIndexSpec {
+    pub fn depends_on_wavelength(&self) -> bool {
+        !self.is_constant()
+    }
+
+    pub fn is_constant(&self) -> bool {
+        let is_real_part_const = match &self.real {
+            RealSpec::Constant(_) => true,
+            _ => false,
+        };
+
+        let is_imag_part_const = match &self.imag {
+            Some(ImagSpec::Constant(_)) => true,
+            None => true,
+            _ => false,
+        };
+
+        is_real_part_const && is_imag_part_const
+    }
 }

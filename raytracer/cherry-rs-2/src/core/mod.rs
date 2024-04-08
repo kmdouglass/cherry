@@ -2,7 +2,9 @@
 pub(super) mod math;
 pub(crate) mod seq;
 
-use crate::specs::gaps::{RIDataSpec, RefractiveIndexSpec};
+use anyhow::{anyhow, Result};
+
+use crate::specs::gaps::{ImagSpec, RealSpec, RefractiveIndexSpec};
 
 use math::Complex;
 
@@ -14,17 +16,38 @@ pub(crate) struct RefractiveIndex {
 }
 
 impl RefractiveIndex {
-    pub(crate) fn from_spec(spec: &RefractiveIndexSpec, wavelength: Float) -> Self {
-        match spec {
-            RefractiveIndexSpec::N { n } => {
-                unimplemented!();
-            }
-            RefractiveIndexSpec::NAndKSeparate { n, k } => {
-                unimplemented!();
-            }
-            RefractiveIndexSpec::NAndKTogether { nk } => {
-                unimplemented!();
-            }
+    pub(crate) fn new(n: Float, k: Float) -> Self {
+        Self {
+            eta: Complex { real: n, imag: k },
         }
+    }
+
+    /// Creates a Gap instance from a GapSpec.
+    ///
+    /// A wavelength is required to compute the refractive index from the spec
+    /// if the refractive index is specified as a function of wavelength.
+    /// Otherwise, the real part of the refractive index is provided by the user
+    /// as a constant value.
+    pub(crate) fn try_from_spec(
+        spec: &RefractiveIndexSpec,
+        wavelength: Option<Float>,
+    ) -> Result<Self> {
+        if wavelength.is_none() && spec.depends_on_wavelength() {
+            return Err(anyhow!(
+                "The refractive index must be a constant when no wavelength is provided."
+            ));
+        }
+
+        let n = match spec.real {
+            RealSpec::Constant(n) => n,
+            _ => !unimplemented!("Non-constant refractive index"),
+        };
+
+        let k = match spec.imag {
+            Some(ImagSpec::Constant(k)) => k,
+            _ => !unimplemented!("Non-constant refractive index"),
+        };
+
+        Ok(Self::new(n, k))
     }
 }

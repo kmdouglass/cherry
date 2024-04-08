@@ -1,16 +1,15 @@
 use anyhow::{anyhow, Result};
 
-use crate::core::{seq::Gap, seq::Surface, Float};
-use crate::specs::gaps::RefractiveIndexSpec;
+use crate::core::Float;
 use crate::specs::{
-    aperture::ApertureSpec, fields::FieldSpec, gaps::GapSpec, gaps::RIDataSpec,
-    surfaces::SurfaceSpec,
+    aperture::ApertureSpec, fields::FieldSpec, gaps::GapSpec, surfaces::SurfaceSpec,
 };
 
 /// A unique identifier for a paraxial model.
 ///
-/// The first element is the index of the wavelength in the system's list of wavelengths.
-/// The second element is the axis along which the paraxial model is computed.
+/// The first element is the index of the wavelength in the system's list of
+/// wavelengths. The second element is the axis along which the paraxial model
+/// is computed.
 type ParaxialModelID = (usize, Axis);
 
 /// The transverse direction along which system properties will be computed.
@@ -31,8 +30,9 @@ pub struct SeqSys {
 
 /// Builds a sequential optical system from user specs.
 ///
-/// The builder validates the specs before creating the system. If you want to ensure that the system is valid,
-/// use the builder instead of creating the system directly.
+/// The builder validates the specs before creating the system. If you want to
+/// ensure that the system is valid, use the builder instead of creating the
+/// system directly.
 #[derive(Debug)]
 pub struct SeqSysBuilder {
     aperture: Option<ApertureSpec>,
@@ -45,7 +45,8 @@ pub struct SeqSysBuilder {
 impl SeqSys {
     /// Creates a new sequential optical system.
     ///
-    /// There are no validations performed when creating the system directly with this method. If you want to ensure that the system is valid,
+    /// There are no validations performed when creating the system directly
+    /// with this method. If you want to ensure that the system is valid,
     /// then use the `SeqSysBuilder` instead.
     fn new(
         aperture: ApertureSpec,
@@ -151,29 +152,26 @@ impl SeqSysBuilder {
         })
     }
 
+    // fn gap_specs_to_gaps(gap_specs: &Vec<GapSpec>, wavelength) -> Vec<Gap> {
+    //     gap_specs
+    //         .iter()
+    //         .map(|gap_spec| Gap::from_spec(gap_spec))
+    //         .collect()
+    // }
+
     fn validate_gaps(gaps: &Vec<GapSpec>, wavelengths: &Vec<Float>) -> Result<()> {
         if gaps.is_empty() {
             return Err(anyhow!("The system must have at least one gap."));
         }
 
-        // If no wavelengths are specified, then the gaps must explicitly specify the refractive index.
+        // If no wavelengths are specified, then the gaps must explicitly specify the
+        // refractive index.
         if wavelengths.is_empty() {
-            let error = Err(anyhow!(
-                "The system's gaps must specify the refractive index if no wavelengths are provided."
-            ));
-
             for gap in gaps.iter() {
-                match &gap.refractive_index {
-                    RefractiveIndexSpec::N { n } => {
-                        if let RIDataSpec::Constant(_) = n {
-                            continue;
-                        } else {
-                            return error;
-                        }
-                    }
-                    _ => {
-                        return error;
-                    }
+                if !gap.refractive_index.is_constant() {
+                    return Err(anyhow!(
+                        "The refractive index of the gap must be a constant when no wavelengths are provided."
+                    ));
                 }
             }
         }
@@ -195,24 +193,26 @@ impl SeqSysBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::specs::gaps::{RIDataSpec, RefractiveIndexSpec};
+    use crate::specs::gaps::{RealSpec, RefractiveIndexSpec};
 
     #[test]
     fn gaps_must_specify_ri_when_no_wavelengths_provided() {
         let gaps = vec![
             GapSpec {
                 thickness: 1.0,
-                refractive_index: RefractiveIndexSpec::N {
-                    n: RIDataSpec::Constant(1.0),
+                refractive_index: RefractiveIndexSpec {
+                    real: RealSpec::Constant(1.0),
+                    imag: None,
                 },
             },
             GapSpec {
                 thickness: 1.0,
-                refractive_index: RefractiveIndexSpec::N {
-                    n: RIDataSpec::Formula2 {
+                refractive_index: RefractiveIndexSpec {
+                    real: RealSpec::Formula2 {
                         wavelength_range: [0.3, 0.8],
                         coefficients: vec![1.0, 2.0, 3.0, 4.0],
                     },
+                    imag: None,
                 },
             },
         ];
