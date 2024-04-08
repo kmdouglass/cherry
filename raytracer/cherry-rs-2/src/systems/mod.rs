@@ -1,16 +1,17 @@
 use anyhow::{anyhow, Result};
 
-use crate::core::Float;
+use crate::core::{seq::Gap, Float};
+use crate::specs::gaps;
 use crate::specs::{
     aperture::ApertureSpec, fields::FieldSpec, gaps::GapSpec, surfaces::SurfaceSpec,
 };
 
-/// A unique identifier for a paraxial model.
+/// A unique identifier for a model.
 ///
 /// The first element is the index of the wavelength in the system's list of
 /// wavelengths. The second element is the axis along which the paraxial model
 /// is computed.
-type ParaxialModelID = (usize, Axis);
+type ModelID = (Option<usize>, Axis);
 
 /// The transverse direction along which system properties will be computed.
 #[derive(Debug, Clone, Copy)]
@@ -26,138 +27,58 @@ pub struct SeqSys {
     gaps: Vec<GapSpec>,
     surfaces: Vec<SurfaceSpec>,
     wavelengths: Vec<Float>,
-}
 
-/// Builds a sequential optical system from user specs.
-///
-/// The builder validates the specs before creating the system. If you want to
-/// ensure that the system is valid, use the builder instead of creating the
-/// system directly.
-#[derive(Debug)]
-pub struct SeqSysBuilder {
-    aperture: Option<ApertureSpec>,
-    fields: Option<Vec<FieldSpec>>,
-    gaps: Option<Vec<GapSpec>>,
-    surfaces: Option<Vec<SurfaceSpec>>,
-    wavelengths: Option<Vec<Float>>,
+    model_ids: Vec<ModelID>,
 }
 
 impl SeqSys {
     /// Creates a new sequential optical system.
-    ///
-    /// There are no validations performed when creating the system directly
-    /// with this method. If you want to ensure that the system is valid,
-    /// then use the `SeqSysBuilder` instead.
-    fn new(
+    pub fn new(
         aperture: ApertureSpec,
         fields: Vec<FieldSpec>,
         gaps: Vec<GapSpec>,
         surfaces: Vec<SurfaceSpec>,
         wavelengths: Vec<Float>,
-    ) -> Self {
-        Self {
+    ) -> Result<Self> {
+        Self::validate_specs(&aperture, &fields, &gaps, &surfaces, &wavelengths)?;
+
+        let model_ids = Self::model_ids(&wavelengths);
+        Ok(Self {
             aperture,
             fields,
             gaps,
             surfaces,
             wavelengths,
-        }
+            model_ids,
+        })
     }
 
-    /// Composes the optical system from its specs.
-    fn compose(&self) {
-        !unimplemented!("Compose the optical system from its specs.")
+    fn gap_specs_to_gaps(gap_specs: &Vec<GapSpec>, wavelength: Option<Float>) -> Result<Vec<Gap>> {
+        let mut gaps = Vec::new();
+        for gap_spec in gap_specs.iter() {
+            let gap = Gap::try_from_spec(gap_spec, wavelength)?;
+            gaps.push(gap);
+        }
+        Ok(gaps)
     }
 
     /// Computes the unique IDs for each paraxial model.
-    fn paraxial_model_ids(&self) -> Vec<ParaxialModelID> {
+    fn model_ids(wavelengths: &Vec<Float>) -> Vec<ModelID> {
         let mut ids = Vec::new();
-        for (idx, _wavelength) in self.wavelengths.iter().enumerate() {
+        if wavelengths.is_empty() {
+            ids.push((None, Axis::Horizontal));
+            ids.push((None, Axis::Vertical));
+            return ids;
+        }
+
+        for (idx, _wavelength) in wavelengths.iter().enumerate() {
             for axis in [Axis::Horizontal, Axis::Vertical].iter() {
-                let id = (idx, *axis);
+                let id = (Some(idx), *axis);
                 ids.push(id);
             }
         }
         ids
     }
-}
-
-impl SeqSysBuilder {
-    /// Creates a new sequential optical system builder.
-    pub fn new() -> Self {
-        Self {
-            aperture: None,
-            fields: None,
-            gaps: None,
-            surfaces: None,
-            wavelengths: None,
-        }
-    }
-
-    /// Sets the aperture of the optical system.
-    pub fn aperture(mut self, aperture: ApertureSpec) -> Self {
-        self.aperture = Some(aperture);
-        self
-    }
-
-    /// Sets the fields of the optical system.
-    pub fn fields(mut self, fields: Vec<FieldSpec>) -> Self {
-        self.fields = Some(fields);
-        self
-    }
-
-    /// Sets the gaps of the optical system.
-    pub fn gaps(mut self, gaps: Vec<GapSpec>) -> Self {
-        self.gaps = Some(gaps);
-        self
-    }
-
-    /// Sets the surfaces of the optical system.
-    pub fn surfaces(mut self, surfaces: Vec<SurfaceSpec>) -> Self {
-        self.surfaces = Some(surfaces);
-        self
-    }
-
-    pub fn wavelengths(mut self, wavelengths: Vec<Float>) -> Self {
-        self.wavelengths = Some(wavelengths);
-        self
-    }
-
-    /// Builds the sequential optical system.
-    pub fn build(self) -> Result<SeqSys> {
-        let aperture = self
-            .aperture
-            .ok_or(anyhow!("The system's aperture must be specified."))?;
-        let fields = self
-            .fields
-            .ok_or(anyhow!("The system's fields must be specified."))?;
-        let gaps = self
-            .gaps
-            .ok_or(anyhow!("The system's gaps must be specified."))?;
-        let surfaces = self
-            .surfaces
-            .ok_or(anyhow!("The system's surfaces must be specified."))?;
-        let wavelengths = self
-            .wavelengths
-            .ok_or(anyhow!("The system's wavelengths must be specified."))?;
-
-        Self::validate_specs(&aperture, &fields, &gaps, &surfaces, &wavelengths)?;
-
-        Ok(SeqSys {
-            aperture,
-            fields,
-            gaps,
-            surfaces,
-            wavelengths,
-        })
-    }
-
-    // fn gap_specs_to_gaps(gap_specs: &Vec<GapSpec>, wavelength) -> Vec<Gap> {
-    //     gap_specs
-    //         .iter()
-    //         .map(|gap_spec| Gap::from_spec(gap_spec))
-    //         .collect()
-    // }
 
     fn validate_gaps(gaps: &Vec<GapSpec>, wavelengths: &Vec<Float>) -> Result<()> {
         if gaps.is_empty() {
@@ -168,7 +89,7 @@ impl SeqSysBuilder {
         // refractive index.
         if wavelengths.is_empty() {
             for gap in gaps.iter() {
-                if !gap.refractive_index.is_constant() {
+                if gap.refractive_index.depends_on_wavelength() {
                     return Err(anyhow!(
                         "The refractive index of the gap must be a constant when no wavelengths are provided."
                     ));
@@ -218,7 +139,7 @@ mod tests {
         ];
         let wavelengths = Vec::new();
 
-        let result = SeqSysBuilder::validate_gaps(&gaps, &wavelengths);
+        let result = SeqSys::validate_gaps(&gaps, &wavelengths);
         assert!(result.is_err());
     }
 }

@@ -4,6 +4,7 @@ use anyhow::Result;
 use crate::core::{Float, RefractiveIndex};
 use crate::specs::{gaps::GapSpec, surfaces::SurfaceType};
 
+#[derive(Debug)]
 pub(crate) struct Gap {
     thickness: Float,
     refractive_index: RefractiveIndex,
