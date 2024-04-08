@@ -4,6 +4,9 @@ use anyhow::Result;
 use crate::core::{Float, RefractiveIndex};
 use crate::specs::{gaps::GapSpec, surfaces::SurfaceType};
 
+/// A single ray tracing step in a sequential system.
+pub(crate) type Step<'a> = (&'a Gap, &'a Surface, Option<&'a Gap>);
+
 #[derive(Debug)]
 pub(crate) struct Gap {
     thickness: Float,
