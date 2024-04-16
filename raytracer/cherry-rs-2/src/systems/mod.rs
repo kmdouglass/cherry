@@ -1,7 +1,6 @@
 use anyhow::{anyhow, Result};
 
-use crate::core::{seq::Gap, Float};
-use crate::specs::gaps;
+use crate::core::{seq::Gap, seq::Surface, Float};
 use crate::specs::{
     aperture::ApertureSpec, fields::FieldSpec, gaps::GapSpec, surfaces::SurfaceSpec,
 };
@@ -20,12 +19,16 @@ enum Axis {
     Vertical,
 }
 
+/// An optical system for sequential ray tracing.
+///
+/// The surfaces are wrapped in a Rc<RefCell<...>> to allow for sharing mutable
+/// references to the surfaces across multiple models and any optimizers.
 #[derive(Debug)]
 pub struct SeqSys {
     aperture: ApertureSpec,
     fields: Vec<FieldSpec>,
     gaps: Vec<GapSpec>,
-    surfaces: Vec<SurfaceSpec>,
+    surface_specs: Vec<SurfaceSpec>,
     wavelengths: Vec<Float>,
 
     model_ids: Vec<ModelID>,
@@ -37,17 +40,18 @@ impl SeqSys {
         aperture: ApertureSpec,
         fields: Vec<FieldSpec>,
         gaps: Vec<GapSpec>,
-        surfaces: Vec<SurfaceSpec>,
+        surface_specs: Vec<SurfaceSpec>,
         wavelengths: Vec<Float>,
     ) -> Result<Self> {
-        Self::validate_specs(&aperture, &fields, &gaps, &surfaces, &wavelengths)?;
+        Self::validate_specs(&aperture, &fields, &gaps, &surface_specs, &wavelengths)?;
 
         let model_ids = Self::model_ids(&wavelengths);
+
         Ok(Self {
             aperture,
             fields,
             gaps,
-            surfaces,
+            surface_specs: surface_specs,
             wavelengths,
             model_ids,
         })
