@@ -1,6 +1,9 @@
+use std::collections::HashMap;
+
 use anyhow::{anyhow, Result};
 
-use crate::core::{seq::Gap, seq::Surface, Float};
+use crate::core::{models::sequential_model::SequentialModel, seq::Gap, Float};
+use crate::specs::{gaps, surfaces};
 use crate::specs::{
     aperture::ApertureSpec, fields::FieldSpec, gaps::GapSpec, surfaces::SurfaceSpec,
 };
@@ -46,6 +49,16 @@ impl SeqSys {
         Self::validate_specs(&aperture, &fields, &gaps, &surface_specs, &wavelengths)?;
 
         let model_ids = Self::model_ids(&wavelengths);
+        let models: HashMap<ModelID, SequentialModel>;
+        for model_id in model_ids.iter() {
+            let wavelength = match model_id.0 {
+                Some(idx) => Some(wavelengths[idx]),
+                None => None,
+            };
+            let gaps = Self::gap_specs_to_gaps(&gaps, wavelength)?;
+            
+            !unimplemented!("TODO Create the surfaces from the specs")
+        }
 
         Ok(Self {
             aperture,

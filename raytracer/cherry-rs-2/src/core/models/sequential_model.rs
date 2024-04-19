@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 use crate::core::seq::{Gap, Step, Surface};
 
-struct SequentialModel {
+pub(crate) struct SequentialModel {
     surfaces: Rc<RefCell<Vec<Surface>>>,
     gaps: Vec<Gap>,
 }
