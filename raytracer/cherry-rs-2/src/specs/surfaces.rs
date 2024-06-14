@@ -19,6 +19,7 @@ pub enum SurfaceSpec {
     },
     Image,
     Object,
+    Probe,
     Stop {
         semi_diameter: Float,
     },

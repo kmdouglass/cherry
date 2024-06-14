@@ -2,7 +2,10 @@
 use anyhow::Result;
 
 use crate::core::{Float, RefractiveIndex};
-use crate::specs::{gaps::GapSpec, surfaces::SurfaceType};
+use crate::specs::{
+    gaps::GapSpec,
+    surfaces::{SurfaceSpec, SurfaceType},
+};
 
 /// A single ray tracing step in a sequential system.
 pub(crate) type Step<'a> = (&'a Gap, &'a Surface, Option<&'a Gap>);
@@ -67,6 +70,41 @@ impl Gap {
 }
 
 impl Surface {
+    pub(crate) fn from_spec(spec: &SurfaceSpec) -> Self {
+        match spec {
+            SurfaceSpec::Conic {
+                semi_diameter,
+                radius_of_curvature,
+                conic_constant,
+                surf_type,
+            } => Self::Conic(Conic {
+                semi_diameter: *semi_diameter,
+                radius_of_curvature: *radius_of_curvature,
+                conic_constant: *conic_constant,
+                surf_type: *surf_type,
+            }),
+            SurfaceSpec::Image => Self::Image(Image {}),
+            SurfaceSpec::Object => Self::Object(Object {}),
+            SurfaceSpec::Probe => Self::Probe(Probe {}),
+            SurfaceSpec::Stop { semi_diameter } => Self::Stop(Stop {
+                semi_diameter: *semi_diameter,
+            }),
+            SurfaceSpec::Toric {
+                semi_diameter,
+                radius_of_curvature_vert,
+                radius_of_curvature_horz,
+                conic_constant,
+                surf_type,
+            } => Self::Toric(Toric {
+                semi_diameter: *semi_diameter,
+                radius_of_curvature_vert: *radius_of_curvature_vert,
+                radius_of_curvature_horz: *radius_of_curvature_horz,
+                conic_constant: *conic_constant,
+                surf_type: *surf_type,
+            }),
+        }
+    }
+
     /// The radius of curvature in the horizontal direction.
     pub(crate) fn roch(&self) -> Float {
         match self {
