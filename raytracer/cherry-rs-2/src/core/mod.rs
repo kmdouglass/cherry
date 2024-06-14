@@ -8,15 +8,42 @@ use anyhow::{anyhow, Result};
 use crate::specs::gaps::{ImagSpec, RealSpec, RefractiveIndexSpec};
 
 use math::Complex;
+use math::vec3::Vec3;
 
 pub(crate) type Float = f64;
 
 pub(crate) const EPSILON: Float = Float::EPSILON;
 pub(crate) const PI: Float = std::f64::consts::PI;
 
+/// The cursor navigates through the optical system surface by surface, keeping
+/// track of its position as it changes.
+#[derive(Debug)]
+pub(crate) struct Cursor {
+    /// The position of the cursor.
+    pos: Vec3,
+
+    /// The direction of the cursor expressed as a unit vector.
+    dir: Vec3,
+}
+
 #[derive(Debug)]
 pub(crate) struct RefractiveIndex {
     eta: Complex<Float>,
+}
+
+impl Cursor {
+    /// Create a new cursor at the origin of the global coordinate system.
+    pub(crate) fn new() -> Self {
+        Self {
+            pos: Vec3::new(0.0, 0.0, 0.0),
+            dir: Vec3::new(0.0, 0.0, 1.0),
+        }
+    }
+
+    /// Advance the cursor by a given distance.
+    pub fn advance(&mut self, distance: Float) {
+        self.pos += self.dir * distance;
+    }
 }
 
 impl RefractiveIndex {

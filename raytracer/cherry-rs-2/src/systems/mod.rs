@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use anyhow::{anyhow, Result};
 
-use crate::core::{models::sequential_model::SequentialModel, seq::Gap, Float};
+use crate::core::{models::sequential_model::SequentialModel, seq::Gap, Cursor, Float};
 use crate::specs::{gaps, surfaces};
 use crate::specs::{
     aperture::ApertureSpec, fields::FieldSpec, gaps::GapSpec, surfaces::SurfaceSpec,
@@ -22,11 +22,6 @@ enum Axis {
     Vertical,
 }
 
-/// The cursor navigates through the optical system surface by surface, keeping
-/// track of the reference frame as it changes.
-#[derive(Debug)]
-struct Cursor {}
-
 /// An optical system for sequential ray tracing.
 ///
 /// The surfaces are wrapped in a Rc<RefCell<...>> to allow for sharing mutable
@@ -39,6 +34,7 @@ pub struct SeqSys {
     surface_specs: Vec<SurfaceSpec>,
     wavelengths: Vec<Float>,
 
+    cursor: Cursor,
     model_ids: Vec<ModelID>,
 }
 
@@ -52,6 +48,8 @@ impl SeqSys {
         wavelengths: Vec<Float>,
     ) -> Result<Self> {
         Self::validate_specs(&aperture, &fields, &gaps, &surface_specs, &wavelengths)?;
+
+        let cursor = Cursor::new();
 
         let model_ids = Self::model_ids(&wavelengths);
         let models: HashMap<ModelID, SequentialModel>;
@@ -71,6 +69,7 @@ impl SeqSys {
             gaps,
             surface_specs: surface_specs,
             wavelengths,
+            cursor,
             model_ids,
         })
     }
