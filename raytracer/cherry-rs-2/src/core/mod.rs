@@ -11,6 +11,9 @@ use math::Complex;
 
 pub(crate) type Float = f64;
 
+pub(crate) const EPSILON: Float = Float::EPSILON;
+pub(crate) const PI: Float = std::f64::consts::PI;
+
 #[derive(Debug)]
 pub(crate) struct RefractiveIndex {
     eta: Complex<Float>,

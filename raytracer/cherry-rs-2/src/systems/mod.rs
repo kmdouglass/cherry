@@ -11,7 +11,7 @@ use crate::specs::{
 /// A unique identifier for a model.
 ///
 /// The first element is the index of the wavelength in the system's list of
-/// wavelengths. The second element is the axis along which the paraxial model
+/// wavelengths. The second element is the transverse axis along which the model
 /// is computed.
 type ModelID = (Option<usize>, Axis);
 
@@ -21,6 +21,11 @@ enum Axis {
     Horizontal,
     Vertical,
 }
+
+/// The cursor navigates through the optical system surface by surface, keeping
+/// track of the reference frame as it changes.
+#[derive(Debug)]
+struct Cursor {}
 
 /// An optical system for sequential ray tracing.
 ///
