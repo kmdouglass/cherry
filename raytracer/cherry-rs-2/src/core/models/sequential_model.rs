@@ -1,21 +1,27 @@
-use std::cell::{Ref, RefCell};
-use std::rc::Rc;
-
 use crate::core::seq::{Gap, Step, Surface};
 
 pub(crate) struct SequentialModel {
-    surfaces: Rc<RefCell<Vec<Surface>>>,
     gaps: Vec<Gap>,
 }
 
 struct SequentialModelIter<'a> {
-    surfaces: &'a Ref<'a, Vec<Surface>>,
+    surfaces: &'a Vec<Surface>,
     gaps: &'a Vec<Gap>,
     index: usize,
 }
 
+impl SequentialModel {
+    pub(crate) fn new(gaps: Vec<Gap>) -> Self {
+        Self { gaps }
+    }
+
+    pub(crate) fn iter<'a>(&'a self, surfaces: &'a Vec<Surface>) -> SequentialModelIter<'a> {
+        SequentialModelIter::new(surfaces, &self.gaps)
+    }
+}
+
 impl<'a> SequentialModelIter<'a> {
-    fn new(surfaces: &'a Ref<'a, Vec<Surface>>, gaps: &'a Vec<Gap>) -> Self {
+    fn new(surfaces: &'a Vec<Surface>, gaps: &'a Vec<Gap>) -> Self {
         Self {
             surfaces,
             gaps,

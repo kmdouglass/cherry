@@ -2,19 +2,16 @@ use std::collections::HashMap;
 
 use anyhow::{anyhow, Result};
 
+use crate::core::{
+    models::sequential_model::SequentialModel,
+    seq::{Gap, Surface},
+    Cursor, Float,
+};
 use crate::specs::{
     aperture::ApertureSpec,
     fields::FieldSpec,
     gaps::GapSpec,
     surfaces::{SurfaceSpec, SurfaceType},
-};
-use crate::{
-    core::{
-        models::sequential_model::SequentialModel,
-        seq::{Gap, Surface},
-        Cursor, Float,
-    },
-    specs::surfaces,
 };
 
 /// A unique identifier for a model.
@@ -22,10 +19,11 @@ use crate::{
 /// The first element is the index of the wavelength in the system's list of
 /// wavelengths. The second element is the transverse axis along which the model
 /// is computed.
-type ModelID = (Option<usize>, Axis);
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+struct ModelID(Option<usize>, Axis);
 
 /// The transverse direction along which system properties will be computed.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum Axis {
     Horizontal,
     Vertical,
@@ -56,15 +54,18 @@ impl SeqSys {
     ) -> Result<Self> {
         Self::validate_specs(&aperture, &fields, &gap_specs, &surface_specs, &wavelengths)?;
 
-        let model_ids = Self::model_ids(&wavelengths);
-        let models: HashMap<ModelID, SequentialModel>;
         let surfaces = Self::surf_specs_to_surfs(&surface_specs, &gap_specs);
+
+        let model_ids: Vec<ModelID> = Self::model_ids(&wavelengths);
+        let mut models: HashMap<ModelID, SequentialModel> = HashMap::new();
         for model_id in model_ids.iter() {
             let wavelength = match model_id.0 {
                 Some(idx) => Some(wavelengths[idx]),
                 None => None,
             };
             let gaps = Self::gap_specs_to_gaps(&gap_specs, wavelength)?;
+            let model = SequentialModel::new(gaps);
+            models.insert(*model_id, model);
         }
 
         Ok(Self {
@@ -89,14 +90,14 @@ impl SeqSys {
     fn model_ids(wavelengths: &Vec<Float>) -> Vec<ModelID> {
         let mut ids = Vec::new();
         if wavelengths.is_empty() {
-            ids.push((None, Axis::Horizontal));
-            ids.push((None, Axis::Vertical));
+            ids.push(ModelID(None, Axis::Horizontal));
+            ids.push(ModelID(None, Axis::Vertical));
             return ids;
         }
 
         for (idx, _wavelength) in wavelengths.iter().enumerate() {
             for axis in [Axis::Horizontal, Axis::Vertical].iter() {
-                let id = (Some(idx), *axis);
+                let id = ModelID(Some(idx), *axis);
                 ids.push(id);
             }
         }
