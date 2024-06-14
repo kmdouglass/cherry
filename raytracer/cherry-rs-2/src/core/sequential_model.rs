@@ -7,14 +7,24 @@ use crate::specs::{
     surfaces::{SurfaceSpec, SurfaceType},
 };
 
-/// A single ray tracing step in a sequential system.
-pub(crate) type Step<'a> = (&'a Gap, &'a Surface, Option<&'a Gap>);
-
 #[derive(Debug)]
 pub(crate) struct Gap {
     thickness: Float,
     refractive_index: RefractiveIndex,
 }
+
+pub(crate) struct SequentialModel {
+    gaps: Vec<Gap>,
+}
+
+struct SequentialModelIter<'a> {
+    surfaces: &'a Vec<Surface>,
+    gaps: &'a Vec<Gap>,
+    index: usize,
+}
+
+/// A single ray tracing step in a sequential system.
+pub(crate) type Step<'a> = (&'a Gap, &'a Surface, Option<&'a Gap>);
 
 #[derive(Debug)]
 pub(crate) enum Surface {
@@ -84,6 +94,49 @@ impl Gap {
     }
 }
 
+impl SequentialModel {
+    pub(crate) fn new(gaps: Vec<Gap>) -> Self {
+        Self { gaps }
+    }
+
+    pub(crate) fn iter<'a>(&'a self, surfaces: &'a Vec<Surface>) -> SequentialModelIter<'a> {
+        SequentialModelIter::new(surfaces, &self.gaps)
+    }
+}
+
+impl<'a> SequentialModelIter<'a> {
+    fn new(surfaces: &'a Vec<Surface>, gaps: &'a Vec<Gap>) -> Self {
+        Self {
+            surfaces,
+            gaps,
+            index: 0,
+        }
+    }
+}
+
+impl<'a> Iterator for SequentialModelIter<'a> {
+    type Item = Step<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.index == self.gaps.len() - 1 {
+            // We are at the last gap
+            let result = Some((&self.gaps[self.index], &self.surfaces[self.index + 1], None));
+            self.index += 1;
+            result
+        } else if self.index < self.gaps.len() {
+            let result = Some((
+                &self.gaps[self.index],
+                &self.surfaces[self.index + 1],
+                Some(&self.gaps[self.index + 1]),
+            ));
+            self.index += 1;
+            result
+        } else {
+            None
+        }
+    }
+}
+
 impl Surface {
     pub(crate) fn from_spec(spec: &SurfaceSpec, pos: Vec3) -> Self {
         // No rotation for the moment
@@ -130,7 +183,7 @@ impl Surface {
     }
 
     /// The radius of curvature in the horizontal direction.
-    pub(crate) fn roch(&self) -> Float {
+    pub(crate) fn rocx(&self) -> Float {
         match self {
             Self::Conic(conic) => conic.radius_of_curvature,
             Self::Toric(toric) => toric.radius_of_curvature_horz,
@@ -139,7 +192,7 @@ impl Surface {
     }
 
     /// The radius of curvature in the vertical direction.
-    pub(crate) fn rocv(&self) -> Float {
+    pub(crate) fn rocy(&self) -> Float {
         match self {
             Self::Conic(conic) => conic.radius_of_curvature,
             Self::Toric(toric) => toric.radius_of_curvature_vert,

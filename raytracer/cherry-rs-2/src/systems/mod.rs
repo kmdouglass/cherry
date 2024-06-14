@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use anyhow::{anyhow, Result};
 
 use crate::core::{
-    models::sequential_model::SequentialModel,
-    seq::{Gap, Surface},
+    sequential_model::SequentialModel,
+    sequential_model::{Gap, Surface},
     Cursor, Float,
 };
 use crate::specs::{
@@ -22,11 +22,12 @@ use crate::specs::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 struct ModelID(Option<usize>, Axis);
 
-/// The transverse direction along which system properties will be computed.
+/// The transverse direction along which system properties will be computed with
+/// respect to the current reference frame of the cursor.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum Axis {
-    Horizontal,
-    Vertical,
+    X,
+    Y,
 }
 
 /// An optical system for sequential ray tracing.
@@ -90,13 +91,13 @@ impl SeqSys {
     fn model_ids(wavelengths: &Vec<Float>) -> Vec<ModelID> {
         let mut ids = Vec::new();
         if wavelengths.is_empty() {
-            ids.push(ModelID(None, Axis::Horizontal));
-            ids.push(ModelID(None, Axis::Vertical));
+            ids.push(ModelID(None, Axis::X));
+            ids.push(ModelID(None, Axis::Y));
             return ids;
         }
 
         for (idx, _wavelength) in wavelengths.iter().enumerate() {
-            for axis in [Axis::Horizontal, Axis::Vertical].iter() {
+            for axis in [Axis::X, Axis::Y].iter() {
                 let id = ModelID(Some(idx), *axis);
                 ids.push(id);
             }

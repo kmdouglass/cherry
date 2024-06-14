@@ -1,7 +1,6 @@
 /// Shared data types for modeling ray tracing systems.
 pub(super) mod math;
-pub(crate) mod models;
-pub(crate) mod seq;
+pub(crate) mod sequential_model;
 
 use anyhow::{anyhow, Result};
 
