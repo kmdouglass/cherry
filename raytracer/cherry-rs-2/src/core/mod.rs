@@ -7,8 +7,8 @@ use anyhow::{anyhow, Result};
 
 use crate::specs::gaps::{ImagSpec, RealSpec, RefractiveIndexSpec};
 
-use math::Complex;
 use math::vec3::Vec3;
+use math::Complex;
 
 pub(crate) type Float = f64;
 

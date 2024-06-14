@@ -3,10 +3,10 @@ use std::collections::HashMap;
 use anyhow::{anyhow, Result};
 
 use crate::core::{models::sequential_model::SequentialModel, seq::Gap, Cursor, Float};
-use crate::specs::{gaps, surfaces};
 use crate::specs::{
     aperture::ApertureSpec, fields::FieldSpec, gaps::GapSpec, surfaces::SurfaceSpec,
 };
+use crate::specs::{gaps, surfaces};
 
 /// A unique identifier for a model.
 ///
@@ -59,7 +59,7 @@ impl SeqSys {
                 None => None,
             };
             let gaps = Self::gap_specs_to_gaps(&gaps, wavelength)?;
-            
+
             !unimplemented!("TODO Create the surfaces from the specs")
         }
 

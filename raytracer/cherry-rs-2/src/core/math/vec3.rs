@@ -1,7 +1,7 @@
 /// A 3D vector
 use serde::{Deserialize, Serialize};
 
-use crate::core::{EPSILON, Float, PI};
+use crate::core::{Float, EPSILON, PI};
 
 const TOL: Float = 1 as Float * EPSILON;
 
@@ -81,16 +81,25 @@ impl Vec3 {
     }
 
     /// Create a square grid of vectors that sample a circle.
-    /// 
+    ///
     /// # Arguments
     /// - `radius` - The radius of the circle.
     /// - `z` - The z-coordinate of the circle.
-    /// - `spacing` - The spacing of the grid. For example, a spacing of 1.0 will sample the circle at
-    ///      every pair of integer coordinates, while a scale of 0.5 will sample the circle at
-    ///      every pair of half-integer coordinates.
-    /// - radial_offset_x: Offset the radial position of the vectors by this amount in x
-    /// - radial_offset_y: Offset the radial position of the vectors by this amount in y
-    pub(crate) fn sq_grid_in_circ(radius: Float, spacing: Float, z: Float, radial_offset_x: Float, radial_offset_y: Float) -> Vec<Self> {
+    /// - `spacing` - The spacing of the grid. For example, a spacing of 1.0
+    ///   will sample the circle at every pair of integer coordinates, while a
+    ///   scale of 0.5 will sample the circle at every pair of half-integer
+    ///   coordinates.
+    /// - radial_offset_x: Offset the radial position of the vectors by this
+    ///   amount in x
+    /// - radial_offset_y: Offset the radial position of the vectors by this
+    ///   amount in y
+    pub(crate) fn sq_grid_in_circ(
+        radius: Float,
+        spacing: Float,
+        z: Float,
+        radial_offset_x: Float,
+        radial_offset_y: Float,
+    ) -> Vec<Self> {
         // Upper bound is established by the Gauss Circle Problem.
         let r_over_s = radius / spacing;
         let num_samples = (PI * r_over_s * r_over_s + 9 as Float * r_over_s).ceil() as usize;
@@ -112,19 +121,30 @@ impl Vec3 {
         samples
     }
 
-    /// Create a fan of uniformly spaced vectors with endpoints in a given z-plane.
+    /// Create a fan of uniformly spaced vectors with endpoints in a given
+    /// z-plane.
     ///
-    /// The vectors have endpoints at an angle theta with respect to the x-axis and extend from
-    /// distances (-r + radial_offset) to (r + radial_offset) from the point (0, 0, z).
+    /// The vectors have endpoints at an angle theta with respect to the x-axis
+    /// and extend from distances (-r + radial_offset) to (r +
+    /// radial_offset) from the point (0, 0, z).
     ///
     /// # Arguments
     /// - n: Number of vectors to create
     /// - r: Radial span of vector endpoints from [-r, r]
     /// - theta: Angle of vectors with respect to x
     /// - z: z-coordinate of endpoints
-    /// - radial_offset_x: Offset the radial position of the vectors by this amount in x
-    /// - radial_offset_y: Offset the radial position of the vectors by this amount in y
-    pub (crate) fn fan(n: usize, r: Float, theta: Float, z: Float, radial_offset_x: Float, radial_offset_y: Float) -> Vec<Self> {
+    /// - radial_offset_x: Offset the radial position of the vectors by this
+    ///   amount in x
+    /// - radial_offset_y: Offset the radial position of the vectors by this
+    ///   amount in y
+    pub(crate) fn fan(
+        n: usize,
+        r: Float,
+        theta: Float,
+        z: Float,
+        radial_offset_x: Float,
+        radial_offset_y: Float,
+    ) -> Vec<Self> {
         let mut vecs = Vec::with_capacity(n);
         let step = 2.0 * r / (n - 1) as Float;
         for i in 0..n {
@@ -139,7 +159,7 @@ impl Vec3 {
 impl PartialEq for Vec3 {
     fn eq(&self, rhs: &Self) -> bool {
         (self.e[0] - rhs.e[0]).abs() / Float::max(self.e[0], rhs.e[0]) < TOL
-            && (self.e[1] - rhs.e[1]).abs() / Float::max(self.e[1], rhs.e[1] )< TOL
+            && (self.e[1] - rhs.e[1]).abs() / Float::max(self.e[1], rhs.e[1]) < TOL
             && (self.e[2] - rhs.e[2]).abs() / Float::max(self.e[2], rhs.e[2]) < TOL
     }
 }
