@@ -93,7 +93,7 @@ impl Vec3 {
     ///   amount in x
     /// - radial_offset_y: Offset the radial position of the vectors by this
     ///   amount in y
-    pub(crate) fn sq_grid_in_circ(
+    pub fn sq_grid_in_circ(
         radius: Float,
         spacing: Float,
         z: Float,
@@ -137,7 +137,7 @@ impl Vec3 {
     ///   amount in x
     /// - radial_offset_y: Offset the radial position of the vectors by this
     ///   amount in y
-    pub(crate) fn fan(
+    pub fn fan(
         n: usize,
         r: Float,
         theta: Float,
@@ -181,6 +181,14 @@ impl std::ops::AddAssign<Vec3> for Vec3 {
         self.e[0] += rhs.e[0];
         self.e[1] += rhs.e[1];
         self.e[2] += rhs.e[2];
+    }
+}
+
+impl std::ops::Neg for Vec3 {
+    type Output = Self;
+
+    fn neg(self) -> Self {
+        Self::new(-self.e[0], -self.e[1], -self.e[2])
     }
 }
 

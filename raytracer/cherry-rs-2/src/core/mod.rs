@@ -44,6 +44,15 @@ impl Cursor {
     pub fn advance(&mut self, distance: Float) {
         self.pos += self.dir * distance;
     }
+
+    /// Invert the direction of the cursor.
+    pub fn invert(&mut self) {
+        self.dir = -self.dir;
+    }
+
+    pub(super) fn pos(&self) -> Vec3 {
+        self.pos
+    }
 }
 
 impl RefractiveIndex {

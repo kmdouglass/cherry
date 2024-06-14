@@ -1,7 +1,7 @@
 /// Data types for modeling sequential ray tracing systems.
 use anyhow::Result;
 
-use crate::core::{Float, RefractiveIndex};
+use crate::core::{math::vec3::Vec3, Cursor, Float, RefractiveIndex};
 use crate::specs::{
     gaps::GapSpec,
     surfaces::{SurfaceSpec, SurfaceType},
@@ -28,6 +28,8 @@ pub(crate) enum Surface {
 
 #[derive(Debug)]
 pub(crate) struct Conic {
+    pos: Vec3,
+    euler_angles: Vec3,
     semi_diameter: Float,
     radius_of_curvature: Float,
     conic_constant: Float,
@@ -35,22 +37,35 @@ pub(crate) struct Conic {
 }
 
 #[derive(Debug)]
-pub(crate) struct Image {}
+pub(crate) struct Image {
+    pos: Vec3,
+    euler_angles: Vec3,
+}
 
 #[derive(Debug)]
-pub(crate) struct Object {}
+pub(crate) struct Object {
+    pos: Vec3,
+    euler_angles: Vec3,
+}
 
 /// A surface without any effect on rays that is used to measure intersections.
 #[derive(Debug)]
-pub(crate) struct Probe {}
+pub(crate) struct Probe {
+    pos: Vec3,
+    euler_angles: Vec3,
+}
 
 #[derive(Debug)]
 pub(crate) struct Stop {
+    pos: Vec3,
+    euler_angles: Vec3,
     semi_diameter: Float,
 }
 
 #[derive(Debug)]
 pub(crate) struct Toric {
+    pos: Vec3,
+    euler_angles: Vec3,
     semi_diameter: Float,
     radius_of_curvature_vert: Float,
     radius_of_curvature_horz: Float,
@@ -70,7 +85,11 @@ impl Gap {
 }
 
 impl Surface {
-    pub(crate) fn from_spec(spec: &SurfaceSpec) -> Self {
+    pub(crate) fn from_spec(spec: &SurfaceSpec, cursor: Cursor) -> Self {
+        let pos = cursor.pos();
+        // No rotation for the moment
+        let euler_angles = Vec3::new(0.0, 0.0, 0.0);
+
         match spec {
             SurfaceSpec::Conic {
                 semi_diameter,
@@ -78,15 +97,19 @@ impl Surface {
                 conic_constant,
                 surf_type,
             } => Self::Conic(Conic {
+                pos,
+                euler_angles,
                 semi_diameter: *semi_diameter,
                 radius_of_curvature: *radius_of_curvature,
                 conic_constant: *conic_constant,
                 surf_type: *surf_type,
             }),
-            SurfaceSpec::Image => Self::Image(Image {}),
-            SurfaceSpec::Object => Self::Object(Object {}),
-            SurfaceSpec::Probe => Self::Probe(Probe {}),
+            SurfaceSpec::Image => Self::Image(Image { pos, euler_angles }),
+            SurfaceSpec::Object => Self::Object(Object { pos, euler_angles }),
+            SurfaceSpec::Probe => Self::Probe(Probe { pos, euler_angles }),
             SurfaceSpec::Stop { semi_diameter } => Self::Stop(Stop {
+                pos,
+                euler_angles,
                 semi_diameter: *semi_diameter,
             }),
             SurfaceSpec::Toric {
@@ -96,6 +119,8 @@ impl Surface {
                 conic_constant,
                 surf_type,
             } => Self::Toric(Toric {
+                pos,
+                euler_angles,
                 semi_diameter: *semi_diameter,
                 radius_of_curvature_vert: *radius_of_curvature_vert,
                 radius_of_curvature_horz: *radius_of_curvature_horz,
