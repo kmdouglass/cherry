@@ -42,6 +42,11 @@ impl Cursor {
 
     /// Advance the cursor by a given distance along the z-direction.
     pub fn advance(&mut self, distance: Float) {
+        // Edge case for advancing from negative infinity to 0.
+        if (self.pos.z() == Float::NEG_INFINITY) && (distance == Float::INFINITY) {
+            self.pos.set_z(0.0);
+            return;
+        }
         self.pos += self.dir * distance;
     }
 
@@ -90,5 +95,44 @@ impl RefractiveIndex {
         };
 
         Ok(Self::new(n, k))
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_cursor_advance() {
+        let mut cursor = Cursor::new(0.0);
+        cursor.advance(1.0);
+        assert_eq!(cursor.pos(), Vec3::new(0.0, 0.0, 1.0));
+    }
+
+    #[test]
+    fn test_cursor_invert() {
+        let mut cursor = Cursor::new(0.0);
+        cursor.invert();
+        cursor.advance(1.0);
+        assert_eq!(cursor.pos(), Vec3::new(0.0, 0.0, -1.0));
+    }
+
+    #[test]
+    fn test_cursor_start_from_neg_infinity() {
+        let mut cursor = Cursor::new(Float::NEG_INFINITY);
+        cursor.advance(Float::INFINITY);
+        assert_eq!(cursor.pos(), Vec3::new(0.0, 0.0, 0.0));
+    }
+
+    #[test]
+    fn test_refractive_index_try_from_spec() {
+        let spec = RefractiveIndexSpec {
+            real: RealSpec::Constant(1.5),
+            imag: None,
+        };
+
+        let n = RefractiveIndex::try_from_spec(&spec, None).unwrap();
+        assert_eq!(n.eta.real, 1.5);
+        assert_eq!(n.eta.imag, 0.0);
     }
 }

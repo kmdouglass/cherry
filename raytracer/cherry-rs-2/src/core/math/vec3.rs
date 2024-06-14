@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::core::{Float, EPSILON, PI};
 
-const TOL: Float = 1 as Float * EPSILON;
+const TOL: Float = (1 as Float) * EPSILON;
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(into = "[Float; 3]")]
@@ -158,9 +158,10 @@ impl Vec3 {
 
 impl PartialEq for Vec3 {
     fn eq(&self, rhs: &Self) -> bool {
-        (self.e[0] - rhs.e[0]).abs() / Float::max(self.e[0], rhs.e[0]) < TOL
-            && (self.e[1] - rhs.e[1]).abs() / Float::max(self.e[1], rhs.e[1]) < TOL
-            && (self.e[2] - rhs.e[2]).abs() / Float::max(self.e[2], rhs.e[2]) < TOL
+        (self.e[0] - rhs.e[0]) * (self.e[0] - rhs.e[0])
+            + (self.e[1] - rhs.e[1]) * (self.e[1] - rhs.e[1])
+            + (self.e[2] - rhs.e[2]) * (self.e[2] - rhs.e[2])
+            < TOL * TOL
     }
 }
 
