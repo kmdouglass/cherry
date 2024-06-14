@@ -1,7 +1,7 @@
 /// Data types for modeling sequential ray tracing systems.
 use anyhow::Result;
 
-use crate::core::{math::vec3::Vec3, Cursor, Float, RefractiveIndex};
+use crate::core::{math::vec3::Vec3, Float, RefractiveIndex};
 use crate::specs::{
     gaps::GapSpec,
     surfaces::{SurfaceSpec, SurfaceType},
@@ -85,8 +85,7 @@ impl Gap {
 }
 
 impl Surface {
-    pub(crate) fn from_spec(spec: &SurfaceSpec, cursor: Cursor) -> Self {
-        let pos = cursor.pos();
+    pub(crate) fn from_spec(spec: &SurfaceSpec, pos: Vec3) -> Self {
         // No rotation for the moment
         let euler_angles = Vec3::new(0.0, 0.0, 0.0);
 

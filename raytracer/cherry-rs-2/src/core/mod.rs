@@ -32,15 +32,16 @@ pub(crate) struct RefractiveIndex {
 }
 
 impl Cursor {
-    /// Create a new cursor at the origin of the global coordinate system.
-    pub(crate) fn new() -> Self {
+    /// Create a new cursor at the given axial position in the global coordinate
+    /// system.
+    pub(crate) fn new(z: Float) -> Self {
         Self {
-            pos: Vec3::new(0.0, 0.0, 0.0),
+            pos: Vec3::new(0.0, 0.0, z),
             dir: Vec3::new(0.0, 0.0, 1.0),
         }
     }
 
-    /// Advance the cursor by a given distance.
+    /// Advance the cursor by a given distance along the z-direction.
     pub fn advance(&mut self, distance: Float) {
         self.pos += self.dir * distance;
     }

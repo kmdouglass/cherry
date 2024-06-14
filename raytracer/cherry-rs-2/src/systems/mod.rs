@@ -2,11 +2,20 @@ use std::collections::HashMap;
 
 use anyhow::{anyhow, Result};
 
-use crate::core::{models::sequential_model::SequentialModel, seq::Gap, Cursor, Float};
 use crate::specs::{
-    aperture::ApertureSpec, fields::FieldSpec, gaps::GapSpec, surfaces::SurfaceSpec,
+    aperture::ApertureSpec,
+    fields::FieldSpec,
+    gaps::GapSpec,
+    surfaces::{SurfaceSpec, SurfaceType},
 };
-use crate::specs::{gaps, surfaces};
+use crate::{
+    core::{
+        models::sequential_model::SequentialModel,
+        seq::{Gap, Surface},
+        Cursor, Float,
+    },
+    specs::surfaces,
+};
 
 /// A unique identifier for a model.
 ///
@@ -30,11 +39,9 @@ enum Axis {
 pub struct SeqSys {
     aperture: ApertureSpec,
     fields: Vec<FieldSpec>,
-    gaps: Vec<GapSpec>,
-    surface_specs: Vec<SurfaceSpec>,
+    surfaces: Vec<Surface>,
     wavelengths: Vec<Float>,
 
-    cursor: Cursor,
     model_ids: Vec<ModelID>,
 }
 
@@ -43,33 +50,28 @@ impl SeqSys {
     pub fn new(
         aperture: ApertureSpec,
         fields: Vec<FieldSpec>,
-        gaps: Vec<GapSpec>,
+        gap_specs: Vec<GapSpec>,
         surface_specs: Vec<SurfaceSpec>,
         wavelengths: Vec<Float>,
     ) -> Result<Self> {
-        Self::validate_specs(&aperture, &fields, &gaps, &surface_specs, &wavelengths)?;
-
-        let cursor = Cursor::new();
+        Self::validate_specs(&aperture, &fields, &gap_specs, &surface_specs, &wavelengths)?;
 
         let model_ids = Self::model_ids(&wavelengths);
         let models: HashMap<ModelID, SequentialModel>;
+        let surfaces = Self::surf_specs_to_surfs(&surface_specs, &gap_specs);
         for model_id in model_ids.iter() {
             let wavelength = match model_id.0 {
                 Some(idx) => Some(wavelengths[idx]),
                 None => None,
             };
-            let gaps = Self::gap_specs_to_gaps(&gaps, wavelength)?;
-
-            !unimplemented!("TODO Create the surfaces from the specs")
+            let gaps = Self::gap_specs_to_gaps(&gap_specs, wavelength)?;
         }
 
         Ok(Self {
             aperture,
             fields,
-            gaps,
-            surface_specs: surface_specs,
+            surfaces,
             wavelengths,
-            cursor,
             model_ids,
         })
     }
@@ -99,6 +101,40 @@ impl SeqSys {
             }
         }
         ids
+    }
+
+    fn surf_specs_to_surfs(
+        surf_specs: &Vec<SurfaceSpec>,
+        gap_specs: &Vec<GapSpec>,
+    ) -> Vec<Surface> {
+        let mut surfaces = Vec::new();
+
+        // The first surface is an object surface.
+        // The second surface is at z=0 by convention.
+        let mut cursor = Cursor::new(-gap_specs[0].thickness);
+
+        // Create surfaces 0 to n-1
+        for (surf_spec, gap_spec) in surf_specs.iter().zip(gap_specs.iter()) {
+            let surf = Surface::from_spec(surf_spec, cursor.pos());
+
+            // Flip the cursor upon reflection
+            if let SurfaceType::Reflecting = surf.surface_type() {
+                cursor.invert();
+            }
+
+            // Add the surface to the list and advance the cursor
+            surfaces.push(surf);
+            cursor.advance(gap_spec.thickness);
+        }
+
+        // Add the last surface
+        surfaces.push(Surface::from_spec(
+            &surf_specs
+                .last()
+                .expect("There should always be one last surface."),
+            cursor.pos(),
+        ));
+        surfaces
     }
 
     fn validate_gaps(gaps: &Vec<GapSpec>, wavelengths: &Vec<Float>) -> Result<()> {
