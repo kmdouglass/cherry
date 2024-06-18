@@ -10,4 +10,5 @@ crate-type = ["lib"]
 
 [dependencies]
 anyhow = "1.0"
+ndarray = "*"
 serde = { version = "*", features = ["derive"] }
