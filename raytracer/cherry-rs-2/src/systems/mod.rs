@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use anyhow::{anyhow, Result};
 
 use crate::core::{
-    sequential_model::SequentialModel,
+    sequential_model::{SequentialModel, SequentialModelIter},
     sequential_model::{Gap, Surface},
     Cursor, Float,
 };
@@ -31,9 +31,6 @@ enum Axis {
 }
 
 /// An optical system for sequential ray tracing.
-///
-/// The surfaces are wrapped in a Rc<RefCell<...>> to allow for sharing mutable
-/// references to the surfaces across multiple models and any optimizers.
 #[derive(Debug)]
 pub struct SeqSys {
     aperture: ApertureSpec,
@@ -41,7 +38,7 @@ pub struct SeqSys {
     surfaces: Vec<Surface>,
     wavelengths: Vec<Float>,
 
-    model_ids: Vec<ModelID>,
+    models: HashMap<ModelID, SequentialModel>,
 }
 
 impl SeqSys {
@@ -74,8 +71,23 @@ impl SeqSys {
             fields,
             surfaces,
             wavelengths,
-            model_ids,
+            models,
         })
+    }
+
+    /// Returns an iterator over the sequential model for the given model ID.
+    /// 
+    /// # Errors
+    /// 
+    /// Returns an error if the model ID does not exist in the system.
+    fn try_iter(&self, model_id: ModelID) -> Result<SequentialModelIter> {
+        let gaps = self.models.get(&model_id).ok_or_else(|| {
+            anyhow!(
+                "The model with ID {:?} does not exist in the system.",
+                model_id
+            )
+        })?;
+        Ok(gaps.iter(&self.surfaces))
     }
 
     fn gap_specs_to_gaps(gap_specs: &Vec<GapSpec>, wavelength: Option<Float>) -> Result<Vec<Gap>> {

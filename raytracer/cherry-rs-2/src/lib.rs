@@ -4,3 +4,4 @@ mod optimizers;
 // API
 pub mod specs;
 pub mod systems;
+pub mod views;

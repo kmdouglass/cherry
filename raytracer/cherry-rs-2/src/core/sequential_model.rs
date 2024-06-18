@@ -13,11 +13,12 @@ pub(crate) struct Gap {
     refractive_index: RefractiveIndex,
 }
 
+#[derive(Debug)]
 pub(crate) struct SequentialModel {
     gaps: Vec<Gap>,
 }
 
-struct SequentialModelIter<'a> {
+pub(crate) struct SequentialModelIter<'a> {
     surfaces: &'a Vec<Surface>,
     gaps: &'a Vec<Gap>,
     index: usize,
