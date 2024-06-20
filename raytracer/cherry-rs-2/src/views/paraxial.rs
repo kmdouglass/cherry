@@ -1,12 +1,12 @@
 use core::panic;
 
 /// A paraxial view into an optical system.
-use ndarray::{s, Array2, Array3};
+use ndarray::{arr2, s, Array2, Array3};
 
-use crate::core::{
-    sequential_model::{Axis, SequentialSubModel, Surface},
+use crate::{core::{
+    sequential_model::{Axis, Conic, SequentialSubModel, Surface},
     Float,
-};
+}, specs::surfaces::SurfaceType};
 use crate::systems::SequentialModel;
 
 const DEFAULT_THICKNESS: Float = 0.0;
@@ -97,5 +97,37 @@ impl ParaxialSubView {
         for step in sequential_sub_model.iter(surfaces) {}
 
         results
+    }
+}
+
+fn surface_to_rtm(surface: &Surface) -> impl Fn(Float, Float, Float, Float) -> RayTransferMatrix {
+    let surface_type = surface.surface_type();
+    
+    match surface {
+        // Paraxially, conics and torics behave the same.
+        Surface::Conic(_) | Surface::Toric(_) => {
+            match surface_type {
+                SurfaceType::Refracting => {
+                    |t, roc, n_0, n_1| {
+                        arr2(&[
+                            [1.0, t],
+                            [(n_0 - n_1) / n_1 / roc, t * (n_0 - n_1)/ n_1 / roc + n_0 / n_1],
+                        ])
+                    }
+                }
+                SurfaceType::Reflecting => {
+                    |t, roc, _, _| {
+                        arr2(&[
+                            [1.0, t],
+                            [-2.0 / roc, 1.0 - 2.0 * t / roc],
+                        ])
+                    }
+                }
+                _ => panic!("Surface type not supported for conics."),
+            }
+        }
+
+
+        _ => panic!("Surface type not supported."),
     }
 }

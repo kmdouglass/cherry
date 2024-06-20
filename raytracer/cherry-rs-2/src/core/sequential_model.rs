@@ -52,7 +52,7 @@ pub(crate) struct Conic {
     semi_diameter: Float,
     radius_of_curvature: Float,
     conic_constant: Float,
-    surf_type: SurfaceType,
+    surface_type: SurfaceType,
 }
 
 #[derive(Debug)]
@@ -89,7 +89,7 @@ pub(crate) struct Toric {
     radius_of_curvature_vert: Float,
     radius_of_curvature_horz: Float,
     conic_constant: Float,
-    surf_type: SurfaceType,
+    surface_type: SurfaceType,
 }
 
 impl Gap {
@@ -163,7 +163,7 @@ impl Surface {
                 semi_diameter: *semi_diameter,
                 radius_of_curvature: *radius_of_curvature,
                 conic_constant: *conic_constant,
-                surf_type: *surf_type,
+                surface_type: *surf_type,
             }),
             SurfaceSpec::Image => Self::Image(Image { pos, euler_angles }),
             SurfaceSpec::Object => Self::Object(Object { pos, euler_angles }),
@@ -186,7 +186,7 @@ impl Surface {
                 radius_of_curvature_vert: *radius_of_curvature_vert,
                 radius_of_curvature_horz: *radius_of_curvature_horz,
                 conic_constant: *conic_constant,
-                surf_type: *surf_type,
+                surface_type: *surf_type,
             }),
         }
     }
@@ -227,8 +227,8 @@ impl Surface {
 
     pub(crate) fn surface_type(&self) -> SurfaceType {
         match self {
-            Self::Conic(conic) => conic.surf_type,
-            Self::Toric(toric) => toric.surf_type,
+            Self::Conic(conic) => conic.surface_type,
+            Self::Toric(toric) => toric.surface_type,
             _ => SurfaceType::NoOp,
         }
     }
