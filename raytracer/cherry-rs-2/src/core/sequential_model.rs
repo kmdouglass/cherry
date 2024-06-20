@@ -17,8 +17,8 @@ pub(crate) enum Axis {
 
 #[derive(Debug)]
 pub(crate) struct Gap {
-    thickness: Float,
-    refractive_index: RefractiveIndex,
+    pub thickness: Float,
+    pub refractive_index: RefractiveIndex,
 }
 
 #[derive(Debug)]
@@ -191,8 +191,15 @@ impl Surface {
         }
     }
 
+    pub(crate) fn roc(&self, axis: Axis) -> Float {
+        match axis {
+            Axis::X => self.rocx(),
+            Axis::Y => self.rocy(),
+        }
+    }
+
     /// The radius of curvature in the horizontal direction.
-    pub(crate) fn rocx(&self) -> Float {
+    fn rocx(&self) -> Float {
         match self {
             Self::Conic(conic) => conic.radius_of_curvature,
             Self::Toric(toric) => toric.radius_of_curvature_horz,
@@ -201,7 +208,7 @@ impl Surface {
     }
 
     /// The radius of curvature in the vertical direction.
-    pub(crate) fn rocy(&self) -> Float {
+    fn rocy(&self) -> Float {
         match self {
             Self::Conic(conic) => conic.radius_of_curvature,
             Self::Toric(toric) => toric.radius_of_curvature_vert,

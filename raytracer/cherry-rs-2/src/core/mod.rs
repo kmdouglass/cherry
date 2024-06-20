@@ -25,7 +25,7 @@ pub(crate) struct Cursor {
     dir: Vec3,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub(crate) struct RefractiveIndex {
     eta: Complex<Float>,
 }

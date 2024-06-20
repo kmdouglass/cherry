@@ -1,3 +1,5 @@
+use core::panic;
+
 /// A paraxial view into an optical system.
 use ndarray::{s, Array2, Array3};
 
@@ -6,6 +8,8 @@ use crate::core::{
     Float,
 };
 use crate::systems::SequentialModel;
+
+const DEFAULT_THICKNESS: Float = 0.0;
 
 /// A Nr x 2 array of paraxial rays.
 ///
@@ -21,6 +25,9 @@ type ParaxialRays = Array2<Float>;
 /// of the ray at the surface.
 type ParaxialRayTraceResults = Array3<Float>;
 
+/// A 2 x 2 array representing a ray transfer matrix for paraxial rays.
+type RayTransferMatrix = Array2<Float>;
+
 struct ParaxialSubView {
     pseudo_marginal_ray: ParaxialRayTraceResults,
 }
@@ -33,7 +40,7 @@ impl ParaxialSubView {
         axis: Axis,
     ) -> Self {
         let pseudo_marginal_ray =
-            Self::set_pseudo_marginal_ray(sequential_sub_model, surfaces, axis);
+            Self::calc_pseudo_marginal_ray(sequential_sub_model, surfaces, axis);
 
         Self {
             pseudo_marginal_ray: pseudo_marginal_ray,
@@ -41,13 +48,37 @@ impl ParaxialSubView {
     }
 
     /// Compute the pseudo-marginal ray.
-    pub fn set_pseudo_marginal_ray(
+    pub fn calc_pseudo_marginal_ray(
         sequential_sub_model: &SequentialSubModel,
         surfaces: &[Surface],
         axis: Axis,
     ) -> ParaxialRayTraceResults {
         let ray_trace_results = Array3::zeros((1, 1, 2));
         ray_trace_results
+    }
+
+    /// Compute the ray transfer matrix for each gap/surface pair.
+    fn rtms(sequential_sub_model: &SequentialSubModel, surfaces: &[Surface], axis: Axis) {
+        let txs: Vec<RayTransferMatrix> = Vec::new();
+        let steps = sequential_sub_model.iter(surfaces);
+
+        for (gap_0, surface, gap_1) in steps {
+            let t = if gap_0.thickness.is_infinite() {
+                DEFAULT_THICKNESS
+            } else {
+                gap_0.thickness
+            };
+
+            let roc = surface.roc(axis);
+
+            let n_0 = gap_0.refractive_index;
+
+            let n_1 = if let Some(gap_1) = gap_1 {
+                gap_1.refractive_index
+            } else {
+                gap_0.refractive_index
+            };
+        }
     }
 
     fn trace(
