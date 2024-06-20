@@ -67,6 +67,14 @@ impl RefractiveIndex {
         }
     }
 
+    pub(crate) fn n(&self) -> Float {
+        self.eta.real
+    }
+
+    pub(crate) fn k(&self) -> Float {
+        self.eta.imag
+    }
+
     /// Creates a Gap instance from a GapSpec.
     ///
     /// A wavelength is required to compute the refractive index from the spec

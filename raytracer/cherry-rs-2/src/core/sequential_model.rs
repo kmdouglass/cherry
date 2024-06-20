@@ -108,6 +108,10 @@ impl SequentialSubModel {
         Self { gaps }
     }
 
+    pub(crate) fn is_obj_at_inf(&self) -> bool {
+        self.gaps.first().unwrap().thickness.is_infinite()
+    }
+
     pub(crate) fn iter<'a>(&'a self, surfaces: &'a [Surface]) -> SequentialSubModelIter<'a> {
         SequentialSubModelIter::new(surfaces, &self.gaps)
     }
