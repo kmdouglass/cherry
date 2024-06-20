@@ -6,9 +6,9 @@ use cherry_rs_2::specs::{
     gaps::{GapSpec, RealSpec, RefractiveIndexSpec},
     surfaces::{SurfaceSpec, SurfaceType},
 };
-use cherry_rs_2::systems::SeqSys;
+use cherry_rs_2::systems::SequentialModel;
 
-fn setup() -> SeqSys {
+fn setup() -> SequentialModel {
     let aperture = ApertureSpec::EntrancePupil {
         semi_diameter: 12.5,
     };
@@ -60,7 +60,7 @@ fn setup() -> SeqSys {
 
     let wavelengths: Vec<f64> = vec![0.567, 0.632];
 
-    SeqSys::new(aperture, fields, gaps, surfaces, wavelengths).unwrap()
+    SequentialModel::new(aperture, fields, gaps, surfaces, wavelengths).unwrap()
 }
 
 #[test]

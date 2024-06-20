@@ -14,7 +14,7 @@ pub(crate) struct Gap {
 }
 
 #[derive(Debug)]
-pub(crate) struct SequentialModel {
+pub(crate) struct SequentialSubModel {
     gaps: Vec<Gap>,
 }
 
@@ -95,7 +95,7 @@ impl Gap {
     }
 }
 
-impl SequentialModel {
+impl SequentialSubModel {
     pub(crate) fn new(gaps: Vec<Gap>) -> Self {
         Self { gaps }
     }

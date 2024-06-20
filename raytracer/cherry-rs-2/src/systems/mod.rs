@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use anyhow::{anyhow, Result};
 
 use crate::core::{
-    sequential_model::{SequentialModel, SequentialModelIter},
     sequential_model::{Gap, Surface},
+    sequential_model::{SequentialModelIter, SequentialSubModel},
     Cursor, Float,
 };
 use crate::specs::{
@@ -20,7 +20,7 @@ use crate::specs::{
 /// wavelengths. The second element is the transverse axis along which the model
 /// is computed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-struct ModelID(Option<usize>, Axis);
+struct SubModelID(Option<usize>, Axis);
 
 /// The transverse direction along which system properties will be computed with
 /// respect to the current reference frame of the cursor.
@@ -32,16 +32,16 @@ enum Axis {
 
 /// An optical system for sequential ray tracing.
 #[derive(Debug)]
-pub struct SeqSys {
+pub struct SequentialModel {
     aperture: ApertureSpec,
     fields: Vec<FieldSpec>,
     surfaces: Vec<Surface>,
     wavelengths: Vec<Float>,
 
-    models: HashMap<ModelID, SequentialModel>,
+    submodels: HashMap<SubModelID, SequentialSubModel>,
 }
 
-impl SeqSys {
+impl SequentialModel {
     /// Creates a new sequential optical system.
     pub fn new(
         aperture: ApertureSpec,
@@ -54,15 +54,15 @@ impl SeqSys {
 
         let surfaces = Self::surf_specs_to_surfs(&surface_specs, &gap_specs);
 
-        let model_ids: Vec<ModelID> = Self::model_ids(&wavelengths);
-        let mut models: HashMap<ModelID, SequentialModel> = HashMap::new();
+        let model_ids: Vec<SubModelID> = Self::model_ids(&wavelengths);
+        let mut models: HashMap<SubModelID, SequentialSubModel> = HashMap::new();
         for model_id in model_ids.iter() {
             let wavelength = match model_id.0 {
                 Some(idx) => Some(wavelengths[idx]),
                 None => None,
             };
             let gaps = Self::gap_specs_to_gaps(&gap_specs, wavelength)?;
-            let model = SequentialModel::new(gaps);
+            let model = SequentialSubModel::new(gaps);
             models.insert(*model_id, model);
         }
 
@@ -71,17 +71,17 @@ impl SeqSys {
             fields,
             surfaces,
             wavelengths,
-            models,
+            submodels: models,
         })
     }
 
     /// Returns an iterator over the sequential model for the given model ID.
-    /// 
+    ///
     /// # Errors
-    /// 
+    ///
     /// Returns an error if the model ID does not exist in the system.
-    fn try_iter(&self, model_id: ModelID) -> Result<SequentialModelIter> {
-        let gaps = self.models.get(&model_id).ok_or_else(|| {
+    fn try_iter(&self, model_id: SubModelID) -> Result<SequentialModelIter> {
+        let gaps = self.submodels.get(&model_id).ok_or_else(|| {
             anyhow!(
                 "The model with ID {:?} does not exist in the system.",
                 model_id
@@ -100,17 +100,17 @@ impl SeqSys {
     }
 
     /// Computes the unique IDs for each paraxial model.
-    fn model_ids(wavelengths: &Vec<Float>) -> Vec<ModelID> {
+    fn model_ids(wavelengths: &Vec<Float>) -> Vec<SubModelID> {
         let mut ids = Vec::new();
         if wavelengths.is_empty() {
-            ids.push(ModelID(None, Axis::X));
-            ids.push(ModelID(None, Axis::Y));
+            ids.push(SubModelID(None, Axis::X));
+            ids.push(SubModelID(None, Axis::Y));
             return ids;
         }
 
         for (idx, _wavelength) in wavelengths.iter().enumerate() {
             for axis in [Axis::X, Axis::Y].iter() {
-                let id = ModelID(Some(idx), *axis);
+                let id = SubModelID(Some(idx), *axis);
                 ids.push(id);
             }
         }
@@ -210,7 +210,7 @@ mod tests {
         ];
         let wavelengths = Vec::new();
 
-        let result = SeqSys::validate_gaps(&gaps, &wavelengths);
+        let result = SequentialModel::validate_gaps(&gaps, &wavelengths);
         assert!(result.is_err());
     }
 }
