@@ -1,37 +1,70 @@
 /// A paraxial view into an optical system.
-use std::cell::OnceCell;
+use ndarray::{s, Array2, Array3};
 
-use ndarray::Array3;
-
-use crate::core::Float;
+use crate::core::{
+    sequential_model::{Axis, SequentialSubModel, Surface},
+    Float,
+};
 use crate::systems::SequentialModel;
 
-/// A Ns x Nr x 2 array of ray trace results.
+/// A Nr x 2 array of paraxial rays.
+///
+/// Nr is the number of rays. The first column is the height of the ray at the
+/// surface, and the second column is the paraxial angle of the ray at the
+/// surface.
+type ParaxialRays = Array2<Float>;
+
+/// A Ns x Nr x 2 array of paraxial ray trace results.
 ///
 /// Ns is the number of surfaces, and Nr is the number of rays. The first column
 /// is the height of the ray at the surface, and the second column is the angle
 /// of the ray at the surface.
 type ParaxialRayTraceResults = Array3<Float>;
 
-pub struct ParaxialView<'a> {
-    sequential_model: &'a SequentialModel,
-    pseudo_marginal_ray: OnceCell<ParaxialRayTraceResults>,
+struct ParaxialSubView {
+    pseudo_marginal_ray: ParaxialRayTraceResults,
 }
 
-impl<'a> ParaxialView<'a> {
+impl ParaxialSubView {
     /// Create a new paraxial view of an optical system.
-    pub fn new(sequential_model: &'a SequentialModel) -> Self {
+    pub fn new(
+        sequential_sub_model: &SequentialSubModel,
+        surfaces: &[Surface],
+        axis: Axis,
+    ) -> Self {
+        let pseudo_marginal_ray =
+            Self::set_pseudo_marginal_ray(sequential_sub_model, surfaces, axis);
+
         Self {
-            sequential_model,
-            pseudo_marginal_ray: OnceCell::new(),
+            pseudo_marginal_ray: pseudo_marginal_ray,
         }
     }
 
-    /// Compute the pseudo marginal ray.
-    pub fn pseudo_marginal_ray(&self) -> &ParaxialRayTraceResults {
-        self.pseudo_marginal_ray.get_or_init(|| {
-            let ray_trace_results = Array3::zeros((1, 1, 2));
-            ray_trace_results
-        })
+    /// Compute the pseudo-marginal ray.
+    pub fn set_pseudo_marginal_ray(
+        sequential_sub_model: &SequentialSubModel,
+        surfaces: &[Surface],
+        axis: Axis,
+    ) -> ParaxialRayTraceResults {
+        let ray_trace_results = Array3::zeros((1, 1, 2));
+        ray_trace_results
+    }
+
+    fn trace(
+        rays: ParaxialRays,
+        sequential_sub_model: &SequentialSubModel,
+        surfaces: &[Surface],
+    ) -> ParaxialRayTraceResults {
+        // TODO: Compute RTMs
+
+        // Initialize the results array by assigning the input rays to the first
+        // surface.
+        let mut results = Array3::zeros((1, rays.shape()[0], 2));
+        results.slice_mut(s![0, .., ..]).assign(&rays);
+
+        // Iterate over the surfaces and compute the ray trace results.
+        for step in sequential_sub_model.iter(surfaces) {}
+
+        results
     }
 }

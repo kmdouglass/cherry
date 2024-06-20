@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use anyhow::{anyhow, Result};
 
 use crate::core::{
-    sequential_model::{Gap, Surface},
-    sequential_model::{SequentialModelIter, SequentialSubModel},
+    sequential_model::{Axis, Gap, Surface},
+    sequential_model::{SequentialSubModel, SequentialSubModelIter},
     Cursor, Float,
 };
 use crate::specs::{
@@ -21,14 +21,6 @@ use crate::specs::{
 /// is computed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 struct SubModelID(Option<usize>, Axis);
-
-/// The transverse direction along which system properties will be computed with
-/// respect to the current reference frame of the cursor.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-enum Axis {
-    X,
-    Y,
-}
 
 /// An optical system for sequential ray tracing.
 #[derive(Debug)]
@@ -80,7 +72,7 @@ impl SequentialModel {
     /// # Errors
     ///
     /// Returns an error if the model ID does not exist in the system.
-    fn try_iter(&self, model_id: SubModelID) -> Result<SequentialModelIter> {
+    fn try_iter(&self, model_id: SubModelID) -> Result<SequentialSubModelIter> {
         let gaps = self.submodels.get(&model_id).ok_or_else(|| {
             anyhow!(
                 "The model with ID {:?} does not exist in the system.",

@@ -7,6 +7,14 @@ use crate::specs::{
     surfaces::{SurfaceSpec, SurfaceType},
 };
 
+/// The transverse direction along which system properties will be computed with
+/// respect to the current reference frame of the cursor.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub(crate) enum Axis {
+    X,
+    Y,
+}
+
 #[derive(Debug)]
 pub(crate) struct Gap {
     thickness: Float,
@@ -18,9 +26,9 @@ pub(crate) struct SequentialSubModel {
     gaps: Vec<Gap>,
 }
 
-pub(crate) struct SequentialModelIter<'a> {
-    surfaces: &'a Vec<Surface>,
-    gaps: &'a Vec<Gap>,
+pub(crate) struct SequentialSubModelIter<'a> {
+    surfaces: &'a [Surface],
+    gaps: &'a [Gap],
     index: usize,
 }
 
@@ -100,13 +108,13 @@ impl SequentialSubModel {
         Self { gaps }
     }
 
-    pub(crate) fn iter<'a>(&'a self, surfaces: &'a Vec<Surface>) -> SequentialModelIter<'a> {
-        SequentialModelIter::new(surfaces, &self.gaps)
+    pub(crate) fn iter<'a>(&'a self, surfaces: &'a [Surface]) -> SequentialSubModelIter<'a> {
+        SequentialSubModelIter::new(surfaces, &self.gaps)
     }
 }
 
-impl<'a> SequentialModelIter<'a> {
-    fn new(surfaces: &'a Vec<Surface>, gaps: &'a Vec<Gap>) -> Self {
+impl<'a> SequentialSubModelIter<'a> {
+    fn new(surfaces: &'a [Surface], gaps: &'a [Gap]) -> Self {
         Self {
             surfaces,
             gaps,
@@ -115,7 +123,7 @@ impl<'a> SequentialModelIter<'a> {
     }
 }
 
-impl<'a> Iterator for SequentialModelIter<'a> {
+impl<'a> Iterator for SequentialSubModelIter<'a> {
     type Item = Step<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
