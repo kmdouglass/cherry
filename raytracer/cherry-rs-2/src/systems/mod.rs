@@ -20,7 +20,7 @@ use crate::specs::{
 /// wavelengths. The second element is the transverse axis along which the model
 /// is computed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-struct SubModelID(Option<usize>, Axis);
+pub struct SubModelID(pub Option<usize>, pub Axis);
 
 /// An optical system for sequential ray tracing.
 #[derive(Debug)]
@@ -46,7 +46,7 @@ impl SequentialModel {
 
         let surfaces = Self::surf_specs_to_surfs(&surface_specs, &gap_specs);
 
-        let model_ids: Vec<SubModelID> = Self::model_ids(&wavelengths);
+        let model_ids: Vec<SubModelID> = Self::calc_model_ids(&wavelengths);
         let mut models: HashMap<SubModelID, SequentialSubModel> = HashMap::new();
         for model_id in model_ids.iter() {
             let wavelength = match model_id.0 {
@@ -67,32 +67,16 @@ impl SequentialModel {
         })
     }
 
-    /// Returns an iterator over the sequential model for the given model ID.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the model ID does not exist in the system.
-    fn try_iter(&self, model_id: SubModelID) -> Result<SequentialSubModelIter> {
-        let gaps = self.submodels.get(&model_id).ok_or_else(|| {
-            anyhow!(
-                "The model with ID {:?} does not exist in the system.",
-                model_id
-            )
-        })?;
-        Ok(gaps.iter(&self.surfaces))
+    pub fn surfaces(&self) -> &[Surface] {
+        &self.surfaces
     }
 
-    fn gap_specs_to_gaps(gap_specs: &Vec<GapSpec>, wavelength: Option<Float>) -> Result<Vec<Gap>> {
-        let mut gaps = Vec::new();
-        for gap_spec in gap_specs.iter() {
-            let gap = Gap::try_from_spec(gap_spec, wavelength)?;
-            gaps.push(gap);
-        }
-        Ok(gaps)
+    pub fn submodels(&self) -> &HashMap<SubModelID, SequentialSubModel> {
+        &self.submodels
     }
 
     /// Computes the unique IDs for each paraxial model.
-    fn model_ids(wavelengths: &Vec<Float>) -> Vec<SubModelID> {
+    fn calc_model_ids(wavelengths: &Vec<Float>) -> Vec<SubModelID> {
         let mut ids = Vec::new();
         if wavelengths.is_empty() {
             ids.push(SubModelID(None, Axis::X));
@@ -107,6 +91,15 @@ impl SequentialModel {
             }
         }
         ids
+    }
+
+    fn gap_specs_to_gaps(gap_specs: &Vec<GapSpec>, wavelength: Option<Float>) -> Result<Vec<Gap>> {
+        let mut gaps = Vec::new();
+        for gap_spec in gap_specs.iter() {
+            let gap = Gap::try_from_spec(gap_spec, wavelength)?;
+            gaps.push(gap);
+        }
+        Ok(gaps)
     }
 
     fn surf_specs_to_surfs(

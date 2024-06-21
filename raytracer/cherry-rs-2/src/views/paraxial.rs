@@ -1,12 +1,9 @@
-use core::panic;
-
 /// A paraxial view into an optical system.
 use ndarray::{arr2, s, Array2, Array3};
 
-use crate::systems::SequentialModel;
 use crate::{
     core::{
-        sequential_model::{Axis, Conic, SequentialSubModel, Surface},
+        sequential_model::{Axis, SequentialSubModel, Surface},
         Float,
     },
     specs::surfaces::SurfaceType,
@@ -150,5 +147,43 @@ fn surface_to_rtm(
         },
         Surface::Image(_) | Surface::Probe(_) | Surface::Stop(_) => arr2(&[[1.0, t], [0.0, 1.0]]),
         Surface::Object(_) => arr2(&[[1.0, 0.0], [0.0, 1.0]]),
+    }
+}
+
+// Consider moving these to integration tests once the paraxial view and
+// sequential models are combined into a system.
+#[cfg(test)]
+mod test {
+    use approx::assert_abs_diff_eq;
+    use ndarray::arr3;
+
+    use crate::examples::convexplano_lens;
+    use crate::systems::{SequentialModel, SubModelID};
+
+    use super::*;
+
+    fn setup() -> ParaxialSubView {
+        let system = convexplano_lens::system();
+        let seq_sub_model = system
+            .submodels()
+            .get(&SubModelID(Some(0usize), Axis::Y))
+            .expect("Submodel not found.");
+
+        ParaxialSubView::new(&seq_sub_model, system.surfaces(), Axis::Y)
+    }
+
+    #[test]
+    fn test_pseudo_marginal_ray() {
+        let view = setup();
+        let pseudo_marginal_ray = view.pseudo_marginal_ray;
+
+        let expected = arr3(&[
+            [[1.0000], [0.0]],
+            [[1.0000], [-0.0132]],
+            [[0.9302], [-0.0200]],
+            [[0.0], [-0.0200]],
+        ]);
+
+        assert_abs_diff_eq!(pseudo_marginal_ray, expected, epsilon = 1e-4);
     }
 }
