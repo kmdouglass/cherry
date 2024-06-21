@@ -55,10 +55,10 @@ impl ParaxialSubView {
     ) -> ParaxialRayTraceResults {
         let ray = if sequential_sub_model.is_obj_at_inf() {
             // Ray parallel to axis at a height of 1
-            arr2(&[[1.0, 0.0]])
+            arr2(&[[1.0], [0.0]])
         } else {
             // Ray starting from the axis at an angle of 1
-            arr2(&[[0.0, 1.0]])
+            arr2(&[[0.0], [1.0]])
         };
 
         Self::trace(ray, sequential_sub_model, surfaces, axis)
@@ -158,7 +158,7 @@ mod test {
     use ndarray::arr3;
 
     use crate::examples::convexplano_lens;
-    use crate::systems::{SequentialModel, SubModelID};
+    use crate::systems::SubModelID;
 
     use super::*;
 
