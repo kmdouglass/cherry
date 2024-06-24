@@ -3,7 +3,7 @@ use ndarray::{arr2, s, Array2, Array3};
 
 use crate::{
     core::{
-        sequential_model::{Axis, SequentialSubModel, Surface},
+        sequential_model::{Axis, SequentialSubModel, Step, Surface},
         Float,
     },
     specs::surfaces::SurfaceType,
@@ -30,6 +30,7 @@ type RayTransferMatrix = Array2<Float>;
 
 struct ParaxialSubView {
     pseudo_marginal_ray: ParaxialRayTraceResults,
+    reverse_parallel_ray: ParaxialRayTraceResults,
 }
 
 impl ParaxialSubView {
@@ -41,9 +42,12 @@ impl ParaxialSubView {
     ) -> Self {
         let pseudo_marginal_ray =
             Self::calc_pseudo_marginal_ray(sequential_sub_model, surfaces, axis);
+        let reverse_parallel_ray =
+            Self::calc_reverse_parallel_ray(sequential_sub_model, surfaces, axis);
 
         Self {
             pseudo_marginal_ray: pseudo_marginal_ray,
+            reverse_parallel_ray: reverse_parallel_ray,
         }
     }
 
@@ -61,7 +65,18 @@ impl ParaxialSubView {
             arr2(&[[0.0], [1.0]])
         };
 
-        Self::trace(ray, sequential_sub_model, surfaces, axis)
+        Self::trace(ray, sequential_sub_model, surfaces, axis, false)
+    }
+
+    /// Compute the reverse parallel ray.
+    pub fn calc_reverse_parallel_ray(
+        sequential_sub_model: &SequentialSubModel,
+        surfaces: &[Surface],
+        axis: Axis,
+    ) -> ParaxialRayTraceResults {
+        let ray = arr2(&[[1.0], [0.0]]);
+
+        Self::trace(ray, sequential_sub_model, surfaces, axis, true)
     }
 
     /// Compute the ray transfer matrix for each gap/surface pair.
@@ -69,13 +84,24 @@ impl ParaxialSubView {
         sequential_sub_model: &SequentialSubModel,
         surfaces: &[Surface],
         axis: Axis,
+        reverse: bool,
     ) -> Vec<RayTransferMatrix> {
         let mut txs: Vec<RayTransferMatrix> = Vec::new();
-        let steps = sequential_sub_model.iter(surfaces);
+        let mut forward_iter;
+        let mut reverse_iter;
+        let steps: &mut dyn Iterator<Item = Step> = if reverse {
+            reverse_iter = sequential_sub_model.iter(surfaces).reverse();
+            &mut reverse_iter
+        } else {
+            forward_iter = sequential_sub_model.iter(surfaces);
+            &mut forward_iter
+        };
 
         for (gap_0, surface, gap_1) in steps {
             let t = if gap_0.thickness.is_infinite() {
                 DEFAULT_THICKNESS
+            } else if reverse {
+                -gap_0.thickness
             } else {
                 gap_0.thickness
             };
@@ -102,8 +128,9 @@ impl ParaxialSubView {
         sequential_sub_model: &SequentialSubModel,
         surfaces: &[Surface],
         axis: Axis,
+        reverse: bool,
     ) -> ParaxialRayTraceResults {
-        let txs = Self::rtms(sequential_sub_model, surfaces, axis);
+        let txs = Self::rtms(sequential_sub_model, surfaces, axis, reverse);
 
         // Initialize the results array by assigning the input rays to the first
         // surface.
@@ -157,26 +184,24 @@ mod test {
     use approx::assert_abs_diff_eq;
     use ndarray::arr3;
 
-    use crate::examples::convexplano_lens;
     use crate::core::sequential_model::SubModelID;
+    use crate::examples::convexplano_lens;
 
     use super::*;
 
-    fn setup() -> ParaxialSubView {
+    #[test]
+    fn test_pseudo_marginal_ray() {
         let system = convexplano_lens::system();
         let seq_sub_model = system
             .sequential_model()
             .submodels()
             .get(&SubModelID(Some(0usize), Axis::Y))
             .expect("Submodel not found.");
-
-        ParaxialSubView::new(&seq_sub_model, system.sequential_model().surfaces(), Axis::Y)
-    }
-
-    #[test]
-    fn test_pseudo_marginal_ray() {
-        let view = setup();
-        let pseudo_marginal_ray = view.pseudo_marginal_ray;
+        let pseudo_marginal_ray = ParaxialSubView::calc_pseudo_marginal_ray(
+            &seq_sub_model,
+            system.sequential_model().surfaces(),
+            Axis::Y,
+        );
 
         let expected = arr3(&[
             [[1.0000], [0.0]],
@@ -186,5 +211,24 @@ mod test {
         ]);
 
         assert_abs_diff_eq!(pseudo_marginal_ray, expected, epsilon = 1e-4);
+    }
+
+    #[test]
+    fn test_reverse_parallel_ray() {
+        let system = convexplano_lens::system();
+        let seq_sub_model = system
+            .sequential_model()
+            .submodels()
+            .get(&SubModelID(Some(0usize), Axis::Y))
+            .expect("Submodel not found.");
+        let reverse_parallel_ray = ParaxialSubView::calc_reverse_parallel_ray(
+            &seq_sub_model,
+            system.sequential_model().surfaces(),
+            Axis::Y,
+        );
+
+        let expected = arr3(&[[[1.0000], [0.0]], [[1.0000], [0.0]], [[1.0000], [0.0200]]]);
+
+        assert_abs_diff_eq!(reverse_parallel_ray, expected, epsilon = 1e-4);
     }
 }

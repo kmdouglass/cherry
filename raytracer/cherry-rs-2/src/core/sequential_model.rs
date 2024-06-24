@@ -6,8 +6,8 @@ use anyhow::{anyhow, Result};
 use crate::core::{math::vec3::Vec3, Cursor, Float, RefractiveIndex};
 use crate::specs::{
     aperture::ApertureSpec,
-    gaps::GapSpec,
     fields::FieldSpec,
+    gaps::GapSpec,
     surfaces::{SurfaceSpec, SurfaceType},
 };
 
@@ -50,9 +50,16 @@ pub(crate) struct SequentialSubModel {
 pub struct SubModelID(pub Option<usize>, pub Axis);
 
 /// An iterator over the surfaces and gaps in a submodel.
-/// 
+///
 /// Most operations in sequential modeling involve use of this iterator.
 pub(crate) struct SequentialSubModelIter<'a> {
+    surfaces: &'a [Surface],
+    gaps: &'a [Gap],
+    index: usize,
+}
+
+/// A reverse iterator over the surfaces and gaps in a submodel.
+pub(crate) struct SequentialSubModelReverseIter<'a> {
     surfaces: &'a [Surface],
     gaps: &'a [Gap],
     index: usize,
@@ -138,7 +145,13 @@ impl SequentialModel {
         surface_specs: Vec<SurfaceSpec>,
         wavelengths: Vec<Float>,
     ) -> Result<Self> {
-        Self::validate_specs(&aperture_spec, &field_specs, &gap_specs, &surface_specs, &wavelengths)?;
+        Self::validate_specs(
+            &aperture_spec,
+            &field_specs,
+            &gap_specs,
+            &surface_specs,
+            &wavelengths,
+        )?;
 
         let surfaces = Self::surf_specs_to_surfs(&surface_specs, &gap_specs);
 
@@ -289,6 +302,10 @@ impl<'a> SequentialSubModelIter<'a> {
             index: 0,
         }
     }
+
+    pub fn reverse(self) -> SequentialSubModelReverseIter<'a> {
+        SequentialSubModelReverseIter::new(self.surfaces, self.gaps)
+    }
 }
 
 impl<'a> Iterator for SequentialSubModelIter<'a> {
@@ -296,7 +313,7 @@ impl<'a> Iterator for SequentialSubModelIter<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.index == self.gaps.len() - 1 {
-            // We are at the last gap
+            // We are at the image space gap
             let result = Some((&self.gaps[self.index], &self.surfaces[self.index + 1], None));
             self.index += 1;
             result
@@ -305,6 +322,38 @@ impl<'a> Iterator for SequentialSubModelIter<'a> {
                 &self.gaps[self.index],
                 &self.surfaces[self.index + 1],
                 Some(&self.gaps[self.index + 1]),
+            ));
+            self.index += 1;
+            result
+        } else {
+            None
+        }
+    }
+}
+
+impl<'a> SequentialSubModelReverseIter<'a> {
+    fn new(surfaces: &'a [Surface], gaps: &'a [Gap]) -> Self {
+        Self {
+            surfaces,
+            gaps,
+            // We will never iterate from the image space surface in reverse.
+            index: 1,
+        }
+    }
+}
+
+impl<'a> Iterator for SequentialSubModelReverseIter<'a> {
+    type Item = Step<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let n = self.gaps.len();
+        let forward_index = n - self.index;
+        if self.index < n {
+            // We are somewhere in the middle of the system or at the object space gap.
+            let result = Some((
+                &self.gaps[forward_index],
+                &self.surfaces[forward_index],
+                Some(&self.gaps[forward_index - 1]),
             ));
             self.index += 1;
             result

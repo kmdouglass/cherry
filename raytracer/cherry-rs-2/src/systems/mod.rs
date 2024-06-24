@@ -1,11 +1,8 @@
 use anyhow::Result;
 
-use crate::core::{Float, sequential_model::SequentialModel};
+use crate::core::{sequential_model::SequentialModel, Float};
 use crate::specs::{
-    aperture::ApertureSpec,
-    fields::FieldSpec,
-    gaps::GapSpec,
-    surfaces::SurfaceSpec,
+    aperture::ApertureSpec, fields::FieldSpec, gaps::GapSpec, surfaces::SurfaceSpec,
 };
 
 pub struct System {
@@ -18,7 +15,7 @@ impl System {
         field_specs: Vec<FieldSpec>,
         gap_specs: Vec<GapSpec>,
         surface_specs: Vec<SurfaceSpec>,
-        wavelengths: Vec<Float>
+        wavelengths: Vec<Float>,
     ) -> Result<Self> {
         let sequential_model = SequentialModel::new(
             aperture_spec,
