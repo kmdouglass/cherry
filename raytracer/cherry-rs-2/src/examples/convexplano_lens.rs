@@ -4,9 +4,9 @@ use crate::specs::{
     gaps::{GapSpec, RealSpec, RefractiveIndexSpec},
     surfaces::{SurfaceSpec, SurfaceType},
 };
-use crate::systems::SequentialModel;
+use crate::systems::System;
 
-pub fn system() -> SequentialModel {
+pub fn system() -> System {
     let aperture = ApertureSpec::EntrancePupil {
         semi_diameter: 12.5,
     };
@@ -58,5 +58,5 @@ pub fn system() -> SequentialModel {
 
     let wavelengths: Vec<f64> = vec![0.567];
 
-    SequentialModel::new(aperture, fields, gaps, surfaces, wavelengths).unwrap()
+    System::new(aperture, fields, gaps, surfaces, wavelengths).unwrap()
 }

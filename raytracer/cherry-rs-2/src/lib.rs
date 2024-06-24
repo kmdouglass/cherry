@@ -1,5 +1,4 @@
 mod core;
-mod optimizers;
 
 // API
 pub mod examples;

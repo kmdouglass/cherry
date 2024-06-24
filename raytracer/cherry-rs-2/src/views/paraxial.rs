@@ -158,18 +158,19 @@ mod test {
     use ndarray::arr3;
 
     use crate::examples::convexplano_lens;
-    use crate::systems::SubModelID;
+    use crate::core::sequential_model::SubModelID;
 
     use super::*;
 
     fn setup() -> ParaxialSubView {
         let system = convexplano_lens::system();
         let seq_sub_model = system
+            .sequential_model()
             .submodels()
             .get(&SubModelID(Some(0usize), Axis::Y))
             .expect("Submodel not found.");
 
-        ParaxialSubView::new(&seq_sub_model, system.surfaces(), Axis::Y)
+        ParaxialSubView::new(&seq_sub_model, system.sequential_model().surfaces(), Axis::Y)
     }
 
     #[test]
