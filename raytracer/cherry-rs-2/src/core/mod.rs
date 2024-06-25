@@ -6,6 +6,7 @@ use anyhow::{anyhow, Result};
 
 use crate::specs::gaps::{ImagSpec, RealSpec, RefractiveIndexSpec};
 
+pub(crate) use math::array::argmin;
 use math::vec3::Vec3;
 use math::Complex;
 

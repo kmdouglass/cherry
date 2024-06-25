@@ -1,8 +1,11 @@
 /// A paraxial view into an optical system.
-use ndarray::{arr2, s, Array2, Array3};
+use std::cell::OnceCell;
+
+use ndarray::{arr2, s, Array, Array2, Array3};
 
 use crate::{
     core::{
+        argmin,
         sequential_model::{Axis, SequentialSubModel, Step, Surface},
         Float,
     },
@@ -31,6 +34,8 @@ type RayTransferMatrix = Array2<Float>;
 struct ParaxialSubView {
     pseudo_marginal_ray: ParaxialRayTraceResults,
     reverse_parallel_ray: ParaxialRayTraceResults,
+
+    aperture_stop: OnceCell<usize>,
 }
 
 impl ParaxialSubView {
@@ -48,7 +53,27 @@ impl ParaxialSubView {
         Self {
             pseudo_marginal_ray: pseudo_marginal_ray,
             reverse_parallel_ray: reverse_parallel_ray,
+
+            aperture_stop: OnceCell::new(),
         }
+    }
+
+    pub fn aperture_stop(&self, surfaces: &[Surface]) -> &usize {
+        self.aperture_stop.get_or_init(|| {
+            // Get all the semi-diameters of the surfaces and put them in an ndarray.
+            let semi_diameters = Array::from_vec(
+                surfaces
+                    .iter()
+                    .map(|surface| surface.semi_diameter())
+                    .collect::<Vec<Float>>(),
+            );
+
+            let ratios = semi_diameters
+                / self.pseudo_marginal_ray[[self.pseudo_marginal_ray.shape()[0] - 1, 0, 0]];
+
+            // Do not include the object or image surfaces when computing the aperture stop.
+            argmin(&ratios.slice(s![1..-1])) + 1
+        })
     }
 
     /// Compute the pseudo-marginal ray.
@@ -186,8 +211,33 @@ mod test {
 
     use crate::core::sequential_model::SubModelID;
     use crate::examples::convexplano_lens;
+    use crate::systems::System;
 
     use super::*;
+
+    fn setup() -> (ParaxialSubView, System) {
+        let system = convexplano_lens::system();
+        let seq_sub_model = system
+            .sequential_model()
+            .submodels()
+            .get(&SubModelID(Some(0usize), Axis::Y))
+            .expect("Submodel not found.");
+
+        (
+            ParaxialSubView::new(seq_sub_model, system.sequential_model().surfaces(), Axis::Y),
+            system,
+        )
+    }
+
+    #[test]
+    fn test_aperture_stop() {
+        let (view, system) = setup();
+
+        let aperture_stop = view.aperture_stop(system.sequential_model().surfaces());
+        let expected = 1;
+
+        assert_eq!(*aperture_stop, expected);
+    }
 
     #[test]
     fn test_pseudo_marginal_ray() {
