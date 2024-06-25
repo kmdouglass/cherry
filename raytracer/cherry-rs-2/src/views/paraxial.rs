@@ -1,7 +1,7 @@
 /// A paraxial view into an optical system.
-use std::cell::OnceCell;
+use std::{cell::OnceCell, sync::Once};
 
-use ndarray::{arr2, s, Array, Array2, Array3};
+use ndarray::{arr2, s, Array, Array1, Array2, Array3};
 
 use crate::{
     core::{
@@ -31,11 +31,33 @@ type ParaxialRayTraceResults = Array3<Float>;
 /// A 2 x 2 array representing a ray transfer matrix for paraxial rays.
 type RayTransferMatrix = Array2<Float>;
 
+/// A paraxial entrance or exit pupil.
+/// 
+/// # Attributes
+/// * `location` - The location of the pupil relative to the first non-object surface.
+/// * `semi_diameter` - The semi-diameter of the pupil.
+#[derive(Debug)]
+struct Pupil {
+    location: Float,
+    semi_diameter: Float,
+}
+
 struct ParaxialSubView {
     pseudo_marginal_ray: ParaxialRayTraceResults,
     reverse_parallel_ray: ParaxialRayTraceResults,
 
     aperture_stop: OnceCell<usize>,
+    entrance_pupil: OnceCell<Pupil>,
+}
+
+/// Propagate paraxial rays a distance  along the optics axis.
+fn propagate(rays: ParaxialRays, distance: Float) -> ParaxialRays {
+    !unimplemented!("Propagate paraxial rays a distance along the optics axis.");
+}
+
+/// Compute the z-intercept of a set of paraxial rays.
+fn z_intercept(rays: ParaxialRays) -> Array1<Float> {
+    -rays[[0, ..]] / rays[[1, ..]]
 }
 
 impl ParaxialSubView {
@@ -55,6 +77,7 @@ impl ParaxialSubView {
             reverse_parallel_ray: reverse_parallel_ray,
 
             aperture_stop: OnceCell::new(),
+            entrance_pupil: OnceCell::new(),
         }
     }
 
@@ -75,6 +98,37 @@ impl ParaxialSubView {
             argmin(&ratios.slice(s![1..-1])) + 1
         })
     }
+
+    pub fn entrance_pupil(&self, sequential_sub_model: &SequentialSubModel, surfaces: &[Surface], axis: Axis, is_obj_space_telecentric: bool) -> &Pupil {
+        if is_obj_space_telecentric {
+            return self.entrance_pupil.get_or_init( || {
+                Pupil {
+                    location: Float::INFINITY,
+                    semi_diameter: Float::NAN,
+                }
+            })
+        }
+
+        // Aperture stop is the first surface
+        let aperture_stop = self.aperture_stop(surfaces);
+        if *aperture_stop == 1usize {
+            return self.entrance_pupil.get_or_init(|| {
+                Pupil {
+                    location: 0.0,
+                    semi_diameter: surfaces[1].semi_diameter(),
+                }
+            })
+        }
+
+        let ray = arr2(&[[0.0], [1.0]]);
+        let results = Self::trace(ray, sequential_sub_model, &surfaces[..aperture_stop - 1], axis, true);
+
+        let location = z_intercept(results.slice(s![-1, .., ..]))[0];
+
+        // Propagate the marginal ray to the entrance pupil location.
+        !unimplemented!("Propagate the marginal ray to the entrance pupil location to find its semi-diameter.");
+    }
+
 
     /// Compute the pseudo-marginal ray.
     pub fn calc_pseudo_marginal_ray(
@@ -126,6 +180,8 @@ impl ParaxialSubView {
             let t = if gap_0.thickness.is_infinite() {
                 DEFAULT_THICKNESS
             } else if reverse {
+                // Reverse ray tracing is implemented as negative distances to avoid hassles with
+                // inverses of ray transfer matrices.
                 -gap_0.thickness
             } else {
                 gap_0.thickness
