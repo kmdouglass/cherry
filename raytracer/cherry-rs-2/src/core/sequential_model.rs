@@ -281,6 +281,10 @@ impl SequentialSubModel {
         Self { gaps }
     }
 
+    pub(crate) fn gaps(&self) -> &[Gap] {
+        &self.gaps
+    }
+
     pub(crate) fn is_obj_at_inf(&self) -> bool {
         self.gaps
             .first()

@@ -126,6 +126,7 @@ impl ParaxialSubView {
         axis: Axis,
         is_obj_space_telecentric: bool,
     ) -> Result<&Pupil> {
+        // In case the object space is telecentric, the entrance pupil is at infinity.
         if is_obj_space_telecentric {
             return Ok(self.entrance_pupil.get_or_init(|| Pupil {
                 location: Float::INFINITY,
@@ -133,7 +134,7 @@ impl ParaxialSubView {
             }));
         }
 
-        // Aperture stop is the first surface
+        // In case the aperture stop is the first surface.
         let aperture_stop = self.aperture_stop(surfaces);
         if *aperture_stop == 1usize {
             return Ok(self.entrance_pupil.get_or_init(|| Pupil {
@@ -142,6 +143,8 @@ impl ParaxialSubView {
             }));
         }
 
+        // Trace a ray from the aperture stop to the entrance pupil to determine its
+        // location.
         let ray = arr2(&[[0.0], [1.0]]);
         let results = Self::trace(
             ray,
@@ -150,13 +153,30 @@ impl ParaxialSubView {
             axis,
             true,
         );
-
         let location = z_intercepts(results.slice(s![-1, .., ..]))?[0];
 
-        // Propagate the marginal ray to the entrance pupil location.
-        !unimplemented!(
-            "Propagate the marginal ray to the entrance pupil location to find its semi-diameter."
-        );
+        // Propagate the marginal ray to the entrance pupil location to determine its
+        // semi-diameter. I'm not sure, but I think the [0, .., ..1] slice on
+        // the marginal ray is required by the compiler because otherwise the
+        // dimensionality of the slice becomes incompatible with the argument of the
+        // propagate function, i.e. the slice [0, .., 0] has the wrong dimensions.
+        let distance = if sequential_sub_model.is_obj_at_inf() {
+            location
+        } else {
+            sequential_sub_model
+                .gaps()
+                .first()
+                .expect("A submodel should always have at least one gap.")
+                .thickness
+                + location
+        };
+        let init_marginal_ray = self.marginal_ray(surfaces).slice(s![0, .., ..1]);
+        let semi_diameter = propagate(init_marginal_ray, distance)[[0, 0]];
+
+        Ok(self.entrance_pupil.get_or_init(|| Pupil {
+            location: location,
+            semi_diameter: semi_diameter,
+        }))
     }
 
     pub fn marginal_ray(&self, surfaces: &[Surface]) -> &ParaxialRayTraceResults {
@@ -377,6 +397,35 @@ mod test {
         let expected = 1;
 
         assert_eq!(*aperture_stop, expected);
+    }
+
+    #[test]
+    fn test_entrance_pupil() {
+        let (view, system) = setup();
+
+        let entrance_pupil = view
+            .entrance_pupil(
+                system
+                    .sequential_model()
+                    .submodels()
+                    .get(&SubModelID(Some(0usize), Axis::Y))
+                    .unwrap(),
+                system.sequential_model().surfaces(),
+                Axis::Y,
+                false,
+            )
+            .unwrap();
+        let expected = Pupil {
+            location: 0.0,
+            semi_diameter: 12.5,
+        };
+
+        assert_abs_diff_eq!(entrance_pupil.location, expected.location, epsilon = 1e-4);
+        assert_abs_diff_eq!(
+            entrance_pupil.semi_diameter,
+            expected.semi_diameter,
+            epsilon = 1e-4
+        );
     }
 
     #[test]
