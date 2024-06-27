@@ -1,7 +1,8 @@
 /// A paraxial view into an optical system.
-use std::{cell::OnceCell, sync::Once};
+use std::{cell::OnceCell};
 
-use ndarray::{arr2, s, Array, Array1, Array2, Array3};
+use anyhow::{anyhow, Result};
+use ndarray::{arr2, s, Array, Array1, Array2, Array3, ArrayView2};
 
 use crate::{
     core::{
@@ -21,6 +22,9 @@ const DEFAULT_THICKNESS: Float = 0.0;
 /// surface.
 type ParaxialRays = Array2<Float>;
 
+/// A view into an array of Paraxial rays.
+type ParaxialRaysView<'a> = ArrayView2<'a, Float>;
+
 /// A Ns x 2 x Nr array of paraxial ray trace results.
 ///
 /// Ns is the number of surfaces, and Nr is the number of rays. The first
@@ -32,7 +36,7 @@ type ParaxialRayTraceResults = Array3<Float>;
 type RayTransferMatrix = Array2<Float>;
 
 /// A paraxial entrance or exit pupil.
-/// 
+///
 /// # Attributes
 /// * `location` - The location of the pupil relative to the first non-object surface.
 /// * `semi_diameter` - The semi-diameter of the pupil.
@@ -48,16 +52,30 @@ struct ParaxialSubView {
 
     aperture_stop: OnceCell<usize>,
     entrance_pupil: OnceCell<Pupil>,
+    marginal_ray: OnceCell<ParaxialRayTraceResults>,
 }
 
-/// Propagate paraxial rays a distance  along the optics axis.
-fn propagate(rays: ParaxialRays, distance: Float) -> ParaxialRays {
-    !unimplemented!("Propagate paraxial rays a distance along the optics axis.");
+/// Propagate paraxial rays a distance along the optic axis.
+fn propagate(rays: ParaxialRaysView, distance: Float) -> ParaxialRays {
+    let mut propagated = rays.to_owned();
+    let mut ray_heights = propagated.row_mut(0);
+
+    ray_heights += &(distance * &rays.row(1));
+
+    propagated
 }
 
-/// Compute the z-intercept of a set of paraxial rays.
-fn z_intercept(rays: ParaxialRays) -> Array1<Float> {
-    -rays[[0, ..]] / rays[[1, ..]]
+/// Compute the z-intercepts of a set of paraxial rays.
+///
+/// This will return an error if any of the z-intercepts are NaNs.
+fn z_intercepts(rays: ParaxialRaysView) -> Result<Array1<Float>> {
+    let results = (-&rays.row(0) / &rays.row(1)).to_owned();
+
+    if results.iter().any(|&x| x.is_nan()) {
+        return Err(anyhow!("Some z_intercepts are NaNs"));
+    }
+
+    Ok(results)
 }
 
 impl ParaxialSubView {
@@ -78,7 +96,8 @@ impl ParaxialSubView {
 
             aperture_stop: OnceCell::new(),
             entrance_pupil: OnceCell::new(),
-        }
+            marginal_ray: OnceCell::new(),
+        }git 
     }
 
     pub fn aperture_stop(&self, surfaces: &[Surface]) -> &usize {
@@ -99,36 +118,63 @@ impl ParaxialSubView {
         })
     }
 
-    pub fn entrance_pupil(&self, sequential_sub_model: &SequentialSubModel, surfaces: &[Surface], axis: Axis, is_obj_space_telecentric: bool) -> &Pupil {
+    pub fn entrance_pupil(
+        &self,
+        sequential_sub_model: &SequentialSubModel,
+        surfaces: &[Surface],
+        axis: Axis,
+        is_obj_space_telecentric: bool,
+    ) -> Result<&Pupil> {
         if is_obj_space_telecentric {
-            return self.entrance_pupil.get_or_init( || {
-                Pupil {
-                    location: Float::INFINITY,
-                    semi_diameter: Float::NAN,
-                }
-            })
+            return Ok(self.entrance_pupil.get_or_init(|| Pupil {
+                location: Float::INFINITY,
+                semi_diameter: Float::NAN,
+            }));
         }
 
         // Aperture stop is the first surface
         let aperture_stop = self.aperture_stop(surfaces);
         if *aperture_stop == 1usize {
-            return self.entrance_pupil.get_or_init(|| {
-                Pupil {
-                    location: 0.0,
-                    semi_diameter: surfaces[1].semi_diameter(),
-                }
-            })
+            return Ok(self.entrance_pupil.get_or_init(|| Pupil {
+                location: 0.0,
+                semi_diameter: surfaces[1].semi_diameter(),
+            }));
         }
 
         let ray = arr2(&[[0.0], [1.0]]);
-        let results = Self::trace(ray, sequential_sub_model, &surfaces[..aperture_stop - 1], axis, true);
+        let results = Self::trace(
+            ray,
+            sequential_sub_model,
+            &surfaces[..aperture_stop - 1],
+            axis,
+            true,
+        );
 
-        let location = z_intercept(results.slice(s![-1, .., ..]))[0];
+        let location = z_intercepts(results.slice(s![-1, .., ..]))?[0];
 
         // Propagate the marginal ray to the entrance pupil location.
-        !unimplemented!("Propagate the marginal ray to the entrance pupil location to find its semi-diameter.");
+        !unimplemented!(
+            "Propagate the marginal ray to the entrance pupil location to find its semi-diameter."
+        );
     }
 
+    pub fn marginal_ray(&self, surfaces: &[Surface]) -> &ParaxialRayTraceResults {
+        self.marginal_ray.get_or_init(|| {
+            let pmr = &self.pseudo_marginal_ray;
+
+            let semi_diameters = Array::from_vec(
+                surfaces
+                    .iter()
+                    .map(|surface| surface.semi_diameter())
+                    .collect::<Vec<Float>>(),
+            );
+            let ratios = semi_diameters / &pmr.slice(s![.., 0, 0]);
+
+            let scale_factor = ratios[*self.aperture_stop(surfaces)];
+
+            pmr * scale_factor
+        })
+    }
 
     /// Compute the pseudo-marginal ray.
     pub fn calc_pseudo_marginal_ray(
@@ -263,13 +309,50 @@ fn surface_to_rtm(
 #[cfg(test)]
 mod test {
     use approx::assert_abs_diff_eq;
-    use ndarray::arr3;
+    use ndarray::{arr1, arr3};
 
     use crate::core::sequential_model::SubModelID;
     use crate::examples::convexplano_lens;
     use crate::systems::System;
 
     use super::*;
+
+    #[test]
+    fn test_propagate() {
+        let rays = arr2(&[[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]);
+        let propagated = propagate(rays.view(), 2.0);
+
+        let expected = arr2(&[[9.0, 12.0, 15.0], [4.0, 5.0, 6.0]]);
+
+        assert_abs_diff_eq!(propagated, expected, epsilon = 1e-4);
+    }
+
+    #[test]
+    fn test_z_intercepts() {
+        let rays = arr2(&[[1.0, 2.0, 3.0, 0.0], [4.0, 5.0, 6.0, 7.0]]);
+        let z_intercepts = z_intercepts(rays.view()).unwrap();
+
+        let expected = arr1(&[-0.25, -0.4, -0.5, 0.0]);
+
+        assert_abs_diff_eq!(z_intercepts, expected, epsilon = 1e-4);
+    }
+
+    #[test]
+    fn test_z_intercepts_divide_by_zero() {
+        let rays = arr2(&[[1.0], [0.0]]);
+        let z_intercepts = z_intercepts(rays.view()).unwrap();
+
+        assert!(z_intercepts.shape() == [1]);
+        assert!(z_intercepts[0].is_infinite());
+    }
+
+    #[test]
+    fn test_z_intercepts_zero_height_divide_by_zero() {
+        let rays = arr2(&[[0.0], [0.0]]);
+        let z_intercepts = z_intercepts(rays.view());
+
+        assert!(z_intercepts.is_err());
+    }
 
     fn setup() -> (ParaxialSubView, System) {
         let system = convexplano_lens::system();
