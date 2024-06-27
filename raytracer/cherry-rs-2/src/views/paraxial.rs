@@ -1,5 +1,5 @@
 /// A paraxial view into an optical system.
-use std::{cell::OnceCell};
+use std::cell::OnceCell;
 
 use anyhow::{anyhow, Result};
 use ndarray::{arr2, s, Array, Array1, Array2, Array3, ArrayView2};
@@ -38,7 +38,8 @@ type RayTransferMatrix = Array2<Float>;
 /// A paraxial entrance or exit pupil.
 ///
 /// # Attributes
-/// * `location` - The location of the pupil relative to the first non-object surface.
+/// * `location` - The location of the pupil relative to the first non-object
+///   surface.
 /// * `semi_diameter` - The semi-diameter of the pupil.
 #[derive(Debug)]
 struct Pupil {
@@ -97,7 +98,7 @@ impl ParaxialSubView {
             aperture_stop: OnceCell::new(),
             entrance_pupil: OnceCell::new(),
             marginal_ray: OnceCell::new(),
-        }git 
+        }
     }
 
     pub fn aperture_stop(&self, surfaces: &[Surface]) -> &usize {
@@ -226,8 +227,8 @@ impl ParaxialSubView {
             let t = if gap_0.thickness.is_infinite() {
                 DEFAULT_THICKNESS
             } else if reverse {
-                // Reverse ray tracing is implemented as negative distances to avoid hassles with
-                // inverses of ray transfer matrices.
+                // Reverse ray tracing is implemented as negative distances to avoid hassles
+                // with inverses of ray transfer matrices.
                 -gap_0.thickness
             } else {
                 gap_0.thickness
@@ -376,6 +377,21 @@ mod test {
         let expected = 1;
 
         assert_eq!(*aperture_stop, expected);
+    }
+
+    #[test]
+    fn test_marginal_ray() {
+        let (view, system) = setup();
+
+        let marginal_ray = view.marginal_ray(system.sequential_model().surfaces());
+        let expected = arr3(&[
+            [[12.5000], [0.0]],
+            [[12.5000], [-0.1647]],
+            [[11.6271], [-0.2495]],
+            [[-0.0003], [-0.2495]],
+        ]);
+
+        assert_abs_diff_eq!(*marginal_ray, expected, epsilon = 1e-4);
     }
 
     #[test]
