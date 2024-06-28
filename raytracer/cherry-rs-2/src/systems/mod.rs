@@ -36,6 +36,7 @@ impl System {
         })
     }
 
+    // This can be removed once the paraxial view tests are moved to the system.
     pub fn sequential_model(&self) -> &SequentialModel {
         &self.sequential_model
     }

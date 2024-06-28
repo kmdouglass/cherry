@@ -2,18 +2,21 @@ use serde::{Deserialize, Serialize};
 
 use crate::core::Float;
 
+/// Specifies a gap in a sequential optical system model.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct GapSpec {
     pub thickness: Float,
     pub refractive_index: RefractiveIndexSpec,
 }
 
+/// Specifies the refractive index of the material constituting a gap.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct RefractiveIndexSpec {
     pub real: RealSpec,
     pub imag: Option<ImagSpec>,
 }
 
+/// Specifies the real part of a refractive index.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum RealSpec {
     Constant(Float),
@@ -58,6 +61,7 @@ pub enum RealSpec {
     },
 }
 
+/// Specifies the imaginary part of a refractive index.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum ImagSpec {
     Constant(Float),

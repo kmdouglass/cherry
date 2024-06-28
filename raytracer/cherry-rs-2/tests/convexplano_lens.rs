@@ -1,12 +1,12 @@
 use std::vec;
 
-use cherry_rs_2::specs::{
-    aperture::ApertureSpec,
-    fields::FieldSpec,
-    gaps::{GapSpec, RealSpec, RefractiveIndexSpec},
-    surfaces::{SurfaceSpec, SurfaceType},
+use cherry_rs_2::{
+    ApertureSpec,
+    FieldSpec,
+    GapSpec, RealSpec, RefractiveIndexSpec,
+    SurfaceSpec, SurfaceType,
+    System,
 };
-use cherry_rs_2::systems::System;
 
 fn setup() -> System {
     let aperture = ApertureSpec::EntrancePupil {
