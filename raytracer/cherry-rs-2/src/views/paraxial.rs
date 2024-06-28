@@ -1,5 +1,5 @@
 /// A paraxial view into an optical system.
-use std::cell::OnceCell;
+use std::{cell::OnceCell, collections::HashMap};
 
 use anyhow::{anyhow, Result};
 use ndarray::{arr2, s, Array, Array1, Array2, Array3, ArrayView2};
@@ -7,10 +7,11 @@ use ndarray::{arr2, s, Array, Array1, Array2, Array3, ArrayView2};
 use crate::{
     core::{
         argmin,
-        sequential_model::{Axis, SequentialSubModel, Step, Surface},
+        sequential_model::{Axis, SequentialModel, SequentialSubModel, Step, SubModelID, Surface},
         Float,
     },
     specs::surfaces::SurfaceType,
+    views::View,
 };
 
 const DEFAULT_THICKNESS: Float = 0.0;
@@ -47,6 +48,12 @@ struct Pupil {
     semi_diameter: Float,
 }
 
+#[derive(Debug)]
+pub struct ParaxialView {
+    subviews: HashMap<SubModelID, ParaxialSubView>,
+}
+
+#[derive(Debug)]
 struct ParaxialSubView {
     pseudo_marginal_ray: ParaxialRayTraceResults,
     reverse_parallel_ray: ParaxialRayTraceResults,
@@ -77,6 +84,28 @@ fn z_intercepts(rays: ParaxialRaysView) -> Result<Array1<Float>> {
     }
 
     Ok(results)
+}
+
+impl ParaxialView {
+    pub fn new() -> Self {
+        Self {
+            subviews: HashMap::new(),
+        }
+    }
+}
+
+impl View for ParaxialView {
+    fn init(&mut self, sequential_model: &SequentialModel) {
+        for (submodel_id, submodel) in sequential_model.submodels() {
+            let surfaces = sequential_model.surfaces();
+            let axis = submodel_id.1;
+
+            self.subviews.insert(
+                submodel_id.clone(),
+                ParaxialSubView::new(submodel, surfaces, axis),
+            );
+        }
+    }
 }
 
 impl ParaxialSubView {
