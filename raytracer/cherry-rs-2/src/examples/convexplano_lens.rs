@@ -58,5 +58,6 @@ pub fn system() -> System {
 
     let wavelengths: Vec<f64> = vec![0.567];
 
-    System::new(aperture, fields, gaps, surfaces, wavelengths).unwrap()
+    let views = vec![];
+    System::new(aperture, fields, gaps, surfaces, wavelengths, views).unwrap()
 }

@@ -10,11 +10,15 @@ use std::any::Any;
 
 use crate::core::sequential_model::SequentialModel;
 
+mod dependencies;
 pub mod paraxial;
 
 pub trait View {
     /// Initializes the view with the given `SequentialModel`.
-    fn init(&mut self, sequential_model: &SequentialModel);
+    fn initialize(&mut self, sequential_model: &SequentialModel);
+
+    /// Returns whether the View is initialized.
+    fn is_initialized(&self) -> bool;
 
     /// Returns the name of the view.
     ///
@@ -32,7 +36,7 @@ pub trait View {
     /// way for a View to specify which other Views it depends on to the system.
     ///
     /// If there are no dependencies, an empty vector should be returned.
-    fn dependencies(&self) -> Vec<&str> {
+    fn dependencies(&self) -> Vec<Box<dyn View>> {
         Vec::new()
     }
 }

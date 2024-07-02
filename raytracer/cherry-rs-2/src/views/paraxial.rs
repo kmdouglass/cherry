@@ -51,6 +51,7 @@ struct Pupil {
 
 #[derive(Debug)]
 pub struct ParaxialView {
+    is_initialized: bool,
     subviews: HashMap<SubModelID, ParaxialSubView>,
 }
 
@@ -90,13 +91,14 @@ fn z_intercepts(rays: ParaxialRaysView) -> Result<Array1<Float>> {
 impl ParaxialView {
     pub fn new() -> Self {
         Self {
+            is_initialized: false,
             subviews: HashMap::new(),
         }
     }
 }
 
 impl View for ParaxialView {
-    fn init(&mut self, sequential_model: &SequentialModel) {
+    fn initialize(&mut self, sequential_model: &SequentialModel) {
         for (submodel_id, submodel) in sequential_model.submodels() {
             let surfaces = sequential_model.surfaces();
             let axis = submodel_id.1;
@@ -106,6 +108,12 @@ impl View for ParaxialView {
                 ParaxialSubView::new(submodel, surfaces, axis),
             );
         }
+
+        self.is_initialized = true;
+    }
+
+    fn is_initialized(&self) -> bool {
+        self.is_initialized
     }
 
     fn name(&self) -> &str {
