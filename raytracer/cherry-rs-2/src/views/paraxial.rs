@@ -1,4 +1,5 @@
 /// A paraxial view into an optical system.
+use std::any::Any;
 use std::{cell::OnceCell, collections::HashMap};
 
 use anyhow::{anyhow, Result};
@@ -105,6 +106,14 @@ impl View for ParaxialView {
                 ParaxialSubView::new(submodel, surfaces, axis),
             );
         }
+    }
+
+    fn name(&self) -> &str {
+        "ParaxialView"
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 

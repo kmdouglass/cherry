@@ -1,10 +1,7 @@
 use std::vec;
 
 use cherry_rs_2::{
-    ApertureSpec,
-    FieldSpec,
-    GapSpec, RealSpec, RefractiveIndexSpec,
-    SurfaceSpec, SurfaceType,
+    ApertureSpec, FieldSpec, GapSpec, RealSpec, RefractiveIndexSpec, SurfaceSpec, SurfaceType,
     System,
 };
 
