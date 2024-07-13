@@ -1,12 +1,11 @@
-use crate::specs::{
+use crate::{specs::{
     aperture::ApertureSpec,
     fields::FieldSpec,
     gaps::{GapSpec, RealSpec, RefractiveIndexSpec},
     surfaces::{SurfaceSpec, SurfaceType},
-};
-use crate::systems::System;
+}, SequentialModel};
 
-pub fn system() -> System {
+pub fn sequential_model() -> SequentialModel {
     let aperture = ApertureSpec::EntrancePupil {
         semi_diameter: 12.5,
     };
@@ -58,6 +57,11 @@ pub fn system() -> System {
 
     let wavelengths: Vec<f64> = vec![0.567];
 
-    let views = vec![];
-    System::new(aperture, fields, gaps, surfaces, wavelengths, views).unwrap()
+    SequentialModel::new(
+        aperture,
+        fields,
+        gaps,
+        surfaces,
+        wavelengths,
+    ).unwrap()
 }

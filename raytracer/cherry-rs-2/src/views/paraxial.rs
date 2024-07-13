@@ -61,9 +61,9 @@ struct ParaxialSubView {
 pub struct ParaxialSubViewDescription {
     pseudo_marginal_ray: ParaxialRayTraceResults,
     reverse_parallel_ray: ParaxialRayTraceResults,
-    aperture_stop: usize,
-    entrance_pupil: Pupil,
-    marginal_ray: ParaxialRayTraceResults,
+    aperture_stop: Option<usize>,
+    entrance_pupil: Option<Pupil>,
+    marginal_ray: Option<ParaxialRayTraceResults>,
 }
 
 /// A paraxial entrance or exit pupil.
@@ -152,12 +152,13 @@ impl ParaxialSubView {
     }
 
     fn describe(&self) -> ParaxialSubViewDescription {
+        // TODO Initialize OnceCells
         ParaxialSubViewDescription {
             pseudo_marginal_ray: self.pseudo_marginal_ray.clone(),
             reverse_parallel_ray: self.reverse_parallel_ray.clone(),
-            aperture_stop: *self.aperture_stop.get().unwrap(),
-            entrance_pupil: self.entrance_pupil.get().unwrap().clone(),
-            marginal_ray: self.marginal_ray.get().unwrap().clone(),
+            aperture_stop: self.aperture_stop.get().cloned(),
+            entrance_pupil: self.entrance_pupil.get().cloned(),
+            marginal_ray: self.marginal_ray.get().cloned(),
         }
     }
 
@@ -435,25 +436,24 @@ mod test {
         assert!(z_intercepts.is_err());
     }
 
-    fn setup() -> (ParaxialSubView, System) {
-        let system = convexplano_lens::system();
-        let seq_sub_model = system
-            .sequential_model()
+    fn setup() -> (ParaxialSubView, SequentialModel) {
+        let sequential_model = convexplano_lens::sequential_model();
+        let seq_sub_model = sequential_model
             .submodels()
             .get(&SubModelID(Some(0usize), Axis::Y))
             .expect("Submodel not found.");
 
         (
-            ParaxialSubView::new(seq_sub_model, system.sequential_model().surfaces(), Axis::Y),
-            system,
+            ParaxialSubView::new(seq_sub_model, sequential_model.surfaces(), Axis::Y),
+            sequential_model,
         )
     }
 
     #[test]
     fn test_aperture_stop() {
-        let (view, system) = setup();
+        let (view, sequential_model) = setup();
 
-        let aperture_stop = view.aperture_stop(system.sequential_model().surfaces());
+        let aperture_stop = view.aperture_stop(sequential_model.surfaces());
         let expected = 1;
 
         assert_eq!(*aperture_stop, expected);
@@ -461,16 +461,15 @@ mod test {
 
     #[test]
     fn test_entrance_pupil() {
-        let (view, system) = setup();
+        let (view, sequential_model) = setup();
 
         let entrance_pupil = view
             .entrance_pupil(
-                system
-                    .sequential_model()
+                sequential_model
                     .submodels()
                     .get(&SubModelID(Some(0usize), Axis::Y))
                     .unwrap(),
-                system.sequential_model().surfaces(),
+                sequential_model.surfaces(),
                 Axis::Y,
                 false,
             )
@@ -490,9 +489,9 @@ mod test {
 
     #[test]
     fn test_marginal_ray() {
-        let (view, system) = setup();
+        let (view, sequential_model) = setup();
 
-        let marginal_ray = view.marginal_ray(system.sequential_model().surfaces());
+        let marginal_ray = view.marginal_ray(sequential_model.surfaces());
         let expected = arr3(&[
             [[12.5000], [0.0]],
             [[12.5000], [-0.1647]],
@@ -505,15 +504,14 @@ mod test {
 
     #[test]
     fn test_pseudo_marginal_ray() {
-        let system = convexplano_lens::system();
-        let seq_sub_model = system
-            .sequential_model()
+        let sequential_model = convexplano_lens::sequential_model();
+        let seq_sub_model = sequential_model
             .submodels()
             .get(&SubModelID(Some(0usize), Axis::Y))
             .expect("Submodel not found.");
         let pseudo_marginal_ray = ParaxialSubView::calc_pseudo_marginal_ray(
             &seq_sub_model,
-            system.sequential_model().surfaces(),
+            sequential_model.surfaces(),
             Axis::Y,
         );
 
@@ -529,15 +527,14 @@ mod test {
 
     #[test]
     fn test_reverse_parallel_ray() {
-        let system = convexplano_lens::system();
-        let seq_sub_model = system
-            .sequential_model()
+        let sequential_model = convexplano_lens::sequential_model();
+        let seq_sub_model = sequential_model
             .submodels()
             .get(&SubModelID(Some(0usize), Axis::Y))
             .expect("Submodel not found.");
         let reverse_parallel_ray = ParaxialSubView::calc_reverse_parallel_ray(
             &seq_sub_model,
-            system.sequential_model().surfaces(),
+            sequential_model.surfaces(),
             Axis::Y,
         );
 
