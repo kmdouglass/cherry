@@ -1,13 +1,9 @@
 use ndarray::{arr3, Array3};
 
-use crate::{ApertureSpec,FieldSpec,GapSpec, Pupil, RealSpec, RefractiveIndexSpec,
+use crate::{GapSpec, Pupil, RealSpec, RefractiveIndexSpec,
     SurfaceSpec, SurfaceType, SequentialModel};
 
 pub fn sequential_model() -> SequentialModel {
-    let aperture = ApertureSpec::EntrancePupil {
-        semi_diameter: 12.5,
-    };
-
     let air = RefractiveIndexSpec {
         real: RealSpec::Constant(1.0),
         imag: None,
@@ -32,11 +28,6 @@ pub fn sequential_model() -> SequentialModel {
     };
     let gaps = vec![gap_0, gap_1, gap_2];
 
-    let fields: Vec<FieldSpec> = vec![
-        FieldSpec::Angle { angle: 0.0 },
-        FieldSpec::Angle { angle: 5.0 },
-    ];
-
     let surf_0 = SurfaceSpec::Object;
     let surf_1 = SurfaceSpec::Conic {
         semi_diameter: 12.5,
@@ -56,8 +47,6 @@ pub fn sequential_model() -> SequentialModel {
     let wavelengths: Vec<f64> = vec![0.567];
 
     SequentialModel::new(
-        aperture,
-        fields,
         gaps,
         surfaces,
         wavelengths,

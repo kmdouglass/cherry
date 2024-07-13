@@ -136,15 +136,11 @@ impl Gap {
 impl SequentialModel {
     /// Creates a new sequential model of an optical system.
     pub fn new(
-        aperture_spec: ApertureSpec,
-        field_specs: Vec<FieldSpec>,
         gap_specs: Vec<GapSpec>,
         surface_specs: Vec<SurfaceSpec>,
         wavelengths: Vec<Float>,
     ) -> Result<Self> {
         Self::validate_specs(
-            &aperture_spec,
-            &field_specs,
             &gap_specs,
             &surface_specs,
             &wavelengths,
@@ -152,7 +148,7 @@ impl SequentialModel {
 
         let surfaces = Self::surf_specs_to_surfs(&surface_specs, &gap_specs);
 
-        let model_ids: Vec<SubModelID> = Self::calc_model_ids(&wavelengths);
+        let model_ids: Vec<SubModelID> = Self::calc_model_ids(&surfaces, &wavelengths);
         let mut models: HashMap<SubModelID, SequentialSubModel> = HashMap::new();
         for model_id in model_ids.iter() {
             let wavelength = match model_id.0 {
@@ -179,7 +175,7 @@ impl SequentialModel {
     }
 
     /// Computes the unique IDs for each paraxial model.
-    fn calc_model_ids(wavelengths: &Vec<Float>) -> Vec<SubModelID> {
+    fn calc_model_ids(surfaces: &[Surface], wavelengths: &[Float]) -> Vec<SubModelID> {
         let mut ids = Vec::new();
         if wavelengths.is_empty() {
             ids.push(SubModelID(None, Axis::X));
@@ -187,8 +183,14 @@ impl SequentialModel {
             return ids;
         }
 
+        let axes: Vec<Axis> = if Self::is_rotationally_symmetric(surfaces) {
+            vec![Axis::Y]
+        } else {
+            vec![Axis::X, Axis::Y]
+        };
+
         for (idx, _wavelength) in wavelengths.iter().enumerate() {
-            for axis in [Axis::X, Axis::Y].iter() {
+            for axis in axes.iter() {
                 let id = SubModelID(Some(idx), *axis);
                 ids.push(id);
             }
@@ -203,6 +205,12 @@ impl SequentialModel {
             gaps.push(gap);
         }
         Ok(gaps)
+    }
+
+    /// Returns true if the system is rotationally symmetric about the optical axis.
+    fn is_rotationally_symmetric(surfaces: &[Surface]) -> bool {
+        // Return false if any toric surface is present in the system.
+        !surfaces.iter().any(|surf| matches!(surf, Surface::Toric(_)))
     }
 
     fn surf_specs_to_surfs(
@@ -259,8 +267,6 @@ impl SequentialModel {
     }
 
     fn validate_specs(
-        aperture: &ApertureSpec,
-        fields: &Vec<FieldSpec>,
         gaps: &Vec<GapSpec>,
         surfaces: &Vec<SurfaceSpec>,
         wavelengths: &Vec<Float>,
@@ -479,5 +485,49 @@ mod tests {
 
         let result = SequentialModel::validate_gaps(&gaps, &wavelengths);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn is_rotationally_symmetric() {
+        let surfaces = vec![
+            Surface::Conic(Conic {
+                pos: Vec3::new(0.0, 0.0, 0.0),
+                euler_angles: Vec3::new(0.0, 0.0, 0.0),
+                semi_diameter: 1.0,
+                radius_of_curvature: 1.0,
+                conic_constant: 0.0,
+                surface_type: SurfaceType::Refracting,
+            }),
+            Surface::Conic(Conic {
+                pos: Vec3::new(0.0, 0.0, 0.0),
+                euler_angles: Vec3::new(0.0, 0.0, 0.0),
+                semi_diameter: 1.0,
+                radius_of_curvature: 1.0,
+                conic_constant: 0.0,
+                surface_type: SurfaceType::Refracting,
+            }),
+        ];
+        assert!(SequentialModel::is_rotationally_symmetric(&surfaces));
+
+        let surfaces = vec![
+            Surface::Conic(Conic {
+                pos: Vec3::new(0.0, 0.0, 0.0),
+                euler_angles: Vec3::new(0.0, 0.0, 0.0),
+                semi_diameter: 1.0,
+                radius_of_curvature: 1.0,
+                conic_constant: 0.0,
+                surface_type: SurfaceType::Refracting,
+            }),
+            Surface::Toric(Toric {
+                pos: Vec3::new(0.0, 0.0, 0.0),
+                euler_angles: Vec3::new(0.0, 0.0, 0.0),
+                semi_diameter: 1.0,
+                radius_of_curvature_y: 1.0,
+                radius_of_curvature_x: 1.0,
+                conic_constant: 0.0,
+                surface_type: SurfaceType::Refracting,
+            }),
+        ];
+        assert!(!SequentialModel::is_rotationally_symmetric(&surfaces));
     }
 }
