@@ -5,6 +5,7 @@ mod views;
 
 // API
 pub mod examples;
+pub use core::sequential_model::SequentialModel;
 pub use specs::{
     aperture::ApertureSpec,
     fields::FieldSpec,
@@ -13,4 +14,4 @@ pub use specs::{
     surfaces::SurfaceType,
 };
 pub use systems::System;
-pub use views::View;
+pub use views::{paraxial::ParaxialView, View};

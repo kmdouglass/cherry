@@ -1,11 +1,11 @@
 use std::vec;
 
 use cherry_rs_2::{
-    ApertureSpec, FieldSpec, GapSpec, RealSpec, RefractiveIndexSpec, SurfaceSpec, SurfaceType,
+    ApertureSpec, FieldSpec, GapSpec, ParaxialView, RealSpec, RefractiveIndexSpec, SequentialModel, SurfaceSpec, SurfaceType,
     System,
 };
 
-fn setup() -> System {
+fn setup() -> SequentialModel {
     let aperture = ApertureSpec::EntrancePupil {
         semi_diameter: 12.5,
     };
@@ -57,12 +57,23 @@ fn setup() -> System {
 
     let wavelengths: Vec<f64> = vec![0.567, 0.632];
 
-    let views = vec![];
-
-    System::new(aperture, fields, gaps, surfaces, wavelengths, views).unwrap()
+    SequentialModel::new(
+        aperture,
+        fields,
+        gaps,
+        surfaces,
+        wavelengths,
+    ).unwrap()
 }
 
 #[test]
 fn test_setup() {
     setup();
+}
+
+#[test]
+fn test_paraxial_view() {
+    let model = setup();
+    let view = ParaxialView::new(&model);
+    let _ = view.describe();
 }

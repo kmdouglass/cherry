@@ -1,21 +1,17 @@
 /// A paraxial view into an optical system.
-use std::any::Any;
 use std::{cell::OnceCell, collections::HashMap};
 
 use anyhow::{anyhow, Result};
 use ndarray::{arr2, s, Array, Array1, Array2, Array3, ArrayView2};
-use serde::ser::SerializeMap;
 use serde::{Deserialize, Serialize};
 
 use crate::{
     core::{
         argmin,
-        Describe,
-        sequential_model::{Axis, SequentialSubModel, Step, SubModelID, Surface},
+        sequential_model::{Axis, SequentialModel, SequentialSubModel, Step, SubModelID, Surface},
         Float,
     },
     specs::surfaces::SurfaceType,
-    views::View,
 };
 
 const DEFAULT_THICKNESS: Float = 0.0;
@@ -106,9 +102,19 @@ fn z_intercepts(rays: ParaxialRaysView) -> Result<Array1<Float>> {
 }
 
 impl ParaxialView {
-    pub fn new() -> Self {
+    pub fn new(sequential_model: &SequentialModel) -> Self {
+        let subviews = sequential_model
+            .submodels()
+            .iter()
+            .map(|(id, submodel)| {
+                let surfaces = sequential_model.surfaces();
+                let axis = id.1;
+                (*id, ParaxialSubView::new(submodel, surfaces, axis))
+            })
+            .collect();
+        
         Self {
-            subviews: HashMap::new(),
+            subviews,
         }
     }
 

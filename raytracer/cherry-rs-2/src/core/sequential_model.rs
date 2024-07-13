@@ -28,7 +28,7 @@ pub(crate) struct Gap {
 
 /// A collection of submodels for sequential ray tracing.
 #[derive(Debug)]
-pub(crate) struct SequentialModel {
+pub struct SequentialModel {
     aperture_spec: ApertureSpec,
     field_specs: Vec<FieldSpec>,
     surfaces: Vec<Surface>,
