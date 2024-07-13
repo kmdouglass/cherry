@@ -122,6 +122,27 @@ pub(crate) struct Toric {
     surface_type: SurfaceType,
 }
 
+impl Conic {
+    pub fn sag_norm(&self, pos: Vec3) -> (Float, Vec3) {
+        // Convert to polar coordinates in x, y plane
+        let r = (pos.x().powi(2) + pos.y().powi(2)).sqrt();
+        let theta = pos.y().atan2(pos.x());
+
+        // Compute surface sag
+        let a = r.powi(2) / self.radius_of_curvature;
+        let sag = a / (1.0 + (1.0 - (1.0 + self.conic_constant) * a / self.radius_of_curvature).sqrt());
+
+        // Compute surface normal
+        let denom = (self.radius_of_curvature.powi(4) - (1.0 + self.conic_constant) * (r * self.radius_of_curvature).powi(2)).sqrt();
+        let dfdx = -r * self.radius_of_curvature * theta.cos() / denom;
+        let dfdy = -r * self.radius_of_curvature * theta.sin() / denom;
+        let dfdz = (1.0 as Float);
+        let norm = Vec3::new(dfdx, dfdy, dfdz).normalize();
+
+        (sag, norm)
+    }
+}
+
 impl Gap {
     pub(crate) fn try_from_spec(spec: &GapSpec, wavelength: Option<Float>) -> Result<Self> {
         let thickness = spec.thickness;
@@ -434,6 +455,16 @@ impl Surface {
             Self::Conic(conic) => conic.radius_of_curvature,
             Self::Toric(toric) => toric.radius_of_curvature_y,
             _ => Float::INFINITY,
+        }
+    }
+
+    /// Returns the surface sag and normal vector on the surface at a given position.
+    /// 
+    /// The position is given in the local coordinate system of the surface.
+    pub(crate) fn sag_norm(&self, pos: Vec3) -> (Float, Vec3) {
+        match self {
+            Self::Conic(conic) => conic.sag_norm(pos),
+            _ => unimplemented!(),
         }
     }
 

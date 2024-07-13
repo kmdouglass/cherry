@@ -8,3 +8,4 @@
 /// `SequentialSubModel` in the optical system.
 
 pub mod paraxial;
+pub mod ray_trace_3d;
