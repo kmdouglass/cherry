@@ -15,7 +15,7 @@ use crate::specs::{
 /// The transverse direction along which system properties will be computed with
 /// respect to the current reference frame of the cursor.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub(crate) enum Axis {
+pub enum Axis {
     X,
     Y,
 }
@@ -38,7 +38,7 @@ pub struct SequentialModel {
 }
 
 #[derive(Debug)]
-pub(crate) struct SequentialSubModel {
+pub struct SequentialSubModel {
     gaps: Vec<Gap>,
 }
 
@@ -70,7 +70,7 @@ pub(crate) struct SequentialSubModelReverseIter<'a> {
 pub(crate) type Step<'a> = (&'a Gap, &'a Surface, Option<&'a Gap>);
 
 #[derive(Debug)]
-pub(crate) enum Surface {
+pub enum Surface {
     Conic(Conic),
     Image(Image),
     Object(Object),

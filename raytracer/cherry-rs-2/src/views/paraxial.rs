@@ -38,7 +38,7 @@ type RayTransferMatrix = Array2<Float>;
 
 #[derive(Debug)]
 pub struct ParaxialView {
-    subviews: HashMap<SubModelID, ParaxialSubView>,
+    pub subviews: HashMap<SubModelID, ParaxialSubView>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -47,7 +47,7 @@ pub struct ParaxialViewDescription {
 }
 
 #[derive(Debug)]
-struct ParaxialSubView {
+pub struct ParaxialSubView {
     pseudo_marginal_ray: ParaxialRayTraceResults,
     reverse_parallel_ray: ParaxialRayTraceResults,
 
@@ -73,7 +73,7 @@ pub struct ParaxialSubViewDescription {
 ///   surface.
 /// * `semi_diameter` - The semi-diameter of the pupil.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct Pupil {
+pub struct Pupil {
     location: Float,
     semi_diameter: Float,
 }
@@ -131,7 +131,7 @@ impl ParaxialView {
 
 impl ParaxialSubView {
     /// Create a new paraxial view of an optical system.
-    pub fn new(
+    fn new(
         sequential_sub_model: &SequentialSubModel,
         surfaces: &[Surface],
         axis: Axis,
@@ -152,7 +152,6 @@ impl ParaxialSubView {
     }
 
     fn describe(&self) -> ParaxialSubViewDescription {
-        // TODO Initialize OnceCells
         ParaxialSubViewDescription {
             pseudo_marginal_ray: self.pseudo_marginal_ray.clone(),
             reverse_parallel_ray: self.reverse_parallel_ray.clone(),

@@ -4,7 +4,7 @@ mod views;
 
 // API
 pub mod examples;
-pub use core::sequential_model::SequentialModel;
+pub use core::sequential_model::{SequentialModel, SequentialSubModel};
 pub use specs::{
     aperture::ApertureSpec,
     fields::FieldSpec,
