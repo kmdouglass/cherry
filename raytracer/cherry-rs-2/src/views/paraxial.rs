@@ -395,7 +395,6 @@ mod test {
 
     use crate::core::sequential_model::SubModelID;
     use crate::examples::convexplano_lens;
-    use crate::systems::System;
 
     use super::*;
 

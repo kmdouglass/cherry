@@ -1,6 +1,5 @@
 mod core;
 mod specs;
-mod systems;
 mod views;
 
 // API
@@ -13,5 +12,4 @@ pub use specs::{
     surfaces::SurfaceSpec,
     surfaces::SurfaceType,
 };
-pub use systems::System;
 pub use views::{paraxial::ParaxialView, View};
