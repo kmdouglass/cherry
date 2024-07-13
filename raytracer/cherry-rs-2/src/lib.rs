@@ -12,4 +12,4 @@ pub use specs::{
     surfaces::SurfaceSpec,
     surfaces::SurfaceType,
 };
-pub use views::{paraxial::ParaxialView, View};
+pub use views::paraxial::ParaxialView;

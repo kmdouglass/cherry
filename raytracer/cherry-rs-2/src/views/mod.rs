@@ -6,25 +6,5 @@
 ///
 /// A View is a collection of subviews, each one of which is applied to a
 /// `SequentialSubModel` in the optical system.
-use serde::Serialize;
 
 pub mod paraxial;
-
-#[derive(Debug)]
-pub enum View {
-    Paraxial(paraxial::ParaxialView),
-}
-
-impl View {
-    pub fn describe(&self) -> impl Serialize {
-        match self {
-            Self::Paraxial(view) => view.describe(),
-        }
-    }
-
-    pub fn name(&self) -> &str {
-        match self {
-            Self::Paraxial(_) => "Paraxial",
-        }
-    }
-}
