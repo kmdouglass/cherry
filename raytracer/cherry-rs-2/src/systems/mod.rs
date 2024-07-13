@@ -1,16 +1,22 @@
 use std::collections::HashMap;
 
 use anyhow::Result;
+use serde::{Deserialize, Serialize};
 
 use crate::core::{sequential_model::SequentialModel, Float};
 use crate::specs::{
     aperture::ApertureSpec, fields::FieldSpec, gaps::GapSpec, surfaces::SurfaceSpec,
 };
-use crate::views::{View, ViewType, VIEW_INIT_ORDER};
+use crate::views::View;
 
 pub struct System {
     sequential_model: SequentialModel,
-    views: HashMap<String, Box<dyn View>>,
+    views: HashMap<String, View>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SystemDescription<T: Serialize> {
+    pub views: HashMap<String, T>,
 }
 
 impl System {
@@ -20,7 +26,7 @@ impl System {
         gap_specs: Vec<GapSpec>,
         surface_specs: Vec<SurfaceSpec>,
         wavelengths: Vec<Float>,
-        views: Vec<ViewType>,
+        views: Vec<View>,
     ) -> Result<Self> {
         let sequential_model = SequentialModel::new(
             aperture_spec,
@@ -30,7 +36,10 @@ impl System {
             wavelengths,
         )?;
 
-        let views = Self::initialize_views(views);
+        let views: HashMap<String, View> = views
+            .into_iter()
+            .map(|view| (view.name().to_string(), view))
+            .collect();
 
         Ok(Self {
             sequential_model,
@@ -38,25 +47,18 @@ impl System {
         })
     }
 
+    pub fn describe(&self) -> SystemDescription<impl Serialize> {
+        let views = self
+            .views
+            .iter()
+            .map(|(name, view)| (name.clone(), view.describe()))
+            .collect();
+
+        SystemDescription { views }
+    }
+
     // This can be removed once the paraxial view tests are moved to the system.
     pub fn sequential_model(&self) -> &SequentialModel {
         &self.sequential_model
-    }
-
-    fn initialize_views(views: Vec<ViewType>) -> HashMap<String, Box<dyn View>> {
-        let mut views_map: HashMap<String, Box<dyn View>> = HashMap::new();
-
-        for view_type in VIEW_INIT_ORDER.iter() {
-            if views.contains(view_type) {
-                match view_type {
-                    ViewType::Paraxial => {
-                        let view = crate::views::paraxial::ParaxialView::new();
-                        views_map.insert("Paraxial".to_string(), Box::new(view));
-                    }
-                }
-            }
-        }
-
-        views_map
     }
 }

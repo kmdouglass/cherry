@@ -4,10 +4,13 @@ use std::{cell::OnceCell, collections::HashMap};
 
 use anyhow::{anyhow, Result};
 use ndarray::{arr2, s, Array, Array1, Array2, Array3, ArrayView2};
+use serde::ser::SerializeMap;
+use serde::{Deserialize, Serialize};
 
 use crate::{
     core::{
         argmin,
+        Describe,
         sequential_model::{Axis, SequentialSubModel, Step, SubModelID, Surface},
         Float,
     },
@@ -37,21 +40,14 @@ type ParaxialRayTraceResults = Array3<Float>;
 /// A 2 x 2 array representing a ray transfer matrix for paraxial rays.
 type RayTransferMatrix = Array2<Float>;
 
-/// A paraxial entrance or exit pupil.
-///
-/// # Attributes
-/// * `location` - The location of the pupil relative to the first non-object
-///   surface.
-/// * `semi_diameter` - The semi-diameter of the pupil.
-#[derive(Debug)]
-struct Pupil {
-    location: Float,
-    semi_diameter: Float,
-}
-
 #[derive(Debug)]
 pub struct ParaxialView {
     subviews: HashMap<SubModelID, ParaxialSubView>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ParaxialViewDescription {
+    subviews: HashMap<SubModelID, ParaxialSubViewDescription>,
 }
 
 #[derive(Debug)]
@@ -62,6 +58,28 @@ struct ParaxialSubView {
     aperture_stop: OnceCell<usize>,
     entrance_pupil: OnceCell<Pupil>,
     marginal_ray: OnceCell<ParaxialRayTraceResults>,
+}
+
+/// A paraxial description of an optical system.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ParaxialSubViewDescription {
+    pseudo_marginal_ray: ParaxialRayTraceResults,
+    reverse_parallel_ray: ParaxialRayTraceResults,
+    aperture_stop: usize,
+    entrance_pupil: Pupil,
+    marginal_ray: ParaxialRayTraceResults,
+}
+
+/// A paraxial entrance or exit pupil.
+///
+/// # Attributes
+/// * `location` - The location of the pupil relative to the first non-object
+///   surface.
+/// * `semi_diameter` - The semi-diameter of the pupil.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct Pupil {
+    location: Float,
+    semi_diameter: Float,
 }
 
 /// Propagate paraxial rays a distance along the optic axis.
@@ -93,15 +111,15 @@ impl ParaxialView {
             subviews: HashMap::new(),
         }
     }
-}
 
-impl View for ParaxialView {
-    fn name(&self) -> &str {
-        "Paraxial"
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        self
+    pub fn describe(&self) -> impl Serialize {
+        ParaxialViewDescription {
+            subviews: self
+                .subviews
+                .iter()
+                .map(|(id, subview)| (*id, subview.describe()))
+                .collect(),
+        }
     }
 }
 
@@ -124,6 +142,16 @@ impl ParaxialSubView {
             aperture_stop: OnceCell::new(),
             entrance_pupil: OnceCell::new(),
             marginal_ray: OnceCell::new(),
+        }
+    }
+
+    fn describe(&self) -> ParaxialSubViewDescription {
+        ParaxialSubViewDescription {
+            pseudo_marginal_ray: self.pseudo_marginal_ray.clone(),
+            reverse_parallel_ray: self.reverse_parallel_ray.clone(),
+            aperture_stop: *self.aperture_stop.get().unwrap(),
+            entrance_pupil: self.entrance_pupil.get().unwrap().clone(),
+            marginal_ray: self.marginal_ray.get().unwrap().clone(),
         }
     }
 

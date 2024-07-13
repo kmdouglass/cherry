@@ -3,6 +3,7 @@ pub(super) mod math;
 pub(crate) mod sequential_model;
 
 use anyhow::{anyhow, Result};
+use serde::{Deserialize, Serialize};
 
 use crate::specs::gaps::{ImagSpec, RealSpec, RefractiveIndexSpec};
 
@@ -14,6 +15,10 @@ pub(crate) type Float = f64;
 
 pub(crate) const EPSILON: Float = Float::EPSILON;
 pub(crate) const PI: Float = std::f64::consts::PI;
+
+pub(crate) trait Describe {
+    fn describe(&self) -> impl Serialize;
+}
 
 /// The cursor navigates through the optical system surface by surface, keeping
 /// track of its position as it changes.

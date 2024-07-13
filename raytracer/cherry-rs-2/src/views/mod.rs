@@ -6,27 +6,25 @@
 ///
 /// A View is a collection of subviews, each one of which is applied to a
 /// `SequentialSubModel` in the optical system.
-use std::any::Any;
+use serde::Serialize;
 
 pub mod paraxial;
 
-#[derive(Debug, PartialEq)]
-pub enum ViewType {
-    Paraxial,
+#[derive(Debug)]
+pub enum View {
+    Paraxial(paraxial::ParaxialView),
 }
 
-/// The order in which the views are initialized.
-///
-/// Dependencies between Views are handled manually because it is much simpler
-/// than maintaining a depedency graph.
-pub const VIEW_INIT_ORDER: [ViewType; 1] = [ViewType::Paraxial];
+impl View {
+    pub fn describe(&self) -> impl Serialize {
+        match self {
+            Self::Paraxial(view) => view.describe(),
+        }
+    }
 
-pub trait View {
-    /// The name of the view.
-    fn name(&self) -> &str;
-
-    /// Returns the View as an `Any` reference.
-    ///
-    /// This is used by the system to downcast the View to its specific type.
-    fn as_any(&self) -> &dyn Any;
+    pub fn name(&self) -> &str {
+        match self {
+            Self::Paraxial(_) => "Paraxial",
+        }
+    }
 }

@@ -2,6 +2,7 @@
 use std::collections::HashMap;
 
 use anyhow::{anyhow, Result};
+use serde::{Deserialize, Serialize};
 
 use crate::core::{math::vec3::Vec3, Cursor, Float, RefractiveIndex};
 use crate::specs::{
@@ -13,7 +14,7 @@ use crate::specs::{
 
 /// The transverse direction along which system properties will be computed with
 /// respect to the current reference frame of the cursor.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub(crate) enum Axis {
     X,
     Y,
@@ -46,7 +47,7 @@ pub(crate) struct SequentialSubModel {
 /// The first element is the index of the wavelength in the system's list of
 /// wavelengths. The second element is the transverse axis along which the model
 /// is computed.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct SubModelID(pub Option<usize>, pub Axis);
 
 /// An iterator over the surfaces and gaps in a submodel.
