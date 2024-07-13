@@ -1,9 +1,7 @@
-use crate::{specs::{
-    aperture::ApertureSpec,
-    fields::FieldSpec,
-    gaps::{GapSpec, RealSpec, RefractiveIndexSpec},
-    surfaces::{SurfaceSpec, SurfaceType},
-}, SequentialModel};
+use ndarray::{arr3, Array3};
+
+use crate::{ApertureSpec,FieldSpec,GapSpec, Pupil, RealSpec, RefractiveIndexSpec,
+    SurfaceSpec, SurfaceType, SequentialModel};
 
 pub fn sequential_model() -> SequentialModel {
     let aperture = ApertureSpec::EntrancePupil {
@@ -64,4 +62,21 @@ pub fn sequential_model() -> SequentialModel {
         surfaces,
         wavelengths,
     ).unwrap()
+}
+
+// Paraxial View values
+pub const APERTURE_STOP: usize = 1;
+
+pub const ENTRANCE_PUPIL: Pupil = Pupil {
+    location: 0.0,
+    semi_diameter: 12.5,
+};
+
+pub fn marginal_ray() -> Array3<f64> {
+    arr3(&[
+        [[12.5000], [0.0]],
+        [[12.5000], [-0.1647]],
+        [[11.6271], [-0.2495]],
+        [[-0.0003], [-0.2495]],
+    ])
 }

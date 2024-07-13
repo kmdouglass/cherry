@@ -72,10 +72,10 @@ pub struct ParaxialSubViewDescription {
 /// * `location` - The location of the pupil relative to the first non-object
 ///   surface.
 /// * `semi_diameter` - The semi-diameter of the pupil.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Pupil {
-    location: Float,
-    semi_diameter: Float,
+    pub location: Float,
+    pub semi_diameter: Float,
 }
 
 /// Propagate paraxial rays a distance along the optic axis.
@@ -258,7 +258,7 @@ impl ParaxialSubView {
     }
 
     /// Compute the pseudo-marginal ray.
-    pub fn calc_pseudo_marginal_ray(
+    fn calc_pseudo_marginal_ray(
         sequential_sub_model: &SequentialSubModel,
         surfaces: &[Surface],
         axis: Axis,
@@ -275,7 +275,7 @@ impl ParaxialSubView {
     }
 
     /// Compute the reverse parallel ray.
-    pub fn calc_reverse_parallel_ray(
+    fn calc_reverse_parallel_ray(
         sequential_sub_model: &SequentialSubModel,
         surfaces: &[Surface],
         axis: Axis,

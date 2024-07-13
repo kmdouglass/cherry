@@ -29,11 +29,7 @@ pub(crate) struct Gap {
 /// A collection of submodels for sequential ray tracing.
 #[derive(Debug)]
 pub struct SequentialModel {
-    aperture_spec: ApertureSpec,
-    field_specs: Vec<FieldSpec>,
     surfaces: Vec<Surface>,
-    wavelengths: Vec<Float>,
-
     submodels: HashMap<SubModelID, SequentialSubModel>,
 }
 
@@ -169,10 +165,7 @@ impl SequentialModel {
         }
 
         Ok(Self {
-            aperture_spec,
-            field_specs,
             surfaces,
-            wavelengths,
             submodels: models,
         })
     }
