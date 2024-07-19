@@ -6,6 +6,5 @@
 ///
 /// A View is a collection of subviews, each one of which is applied to a
 /// `SequentialSubModel` in the optical system.
-mod dependencies;
 pub mod paraxial;
 pub mod ray_trace_3d;
