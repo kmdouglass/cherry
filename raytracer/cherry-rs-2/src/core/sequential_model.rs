@@ -363,6 +363,12 @@ impl<'a> Iterator for SequentialSubModelIter<'a> {
     }
 }
 
+impl<'a> ExactSizeIterator for SequentialSubModelIter<'a> {
+    fn len(&self) -> usize {
+        self.gaps.len()
+    }
+}
+
 impl<'a> SequentialSubModelReverseIter<'a> {
     fn new(surfaces: &'a [Surface], gaps: &'a [Gap]) -> Self {
         Self {

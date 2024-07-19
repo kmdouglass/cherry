@@ -8,6 +8,7 @@ use crate::{
 };
 
 mod rays;
+mod trace;
 
 #[derive(Debug)]
 pub struct RayTrace3DView {}
