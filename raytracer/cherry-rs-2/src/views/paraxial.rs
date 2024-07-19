@@ -112,10 +112,8 @@ impl ParaxialView {
                 (*id, ParaxialSubView::new(submodel, surfaces, axis))
             })
             .collect();
-        
-        Self {
-            subviews,
-        }
+
+        Self { subviews }
     }
 
     pub fn describe(&self) -> impl Serialize {
@@ -131,11 +129,7 @@ impl ParaxialView {
 
 impl ParaxialSubView {
     /// Create a new paraxial view of an optical system.
-    fn new(
-        sequential_sub_model: &SequentialSubModel,
-        surfaces: &[Surface],
-        axis: Axis,
-    ) -> Self {
+    fn new(sequential_sub_model: &SequentialSubModel, surfaces: &[Surface], axis: Axis) -> Self {
         let pseudo_marginal_ray =
             Self::calc_pseudo_marginal_ray(sequential_sub_model, surfaces, axis);
         let reverse_parallel_ray =

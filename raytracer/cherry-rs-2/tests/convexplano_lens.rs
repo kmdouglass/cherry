@@ -1,4 +1,3 @@
-
 use cherry_rs_2::examples::convexplano_lens::*;
 use cherry_rs_2::ParaxialView;
 
@@ -35,7 +34,9 @@ fn test_paraxial_view_entrance_pupil() {
 
     for (sub_model_id, sub_model) in sub_models {
         let sub_view = view.subviews.get(sub_model_id).unwrap();
-        let result = sub_view.entrance_pupil(sub_model, model.surfaces(), sub_model_id.1, false).unwrap();
+        let result = sub_view
+            .entrance_pupil(sub_model, model.surfaces(), sub_model_id.1, false)
+            .unwrap();
 
         assert_eq!(ENTRANCE_PUPIL, *result)
     }

@@ -4,10 +4,11 @@ use std::collections::HashMap;
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 
-use crate::core::{math::vec3::Vec3, Cursor, Float, RefractiveIndex};
+use crate::core::{
+    math::{mat3::Mat3, vec3::Vec3},
+    Cursor, Float, RefractiveIndex,
+};
 use crate::specs::{
-    aperture::ApertureSpec,
-    fields::FieldSpec,
     gaps::GapSpec,
     surfaces::{SurfaceSpec, SurfaceType},
 };
@@ -78,7 +79,7 @@ pub enum Surface {
 #[derive(Debug)]
 pub(crate) struct Conic {
     pos: Vec3,
-    euler_angles: Vec3,
+    rotation_matrix: Mat3,
     semi_diameter: Float,
     radius_of_curvature: Float,
     conic_constant: Float,
@@ -88,33 +89,33 @@ pub(crate) struct Conic {
 #[derive(Debug)]
 pub(crate) struct Image {
     pos: Vec3,
-    euler_angles: Vec3,
+    rotation_matrix: Mat3,
 }
 
 #[derive(Debug)]
 pub(crate) struct Object {
     pos: Vec3,
-    euler_angles: Vec3,
+    rotation_matrix: Mat3,
 }
 
 /// A surface without any effect on rays that is used to measure intersections.
 #[derive(Debug)]
 pub(crate) struct Probe {
     pos: Vec3,
-    euler_angles: Vec3,
+    rotation_matrix: Mat3,
 }
 
 #[derive(Debug)]
 pub(crate) struct Stop {
     pos: Vec3,
-    euler_angles: Vec3,
+    rotation_matrix: Mat3,
     semi_diameter: Float,
 }
 
 #[derive(Debug)]
 pub(crate) struct Toric {
     pos: Vec3,
-    euler_angles: Vec3,
+    rotation_matrix: Mat3,
     semi_diameter: Float,
     radius_of_curvature_y: Float,
     radius_of_curvature_x: Float,
@@ -124,19 +125,26 @@ pub(crate) struct Toric {
 
 impl Conic {
     pub fn sag_norm(&self, pos: Vec3) -> (Float, Vec3) {
+        if self.radius_of_curvature.is_infinite() {
+            return (0.0, Vec3::new(0.0, 0.0, 1.0));
+        }
+
         // Convert to polar coordinates in x, y plane
         let r = (pos.x().powi(2) + pos.y().powi(2)).sqrt();
         let theta = pos.y().atan2(pos.x());
 
         // Compute surface sag
         let a = r.powi(2) / self.radius_of_curvature;
-        let sag = a / (1.0 + (1.0 - (1.0 + self.conic_constant) * a / self.radius_of_curvature).sqrt());
+        let sag =
+            a / (1.0 + (1.0 - (1.0 + self.conic_constant) * a / self.radius_of_curvature).sqrt());
 
         // Compute surface normal
-        let denom = (self.radius_of_curvature.powi(4) - (1.0 + self.conic_constant) * (r * self.radius_of_curvature).powi(2)).sqrt();
+        let denom = (self.radius_of_curvature.powi(4)
+            - (1.0 + self.conic_constant) * (r * self.radius_of_curvature).powi(2))
+        .sqrt();
         let dfdx = -r * self.radius_of_curvature * theta.cos() / denom;
         let dfdy = -r * self.radius_of_curvature * theta.sin() / denom;
-        let dfdz = (1.0 as Float);
+        let dfdz = 1.0 as Float;
         let norm = Vec3::new(dfdx, dfdy, dfdz).normalize();
 
         (sag, norm)
@@ -161,11 +169,7 @@ impl SequentialModel {
         surface_specs: Vec<SurfaceSpec>,
         wavelengths: Vec<Float>,
     ) -> Result<Self> {
-        Self::validate_specs(
-            &gap_specs,
-            &surface_specs,
-            &wavelengths,
-        )?;
+        Self::validate_specs(&gap_specs, &surface_specs, &wavelengths)?;
 
         let surfaces = Self::surf_specs_to_surfs(&surface_specs, &gap_specs);
 
@@ -228,10 +232,13 @@ impl SequentialModel {
         Ok(gaps)
     }
 
-    /// Returns true if the system is rotationally symmetric about the optical axis.
+    /// Returns true if the system is rotationally symmetric about the optical
+    /// axis.
     fn is_rotationally_symmetric(surfaces: &[Surface]) -> bool {
         // Return false if any toric surface is present in the system.
-        !surfaces.iter().any(|surf| matches!(surf, Surface::Toric(_)))
+        !surfaces
+            .iter()
+            .any(|surf| matches!(surf, Surface::Toric(_)))
     }
 
     fn surf_specs_to_surfs(
@@ -392,6 +399,8 @@ impl Surface {
     pub(crate) fn from_spec(spec: &SurfaceSpec, pos: Vec3) -> Self {
         // No rotation for the moment
         let euler_angles = Vec3::new(0.0, 0.0, 0.0);
+        let rotation_matrix =
+            Mat3::from_euler_angles(euler_angles.x(), euler_angles.y(), euler_angles.z());
 
         match spec {
             SurfaceSpec::Conic {
@@ -401,18 +410,27 @@ impl Surface {
                 surf_type,
             } => Self::Conic(Conic {
                 pos,
-                euler_angles,
+                rotation_matrix,
                 semi_diameter: *semi_diameter,
                 radius_of_curvature: *radius_of_curvature,
                 conic_constant: *conic_constant,
                 surface_type: *surf_type,
             }),
-            SurfaceSpec::Image => Self::Image(Image { pos, euler_angles }),
-            SurfaceSpec::Object => Self::Object(Object { pos, euler_angles }),
-            SurfaceSpec::Probe => Self::Probe(Probe { pos, euler_angles }),
+            SurfaceSpec::Image => Self::Image(Image {
+                pos,
+                rotation_matrix,
+            }),
+            SurfaceSpec::Object => Self::Object(Object {
+                pos,
+                rotation_matrix,
+            }),
+            SurfaceSpec::Probe => Self::Probe(Probe {
+                pos,
+                rotation_matrix,
+            }),
             SurfaceSpec::Stop { semi_diameter } => Self::Stop(Stop {
                 pos,
-                euler_angles,
+                rotation_matrix,
                 semi_diameter: *semi_diameter,
             }),
             SurfaceSpec::Toric {
@@ -423,7 +441,7 @@ impl Surface {
                 surf_type,
             } => Self::Toric(Toric {
                 pos,
-                euler_angles,
+                rotation_matrix,
                 semi_diameter: *semi_diameter,
                 radius_of_curvature_y: *radius_of_curvature_vert,
                 radius_of_curvature_x: *radius_of_curvature_horz,
@@ -458,8 +476,34 @@ impl Surface {
         }
     }
 
-    /// Returns the surface sag and normal vector on the surface at a given position.
-    /// 
+    /// Returns the rotation matrix of the surface into the local coordinate
+    /// system.
+    pub(crate) fn rot_mat(&self) -> Mat3 {
+        match self {
+            Self::Conic(conic) => conic.rotation_matrix,
+            Self::Image(image) => image.rotation_matrix,
+            Self::Object(object) => object.rotation_matrix,
+            Self::Probe(probe) => probe.rotation_matrix,
+            Self::Stop(stop) => stop.rotation_matrix,
+            Self::Toric(toric) => toric.rotation_matrix,
+        }
+    }
+
+    /// Returns the position of the surface in the global coordinate system.
+    pub(crate) fn pos(&self) -> Vec3 {
+        match self {
+            Self::Conic(conic) => conic.pos,
+            Self::Image(image) => image.pos,
+            Self::Object(object) => object.pos,
+            Self::Probe(probe) => probe.pos,
+            Self::Stop(stop) => stop.pos,
+            Self::Toric(toric) => toric.pos,
+        }
+    }
+
+    /// Returns the surface sag and normal vector on the surface at a given
+    /// position.
+    ///
     /// The position is given in the local coordinate system of the surface.
     pub(crate) fn sag_norm(&self, pos: Vec3) -> (Float, Vec3) {
         match self {
@@ -489,7 +533,10 @@ impl Surface {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::specs::gaps::{RealSpec, RefractiveIndexSpec};
+    use crate::{
+        core::math::mat3::mat3,
+        specs::gaps::{RealSpec, RefractiveIndexSpec},
+    };
 
     #[test]
     fn gaps_must_specify_ri_when_no_wavelengths_provided() {
@@ -523,7 +570,7 @@ mod tests {
         let surfaces = vec![
             Surface::Conic(Conic {
                 pos: Vec3::new(0.0, 0.0, 0.0),
-                euler_angles: Vec3::new(0.0, 0.0, 0.0),
+                rotation_matrix: mat3!(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
                 semi_diameter: 1.0,
                 radius_of_curvature: 1.0,
                 conic_constant: 0.0,
@@ -531,7 +578,7 @@ mod tests {
             }),
             Surface::Conic(Conic {
                 pos: Vec3::new(0.0, 0.0, 0.0),
-                euler_angles: Vec3::new(0.0, 0.0, 0.0),
+                rotation_matrix: mat3!(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
                 semi_diameter: 1.0,
                 radius_of_curvature: 1.0,
                 conic_constant: 0.0,
@@ -543,7 +590,7 @@ mod tests {
         let surfaces = vec![
             Surface::Conic(Conic {
                 pos: Vec3::new(0.0, 0.0, 0.0),
-                euler_angles: Vec3::new(0.0, 0.0, 0.0),
+                rotation_matrix: mat3!(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
                 semi_diameter: 1.0,
                 radius_of_curvature: 1.0,
                 conic_constant: 0.0,
@@ -551,7 +598,7 @@ mod tests {
             }),
             Surface::Toric(Toric {
                 pos: Vec3::new(0.0, 0.0, 0.0),
-                euler_angles: Vec3::new(0.0, 0.0, 0.0),
+                rotation_matrix: mat3!(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
                 semi_diameter: 1.0,
                 radius_of_curvature_y: 1.0,
                 radius_of_curvature_x: 1.0,

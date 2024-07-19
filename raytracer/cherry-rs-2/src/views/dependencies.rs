@@ -1,7 +1,9 @@
 /// A dependency graph for Views.
 ///
 /// This module is modeled after the graph implementation presented at https://smallcultfollowing.com/babysteps/blog/2015/04/06/modeling-graphs-in-rust-using-vector-indices/.
-/// In effect, each node is the start of a linked list of edges, where each edge points to the next edge in the list. All edges in any linked list share the same source node.
+/// In effect, each node is the start of a linked list of edges, where each edge
+/// points to the next edge in the list. All edges in any linked list share the
+/// same source node.
 
 type NodeIndex = usize;
 
@@ -34,7 +36,9 @@ impl Graph {
 
     pub fn add_node(&mut self) -> NodeIndex {
         let index = self.nodes.len();
-        self.nodes.push(Node { first_outgoing_edge: None });
+        self.nodes.push(Node {
+            first_outgoing_edge: None,
+        });
         index
     }
 
@@ -44,7 +48,7 @@ impl Graph {
         let node_data = &mut self.nodes[source];
         self.edges.push(Edge {
             target: target,
-            next_outgoing_edge: node_data.first_outgoing_edge
+            next_outgoing_edge: node_data.first_outgoing_edge,
         });
         node_data.first_outgoing_edge = Some(edge_index);
     }
@@ -65,7 +69,12 @@ impl Graph {
     }
 
     /// Used in a depth-first search to detect cycles in the graph.
-    fn is_cyclic_util(&self, node_index: usize, visited: &mut Vec<bool>, rec_stack: &mut Vec<bool>) -> bool {
+    fn is_cyclic_util(
+        &self,
+        node_index: usize,
+        visited: &mut Vec<bool>,
+        rec_stack: &mut Vec<bool>,
+    ) -> bool {
         if !visited[node_index] {
             visited[node_index] = true;
             rec_stack[node_index] = true;
@@ -101,7 +110,12 @@ impl Graph {
     }
 
     /// Used in a depth-first search for topological sorting of the graph.
-    fn topological_sort_util(&self, node_index: usize, visited: &mut Vec<bool>, stack: &mut Vec<usize>) {
+    fn topological_sort_util(
+        &self,
+        node_index: usize,
+        visited: &mut Vec<bool>,
+        stack: &mut Vec<usize>,
+    ) {
         visited[node_index] = true;
 
         let mut edge_index = self.nodes[node_index].first_outgoing_edge;
@@ -113,7 +127,8 @@ impl Graph {
             edge_index = self.edges[e_idx].next_outgoing_edge;
         }
 
-        stack.push(node_index); // Add this node to the stack after visiting all edges
+        stack.push(node_index); // Add this node to the stack after visiting all
+                                // edges
     }
 }
 

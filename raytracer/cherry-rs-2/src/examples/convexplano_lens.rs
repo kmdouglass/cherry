@@ -1,7 +1,8 @@
 use ndarray::{arr3, Array3};
 
-use crate::{GapSpec, Pupil, RealSpec, RefractiveIndexSpec,
-    SurfaceSpec, SurfaceType, SequentialModel};
+use crate::{
+    GapSpec, Pupil, RealSpec, RefractiveIndexSpec, SequentialModel, SurfaceSpec, SurfaceType,
+};
 
 pub fn sequential_model() -> SequentialModel {
     let air = RefractiveIndexSpec {
@@ -46,11 +47,7 @@ pub fn sequential_model() -> SequentialModel {
 
     let wavelengths: Vec<f64> = vec![0.567];
 
-    SequentialModel::new(
-        gaps,
-        surfaces,
-        wavelengths,
-    ).unwrap()
+    SequentialModel::new(gaps, surfaces, wavelengths).unwrap()
 }
 
 // Paraxial View values
