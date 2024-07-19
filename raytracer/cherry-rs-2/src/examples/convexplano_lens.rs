@@ -1,16 +1,9 @@
-use crate::specs::{
-    aperture::ApertureSpec,
-    fields::FieldSpec,
-    gaps::{GapSpec, RealSpec, RefractiveIndexSpec},
-    surfaces::{SurfaceSpec, SurfaceType},
-};
-use crate::systems::System;
+use ndarray::{arr3, Array3};
 
-pub fn system() -> System {
-    let aperture = ApertureSpec::EntrancePupil {
-        semi_diameter: 12.5,
-    };
+use crate::{GapSpec, Pupil, RealSpec, RefractiveIndexSpec,
+    SurfaceSpec, SurfaceType, SequentialModel};
 
+pub fn sequential_model() -> SequentialModel {
     let air = RefractiveIndexSpec {
         real: RealSpec::Constant(1.0),
         imag: None,
@@ -35,11 +28,6 @@ pub fn system() -> System {
     };
     let gaps = vec![gap_0, gap_1, gap_2];
 
-    let fields: Vec<FieldSpec> = vec![
-        FieldSpec::Angle { angle: 0.0 },
-        FieldSpec::Angle { angle: 5.0 },
-    ];
-
     let surf_0 = SurfaceSpec::Object;
     let surf_1 = SurfaceSpec::Conic {
         semi_diameter: 12.5,
@@ -58,6 +46,26 @@ pub fn system() -> System {
 
     let wavelengths: Vec<f64> = vec![0.567];
 
-    let views = vec![];
-    System::new(aperture, fields, gaps, surfaces, wavelengths, views).unwrap()
+    SequentialModel::new(
+        gaps,
+        surfaces,
+        wavelengths,
+    ).unwrap()
+}
+
+// Paraxial View values
+pub const APERTURE_STOP: usize = 1;
+
+pub const ENTRANCE_PUPIL: Pupil = Pupil {
+    location: 0.0,
+    semi_diameter: 12.5,
+};
+
+pub fn marginal_ray() -> Array3<f64> {
+    arr3(&[
+        [[12.5000], [0.0]],
+        [[12.5000], [-0.1647]],
+        [[11.6271], [-0.2495]],
+        [[-0.0003], [-0.2495]],
+    ])
 }

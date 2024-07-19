@@ -2,6 +2,7 @@
 use std::collections::HashMap;
 
 use anyhow::{anyhow, Result};
+use serde::{Deserialize, Serialize};
 
 use crate::core::{math::vec3::Vec3, Cursor, Float, RefractiveIndex};
 use crate::specs::{
@@ -13,8 +14,8 @@ use crate::specs::{
 
 /// The transverse direction along which system properties will be computed with
 /// respect to the current reference frame of the cursor.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub(crate) enum Axis {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum Axis {
     X,
     Y,
 }
@@ -27,17 +28,13 @@ pub(crate) struct Gap {
 
 /// A collection of submodels for sequential ray tracing.
 #[derive(Debug)]
-pub(crate) struct SequentialModel {
-    aperture_spec: ApertureSpec,
-    field_specs: Vec<FieldSpec>,
+pub struct SequentialModel {
     surfaces: Vec<Surface>,
-    wavelengths: Vec<Float>,
-
     submodels: HashMap<SubModelID, SequentialSubModel>,
 }
 
 #[derive(Debug)]
-pub(crate) struct SequentialSubModel {
+pub struct SequentialSubModel {
     gaps: Vec<Gap>,
 }
 
@@ -46,7 +43,7 @@ pub(crate) struct SequentialSubModel {
 /// The first element is the index of the wavelength in the system's list of
 /// wavelengths. The second element is the transverse axis along which the model
 /// is computed.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct SubModelID(pub Option<usize>, pub Axis);
 
 /// An iterator over the surfaces and gaps in a submodel.
@@ -69,7 +66,7 @@ pub(crate) struct SequentialSubModelReverseIter<'a> {
 pub(crate) type Step<'a> = (&'a Gap, &'a Surface, Option<&'a Gap>);
 
 #[derive(Debug)]
-pub(crate) enum Surface {
+pub enum Surface {
     Conic(Conic),
     Image(Image),
     Object(Object),
@@ -125,6 +122,27 @@ pub(crate) struct Toric {
     surface_type: SurfaceType,
 }
 
+impl Conic {
+    pub fn sag_norm(&self, pos: Vec3) -> (Float, Vec3) {
+        // Convert to polar coordinates in x, y plane
+        let r = (pos.x().powi(2) + pos.y().powi(2)).sqrt();
+        let theta = pos.y().atan2(pos.x());
+
+        // Compute surface sag
+        let a = r.powi(2) / self.radius_of_curvature;
+        let sag = a / (1.0 + (1.0 - (1.0 + self.conic_constant) * a / self.radius_of_curvature).sqrt());
+
+        // Compute surface normal
+        let denom = (self.radius_of_curvature.powi(4) - (1.0 + self.conic_constant) * (r * self.radius_of_curvature).powi(2)).sqrt();
+        let dfdx = -r * self.radius_of_curvature * theta.cos() / denom;
+        let dfdy = -r * self.radius_of_curvature * theta.sin() / denom;
+        let dfdz = (1.0 as Float);
+        let norm = Vec3::new(dfdx, dfdy, dfdz).normalize();
+
+        (sag, norm)
+    }
+}
+
 impl Gap {
     pub(crate) fn try_from_spec(spec: &GapSpec, wavelength: Option<Float>) -> Result<Self> {
         let thickness = spec.thickness;
@@ -139,15 +157,11 @@ impl Gap {
 impl SequentialModel {
     /// Creates a new sequential model of an optical system.
     pub fn new(
-        aperture_spec: ApertureSpec,
-        field_specs: Vec<FieldSpec>,
         gap_specs: Vec<GapSpec>,
         surface_specs: Vec<SurfaceSpec>,
         wavelengths: Vec<Float>,
     ) -> Result<Self> {
         Self::validate_specs(
-            &aperture_spec,
-            &field_specs,
             &gap_specs,
             &surface_specs,
             &wavelengths,
@@ -155,7 +169,7 @@ impl SequentialModel {
 
         let surfaces = Self::surf_specs_to_surfs(&surface_specs, &gap_specs);
 
-        let model_ids: Vec<SubModelID> = Self::calc_model_ids(&wavelengths);
+        let model_ids: Vec<SubModelID> = Self::calc_model_ids(&surfaces, &wavelengths);
         let mut models: HashMap<SubModelID, SequentialSubModel> = HashMap::new();
         for model_id in model_ids.iter() {
             let wavelength = match model_id.0 {
@@ -168,10 +182,7 @@ impl SequentialModel {
         }
 
         Ok(Self {
-            aperture_spec,
-            field_specs,
             surfaces,
-            wavelengths,
             submodels: models,
         })
     }
@@ -185,7 +196,7 @@ impl SequentialModel {
     }
 
     /// Computes the unique IDs for each paraxial model.
-    fn calc_model_ids(wavelengths: &Vec<Float>) -> Vec<SubModelID> {
+    fn calc_model_ids(surfaces: &[Surface], wavelengths: &[Float]) -> Vec<SubModelID> {
         let mut ids = Vec::new();
         if wavelengths.is_empty() {
             ids.push(SubModelID(None, Axis::X));
@@ -193,8 +204,14 @@ impl SequentialModel {
             return ids;
         }
 
+        let axes: Vec<Axis> = if Self::is_rotationally_symmetric(surfaces) {
+            vec![Axis::Y]
+        } else {
+            vec![Axis::X, Axis::Y]
+        };
+
         for (idx, _wavelength) in wavelengths.iter().enumerate() {
-            for axis in [Axis::X, Axis::Y].iter() {
+            for axis in axes.iter() {
                 let id = SubModelID(Some(idx), *axis);
                 ids.push(id);
             }
@@ -209,6 +226,12 @@ impl SequentialModel {
             gaps.push(gap);
         }
         Ok(gaps)
+    }
+
+    /// Returns true if the system is rotationally symmetric about the optical axis.
+    fn is_rotationally_symmetric(surfaces: &[Surface]) -> bool {
+        // Return false if any toric surface is present in the system.
+        !surfaces.iter().any(|surf| matches!(surf, Surface::Toric(_)))
     }
 
     fn surf_specs_to_surfs(
@@ -265,8 +288,6 @@ impl SequentialModel {
     }
 
     fn validate_specs(
-        aperture: &ApertureSpec,
-        fields: &Vec<FieldSpec>,
         gaps: &Vec<GapSpec>,
         surfaces: &Vec<SurfaceSpec>,
         wavelengths: &Vec<Float>,
@@ -437,6 +458,16 @@ impl Surface {
         }
     }
 
+    /// Returns the surface sag and normal vector on the surface at a given position.
+    /// 
+    /// The position is given in the local coordinate system of the surface.
+    pub(crate) fn sag_norm(&self, pos: Vec3) -> (Float, Vec3) {
+        match self {
+            Self::Conic(conic) => conic.sag_norm(pos),
+            _ => unimplemented!(),
+        }
+    }
+
     pub(crate) fn semi_diameter(&self) -> Float {
         match self {
             Self::Conic(conic) => conic.semi_diameter,
@@ -485,5 +516,49 @@ mod tests {
 
         let result = SequentialModel::validate_gaps(&gaps, &wavelengths);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn is_rotationally_symmetric() {
+        let surfaces = vec![
+            Surface::Conic(Conic {
+                pos: Vec3::new(0.0, 0.0, 0.0),
+                euler_angles: Vec3::new(0.0, 0.0, 0.0),
+                semi_diameter: 1.0,
+                radius_of_curvature: 1.0,
+                conic_constant: 0.0,
+                surface_type: SurfaceType::Refracting,
+            }),
+            Surface::Conic(Conic {
+                pos: Vec3::new(0.0, 0.0, 0.0),
+                euler_angles: Vec3::new(0.0, 0.0, 0.0),
+                semi_diameter: 1.0,
+                radius_of_curvature: 1.0,
+                conic_constant: 0.0,
+                surface_type: SurfaceType::Refracting,
+            }),
+        ];
+        assert!(SequentialModel::is_rotationally_symmetric(&surfaces));
+
+        let surfaces = vec![
+            Surface::Conic(Conic {
+                pos: Vec3::new(0.0, 0.0, 0.0),
+                euler_angles: Vec3::new(0.0, 0.0, 0.0),
+                semi_diameter: 1.0,
+                radius_of_curvature: 1.0,
+                conic_constant: 0.0,
+                surface_type: SurfaceType::Refracting,
+            }),
+            Surface::Toric(Toric {
+                pos: Vec3::new(0.0, 0.0, 0.0),
+                euler_angles: Vec3::new(0.0, 0.0, 0.0),
+                semi_diameter: 1.0,
+                radius_of_curvature_y: 1.0,
+                radius_of_curvature_x: 1.0,
+                conic_constant: 0.0,
+                surface_type: SurfaceType::Refracting,
+            }),
+        ];
+        assert!(!SequentialModel::is_rotationally_symmetric(&surfaces));
     }
 }

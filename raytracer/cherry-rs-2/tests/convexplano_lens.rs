@@ -1,68 +1,42 @@
-use std::vec;
 
-use cherry_rs_2::{
-    ApertureSpec, FieldSpec, GapSpec, RealSpec, RefractiveIndexSpec, SurfaceSpec, SurfaceType,
-    System,
-};
+use cherry_rs_2::examples::convexplano_lens::*;
+use cherry_rs_2::ParaxialView;
 
-fn setup() -> System {
-    let aperture = ApertureSpec::EntrancePupil {
-        semi_diameter: 12.5,
-    };
-
-    let air = RefractiveIndexSpec {
-        real: RealSpec::Constant(1.0),
-        imag: None,
-    };
-    // Glass: N-BK7
-    let nbk7 = RefractiveIndexSpec {
-        real: RealSpec::Constant(1.515),
-        imag: None,
-    };
-
-    let gap_0 = GapSpec {
-        thickness: f64::INFINITY,
-        refractive_index: air.clone(),
-    };
-    let gap_1 = GapSpec {
-        thickness: 5.3,
-        refractive_index: nbk7,
-    };
-    let gap_2 = GapSpec {
-        thickness: 46.6,
-        refractive_index: air,
-    };
-    let gaps = vec![gap_0, gap_1, gap_2];
-
-    let fields: Vec<FieldSpec> = vec![
-        FieldSpec::Angle { angle: 0.0 },
-        FieldSpec::Angle { angle: 5.0 },
-    ];
-
-    let surf_0 = SurfaceSpec::Object;
-    let surf_1 = SurfaceSpec::Conic {
-        semi_diameter: 12.5,
-        radius_of_curvature: 25.8,
-        conic_constant: 0.0,
-        surf_type: SurfaceType::Refracting,
-    };
-    let surf_2 = SurfaceSpec::Conic {
-        semi_diameter: 12.5,
-        radius_of_curvature: f64::INFINITY,
-        conic_constant: 0.0,
-        surf_type: SurfaceType::Refracting,
-    };
-    let surf_3 = SurfaceSpec::Image;
-    let surfaces = vec![surf_0, surf_1, surf_2, surf_3];
-
-    let wavelengths: Vec<f64> = vec![0.567, 0.632];
-
-    let views = vec![];
-
-    System::new(aperture, fields, gaps, surfaces, wavelengths, views).unwrap()
+fn paraxial_view() -> ParaxialView {
+    let model = sequential_model();
+    ParaxialView::new(&model)
 }
 
 #[test]
-fn test_setup() {
-    setup();
+fn test_describe_paraxial_view() {
+    let view = paraxial_view();
+    let _ = view.describe();
+}
+
+#[test]
+fn test_paraxial_view_aperture_stop() {
+    let model = sequential_model();
+    let sub_models = model.submodels();
+    let view = paraxial_view();
+
+    for sub_model_id in sub_models.keys() {
+        let sub_view = view.subviews.get(sub_model_id).unwrap();
+        let result = sub_view.aperture_stop(model.surfaces());
+
+        assert_eq!(APERTURE_STOP, *result)
+    }
+}
+
+#[test]
+fn test_paraxial_view_entrance_pupil() {
+    let model = sequential_model();
+    let sub_models = model.submodels();
+    let view = paraxial_view();
+
+    for (sub_model_id, sub_model) in sub_models {
+        let sub_view = view.subviews.get(sub_model_id).unwrap();
+        let result = sub_view.entrance_pupil(sub_model, model.surfaces(), sub_model_id.1, false).unwrap();
+
+        assert_eq!(ENTRANCE_PUPIL, *result)
+    }
 }

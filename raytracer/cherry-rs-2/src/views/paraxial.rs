@@ -1,9 +1,9 @@
 /// A paraxial view into an optical system.
-use std::any::Any;
 use std::{cell::OnceCell, collections::HashMap};
 
 use anyhow::{anyhow, Result};
 use ndarray::{arr2, s, Array, Array1, Array2, Array3, ArrayView2};
+use serde::{Deserialize, Serialize};
 
 use crate::{
     core::{
@@ -12,7 +12,6 @@ use crate::{
         Float,
     },
     specs::surfaces::SurfaceType,
-    views::View,
 };
 
 const DEFAULT_THICKNESS: Float = 0.0;
@@ -37,32 +36,46 @@ type ParaxialRayTraceResults = Array3<Float>;
 /// A 2 x 2 array representing a ray transfer matrix for paraxial rays.
 type RayTransferMatrix = Array2<Float>;
 
-/// A paraxial entrance or exit pupil.
-///
-/// # Attributes
-/// * `location` - The location of the pupil relative to the first non-object
-///   surface.
-/// * `semi_diameter` - The semi-diameter of the pupil.
-#[derive(Debug)]
-struct Pupil {
-    location: Float,
-    semi_diameter: Float,
-}
-
 #[derive(Debug)]
 pub struct ParaxialView {
-    is_initialized: bool,
-    subviews: HashMap<SubModelID, ParaxialSubView>,
+    pub subviews: HashMap<SubModelID, ParaxialSubView>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ParaxialViewDescription {
+    subviews: HashMap<SubModelID, ParaxialSubViewDescription>,
 }
 
 #[derive(Debug)]
-struct ParaxialSubView {
+pub struct ParaxialSubView {
     pseudo_marginal_ray: ParaxialRayTraceResults,
     reverse_parallel_ray: ParaxialRayTraceResults,
 
     aperture_stop: OnceCell<usize>,
     entrance_pupil: OnceCell<Pupil>,
     marginal_ray: OnceCell<ParaxialRayTraceResults>,
+}
+
+/// A paraxial description of an optical system.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ParaxialSubViewDescription {
+    pseudo_marginal_ray: ParaxialRayTraceResults,
+    reverse_parallel_ray: ParaxialRayTraceResults,
+    aperture_stop: Option<usize>,
+    entrance_pupil: Option<Pupil>,
+    marginal_ray: Option<ParaxialRayTraceResults>,
+}
+
+/// A paraxial entrance or exit pupil.
+///
+/// # Attributes
+/// * `location` - The location of the pupil relative to the first non-object
+///   surface.
+/// * `semi_diameter` - The semi-diameter of the pupil.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Pupil {
+    pub location: Float,
+    pub semi_diameter: Float,
 }
 
 /// Propagate paraxial rays a distance along the optic axis.
@@ -89,45 +102,36 @@ fn z_intercepts(rays: ParaxialRaysView) -> Result<Array1<Float>> {
 }
 
 impl ParaxialView {
-    pub fn new() -> Self {
+    pub fn new(sequential_model: &SequentialModel) -> Self {
+        let subviews = sequential_model
+            .submodels()
+            .iter()
+            .map(|(id, submodel)| {
+                let surfaces = sequential_model.surfaces();
+                let axis = id.1;
+                (*id, ParaxialSubView::new(submodel, surfaces, axis))
+            })
+            .collect();
+        
         Self {
-            is_initialized: false,
-            subviews: HashMap::new(),
+            subviews,
         }
     }
-}
 
-impl View for ParaxialView {
-    fn initialize(&mut self, sequential_model: &SequentialModel) {
-        for (submodel_id, submodel) in sequential_model.submodels() {
-            let surfaces = sequential_model.surfaces();
-            let axis = submodel_id.1;
-
-            self.subviews.insert(
-                submodel_id.clone(),
-                ParaxialSubView::new(submodel, surfaces, axis),
-            );
+    pub fn describe(&self) -> impl Serialize {
+        ParaxialViewDescription {
+            subviews: self
+                .subviews
+                .iter()
+                .map(|(id, subview)| (*id, subview.describe()))
+                .collect(),
         }
-
-        self.is_initialized = true;
-    }
-
-    fn is_initialized(&self) -> bool {
-        self.is_initialized
-    }
-
-    fn name(&self) -> &str {
-        "ParaxialView"
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        self
     }
 }
 
 impl ParaxialSubView {
     /// Create a new paraxial view of an optical system.
-    pub fn new(
+    fn new(
         sequential_sub_model: &SequentialSubModel,
         surfaces: &[Surface],
         axis: Axis,
@@ -144,6 +148,16 @@ impl ParaxialSubView {
             aperture_stop: OnceCell::new(),
             entrance_pupil: OnceCell::new(),
             marginal_ray: OnceCell::new(),
+        }
+    }
+
+    fn describe(&self) -> ParaxialSubViewDescription {
+        ParaxialSubViewDescription {
+            pseudo_marginal_ray: self.pseudo_marginal_ray.clone(),
+            reverse_parallel_ray: self.reverse_parallel_ray.clone(),
+            aperture_stop: self.aperture_stop.get().cloned(),
+            entrance_pupil: self.entrance_pupil.get().cloned(),
+            marginal_ray: self.marginal_ray.get().cloned(),
         }
     }
 
@@ -244,7 +258,7 @@ impl ParaxialSubView {
     }
 
     /// Compute the pseudo-marginal ray.
-    pub fn calc_pseudo_marginal_ray(
+    fn calc_pseudo_marginal_ray(
         sequential_sub_model: &SequentialSubModel,
         surfaces: &[Surface],
         axis: Axis,
@@ -261,7 +275,7 @@ impl ParaxialSubView {
     }
 
     /// Compute the reverse parallel ray.
-    pub fn calc_reverse_parallel_ray(
+    fn calc_reverse_parallel_ray(
         sequential_sub_model: &SequentialSubModel,
         surfaces: &[Surface],
         axis: Axis,
@@ -380,7 +394,6 @@ mod test {
 
     use crate::core::sequential_model::SubModelID;
     use crate::examples::convexplano_lens;
-    use crate::systems::System;
 
     use super::*;
 
@@ -421,25 +434,24 @@ mod test {
         assert!(z_intercepts.is_err());
     }
 
-    fn setup() -> (ParaxialSubView, System) {
-        let system = convexplano_lens::system();
-        let seq_sub_model = system
-            .sequential_model()
+    fn setup() -> (ParaxialSubView, SequentialModel) {
+        let sequential_model = convexplano_lens::sequential_model();
+        let seq_sub_model = sequential_model
             .submodels()
             .get(&SubModelID(Some(0usize), Axis::Y))
             .expect("Submodel not found.");
 
         (
-            ParaxialSubView::new(seq_sub_model, system.sequential_model().surfaces(), Axis::Y),
-            system,
+            ParaxialSubView::new(seq_sub_model, sequential_model.surfaces(), Axis::Y),
+            sequential_model,
         )
     }
 
     #[test]
     fn test_aperture_stop() {
-        let (view, system) = setup();
+        let (view, sequential_model) = setup();
 
-        let aperture_stop = view.aperture_stop(system.sequential_model().surfaces());
+        let aperture_stop = view.aperture_stop(sequential_model.surfaces());
         let expected = 1;
 
         assert_eq!(*aperture_stop, expected);
@@ -447,16 +459,15 @@ mod test {
 
     #[test]
     fn test_entrance_pupil() {
-        let (view, system) = setup();
+        let (view, sequential_model) = setup();
 
         let entrance_pupil = view
             .entrance_pupil(
-                system
-                    .sequential_model()
+                sequential_model
                     .submodels()
                     .get(&SubModelID(Some(0usize), Axis::Y))
                     .unwrap(),
-                system.sequential_model().surfaces(),
+                sequential_model.surfaces(),
                 Axis::Y,
                 false,
             )
@@ -476,9 +487,9 @@ mod test {
 
     #[test]
     fn test_marginal_ray() {
-        let (view, system) = setup();
+        let (view, sequential_model) = setup();
 
-        let marginal_ray = view.marginal_ray(system.sequential_model().surfaces());
+        let marginal_ray = view.marginal_ray(sequential_model.surfaces());
         let expected = arr3(&[
             [[12.5000], [0.0]],
             [[12.5000], [-0.1647]],
@@ -491,15 +502,14 @@ mod test {
 
     #[test]
     fn test_pseudo_marginal_ray() {
-        let system = convexplano_lens::system();
-        let seq_sub_model = system
-            .sequential_model()
+        let sequential_model = convexplano_lens::sequential_model();
+        let seq_sub_model = sequential_model
             .submodels()
             .get(&SubModelID(Some(0usize), Axis::Y))
             .expect("Submodel not found.");
         let pseudo_marginal_ray = ParaxialSubView::calc_pseudo_marginal_ray(
             &seq_sub_model,
-            system.sequential_model().surfaces(),
+            sequential_model.surfaces(),
             Axis::Y,
         );
 
@@ -515,15 +525,14 @@ mod test {
 
     #[test]
     fn test_reverse_parallel_ray() {
-        let system = convexplano_lens::system();
-        let seq_sub_model = system
-            .sequential_model()
+        let sequential_model = convexplano_lens::sequential_model();
+        let seq_sub_model = sequential_model
             .submodels()
             .get(&SubModelID(Some(0usize), Axis::Y))
             .expect("Submodel not found.");
         let reverse_parallel_ray = ParaxialSubView::calc_reverse_parallel_ray(
             &seq_sub_model,
-            system.sequential_model().surfaces(),
+            sequential_model.surfaces(),
             Axis::Y,
         );
 
