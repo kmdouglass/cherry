@@ -457,6 +457,17 @@ impl Surface {
         }
     }
 
+    /// Determines whether a transverse point is outside the clear aperture of
+    /// the surface.
+    ///
+    /// The axial z-position is ignored.
+    pub(crate) fn outside_clear_aperture(&self, pos: Vec3) -> bool {
+        let r_transv = pos.x() * pos.x() + pos.y() * pos.y();
+        let r_max = self.semi_diameter();
+
+        r_transv > r_max * r_max
+    }
+
     pub(crate) fn roc(&self, axis: Axis) -> Float {
         match axis {
             Axis::X => self.rocx(),
