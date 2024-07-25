@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     core::{
         argmin,
+        math::vec3::Vec3,
         sequential_model::{Axis, SequentialModel, SequentialSubModel, Step, SubModelID, Surface},
         Float,
     },
@@ -48,6 +49,9 @@ pub struct ParaxialViewDescription {
 
 #[derive(Debug)]
 pub struct ParaxialSubView {
+    axis: Axis, /* Eases method calls that require the axis, even though it is stored in the
+                 * SubModelID. */
+    is_obj_space_telecentric: bool,
     pseudo_marginal_ray: ParaxialRayTraceResults,
     reverse_parallel_ray: ParaxialRayTraceResults,
 
@@ -102,14 +106,17 @@ fn z_intercepts(rays: ParaxialRaysView) -> Result<Array1<Float>> {
 }
 
 impl ParaxialView {
-    pub fn new(sequential_model: &SequentialModel) -> Self {
+    pub fn new(sequential_model: &SequentialModel, is_obj_space_telecentric: bool) -> Self {
         let subviews = sequential_model
             .submodels()
             .iter()
             .map(|(id, submodel)| {
                 let surfaces = sequential_model.surfaces();
                 let axis = id.1;
-                (*id, ParaxialSubView::new(submodel, surfaces, axis))
+                (
+                    *id,
+                    ParaxialSubView::new(submodel, surfaces, axis, is_obj_space_telecentric),
+                )
             })
             .collect();
 
@@ -129,13 +136,20 @@ impl ParaxialView {
 
 impl ParaxialSubView {
     /// Create a new paraxial view of an optical system.
-    fn new(sequential_sub_model: &SequentialSubModel, surfaces: &[Surface], axis: Axis) -> Self {
+    fn new(
+        sequential_sub_model: &SequentialSubModel,
+        surfaces: &[Surface],
+        axis: Axis,
+        is_obj_space_telecentric: bool,
+    ) -> Self {
         let pseudo_marginal_ray =
             Self::calc_pseudo_marginal_ray(sequential_sub_model, surfaces, axis);
         let reverse_parallel_ray =
             Self::calc_reverse_parallel_ray(sequential_sub_model, surfaces, axis);
 
         Self {
+            axis: axis,
+            is_obj_space_telecentric: is_obj_space_telecentric,
             pseudo_marginal_ray: pseudo_marginal_ray,
             reverse_parallel_ray: reverse_parallel_ray,
 
@@ -177,11 +191,9 @@ impl ParaxialSubView {
         &self,
         sequential_sub_model: &SequentialSubModel,
         surfaces: &[Surface],
-        axis: Axis,
-        is_obj_space_telecentric: bool,
     ) -> Result<&Pupil> {
         // In case the object space is telecentric, the entrance pupil is at infinity.
-        if is_obj_space_telecentric {
+        if self.is_obj_space_telecentric {
             return Ok(self.entrance_pupil.get_or_init(|| Pupil {
                 location: Float::INFINITY,
                 semi_diameter: Float::NAN,
@@ -204,7 +216,7 @@ impl ParaxialSubView {
             ray,
             sequential_sub_model,
             &surfaces[..aperture_stop - 1],
-            axis,
+            self.axis,
             true,
         );
         let location = z_intercepts(results.slice(s![-1, .., ..]))?[0];
@@ -350,6 +362,12 @@ impl ParaxialSubView {
     }
 }
 
+impl Pupil {
+    pub fn pos(&self) -> Vec3 {
+        Vec3::new(0.0, 0.0, self.location)
+    }
+}
+
 /// Compute the ray transfer matrix for propagation to and interaction with a
 /// surface.
 fn surface_to_rtm(
@@ -436,7 +454,7 @@ mod test {
             .expect("Submodel not found.");
 
         (
-            ParaxialSubView::new(seq_sub_model, sequential_model.surfaces(), Axis::Y),
+            ParaxialSubView::new(seq_sub_model, sequential_model.surfaces(), Axis::Y, false),
             sequential_model,
         )
     }
@@ -462,8 +480,6 @@ mod test {
                     .get(&SubModelID(Some(0usize), Axis::Y))
                     .unwrap(),
                 sequential_model.surfaces(),
-                Axis::Y,
-                false,
             )
             .unwrap();
         let expected = Pupil {

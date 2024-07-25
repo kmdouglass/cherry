@@ -3,6 +3,8 @@ use anyhow::Result;
 use super::rays::Ray;
 use crate::core::sequential_model::SequentialSubModelIter;
 
+pub type TraceResults = Vec<Vec<Result<Ray>>>;
+
 /// Trace a set of rays through a system using the technique of Spencer and
 /// Murty, JOSA (1962).
 ///
