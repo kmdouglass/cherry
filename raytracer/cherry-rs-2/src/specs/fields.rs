@@ -18,7 +18,7 @@ pub enum PupilSampling {
 }
 
 /// Specifies an object field.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum FieldSpec {
     /// The angle the field makes with the optical axis, in degrees.
     Angle {

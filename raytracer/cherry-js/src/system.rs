@@ -1,13 +1,20 @@
+use std::collections::HashMap;
+
 use anyhow::{anyhow, Result};
 
 use cherry_rs_2::{
-    ApertureSpec, FieldSpec, GapSpec, ParaxialView, RayTrace3DView, SequentialModel, SurfaceSpec,
+    ray_trace_3d_view, ApertureSpec, FieldSpec, GapSpec, ParaxialView, SequentialModel, SubModelID,
+    SurfaceSpec, TraceResults,
 };
 
 #[derive(Debug)]
 pub struct System {
+    sequential_model: SequentialModel,
     paraxial_view: ParaxialView,
-    ray_trace_3d_view: RayTrace3DView,
+
+    // Cache specs for calculations later
+    aperture_spec: ApertureSpec,
+    field_specs: Vec<FieldSpec>,
 }
 
 #[derive(Debug)]
@@ -27,19 +34,25 @@ impl System {
         surface_specs: &[SurfaceSpec],
         wavelengths: &[f64],
     ) -> Result<Self> {
-        let sequential_model = SequentialModel::new(
-            gap_specs,
-            surface_specs,
-            wavelengths,
-        )?;
+        let sequential_model = SequentialModel::new(gap_specs, surface_specs, wavelengths)?;
 
         let paraxial_view = ParaxialView::new(&sequential_model, false);
-        let ray_trace_3d_view = RayTrace3DView::new(aperture_spec, field_specs, &sequential_model, &paraxial_view);
-        
+
         Ok(Self {
+            sequential_model,
             paraxial_view,
-            ray_trace_3d_view,
+            aperture_spec: aperture_spec.clone(),
+            field_specs: field_specs.to_vec(),
         })
+    }
+
+    pub fn trace(&self) -> HashMap<SubModelID, TraceResults> {
+        ray_trace_3d_view(
+            &self.aperture_spec,
+            &self.field_specs,
+            &self.sequential_model,
+            &self.paraxial_view,
+        )
     }
 }
 

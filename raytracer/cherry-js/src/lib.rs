@@ -1,15 +1,17 @@
+use std::collections::HashMap;
 use std::f32::consts::PI;
 
 use anyhow::anyhow;
 use wasm_bindgen::prelude::*;
 
 use cherry_rs::description::SystemDescription;
-use cherry_rs::rays::Ray;
+use cherry_rs::rays::Ray as RayOld;
 use cherry_rs::surface_model::SurfaceModel;
 use cherry_rs::trace::trace;
 use cherry_rs::{
     ApertureSpec as ApertureSpecOld, FieldSpec as FieldSpecOld, Gap as GapSpecOld,
-    PupilSampling as PupilSamplingOld, SurfaceSpec as SurfaceSpecOld, SystemBuilder as SystemBuilderOld, SystemModel,
+    PupilSampling as PupilSamplingOld, SurfaceSpec as SurfaceSpecOld,
+    SystemBuilder as SystemBuilderOld, SystemModel,
 };
 
 #[wasm_bindgen]
@@ -123,7 +125,7 @@ impl WasmSystemModel {
             .map_err(|e| JsError::new(&e.to_string()))?;
 
         let results = trace(&surf_model.surfaces(), rays);
-        let sanitized: Vec<Vec<Option<Ray>>> = WasmSystemModel::sanitize(results);
+        let sanitized: Vec<Vec<Option<RayOld>>> = WasmSystemModel::sanitize(results);
 
         Ok(serde_wasm_bindgen::to_value(&sanitized)?)
     }
@@ -142,15 +144,15 @@ impl WasmSystemModel {
             .rays(None)
             .map_err(|e| JsError::new(&e.to_string()))?;
 
-        let results: Vec<Vec<Result<Ray, anyhow::Error>>> = trace(&surf_model.surfaces(), rays);
-        let sanitized: Vec<Vec<Option<Ray>>> = WasmSystemModel::sanitize(results);
+        let results: Vec<Vec<Result<RayOld, anyhow::Error>>> = trace(&surf_model.surfaces(), rays);
+        let sanitized: Vec<Vec<Option<RayOld>>> = WasmSystemModel::sanitize(results);
 
         Ok(serde_wasm_bindgen::to_value(&sanitized)?)
     }
 
     // Loop over results and remove rays that did not result in an Error
     #[inline]
-    fn sanitize(results: Vec<Vec<Result<Ray, anyhow::Error>>>) -> Vec<Vec<Option<Ray>>> {
+    fn sanitize(results: Vec<Vec<Result<RayOld, anyhow::Error>>>) -> Vec<Vec<Option<RayOld>>> {
         results
             .iter()
             .map(|surf_results| {
@@ -179,7 +181,7 @@ impl WasmSystemModel {
 //-------------------------------------------------------------------------
 mod system;
 
-use cherry_rs_2::{ApertureSpec, FieldSpec, GapSpec, PupilSampling, SurfaceSpec};
+use cherry_rs_2::{ApertureSpec, FieldSpec, GapSpec, PupilSampling, Ray, SurfaceSpec};
 
 use system::{System, SystemBuilder};
 
@@ -272,18 +274,21 @@ impl OpticalSystem {
     //     Ok(serde_wasm_bindgen::to_value(&sanitized)?)
     // }
 
-    // pub fn trace(&self) -> Result<JsValue, JsError> {
-    //     let system_model = match self.system_model {
-    //         Some(ref model) => model,
-    //         None => return Err(JsError::new("System model is not built")),
-    //     };
+    pub fn trace(&self) -> Result<JsValue, JsError> {
+        let system_model = match self.system_model {
+            Some(ref model) => model,
+            None => return Err(JsError::new("System model is not built")),
+        };
 
-    //     /// TODO: How to deal with multiple wavelengths?
-    //     let results: Vec<Vec<Result<Ray, anyhow::Error>>> = system_model.;
-    //     let sanitized: Vec<Vec<Option<Ray>>> = WasmSystemModel::sanitize(results);
+        let mut results = HashMap::new();
+        let raw_results = system_model.trace();
+        for (id, trace_results) in raw_results {
+            let sanitized = Self::sanitize(trace_results);
+            results.insert(id, sanitized);
+        }
 
-    //     Ok(serde_wasm_bindgen::to_value(&sanitized)?)
-    // }
+        Ok(serde_wasm_bindgen::to_value(&results)?)
+    }
 
     // Loop over results and remove rays that did not result in an Error
     #[inline]
