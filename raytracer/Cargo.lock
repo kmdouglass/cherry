@@ -172,6 +172,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "cherry-rs",
+ "cherry-rs-2",
  "serde-wasm-bindgen",
  "wasm-bindgen",
  "wasm-bindgen-cli",

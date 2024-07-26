@@ -165,11 +165,11 @@ impl Gap {
 impl SequentialModel {
     /// Creates a new sequential model of an optical system.
     pub fn new(
-        gap_specs: Vec<GapSpec>,
-        surface_specs: Vec<SurfaceSpec>,
-        wavelengths: Vec<Float>,
+        gap_specs: &[GapSpec],
+        surface_specs: &[SurfaceSpec],
+        wavelengths: &[Float],
     ) -> Result<Self> {
-        Self::validate_specs(&gap_specs, &surface_specs, &wavelengths)?;
+        Self::validate_specs(gap_specs, surface_specs, wavelengths)?;
 
         let surfaces = Self::surf_specs_to_surfs(&surface_specs, &gap_specs);
 
@@ -223,7 +223,7 @@ impl SequentialModel {
         ids
     }
 
-    fn gap_specs_to_gaps(gap_specs: &Vec<GapSpec>, wavelength: Option<Float>) -> Result<Vec<Gap>> {
+    fn gap_specs_to_gaps(gap_specs: &[GapSpec], wavelength: Option<Float>) -> Result<Vec<Gap>> {
         let mut gaps = Vec::new();
         for gap_spec in gap_specs.iter() {
             let gap = Gap::try_from_spec(gap_spec, wavelength)?;
@@ -242,8 +242,8 @@ impl SequentialModel {
     }
 
     fn surf_specs_to_surfs(
-        surf_specs: &Vec<SurfaceSpec>,
-        gap_specs: &Vec<GapSpec>,
+        surf_specs: &[SurfaceSpec],
+        gap_specs: &[GapSpec],
     ) -> Vec<Surface> {
         let mut surfaces = Vec::new();
 
@@ -275,7 +275,7 @@ impl SequentialModel {
         surfaces
     }
 
-    fn validate_gaps(gaps: &Vec<GapSpec>, wavelengths: &Vec<Float>) -> Result<()> {
+    fn validate_gaps(gaps: &[GapSpec], wavelengths: &[Float]) -> Result<()> {
         if gaps.is_empty() {
             return Err(anyhow!("The system must have at least one gap."));
         }
@@ -295,9 +295,9 @@ impl SequentialModel {
     }
 
     fn validate_specs(
-        gaps: &Vec<GapSpec>,
-        surfaces: &Vec<SurfaceSpec>,
-        wavelengths: &Vec<Float>,
+        gaps: &[GapSpec],
+        surfaces: &[SurfaceSpec],
+        wavelengths: &[Float],
     ) -> Result<()> {
         Self::validate_gaps(gaps, wavelengths)?;
         Ok(())

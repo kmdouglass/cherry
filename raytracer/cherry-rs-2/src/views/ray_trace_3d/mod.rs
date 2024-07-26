@@ -21,13 +21,10 @@ use crate::{
 use rays::Ray;
 use trace::{trace, TraceResults};
 
-use super::paraxial::{self, ParaxialSubView, ParaxialView};
+use super::paraxial::{ParaxialSubView, ParaxialView};
 
 #[derive(Debug)]
 pub struct RayTrace3DView {
-    aperture_spec: ApertureSpec,
-    fields: Vec<FieldSpec>,
-
     subviews: HashMap<SubModelID, RayTrace3DSubView>,
 }
 
@@ -38,10 +35,10 @@ pub struct RayTrace3DSubView {
 
 impl RayTrace3DView {
     pub fn new(
-        aperture_spec: ApertureSpec,
-        field_specs: Vec<FieldSpec>,
+        aperture_spec: &ApertureSpec,
+        field_specs: &[FieldSpec],
         sequential_model: &SequentialModel,
-        paraxial_view: ParaxialView,
+        paraxial_view: &ParaxialView,
     ) -> Self {
         let subviews = sequential_model
             .submodels()
@@ -63,9 +60,6 @@ impl RayTrace3DView {
             .collect();
 
         Self {
-            aperture_spec,
-            fields: field_specs,
-
             subviews,
         }
     }
@@ -93,6 +87,10 @@ impl RayTrace3DSubView {
         let results = trace(&mut sequential_sub_model_iter, rays);
 
         Self { results }
+    }
+
+    pub fn results(&self) -> &TraceResults {
+        &self.results
     }
 
     /// Returns the rays to trace through the system as defined by the fields.

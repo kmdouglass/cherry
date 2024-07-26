@@ -47,7 +47,7 @@ pub fn sequential_model() -> SequentialModel {
 
     let wavelengths: Vec<f64> = vec![0.567];
 
-    SequentialModel::new(gaps, surfaces, wavelengths).unwrap()
+    SequentialModel::new(&gaps, &surfaces, &wavelengths).unwrap()
 }
 
 // Paraxial View values
