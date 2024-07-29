@@ -199,6 +199,22 @@ impl SequentialModel {
         &self.submodels
     }
 
+    /// Returns the largest semi-diameter of any surface in the system.
+    ///
+    /// This ignores surfaces without any size, such as object, probe, and image
+    /// surfaces.
+    pub fn largest_semi_diameter(&self) -> Float {
+        self.surfaces
+            .iter()
+            .filter_map(|surf| match surf {
+                Surface::Conic(conic) => Some(conic.semi_diameter),
+                Surface::Toric(toric) => Some(toric.semi_diameter),
+                Surface::Stop(stop) => Some(stop.semi_diameter),
+                _ => None,
+            })
+            .fold(0.0, |acc, x| acc.max(x))
+    }
+
     /// Computes the unique IDs for each paraxial model.
     fn calc_model_ids(surfaces: &[Surface], wavelengths: &[Float]) -> Vec<SubModelID> {
         let mut ids = Vec::new();
