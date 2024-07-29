@@ -211,7 +211,6 @@ impl OpticalSystem {
             None => return Err(JsError::new("System model is not built")),
         };
 
-
         let descr = system_model.describe();
         let descr = serde_wasm_bindgen::to_value(&descr)?;
 
