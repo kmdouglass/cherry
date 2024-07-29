@@ -180,7 +180,7 @@ impl WasmSystemModel {
 //-------------------------------------------------------------------------
 mod system;
 
-use cherry_rs_2::{ApertureSpec, FieldSpec, GapSpec, PupilSampling, Ray, SurfaceSpec};
+use cherry_rs_2::{ApertureSpec, FieldSpec, GapSpec, Ray, SurfaceSpec};
 
 use system::{System, SystemBuilder};
 
@@ -242,6 +242,12 @@ impl OpticalSystem {
         Ok(())
     }
 
+    pub fn setWaveLengths(&mut self, wavelengths: JsValue) -> Result<(), JsError> {
+        let wavelengths: Vec<f64> = serde_wasm_bindgen::from_value(wavelengths)?;
+        self.builder.wavelengths(wavelengths);
+        Ok(())
+    }
+
     /// Build the system from the builder's components.
     ///
     /// We don't return the new system model to JS because it would be removed from Rust's memory
@@ -262,7 +268,7 @@ impl OpticalSystem {
         };
 
         let mut results = HashMap::new();
-        let raw_results = system_model.trace();
+        let raw_results = system_model.trace_chief_and_marginal_rays();
         for (id, trace_results) in raw_results {
             let sanitized = Self::sanitize(trace_results);
             results.insert(id, sanitized);

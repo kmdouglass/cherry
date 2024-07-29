@@ -6,7 +6,7 @@ use crate::{
 };
 
 pub fn cutaway_view(
-    sequential_model: SequentialModel,
+    sequential_model: &SequentialModel,
     num_samples_per_surface: usize,
 ) -> HashMap<usize, Vec<Vec3>> {
     let largest_semi_diameter = sequential_model.largest_semi_diameter();

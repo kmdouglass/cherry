@@ -3,9 +3,9 @@ use std::collections::{HashMap, HashSet};
 use anyhow::{anyhow, Result};
 use serde::Serialize;
 
-use cherry_rs_2::{components_view,
+use cherry_rs_2::{components_view, cutaway_view,
     ray_trace_3d_view, ApertureSpec, Component, FieldSpec, GapSpec, ParaxialView, ParaxialViewDescription, PupilSampling, RefractiveIndexSpec, SequentialModel, SubModelID,
-    SurfaceSpec, TraceResults,
+    SurfaceSpec, TraceResults, Vec3,
 };
 
 const BACKGROUND_REFRACTIVE_INDEX: f64 = 1.0;
@@ -14,6 +14,7 @@ const BACKGROUND_REFRACTIVE_INDEX: f64 = 1.0;
 pub struct System {
     sequential_model: SequentialModel,
     components_view: HashSet<Component>,
+    cutaway_view: HashMap<usize, Vec<Vec3>>,
     paraxial_view: ParaxialView,
 
     // Cache specs for calculations later
@@ -33,6 +34,7 @@ pub struct SystemBuilder {
 #[derive(Debug, Serialize)]
 pub struct SystemDescription {
     pub components_view: HashSet<Component>,
+    pub cutaway_view: HashMap<usize, Vec<Vec3>>,
     pub paraxial_view: ParaxialViewDescription,
 }
 
@@ -47,11 +49,13 @@ impl System {
         let sequential_model = SequentialModel::new(gap_specs, surface_specs, wavelengths)?;
 
         let components_view = components_view(&sequential_model, RefractiveIndexSpec::from_real_refractive_index(BACKGROUND_REFRACTIVE_INDEX))?;
+        let cutaway_view = cutaway_view(&sequential_model, 20);
         let paraxial_view = ParaxialView::new(&sequential_model, false);
 
         Ok(Self {
             sequential_model,
             components_view,
+            cutaway_view,
             paraxial_view,
             aperture_spec: aperture_spec.clone(),
             field_specs: field_specs.to_vec(),
@@ -61,6 +65,7 @@ impl System {
     pub fn describe(&self) -> SystemDescription {
         SystemDescription {
             components_view: self.components_view.clone(),
+            cutaway_view: self.cutaway_view.clone(),
             paraxial_view: self.paraxial_view.describe(),
         }
     }
