@@ -42,7 +42,7 @@ pub struct ParaxialView {
     pub subviews: HashMap<SubModelID, ParaxialSubView>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize)]
 pub struct ParaxialViewDescription {
     subviews: HashMap<SubModelID, ParaxialSubViewDescription>,
 }
@@ -61,7 +61,7 @@ pub struct ParaxialSubView {
 }
 
 /// A paraxial description of an optical system.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize)]
 pub struct ParaxialSubViewDescription {
     pseudo_marginal_ray: ParaxialRayTraceResults,
     reverse_parallel_ray: ParaxialRayTraceResults,
@@ -123,7 +123,7 @@ impl ParaxialView {
         Self { subviews }
     }
 
-    pub fn describe(&self) -> impl Serialize {
+    pub fn describe(&self) -> ParaxialViewDescription {
         ParaxialViewDescription {
             subviews: self
                 .subviews

@@ -13,6 +13,6 @@ pub use specs::{
     surfaces::SurfaceType,
 };
 pub use views::{
-    paraxial::{ParaxialView, Pupil},
+    paraxial::{ParaxialSubViewDescription, ParaxialView, ParaxialViewDescription, Pupil},
     ray_trace_3d::{ray_trace_3d_view, Ray, TraceResults},
 };

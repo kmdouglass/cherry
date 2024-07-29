@@ -77,7 +77,7 @@ impl RefractiveIndex {
         self.eta.imag
     }
 
-    /// Creates a Gap instance from a GapSpec.
+    /// Creates a RefractiveIndex instance from a RefractiveIndexSpec.
     ///
     /// A wavelength is required to compute the refractive index from the spec
     /// if the refractive index is specified as a function of wavelength.

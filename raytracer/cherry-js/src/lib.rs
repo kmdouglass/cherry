@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::f32::consts::PI;
 
 use anyhow::anyhow;
 use wasm_bindgen::prelude::*;
@@ -206,16 +205,18 @@ impl OpticalSystem {
         }
     }
 
-    // pub fn describe(&self) -> Result<JsValue, JsError> {
-    //     let system_model = match self.system_model {
-    //         Some(ref model) => model,
-    //         None => return Err(JsError::new("System model is not built")),
-    //     };
-    //     let descr = SystemDescription::new(&system_model);
-    //     let descr = serde_wasm_bindgen::to_value(&descr)?;
+    pub fn describe(&self) -> Result<JsValue, JsError> {
+        let system_model = match self.system_model {
+            Some(ref model) => model,
+            None => return Err(JsError::new("System model is not built")),
+        };
 
-    //     Ok(descr)
-    // }
+
+        let descr = system_model.describe();
+        let descr = serde_wasm_bindgen::to_value(&descr)?;
+
+        Ok(descr)
+    }
 
     pub fn setSurfaces(&mut self, surfaces: JsValue) -> Result<(), JsError> {
         let surfaces: Vec<SurfaceSpec> = serde_wasm_bindgen::from_value(surfaces)?;

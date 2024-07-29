@@ -1,9 +1,10 @@
 use std::collections::HashMap;
 
 use anyhow::{anyhow, Result};
+use serde::Serialize;
 
 use cherry_rs_2::{
-    ray_trace_3d_view, ApertureSpec, FieldSpec, GapSpec, ParaxialView, PupilSampling, SequentialModel, SubModelID,
+    ray_trace_3d_view, ApertureSpec, FieldSpec, GapSpec, ParaxialView, ParaxialViewDescription, PupilSampling, SequentialModel, SubModelID,
     SurfaceSpec, TraceResults,
 };
 
@@ -26,6 +27,11 @@ pub struct SystemBuilder {
     wavelengths: Vec<f64>,
 }
 
+#[derive(Debug, Serialize)]
+pub struct SystemDescription {
+    pub paraxial_view: ParaxialViewDescription,
+}
+
 impl System {
     fn new(
         aperture_spec: &ApertureSpec,
@@ -44,6 +50,12 @@ impl System {
             aperture_spec: aperture_spec.clone(),
             field_specs: field_specs.to_vec(),
         })
+    }
+
+    pub fn describe(&self) -> SystemDescription {
+        SystemDescription {
+            paraxial_view: self.paraxial_view.describe(),
+        }
     }
 
     pub fn trace(&self) -> HashMap<SubModelID, TraceResults> {

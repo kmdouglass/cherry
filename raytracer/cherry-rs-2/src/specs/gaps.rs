@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::core::Float;
+use crate::core::{Float, RefractiveIndex};
 
 /// Specifies a gap in a sequential optical system model.
 #[derive(Serialize, Deserialize, Debug)]
@@ -66,6 +66,19 @@ pub enum RealSpec {
 pub enum ImagSpec {
     Constant(Float),
     TabulatedK { data: Vec<[Float; 2]> },
+}
+
+impl GapSpec {
+    pub(crate) fn from_thickness_and_real_refractive_index(thickness: Float, n: Float) -> Self {
+        let refractive_index = RefractiveIndexSpec {
+            real: RealSpec::Constant(n),
+            imag: None,
+        };
+        Self {
+            thickness,
+            refractive_index,
+        }
+    }
 }
 
 impl RefractiveIndexSpec {
