@@ -241,10 +241,7 @@ impl SequentialModel {
             .any(|surf| matches!(surf, Surface::Toric(_)))
     }
 
-    fn surf_specs_to_surfs(
-        surf_specs: &[SurfaceSpec],
-        gap_specs: &[GapSpec],
-    ) -> Vec<Surface> {
+    fn surf_specs_to_surfs(surf_specs: &[SurfaceSpec], gap_specs: &[GapSpec]) -> Vec<Surface> {
         let mut surfaces = Vec::new();
 
         // The first surface is an object surface.

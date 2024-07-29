@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use anyhow::{anyhow, Result};
 
 use cherry_rs_2::{
-    ray_trace_3d_view, ApertureSpec, FieldSpec, GapSpec, ParaxialView, SequentialModel, SubModelID,
+    ray_trace_3d_view, ApertureSpec, FieldSpec, GapSpec, ParaxialView, PupilSampling, SequentialModel, SubModelID,
     SurfaceSpec, TraceResults,
 };
 
@@ -52,6 +52,17 @@ impl System {
             &self.field_specs,
             &self.sequential_model,
             &self.paraxial_view,
+            None,
+        )
+    }
+
+    pub fn trace_chief_and_marginal_rays(&self) -> HashMap<SubModelID, TraceResults> {
+        ray_trace_3d_view(
+            &self.aperture_spec,
+            &self.field_specs,
+            &self.sequential_model,
+            &self.paraxial_view,
+            Some(PupilSampling::ChiefAndMarginalRays),
         )
     }
 }

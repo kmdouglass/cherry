@@ -14,7 +14,7 @@ pub enum PupilSampling {
     SquareGrid { spacing: Float },
 
     /// The chief and marginal rays.
-    ChiefMarginalRays,
+    ChiefAndMarginalRays,
 }
 
 /// Specifies an object field.

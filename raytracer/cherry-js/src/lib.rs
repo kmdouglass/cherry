@@ -254,25 +254,21 @@ impl OpticalSystem {
         Ok(())
     }
 
-    // pub fn traceChiefAndMarginalRays(&self) -> Result<JsValue, JsError> {
-    //     let system_model = match self.system_model {
-    //         Some(ref model) => model,
-    //         None => return Err(JsError::new("System model is not built")),
-    //     };
+    pub fn traceChiefAndMarginalRays(&self) -> Result<JsValue, JsError> {
+        let system_model = match self.system_model {
+            Some(ref model) => model,
+            None => return Err(JsError::new("System model is not built")),
+        };
 
-    //     let surf_model = self
-    //         .surf_model()
-    //         .map_err(|e| JsError::new(&e.to_string()))?;
+        let mut results = HashMap::new();
+        let raw_results = system_model.trace();
+        for (id, trace_results) in raw_results {
+            let sanitized = Self::sanitize(trace_results);
+            results.insert(id, sanitized);
+        }
 
-    //     let rays = system_model
-    //         .rays(Some(PupilSampling::ChiefMarginalRays))
-    //         .map_err(|e| JsError::new(&e.to_string()))?;
-
-    //     let results = trace(&surf_model.surfaces(), rays);
-    //     let sanitized: Vec<Vec<Option<Ray>>> = OpticalSystem::sanitize(results);
-
-    //     Ok(serde_wasm_bindgen::to_value(&sanitized)?)
-    // }
+        Ok(serde_wasm_bindgen::to_value(&results)?)
+    }
 
     pub fn trace(&self) -> Result<JsValue, JsError> {
         let system_model = match self.system_model {

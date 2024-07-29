@@ -25,12 +25,12 @@ pub use trace::TraceResults;
 
 use super::paraxial::{ParaxialSubView, ParaxialView};
 
-
 pub fn ray_trace_3d_view(
     aperture_spec: &ApertureSpec,
     field_specs: &[FieldSpec],
     sequential_model: &SequentialModel,
     paraxial_view: &ParaxialView,
+    pupil_sampling: Option<PupilSampling>,
 ) -> HashMap<SubModelID, TraceResults> {
     let results = sequential_model
         .submodels()
@@ -46,6 +46,7 @@ pub fn ray_trace_3d_view(
                     submodel,
                     surfaces,
                     paraxial_sub_view,
+                    pupil_sampling,
                 ),
             )
         })
@@ -54,13 +55,13 @@ pub fn ray_trace_3d_view(
     results
 }
 
-
 fn ray_trace_sub_model(
     aperture_spec: &ApertureSpec,
     field_specs: &[FieldSpec],
     sequential_sub_model: &SequentialSubModel,
     surfaces: &[Surface],
     paraxial_sub_view: &ParaxialSubView,
+    pupil_sampling: Option<PupilSampling>,
 ) -> TraceResults {
     let rays = rays(
         aperture_spec,
@@ -68,7 +69,7 @@ fn ray_trace_sub_model(
         surfaces,
         paraxial_sub_view,
         field_specs,
-        None,
+        pupil_sampling,
     )
     .unwrap();
 
@@ -80,8 +81,8 @@ fn ray_trace_sub_model(
 ///
 /// # Arguments
 ///
-/// * `sampling` - The pupil sampling method. This will override the
-///   sampling method specified
+/// * `sampling` - The pupil sampling method. This will override the sampling
+///   method specified
 ///  in the field specs for every field if provided.
 fn rays(
     aperture_spec: &ApertureSpec,
@@ -116,7 +117,7 @@ fn rays(
                         angle,
                         field_id,
                     )?,
-                    PupilSampling::ChiefMarginalRays => {
+                    PupilSampling::ChiefAndMarginalRays => {
                         // 3 rays -> two diametrically-opposed marginal rays at the pupil edge
                         // and a chief ray in the center
                         pupil_ray_fan(
@@ -195,9 +196,9 @@ fn pupil_ray_fan(
 /// # Arguments
 ///
 /// * `spacing` - The spacing between rays in the grid in normalized pupil
-///   distances, i.e. [0, 1]. A spacing of 1.0 means that one ray will lie
-///   at the pupil center (the chief ray) and the others will lie at the
-///   pupil edge (marginal rays).
+///   distances, i.e. [0, 1]. A spacing of 1.0 means that one ray will lie at
+///   the pupil center (the chief ray) and the others will lie at the pupil edge
+///   (marginal rays).
 /// * `phi` - The angle of the ray w.r.t. the z-axis in radians.
 /// * `field_id` - The field ID.
 fn pupil_ray_sq_grid(
