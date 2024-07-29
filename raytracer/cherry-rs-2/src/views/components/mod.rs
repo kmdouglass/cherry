@@ -1,10 +1,11 @@
 use std::collections::HashSet;
 
+use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 
 use crate::{
     core::{sequential_model::Surface, Float, RefractiveIndex},
-    SequentialModel,
+    RefractiveIndexSpec, SequentialModel,
 };
 
 mod test_cases;
@@ -21,16 +22,16 @@ const TOL: Float = 1e-6;
 /// To avoid copying data, only indexes are stored from the surface models are
 /// stored.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-enum Component {
+pub enum Component {
     Element { surf_idxs: (usize, usize) },
     Stop { stop_idx: usize },
     UnpairedSurface { surf_idx: usize },
 }
 
 pub fn components_view(
-    sequential_model: SequentialModel,
-    background: RefractiveIndex,
-) -> HashSet<Component> {
+    sequential_model: &SequentialModel,
+    background: RefractiveIndexSpec,
+) -> Result<HashSet<Component>> {
     let mut components = HashSet::new();
 
     let surfaces = sequential_model.surfaces();
@@ -39,12 +40,18 @@ pub fn components_view(
     let mut paired_surfaces = HashSet::new();
 
     // Ignore wavelengths and axes, just get any submodel for now
-    let sequential_sub_model = sequential_model.submodels().values().next().unwrap();
+    let sequential_sub_model = sequential_model
+        .submodels()
+        .values()
+        .next()
+        .ok_or(anyhow!("No submodels found in the sequential model."))?;
     let gaps = sequential_sub_model.gaps();
+
+    let background_refractive_index = RefractiveIndex::try_from_spec(&background, None)?;
 
     if max_idx < 2 {
         // There are no components because only the object and image plane exist.
-        return components;
+        return Ok(components);
     }
 
     while let Some((i, surf_pair)) = surface_pairs.next() {
@@ -64,7 +71,7 @@ pub fn components_view(
             continue;
         }
 
-        if same_medium(gaps[i].refractive_index, background) {
+        if same_medium(gaps[i].refractive_index, background_refractive_index) {
             // Don't include surface pairs that go from background to another medium because
             // these are gaps.
             continue;
@@ -85,7 +92,7 @@ pub fn components_view(
         paired_surfaces.insert(i + 1);
     }
 
-    components
+    Ok(components)
 }
 
 /// Two different media are considered the same if their refractive indices are
@@ -96,7 +103,7 @@ fn same_medium(eta_1: RefractiveIndex, eta_2: RefractiveIndex) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use crate::{core::RefractiveIndex, RefractiveIndexSpec};
+    use crate::RefractiveIndexSpec;
 
     use super::*;
 
@@ -113,9 +120,8 @@ mod tests {
     #[test]
     fn test_new_no_components() {
         let sequential_model = empty_system();
-        let background = RefractiveIndex::try_from_spec(&AIR, None).unwrap();
 
-        let components = components_view(sequential_model, background);
+        let components = components_view(&sequential_model, AIR).unwrap();
 
         assert_eq!(components.len(), 0);
     }
@@ -123,9 +129,8 @@ mod tests {
     #[test]
     fn test_planoconvex_lens() {
         let sequential_model = crate::examples::convexplano_lens::sequential_model();
-        let background = RefractiveIndex::try_from_spec(&AIR, None).unwrap();
 
-        let components = components_view(sequential_model, background);
+        let components = components_view(&sequential_model, AIR).unwrap();
 
         assert_eq!(components.len(), 1);
         assert!(components.contains(&Component::Element { surf_idxs: (1, 2) }));
@@ -136,10 +141,7 @@ mod tests {
         // This is not a useful system but a good test.
         let sequential_model = silly_single_surface_and_stop();
 
-        let components = components_view(
-            sequential_model,
-            RefractiveIndex::try_from_spec(&AIR, None).unwrap(),
-        );
+        let components = components_view(&sequential_model, AIR).unwrap();
 
         assert_eq!(components.len(), 1);
         assert!(components.contains(&Component::Stop { stop_idx: 2 })); // Hard stop
@@ -150,10 +152,7 @@ mod tests {
         // This is not a useful system but a good test.
         let sequential_model = silly_unpaired_surface();
 
-        let components = components_view(
-            sequential_model,
-            RefractiveIndex::try_from_spec(&AIR, None).unwrap(),
-        );
+        let components = components_view(&sequential_model, AIR).unwrap();
 
         assert_eq!(components.len(), 2);
         assert!(components.contains(&Component::Element { surf_idxs: (1, 2) }));
@@ -164,10 +163,7 @@ mod tests {
     fn test_wollaston_landscape_lens() {
         let sequential_model = wollaston_landscape_lens();
 
-        let components = components_view(
-            sequential_model,
-            RefractiveIndex::try_from_spec(&AIR, None).unwrap(),
-        );
+        let components = components_view(&sequential_model, AIR).unwrap();
 
         assert_eq!(components.len(), 2);
         assert!(components.contains(&Component::Stop { stop_idx: 1 })); // Hard stop

@@ -100,4 +100,11 @@ impl RefractiveIndexSpec {
 
         is_real_part_const && is_imag_part_const
     }
+
+    pub fn from_real_refractive_index(n: Float) -> Self {
+        Self {
+            real: RealSpec::Constant(n),
+            imag: None,
+        }
+    }
 }
