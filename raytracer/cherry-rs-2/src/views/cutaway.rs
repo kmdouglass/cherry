@@ -14,27 +14,26 @@ pub struct CutawayView {
     pub surface_types: HashMap<usize, String>,
 }
 
-pub fn cutaway_view(
-    sequential_model: &SequentialModel,
-    num_samples_per_surface: usize,
-) -> CutawayView {
-    let largest_semi_diameter = sequential_model.largest_semi_diameter();
+impl CutawayView {
+    pub fn new(sequential_model: &SequentialModel, num_samples_per_surface: usize) -> CutawayView {
+        let largest_semi_diameter = sequential_model.largest_semi_diameter();
 
-    let mut path_samples = HashMap::new();
-    let mut semi_diameters = HashMap::new();
-    let mut surface_types = HashMap::new();
-    for (i, surface) in sequential_model.surfaces().iter().enumerate() {
-        let samples = surface.sample_yz(num_samples_per_surface, largest_semi_diameter);
-        path_samples.insert(i, samples);
+        let mut path_samples = HashMap::new();
+        let mut semi_diameters = HashMap::new();
+        let mut surface_types = HashMap::new();
+        for (i, surface) in sequential_model.surfaces().iter().enumerate() {
+            let samples = surface.sample_yz(num_samples_per_surface, largest_semi_diameter);
+            path_samples.insert(i, samples);
 
-        semi_diameters.insert(i, surface.semi_diameter());
-        surface_types.insert(i, surface.to_string());
-    }
+            semi_diameters.insert(i, surface.semi_diameter());
+            surface_types.insert(i, surface.to_string());
+        }
 
-    CutawayView {
-        path_samples,
-        semi_diameters,
-        surface_types,
+        CutawayView {
+            path_samples,
+            semi_diameters,
+            surface_types,
+        }
     }
 }
 
@@ -105,7 +104,7 @@ mod tests {
     #[test]
     fn test_cutaway_view() {
         let sequential_model = sequential_model();
-        let cutaways = cutaway_view(&sequential_model, 10);
+        let cutaways = CutawayView::new(&sequential_model, 10);
 
         assert_eq!(cutaways.path_samples.len(), 4);
         assert_eq!(cutaways.path_samples[&0].len(), 0); // Object is at infinity

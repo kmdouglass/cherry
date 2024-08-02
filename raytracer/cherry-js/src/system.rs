@@ -4,9 +4,9 @@ use anyhow::{anyhow, Result};
 use serde::Serialize;
 
 use cherry_rs_2::{
-    components_view, cutaway_view, ray_trace_3d_view, ApertureSpec, Component, CutawayView, FieldSpec, GapSpec,
+    components_view, ray_trace_3d_view, ApertureSpec, Component, CutawayView, FieldSpec, GapSpec,
     ParaxialView, ParaxialViewDescription, PupilSampling, RefractiveIndexSpec, SequentialModel,
-    SubModelID, SurfaceSpec, TraceResults, Vec3,
+    SubModelID, SurfaceSpec, TraceResults,
 };
 
 const BACKGROUND_REFRACTIVE_INDEX: f64 = 1.0;
@@ -54,7 +54,7 @@ impl System {
             &sequential_model,
             RefractiveIndexSpec::from_real_refractive_index(BACKGROUND_REFRACTIVE_INDEX),
         )?;
-        let cutaway_view = cutaway_view(&sequential_model, 20);
+        let cutaway_view = CutawayView::new(&sequential_model, 20);
         let paraxial_view = ParaxialView::new(&sequential_model, false);
 
         Ok(Self {
