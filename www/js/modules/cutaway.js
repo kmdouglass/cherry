@@ -3,7 +3,7 @@
     * wasmSystemModel: an optical system model
     * elementId: the id of the DOM element to render to
 */
-export function renderSystem(opticalSystem, elementId = "systemRendering") {
+export function renderCutaway(opticalSystem, elementId = "systemRendering") {
     const SVG_NS = "http://www.w3.org/2000/svg";
 
     const rendering = document.getElementById(elementId);
@@ -84,13 +84,16 @@ function commands(descr, rayPaths, centerSystem, centerSVG, sf) {
     }
 
     // Create ray paths
-    paths = toSVGCoordinates(rayPaths, centerSystem, centerSVG, sf);
-    commands.push({
-        "type": "Rays",
-        "paths": paths,
-        "color": "red",
-        "stroke-width": 0.5,
-    });
+    // Loop over rayPaths map and convert the underlying array of paths to SVG coordinates
+    for (let [submodel, submodelRayPaths] of rayPaths) {
+        paths = toSVGCoordinates(submodelRayPaths, centerSystem, centerSVG, sf);
+        commands.push({
+            "type": "Rays",
+            "paths": paths,
+            "color": "red",
+            "stroke-width": 0.5,
+        });
+    }
     return commands;
 }
 

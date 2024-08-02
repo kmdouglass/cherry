@@ -1,5 +1,5 @@
 import init, { OpticalSystem } from "./pkg/cherry_js.js";
-import { renderSystem } from "./modules/rendering.js"
+import { renderCutaway } from "./modules/cutaway.js"
 //import { surfaces, gaps, aperture, fields } from "./modules/petzval_lens.js";
 import { surface_specs, gap_specs, aperture_spec, field_specs, wavelengths } from "./modules/planoconvex_lens_v2.js";
 
@@ -82,7 +82,7 @@ init().then(async () => {
     console.log(descr);
 
     // Render the system -- SVG
-    renderSystem(opticalSystem);
+    renderCutaway(opticalSystem);
 
     // Send the data to the worker
     //let message = {
