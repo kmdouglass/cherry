@@ -280,3 +280,38 @@ fn axial_launch_point(obj_z: Float, sur_z: Float, enp_z: Float) -> Float {
         obj_z
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::examples::convexplano_lens::sequential_model;
+
+    use super::*;
+
+    #[test]
+    fn test_ray_trace_3d_view() {
+        let sequential_model = sequential_model();
+        let paraxial_view = ParaxialView::new(&sequential_model, false);
+
+        let aperture_spec = ApertureSpec::EntrancePupil { semi_diameter: 5.0 };
+        let field_specs = vec![
+            FieldSpec::Angle {
+                angle: 0.0,
+                pupil_sampling: PupilSampling::ChiefAndMarginalRays,
+            },
+            FieldSpec::Angle {
+                angle: 5.0,
+                pupil_sampling: PupilSampling::ChiefAndMarginalRays,
+            },
+        ];
+
+        let results = ray_trace_3d_view(
+            &aperture_spec,
+            &field_specs,
+            &sequential_model,
+            &paraxial_view,
+            None,
+        );
+
+        assert_eq!(results.len(), 1);
+    }
+}

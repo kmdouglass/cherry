@@ -218,7 +218,10 @@ impl SequentialModel {
     /// Computes the unique IDs for each paraxial model.
     fn calc_model_ids(surfaces: &[Surface], wavelengths: &[Float]) -> Vec<SubModelID> {
         let mut ids = Vec::new();
-        if wavelengths.is_empty() {
+        if wavelengths.is_empty() && Self::is_rotationally_symmetric(surfaces) {
+            ids.push(SubModelID(None, Axis::Y));
+            return ids;
+        } else if wavelengths.is_empty() {
             ids.push(SubModelID(None, Axis::X));
             ids.push(SubModelID(None, Axis::Y));
             return ids;
@@ -570,6 +573,7 @@ mod tests {
     use super::*;
     use crate::{
         core::math::mat3::mat3,
+        examples::convexplano_lens::sequential_model,
         specs::gaps::{RealSpec, RefractiveIndexSpec},
     };
 
@@ -642,5 +646,28 @@ mod tests {
             }),
         ];
         assert!(!SequentialModel::is_rotationally_symmetric(&surfaces));
+    }
+
+    #[test]
+    fn test_calc_model_ids() {
+        let sequential_model = sequential_model();
+        let surfaces = sequential_model.surfaces();
+        let wavelengths = vec![0.4, 0.6];
+
+        let model_ids = SequentialModel::calc_model_ids(surfaces, &wavelengths);
+
+        assert_eq!(model_ids.len(), 2); // Two wavelengths, rotationally
+                                        // symmetric
+    }
+
+    #[test]
+    fn test_calc_model_ids_no_wavelength() {
+        let sequential_model = sequential_model();
+        let surfaces = sequential_model.surfaces();
+        let wavelengths = Vec::new();
+
+        let model_ids = SequentialModel::calc_model_ids(surfaces, &wavelengths);
+
+        assert_eq!(model_ids.len(), 1); // Circularly symmetric, no wavelengths
     }
 }

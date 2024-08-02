@@ -271,6 +271,7 @@ impl OpticalSystem {
         let raw_results = system_model.trace_chief_and_marginal_rays();
         for (id, trace_results) in raw_results {
             let sanitized = Self::sanitize(trace_results);
+            console::log_1(&serde_wasm_bindgen::to_value(&id).unwrap());
             results.insert(id, sanitized);
         }
 

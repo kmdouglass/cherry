@@ -26,7 +26,8 @@ pub fn trace(
 ) -> Vec<Vec<Result<Ray>>> {
     // Pre-allocate the results. Include the initial ray positions as a "surface."
     let mut results: Vec<Vec<Result<Ray>>> = Vec::with_capacity(sequential_submodel.len() + 1);
-    for _ in 0..results.len() {
+    for _ in 0..sequential_submodel.len() + 1 {
+        // +1 for the initial ray positions
         results.push(Vec::with_capacity(rays.len()));
     }
 

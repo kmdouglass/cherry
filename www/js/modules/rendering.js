@@ -3,7 +3,7 @@
     * wasmSystemModel: an optical system model
     * elementId: the id of the DOM element to render to
 */
-export function renderSystem(wasmSystemModel, elementId = "systemRendering") {
+export function renderSystem(opticalSystem, elementId = "systemRendering") {
     const SVG_NS = "http://www.w3.org/2000/svg";
 
     const rendering = document.getElementById(elementId);
@@ -17,18 +17,19 @@ export function renderSystem(wasmSystemModel, elementId = "systemRendering") {
     rendering.appendChild(svg);
 
     // Compute quantities required for rendering
-    let descr = wasmSystemModel.describe();
+    let descr = opticalSystem.describe();
     const sfSVG = scaleFactor(descr, svg.getAttribute("width"), svg.getAttribute("height"), 0.9);
     const centerSystem = center(descr);
     const centerSVG = [svg.getAttribute("width") / 2, svg.getAttribute("height") / 2];
 
     // Trace rays through the system and draw them
-    const results = wasmSystemModel.traceChiefAndMarginalRays();
-    let rayPaths = resultsToRayPaths(results);
+    const results = opticalSystem.traceChiefAndMarginalRays();
+    console.log(results);
+    //let rayPaths = resultsToRayPaths(results);
 
     // Create the rendering commands
-    const cmds = commands(descr, rayPaths, centerSystem, centerSVG, sfSVG);
-    drawCommands(cmds, svg);
+    //const cmds = commands(descr, rayPaths, centerSystem, centerSVG, sfSVG);
+    //drawCommands(cmds, svg);
 }
 
 function commands(descr, rayPaths, centerSystem, centerSVG, sf) {
@@ -121,7 +122,7 @@ function drawCommands(commands, svg) {
 }
 
 function surfacesIntoLenses(descr) {
-    const surfaceSamples = descr.surface_model.surface_samples;
+    const surfaceSamples = descr.cutaway_view;
 
     let paths = new Array();
     let topPath;
@@ -205,7 +206,7 @@ function stopPath(surfaceSamples, descr) {
     * returns: com, the coordinates of the center of mass
 */
 function center(descr) {
-    const samples = descr.surface_model.surface_samples;
+    const samples = descr.cutaway_view;
     let [xMin, yMin, zMin, xMax, yMax, zMax] = boundingBox(samples);
 
     return [
@@ -251,7 +252,7 @@ function boundingBox(samples) {
     * returns: the scaling factor
 */
 function scaleFactor(descr, width, height, fillFactor = 0.9) {
-    const samples = descr.surface_model.surface_samples;
+    const samples = descr.cutaway_view;
 
     let [xMin, yMin, zMin, xMax, yMax, zMax] = boundingBox(samples);
     let yRange = yMax - yMin;

@@ -78,11 +78,11 @@ init().then(async () => {
 
     console.log(opticalSystem);
 
-    //let descr = opticalSystem.describe();
-    //console.log(descr);
+    let descr = opticalSystem.describe();
+    console.log(descr);
 
     // Render the system -- SVG
-    //renderSystem(opticalSystem);
+    renderSystem(opticalSystem);
 
     // Send the data to the worker
     //let message = {
