@@ -183,6 +183,7 @@ mod system;
 use cherry_rs_2::{ApertureSpec, FieldSpec, GapSpec, Ray, SurfaceSpec};
 
 use system::{System, SystemBuilder};
+use web_sys::console;
 
 #[wasm_bindgen]
 #[derive(Debug)]
@@ -241,7 +242,7 @@ impl OpticalSystem {
         Ok(())
     }
 
-    pub fn setWaveLengths(&mut self, wavelengths: JsValue) -> Result<(), JsError> {
+    pub fn setWavelengths(&mut self, wavelengths: JsValue) -> Result<(), JsError> {
         let wavelengths: Vec<f64> = serde_wasm_bindgen::from_value(wavelengths)?;
         self.builder.wavelengths(wavelengths);
         Ok(())

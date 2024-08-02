@@ -66,3 +66,21 @@ impl Surface {
         samples
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::examples::convexplano_lens::sequential_model;
+
+    #[test]
+    fn test_cutaway_view() {
+        let sequential_model = sequential_model();
+        let cutaways = cutaway_view(&sequential_model, 10);
+
+        assert_eq!(cutaways.len(), 4);
+        assert_eq!(cutaways[&0].len(), 10);
+        assert_eq!(cutaways[&1].len(), 10);
+        assert_eq!(cutaways[&2].len(), 10);
+        assert_eq!(cutaways[&3].len(), 10);
+    }
+}

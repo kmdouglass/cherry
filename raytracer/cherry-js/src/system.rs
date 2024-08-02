@@ -8,6 +8,7 @@ use cherry_rs_2::{
     ParaxialView, ParaxialViewDescription, PupilSampling, RefractiveIndexSpec, SequentialModel,
     SubModelID, SurfaceSpec, TraceResults, Vec3,
 };
+use web_sys::console;
 
 const BACKGROUND_REFRACTIVE_INDEX: f64 = 1.0;
 
@@ -47,14 +48,21 @@ impl System {
         surface_specs: &[SurfaceSpec],
         wavelengths: &[f64],
     ) -> Result<Self> {
+        console::log_1(&"Building system".into());
+
         let sequential_model = SequentialModel::new(gap_specs, surface_specs, wavelengths)?;
+        console::log_1(&"Sequential model built".into());
 
         let components_view = components_view(
             &sequential_model,
             RefractiveIndexSpec::from_real_refractive_index(BACKGROUND_REFRACTIVE_INDEX),
         )?;
+        console::log_1(&"Components view built".into());
         let cutaway_view = cutaway_view(&sequential_model, 20);
+        console::log_1(&"Cutaway view built".into());
         let paraxial_view = ParaxialView::new(&sequential_model, false);
+        console::log_1(&"Building system".into());
+
 
         Ok(Self {
             sequential_model,
