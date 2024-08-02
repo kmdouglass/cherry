@@ -538,7 +538,12 @@ impl Surface {
     pub(crate) fn sag_norm(&self, pos: Vec3) -> (Float, Vec3) {
         match self {
             Self::Conic(conic) => conic.sag_norm(pos),
-            _ => unimplemented!(),
+            // Flat surfaces
+            Self::Image(_) | Self::Object(_) | Self::Probe(_) | Self::Stop(_) => {
+                (0.0, Vec3::new(0.0, 0.0, 1.0))
+            }
+
+            Self::Toric(_) => unimplemented!(),
         }
     }
 

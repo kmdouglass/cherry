@@ -78,7 +78,7 @@ mod tests {
         let cutaways = cutaway_view(&sequential_model, 10);
 
         assert_eq!(cutaways.len(), 4);
-        assert_eq!(cutaways[&0].len(), 10);
+        assert_eq!(cutaways[&0].len(), 0); // Object is at infinity
         assert_eq!(cutaways[&1].len(), 10);
         assert_eq!(cutaways[&2].len(), 10);
         assert_eq!(cutaways[&3].len(), 10);
