@@ -24,11 +24,10 @@ export function renderSystem(opticalSystem, elementId = "systemRendering") {
 
     // Trace rays through the system and draw them
     const results = opticalSystem.traceChiefAndMarginalRays();
-    console.log(results);
-    //let rayPaths = resultsToRayPaths(results);
+    const rayPaths = resultsToRayPaths(results);
 
     // Create the rendering commands
-    //const cmds = commands(descr, rayPaths, centerSystem, centerSVG, sfSVG);
+    const cmds = commands(descr, rayPaths, centerSystem, centerSVG, sfSVG);
     //drawCommands(cmds, svg);
 }
 
@@ -48,8 +47,8 @@ function commands(descr, rayPaths, centerSystem, centerSVG, sf) {
         "close-path": true,
     });
 
-    for (let [surfId, surfSamples] of descr.surface_model.surface_samples.entries()) {
-        const surfType = descr.surface_model.surface_types.get(surfId);
+    for (let [surfId, surfSamples] of descr.cutaway_view.path_samples.entries()) {
+        const surfType = descr.cutaway_view.surface_types.get(surfId);
 
         if (surfType === "Stop") {
             paths = stopPath(surfSamples, descr);
@@ -62,7 +61,7 @@ function commands(descr, rayPaths, centerSystem, centerSVG, sf) {
                 "color": "black",
                 "stroke-width": 1.0,
           });
-        } else if (surfType === "ObjectPlane" || surfType === "ImagePlane") {
+        } else if (surfType === "Object" || surfType === "Image" || surfType === "Probe") {
             paths = toSVGCoordinates([surfSamples], centerSystem, centerSVG, sf);
             commands.push({
                 "type": surfType,
@@ -70,7 +69,7 @@ function commands(descr, rayPaths, centerSystem, centerSVG, sf) {
                 "color": "#999999",
                 "stroke-width": 1.0,
             });
-        } else if (surfType === "RefractingCircularConic" || surfType === "RefractingCircularFlat") {
+        } else if (surfType === "Conic") {
             // These are the surface clear apertures
             paths = toSVGCoordinates([surfSamples], centerSystem, centerSVG, sf);
             commands.push({
@@ -122,29 +121,29 @@ function drawCommands(commands, svg) {
 }
 
 function surfacesIntoLenses(descr) {
-    const surfaceSamples = descr.cutaway_view;
+    const surfaceSamples = descr.cutaway_view.path_samples;
 
     let paths = new Array();
     let topPath;
     let bottomPath;
-    for (let component of descr.component_model.components) {
+    for (let component of descr.components_view) {
         if (component["Element"]) {
             let path = new Array();
             topPath = new Array();
             bottomPath = new Array();
 
             const surfIds = component["Element"]["surf_idxs"];
-            const surfSamples = [descr.surface_model.surface_samples.get(surfIds[0]), descr.surface_model.surface_samples.get(surfIds[1])];
-            const surfDiams = [descr.surface_model.diameters.get(surfIds[0]), descr.surface_model.diameters.get(surfIds[1])];
+            const surfSamples = [descr.cutaway_view.path_samples.get(surfIds[0]), descr.cutaway_view.path_samples.get(surfIds[1])];
+            const surfSemiDiams = [descr.cutaway_view.semi_diameters.get(surfIds[0]), descr.cutaway_view.semi_diameters.get(surfIds[1])];
 
             // Find which surface has the smaller diameter
             let smallerSurfIdx = 0;
             let biggerSurfIdx = 1;
-            if (surfDiams[0] > surfDiams[1]) {
+            if (surfSemiDiams[0] > surfSemiDiams[1]) {
                 smallerSurfIdx = 1;
                 biggerSurfIdx = 0;
             }
-            const yExtent = surfDiams[biggerSurfIdx] / 2;
+            const yExtent = surfSemiDiams[biggerSurfIdx];
 
             // Extend the smaller surface to the same diameter as the larger surface by adding y points
             const firstPoint = surfSamples[smallerSurfIdx][0];
@@ -206,7 +205,7 @@ function stopPath(surfaceSamples, descr) {
     * returns: com, the coordinates of the center of mass
 */
 function center(descr) {
-    const samples = descr.cutaway_view;
+    const samples = descr.cutaway_view.path_samples;
     let [xMin, yMin, zMin, xMax, yMax, zMax] = boundingBox(samples);
 
     return [
@@ -252,7 +251,7 @@ function boundingBox(samples) {
     * returns: the scaling factor
 */
 function scaleFactor(descr, width, height, fillFactor = 0.9) {
-    const samples = descr.cutaway_view;
+    const samples = descr.cutaway_view.path_samples;
 
     let [xMin, yMin, zMin, xMax, yMax, zMax] = boundingBox(samples);
     let yRange = yMax - yMin;
@@ -280,13 +279,25 @@ function toSVGCoordinates(paths, systemCenter, svgCenter, scaleFactor = 6) {
     return transformedPaths;
 }
 
+function resultsToRayPaths(rayTraceResults) {
+    let rayPathsBySubmodel = new Map();
+
+    // loop over each key value pair of the Map rayTraceResults
+    for (let [submodel, rays] of rayTraceResults) {
+        let rayPaths = submodelResultsToRayPaths(rays);
+
+        rayPathsBySubmodel.set(submodel, rayPaths);
+    }
+
+    return rayPathsBySubmodel;
+}
 
 /*
     * Converts rays trace results to a series of points (ray paths) to draw on the SVG.
     * rays: an array of an array of ray objects at each surface
     * returns: an array of an array of points to draw on the SVG
 */
-function resultsToRayPaths(rayTraceResults) {
+function submodelResultsToRayPaths(rayTraceResults) {
     let numRays = rayTraceResults[0].length;
 
     let rayPaths = new Map();

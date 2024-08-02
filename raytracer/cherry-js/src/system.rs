@@ -4,11 +4,10 @@ use anyhow::{anyhow, Result};
 use serde::Serialize;
 
 use cherry_rs_2::{
-    components_view, cutaway_view, ray_trace_3d_view, ApertureSpec, Component, FieldSpec, GapSpec,
+    components_view, cutaway_view, ray_trace_3d_view, ApertureSpec, Component, CutawayView, FieldSpec, GapSpec,
     ParaxialView, ParaxialViewDescription, PupilSampling, RefractiveIndexSpec, SequentialModel,
     SubModelID, SurfaceSpec, TraceResults, Vec3,
 };
-use web_sys::console;
 
 const BACKGROUND_REFRACTIVE_INDEX: f64 = 1.0;
 
@@ -16,7 +15,7 @@ const BACKGROUND_REFRACTIVE_INDEX: f64 = 1.0;
 pub struct System {
     sequential_model: SequentialModel,
     components_view: HashSet<Component>,
-    cutaway_view: HashMap<usize, Vec<Vec3>>,
+    cutaway_view: CutawayView,
     paraxial_view: ParaxialView,
 
     // Cache specs for calculations later
@@ -36,7 +35,7 @@ pub struct SystemBuilder {
 #[derive(Debug, Serialize)]
 pub struct SystemDescription {
     pub components_view: HashSet<Component>,
-    pub cutaway_view: HashMap<usize, Vec<Vec3>>,
+    pub cutaway_view: CutawayView,
     pub paraxial_view: ParaxialViewDescription,
 }
 

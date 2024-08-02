@@ -1,22 +1,41 @@
 use std::collections::HashMap;
 
+use serde::Serialize;
+
 use crate::{
     core::{math::vec3::Vec3, sequential_model::Surface, Float, PI},
     SequentialModel,
 };
 
+#[derive(Debug, Clone, Serialize)]
+pub struct CutawayView {
+    pub path_samples: HashMap<usize, Vec<Vec3>>,
+    pub semi_diameters: HashMap<usize, Float>,
+    pub surface_types: HashMap<usize, String>,
+}
+
 pub fn cutaway_view(
     sequential_model: &SequentialModel,
     num_samples_per_surface: usize,
-) -> HashMap<usize, Vec<Vec3>> {
+) -> CutawayView {
     let largest_semi_diameter = sequential_model.largest_semi_diameter();
 
-    let mut cutaways = HashMap::new();
+    let mut path_samples = HashMap::new();
+    let mut semi_diameters = HashMap::new();
+    let mut surface_types = HashMap::new();
     for (i, surface) in sequential_model.surfaces().iter().enumerate() {
         let samples = surface.sample_yz(num_samples_per_surface, largest_semi_diameter);
-        cutaways.insert(i, samples);
+        path_samples.insert(i, samples);
+
+        semi_diameters.insert(i, surface.semi_diameter());
+        surface_types.insert(i, surface.to_string());
     }
-    cutaways
+
+    CutawayView {
+        path_samples,
+        semi_diameters,
+        surface_types,
+    }
 }
 
 impl Surface {
@@ -65,6 +84,17 @@ impl Surface {
 
         samples
     }
+
+    fn to_string(&self) -> String {
+        match self {
+            Self::Object(_) => "Object".to_string(),
+            Self::Image(_) => "Image".to_string(),
+            Self::Probe(_) => "Probe".to_string(),
+            Self::Stop(_) => "Stop".to_string(),
+            Self::Conic(_) => "Conic".to_string(),
+            Self::Toric(_) => "Toric".to_string(),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -77,10 +107,15 @@ mod tests {
         let sequential_model = sequential_model();
         let cutaways = cutaway_view(&sequential_model, 10);
 
-        assert_eq!(cutaways.len(), 4);
-        assert_eq!(cutaways[&0].len(), 0); // Object is at infinity
-        assert_eq!(cutaways[&1].len(), 10);
-        assert_eq!(cutaways[&2].len(), 10);
-        assert_eq!(cutaways[&3].len(), 10);
+        assert_eq!(cutaways.path_samples.len(), 4);
+        assert_eq!(cutaways.path_samples[&0].len(), 0); // Object is at infinity
+        assert_eq!(cutaways.path_samples[&1].len(), 10);
+        assert_eq!(cutaways.path_samples[&2].len(), 10);
+        assert_eq!(cutaways.path_samples[&3].len(), 10);
+
+        assert_eq!(cutaways.surface_types[&0], "Object");
+        assert_eq!(cutaways.surface_types[&1], "Conic");
+        assert_eq!(cutaways.surface_types[&2], "Conic");
+        assert_eq!(cutaways.surface_types[&3], "Image");
     }
 }
