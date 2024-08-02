@@ -1,7 +1,7 @@
 import init, { OpticalSystem } from "./pkg/cherry_js.js";
 import { renderCutaway } from "./modules/cutaway.js"
-//import { surfaces, gaps, aperture, fields } from "./modules/petzval_lens.js";
-import { surface_specs, gap_specs, aperture_spec, field_specs, wavelengths } from "./modules/planoconvex_lens_v2.js";
+import { surface_specs, gap_specs, aperture_spec, field_specs, wavelengths } from "./modules/petzval_lens.js";
+//import { surface_specs, gap_specs, aperture_spec, field_specs, wavelengths } from "./modules/planoconvex_lens.js";
 
 const WorkerHandle = class {
     #isBusy = false;

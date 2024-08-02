@@ -185,7 +185,7 @@ function surfacesIntoLenses(descr) {
     * returns: an array of paths for the stop surface
 */
 function stopPath(surfaceSamples, descr) {
-    const bbox = boundingBox(descr.surface_model.surface_samples);
+    const bbox = boundingBox(descr.cutaway_view.path_samples);
     const yMin = bbox[1];
     const yMax = bbox[4];
 
