@@ -28,7 +28,7 @@ export function renderSystem(opticalSystem, elementId = "systemRendering") {
 
     // Create the rendering commands
     const cmds = commands(descr, rayPaths, centerSystem, centerSVG, sfSVG);
-    //drawCommands(cmds, svg);
+    drawCommands(cmds, svg);
 }
 
 function commands(descr, rayPaths, centerSystem, centerSVG, sf) {
