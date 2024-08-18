@@ -2,8 +2,8 @@
   "private": true,
   "scripts": {
     "build:wasm": "RUSTFLAGS='-C target-feature=+atomics,+bulk-memory,+mutable-globals' rustup run nightly-2024-01-12 wasm-pack build --target web --out-dir ../../www/js/pkg ../../raytracer/cherry-js -- -Z build-std=panic_abort,std",
-    "build": "npm run build:wasm && webpack --config webpack.config.js",
-    "start": "webpack-dev-server"
+    "build": "npm run build:wasm && webpack --config webpack.config.js --mode=production",
+    "start": "webpack-dev-server --config webpack.config.js --mode=development --open"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
