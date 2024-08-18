@@ -1,7 +1,7 @@
-import init, { WasmSystemModel } from "./pkg/cherry_js.js";
-import { renderSystem } from "./modules/rendering.js"
-//import { surfaces, gaps, aperture, fields } from "./modules/petzval_lens.js";
-import { surfaces, gaps, aperture, fields } from "./modules/planoconvex_lens.js";
+import init, { OpticalSystem } from "./pkg/cherry_js.js";
+import { renderCutaway } from "./modules/cutaway.js"
+import { surface_specs, gap_specs, aperture_spec, field_specs, wavelengths } from "./modules/petzval_lens.js";
+//import { surface_specs, gap_specs, aperture_spec, field_specs, wavelengths } from "./modules/planoconvex_lens.js";
 
 const WorkerHandle = class {
     #isBusy = false;
@@ -58,35 +58,38 @@ const WorkerHandle = class {
 }
 
 init().then(async () => {
-    let workerHandle = new WorkerHandle();
-    await workerHandle.init();
+    //let workerHandle = new WorkerHandle();
+    //await workerHandle.init();
 
     // Fetch JSON data for the glass catalog
-    const response = await fetch("/assets/catalog-nk.json");
-    const catalog = await response.json();
-    console.log(catalog);
+    //const response = await fetch("/assets/catalog-nk.json");
+    //const catalog = await response.json();
+    //console.log(catalog);
 
-    let wasmSystemModel = new WasmSystemModel();
+    let opticalSystem = new OpticalSystem();
 
     //Build the optical system
-    wasmSystemModel.setSurfaces(surfaces);
-    wasmSystemModel.setGaps(gaps);
-    wasmSystemModel.setAperture(aperture);
-    wasmSystemModel.setFields(fields);
-    wasmSystemModel.build();
+    opticalSystem.setSurfaces(surface_specs);
+    opticalSystem.setGaps(gap_specs);
+    opticalSystem.setAperture(aperture_spec);
+    opticalSystem.setFields(field_specs);
+    opticalSystem.setWavelengths(wavelengths);
+    opticalSystem.build();
 
-    let descr = wasmSystemModel.describe();
+    console.log(opticalSystem);
+
+    let descr = opticalSystem.describe();
     console.log(descr);
 
     // Render the system -- SVG
-    renderSystem(wasmSystemModel);
+    renderCutaway(opticalSystem);
 
     // Send the data to the worker
-    let message = {
-        surfaces: surfaces,
-        gaps: gaps,
-        aperture: aperture,
-        fields: fields
-    };
-    workerHandle.postMessage(message);
+    //let message = {
+    //    surfaces: surfaces,
+    //    gaps: gaps,
+    //    aperture: aperture,
+    //    fields: fields
+    //};
+    //workerHandle.postMessage(message);
 });
