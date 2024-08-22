@@ -21,6 +21,13 @@ module.exports = {
               ]
           }
         }
+      },
+      {
+        test: /\.css$/,
+        use: [
+          'style-loader',
+          'css-loader'
+        ]
       }
     ]
   },
@@ -28,7 +35,7 @@ module.exports = {
     new CopyWebpackPlugin({
       patterns: [
         { from: "src/index.html", to: "index.html" },
-        { from: "assets/catalog-nk.json", to: "assets/catalog-nk.json" }
+        { from: "src/data/catalog-nk.json", to: "data/catalog-nk.json" }
       ],
     })
   ],
