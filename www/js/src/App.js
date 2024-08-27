@@ -2,7 +2,7 @@ import "./css/cherry.css";
 
 import CutawayView from "./components/CutawayView";
 import Navbar from "./components/Navbar";
-import TabbedInterface from "./components/TabbedInterface";
+import DataEntry from "./components/DataEntry";
 
 function App() {
     // This will be replaced with actual data in the future
@@ -13,7 +13,7 @@ function App() {
             <Navbar />
             <div className="container">
                 <CutawayView data={placeholderData} />
-                <TabbedInterface />
+                <DataEntry />
             </div>
         </div>
     );

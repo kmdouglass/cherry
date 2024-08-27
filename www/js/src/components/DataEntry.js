@@ -1,14 +1,15 @@
-import { useState } from 'react';
+import { useState } from "react";
 
-import '../css/TabbedInterface.css';
+import "../css/DataEntry.css";
+import SurfacesTable from "./SurfacesTable";
 
-const TabbedInterface = () => {
+const DataEntry = () => {
   const [activeTab, setActiveTab] = useState('surfaces');
 
   const renderTabContent = () => {
     switch (activeTab) {
       case 'surfaces':
-        return <div>Surfaces content (to be implemented)</div>;
+        return <SurfacesTable />;
       case 'fields':
         return <div>Fields content (to be implemented)</div>;
       case 'aperture':
@@ -19,7 +20,7 @@ const TabbedInterface = () => {
   };
 
   return (
-    <div className="tabbed-interface">
+    <div className="data-entry">
       <div className="tabs is-centered">
         <ul>
           <li className={activeTab === 'surfaces' ? 'is-active' : ''}>
@@ -40,4 +41,4 @@ const TabbedInterface = () => {
   );
 };
 
-export default TabbedInterface;
+export default DataEntry;
