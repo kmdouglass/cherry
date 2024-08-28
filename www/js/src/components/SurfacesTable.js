@@ -4,10 +4,10 @@ import "../css/SurfacesTable.css";
 
 const SurfacesTable = () => {
     const [surfaces, setSurfaces] = useState([
-      { type: 'Object Plane', n: 1, thickness: 'Infinity', diam: 25, roc: '', actions: 'Insert' },
-      { type: 'Conic', n: 1.515, thickness: 5.3, diam: 25, roc: 25.8, actions: 'Insert Delete' },
-      { type: 'Conic', n: 1, thickness: 46.6, diam: 25, roc: Infinity, actions: 'Insert Delete' },
-      { type: 'Image Plane', n: '', thickness: '', diam: 25, roc: '', actions: '' },
+      { type: 'Object Plane', n: 1, thickness: 'Infinity', diam: 25, roc: '' },
+      { type: 'Conic', n: 1.515, thickness: 5.3, diam: 25, roc: 25.8 },
+      { type: 'Conic', n: 1, thickness: 46.6, diam: 25, roc: Infinity },
+      { type: 'Image Plane', n: '', thickness: '', diam: 25, roc: '' },
     ]);
 
     const [editingCell, setEditingCell] = useState(null);
@@ -57,6 +57,19 @@ const SurfacesTable = () => {
         }
     };
 
+    const handleInsert = (index) => {
+        const newSurfaces = [...surfaces];
+        newSurfaces.splice(index + 1, 0, getSurfaceTypeDefaultValues('Conic'));
+        setSurfaces(newSurfaces);
+    };
+  
+    const handleDelete = (index) => {
+      if (index === 0 || index === surfaces.length - 1) return; // Don't allow deleting Object or Image plane
+      const newSurfaces = [...surfaces];
+      newSurfaces.splice(index, 1);
+      setSurfaces(newSurfaces);
+    };
+  
     const renderSurfaceTypeCell = (surface, index) => {
         if (index === 0) {
           return <td>Object</td>;
@@ -104,6 +117,18 @@ const SurfacesTable = () => {
             </div>
         );
     };
+
+    const renderActionButtons = (index) => {
+      if (index === surfaces.length - 1) return <td></td>;
+      return (
+        <td>
+          <button className="button is-small is-primary mr-2" onClick={() => handleInsert(index)}>Insert</button>
+          {index !== 0 && (
+            <button className="button is-small is-danger" onClick={() => handleDelete(index)}>Delete</button>
+          )}
+        </td>
+      );
+    };
   
     return (
       <table className="table is-fullwidth">
@@ -125,7 +150,7 @@ const SurfacesTable = () => {
               <td>{renderEditableCell(surface.thickness, index, "thickness")}</td>
               <td>{renderEditableCell(surface.diam, index, "diam")}</td>
               <td>{renderEditableCell(surface.roc, index, "roc")}</td>
-              <td>{surface.actions}</td>
+              {renderActionButtons(index)}
             </tr>
           ))}
         </tbody>
