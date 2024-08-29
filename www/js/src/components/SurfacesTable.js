@@ -2,14 +2,7 @@ import { useState } from "react";
 
 import "../css/SurfacesTable.css";
 
-const SurfacesTable = () => {
-    const [surfaces, setSurfaces] = useState([
-      { type: 'Object Plane', n: 1, thickness: 'Infinity', diam: 25, roc: '' },
-      { type: 'Conic', n: 1.515, thickness: 5.3, diam: 25, roc: 25.8 },
-      { type: 'Conic', n: 1, thickness: 46.6, diam: 25, roc: Infinity },
-      { type: 'Image Plane', n: '', thickness: '', diam: 25, roc: '' },
-    ]);
-
+const SurfacesTable = ({ surfaces, setSurfaces }) => {
     const [editingCell, setEditingCell] = useState(null);
 
     const getSurfaceTypeDefaultValues = (type) => {
@@ -119,13 +112,15 @@ const SurfacesTable = () => {
     };
 
     const renderActionButtons = (index) => {
-      if (index === surfaces.length - 1) return <td></td>;
+      if (index === surfaces.length - 1) return <td><div className="action-buttons"></div></td>;
       return (
         <td>
-          <button className="button is-small is-primary mr-2" onClick={() => handleInsert(index)}>Insert</button>
-          {index !== 0 && (
-            <button className="button is-small is-danger" onClick={() => handleDelete(index)}>Delete</button>
-          )}
+            <div className="action-buttons">
+                <button className="button is-small is-primary mr-2" onClick={() => handleInsert(index)}>Insert</button>
+                {index !== 0 && (
+                  <button className="button is-small is-danger" onClick={() => handleDelete(index)}>Delete</button>
+                )}
+            </div>
         </td>
       );
     };

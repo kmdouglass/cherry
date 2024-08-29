@@ -1,19 +1,31 @@
 import { useState } from "react";
 
 import "../css/DataEntry.css";
+import ApertureTable from "./ApertureTable";
+import FieldsTable from "./FieldsTable";
 import SurfacesTable from "./SurfacesTable";
 
 const DataEntry = () => {
   const [activeTab, setActiveTab] = useState('surfaces');
+  
+  // Application state is stored here.
+  const [surfaces, setSurfaces] = useState([
+      { type: 'Object', n: 1, thickness: 'Infinity', diam: 25, roc: '' },
+      { type: 'Conic', n: 1.515, thickness: 5.3, diam: 25, roc: 25.8 },
+      { type: 'Conic', n: 1, thickness: 46.6, diam: 25, roc: 100 },
+      { type: 'Image', n: '', thickness: '', diam: 25, roc: '' },
+  ]);
+  const [fields, setFields] = useState(null);
+  const [aperture, setAperture] = useState(null);
 
   const renderTabContent = () => {
-    switch (activeTab) {
+    switch(activeTab) {
       case 'surfaces':
-        return <SurfacesTable />;
+        return <SurfacesTable surfaces={surfaces} setSurfaces={setSurfaces} />;
       case 'fields':
-        return <div>Fields content (to be implemented)</div>;
+        return <FieldsTable fields={fields} setFields={setFields} />;
       case 'aperture':
-        return <div>Aperture content (to be implemented)</div>;
+        return <ApertureTable aperture={aperture} setAperture={setAperture} />;
       default:
         return null;
     }

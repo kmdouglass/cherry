@@ -1,10 +1,20 @@
+.action-buttons {
+    display: flex;
+    justify-content: flex-start;
+    width: 200px; /* Adjust this width as needed */
+}
+
+.action-buttons .button {
+    margin-right: 10px;
+}
+
 .editable-cell {
     position: relative;
     padding: 0.5em;
     cursor: pointer;
   }
   
-  .editable-cell input {
+.editable-cell input {
     position: absolute;
     top: 0;
     left: 0;
@@ -14,9 +24,9 @@
     box-sizing: border-box;
     border: none;
     background: white;
-  }
+}
   
-  .editable-cell span {
+.editable-cell span {
     display: inline-block;
     width: 100%;
-  }
+}
