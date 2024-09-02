@@ -1,12 +1,11 @@
 import { useState } from "react";
 
 import "./css/cherry.css";
-
 import CutawayView from "./components/CutawayView";
 import Navbar from "./components/Navbar";
 import DataEntry from "./components/DataEntry";
 
-function App() {
+function App({ wasmModule }) {
     // Application state
   const [surfaces, setSurfaces] = useState([
         { type: 'Object', n: 1, thickness: 'Infinity', diam: 25, roc: '' },
