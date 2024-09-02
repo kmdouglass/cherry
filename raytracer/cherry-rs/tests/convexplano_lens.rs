@@ -1,5 +1,5 @@
-use cherry_rs_2::examples::convexplano_lens::*;
-use cherry_rs_2::ParaxialView;
+use cherry_rs::examples::convexplano_lens::*;
+use cherry_rs::ParaxialView;
 
 fn paraxial_view() -> ParaxialView {
     let model = sequential_model();
