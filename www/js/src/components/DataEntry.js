@@ -5,18 +5,12 @@ import ApertureTable from "./ApertureTable";
 import FieldsTable from "./FieldsTable";
 import SurfacesTable from "./SurfacesTable";
 
-const DataEntry = () => {
+const DataEntry = ({
+    surfaces, setSurfaces,
+    fields, setFields,
+    aperture, setAperture
+}) => {
   const [activeTab, setActiveTab] = useState('surfaces');
-  
-  // Application state is stored here.
-  const [surfaces, setSurfaces] = useState([
-      { type: 'Object', n: 1, thickness: 'Infinity', diam: 25, roc: '' },
-      { type: 'Conic', n: 1.515, thickness: 5.3, diam: 25, roc: 25.8 },
-      { type: 'Conic', n: 1, thickness: 46.6, diam: 25, roc: 100 },
-      { type: 'Image', n: '', thickness: '', diam: 25, roc: '' },
-  ]);
-  const [fields, setFields] = useState(null);
-  const [aperture, setAperture] = useState(null);
 
   const renderTabContent = () => {
     switch(activeTab) {

@@ -1,6 +1,6 @@
 import "../css/CutawayView.css";
 
-const CutawayView = ({ data }) => {
+const CutawayView = ({ results }) => {
     // This function will be implemented later to draw the system
     const drawCutaway = () => {
       // Drawing logic will go here
