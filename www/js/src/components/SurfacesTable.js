@@ -8,11 +8,11 @@ const SurfacesTable = ({ surfaces, setSurfaces }) => {
     const getSurfaceTypeDefaultValues = (type) => {
         switch (type) {
           case 'Conic':
-            return { n: 1.5, thickness: 10, diam: 25, roc: 100 };
+            return { n: 1.5, thickness: 10, semiDiam: 25, roc: 100 };
           case 'Probe':
-            return { n: 1, thickness: 10, diam: 25, roc: '' };
+            return { n: 1, thickness: 10, semiDiam: 25, roc: "" };
           case 'Stop':
-            return { n: 1, thickness: 10, diam: 25, roc: '' };
+            return { n: 1, thickness: 10, semiDiam: 25, roc: "" };
           default:
             return {};
         }
@@ -130,10 +130,10 @@ const SurfacesTable = ({ surfaces, setSurfaces }) => {
         <thead>
           <tr>
             <th>Surface type</th>
-            <th>n</th>
-            <th>thickness</th>
-            <th>diam</th>
-            <th>roc</th>
+            <th>Refractive Index</th>
+            <th>Thickness</th>
+            <th>Semi-Diameter</th>
+            <th>Radius of Curvature</th>
             <th>Actions</th>
           </tr>
         </thead>
@@ -143,7 +143,7 @@ const SurfacesTable = ({ surfaces, setSurfaces }) => {
               {renderSurfaceTypeCell(surface, index)}
               <td>{renderEditableCell(surface.n, index, "n")}</td>
               <td>{renderEditableCell(surface.thickness, index, "thickness")}</td>
-              <td>{renderEditableCell(surface.diam, index, "diam")}</td>
+              <td>{renderEditableCell(surface.semiDiam, index, "semiDiam")}</td>
               <td>{renderEditableCell(surface.roc, index, "roc")}</td>
               {renderActionButtons(index)}
             </tr>

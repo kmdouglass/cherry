@@ -2,14 +2,15 @@
 export function convertUIStateToEngineFormat(surfaces) {
     const AIR = {"real": {"Constant": 1.0}, "imag": null};
 
+    // QUESTION: Can float conversion be done any better?
     function createSurfaceSpec(surface) {
         if (surface.type === 'Object' || surface.type === 'Image') {
             return surface.type;
         } else if (surface.type === 'Conic') {
             return {
                 "Conic": {
-                    "semi_diameter": surface.diam / 2,
-                    "radius_of_curvature": surface.roc || Infinity,
+                    "semi_diameter": parseFloat(surface.semiDiam),
+                    "radius_of_curvature": parseFloat(surface.roc) || Infinity,
                     "conic_constant": 0.0,
                     "surf_type": "Refracting"
                 }
@@ -18,7 +19,7 @@ export function convertUIStateToEngineFormat(surfaces) {
             // Default to a flat surface if type is unknown
             return {
                 "Conic": {
-                    "semi_diameter": surface.diam / 2,
+                    "semi_diameter": parseFloat(surface.semiDiam),
                     "radius_of_curvature": Infinity,
                     "conic_constant": 0.0,
                     "surf_type": "Refracting"
@@ -29,8 +30,8 @@ export function convertUIStateToEngineFormat(surfaces) {
 
     function createGapSpec(surface) {
         return {
-            "thickness": surface.thickness === 'Infinity' ? Infinity : (surface.thickness || 0),
-            "refractive_index": surface.n ? {"real": {"Constant": surface.n}, "imag": null} : AIR
+            "thickness": parseFloat(surface.thickness) === 'Infinity' ? Infinity : (parseFloat(surface.thickness) || 0),
+            "refractive_index": parseFloat(surface.n) ? {"real": {"Constant": parseFloat(surface.n)}, "imag": null} : AIR
         };
     }
 

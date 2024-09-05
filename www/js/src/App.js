@@ -10,10 +10,10 @@ import DataEntry from "./components/DataEntry";
 function App({ wasmModule }) {
     // Application state
     const [surfaces, setSurfaces] = useState([
-        { type: 'Object', n: 1, thickness: 'Infinity', diam: 25, roc: '' },
-        { type: 'Conic', n: 1.515, thickness: 5.3, diam: 25, roc: 25.8 },
-        { type: 'Conic', n: 1, thickness: 46.6, diam: 25, roc: 100 },
-        { type: 'Image', n: '', thickness: '', diam: 25, roc: '' },
+        { type: 'Object', n: 1, thickness: 'Infinity', semiDiam: 12.5, roc: '' },
+        { type: 'Conic', n: 1.515, thickness: 5.3, semiDiam: 12.5, roc: 25.8 },
+        { type: 'Conic', n: 1, thickness: 46.6, semiDiam: 12.5, roc: 100 },
+        { type: 'Image', n: '', thickness: '', semiDiam: 12.5, roc: '' },
     ]);
     const [fields, setFields] = useState(null);
     const [aperture, setAperture] = useState(null);
@@ -24,6 +24,11 @@ function App({ wasmModule }) {
         if (wasmModule) {
             const opticalSystem = new wasmModule.OpticalSystem();
             const { surface_specs, gap_specs } = convertUIStateToEngineFormat(surfaces);
+
+            //Build the optical system
+            opticalSystem.setSurfaces(surface_specs);
+            opticalSystem.setGaps(gap_specs);
+
             console.log("Surface specs:", surface_specs);
             console.log("Gap specs:", gap_specs);
             console.log("Rendered optical system.");
