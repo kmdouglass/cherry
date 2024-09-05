@@ -15,4 +15,4 @@ export async function initializeWasm() {
         console.error("Failed to initialize WASM module:", error);
         throw error;
     }
-    }
+}

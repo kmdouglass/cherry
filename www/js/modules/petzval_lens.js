@@ -15,8 +15,6 @@ export const surface_specs = [
     "Image",
 ]
 
-
-
 export const gap_specs = [
     {"thickness": Infinity, "refractive_index": AIR},
     {"thickness": 13.0, "refractive_index": {"real": {"Constant": 1.5168}, "imag": null}},
