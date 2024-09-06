@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import "../css/SurfacesTable.css";
+import "../css/Table.css";
 
 const SurfacesTable = ({ surfaces, setSurfaces }) => {
     const [editingCell, setEditingCell] = useState(null);
@@ -129,7 +129,7 @@ const SurfacesTable = ({ surfaces, setSurfaces }) => {
       <table className="table is-fullwidth">
         <thead>
           <tr>
-            <th>Surface type</th>
+            <th>Surface Type</th>
             <th>Refractive Index</th>
             <th>Thickness</th>
             <th>Semi-Diameter</th>

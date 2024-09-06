@@ -1,7 +1,6 @@
 .action-buttons {
     display: flex;
     justify-content: flex-start;
-    width: 200px; /* Adjust this width as needed */
 }
 
 .action-buttons .button {
