@@ -19,8 +19,10 @@ function App({ wasmModule }) {
         {"Angle": {"angle": 0, "pupil_sampling": {"SquareGrid": {"spacing": 0.1}}}},
         {"Angle": {"angle": 5, "pupil_sampling": {"SquareGrid": {"spacing": 0.1}}}}
     ]);
-    const [aperture, setAperture] = useState(null);
-    const [results, setResults] = useState(null);
+    const [aperture, setAperture] = useState({"EntrancePupil": { "semi_diameter": 5.0 }});
+    const [wavelengths, setWavelengths] = useState([0.5876]);
+    const [description, setDescription] = useState(null);
+    const [ rawRayPaths, setRawRayPaths ] = useState(null);
 
     // Update the optical system during each render
     useMemo(() => {
@@ -32,10 +34,20 @@ function App({ wasmModule }) {
             opticalSystem.setSurfaces(surface_specs);
             opticalSystem.setGaps(gap_specs);
             opticalSystem.setFields(fields);
+            opticalSystem.setAperture(aperture);
+            opticalSystem.setWavelengths(wavelengths);
+            opticalSystem.build();
+
+            // Render the optical system
+            setDescription(opticalSystem.describe());
+            setRawRayPaths(opticalSystem.traceChiefAndMarginalRays());
 
             console.log("Surface specs:", surface_specs);
             console.log("Gap specs:", gap_specs);
             console.log("Fields:", fields);
+            console.log("Aperture:", aperture);
+            console.log("Wavelengths:", wavelengths);
+
             console.log("Rendered optical system.");
         }
     }, [wasmModule, surfaces, fields, aperture]);
@@ -45,7 +57,7 @@ function App({ wasmModule }) {
         <div className="App">
             <Navbar />
             <div className="container">
-                <CutawayView results={results} />
+                <CutawayView description={description} rawRayPaths={rawRayPaths} />
                 <DataEntry
                     surfaces={surfaces} setSurfaces={setSurfaces}
                     fields={fields} setFields={setFields}

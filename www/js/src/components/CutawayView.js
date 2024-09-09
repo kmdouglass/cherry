@@ -1,21 +1,30 @@
-import "../css/CutawayView.css";
+import { useRef, useEffect } from "react";
 
-const CutawayView = ({ results }) => {
-    // This function will be implemented later to draw the system
-    const drawCutaway = () => {
-      // Drawing logic will go here
-    };
-  
+import "../css/CutawayView.css";
+import { renderCutaway } from "../modules/cutaway";
+
+const CutawayView = ({ description, rawRayPaths }) => { 
+    const cutawayRef = useRef(null);
+
+    useEffect(() => {
+        if (description && cutawayRef.current) {
+            renderCutaway(description, rawRayPaths, cutawayRef.current);
+        }
+    }, [description]);
+
     return (
-      <div className="cutaway-view">
-        <svg width="100%" height="300" viewBox="0 0 800 300">
-          {/* SVG content will be drawn here */}
-          <rect width="100%" height="100%" fill="#f0f0f0" />
-          <text x="50%" y="50%" dominantBaseline="middle" textAnchor="middle" fontSize="20">
-            Cutaway View (To be implemented)
-          </text>
-        </svg>
-      </div>
+        <div className="cutaway-view" id="cutawayView">
+            <svg
+                ref={cutawayRef}
+                id="cutawaySVG"
+                width="100%"
+                height="300"
+                viewBox="0 0 800 300"
+                fill="none"
+                stroke="black"
+                xmlns="http://www.w3.org/2000/svg">
+            </svg>
+        </div>
     );
   };
   
