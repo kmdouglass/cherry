@@ -6,10 +6,13 @@
 export function renderCutaway(description, rawRayPaths, svgElement) {
     svgElement.innerHTML = "";
 
+    // Compute the SVG width in pixels
+    const width = getSvgWidthInPixels(svgElement);
+
     // Compute quantities required for rendering
-    const sfSVG = scaleFactor(description, svgElement.getAttribute("width"), svgElement.getAttribute("height"), 0.9);
+    const sfSVG = scaleFactor(description, width, svgElement.getAttribute("height"), 0.9);
     const centerSystem = center(description);
-    const centerSVG = [svgElement.getAttribute("width") / 2, svgElement.getAttribute("height") / 2];
+    const centerSVG = [width / 2, svgElement.getAttribute("height") / 2];
 
     const rayPaths = resultsToRayPaths(rawRayPaths);
 
@@ -247,6 +250,7 @@ function scaleFactor(descr, width, height, fillFactor = 0.9) {
     let yRange = yMax - yMin;
     let zRange = zMax - zMin;
     let scaleFactor = fillFactor * Math.min(height / yRange, width / zRange);
+    
     return scaleFactor;
 }
 
@@ -308,4 +312,24 @@ function submodelResultsToRayPaths(rayTraceResults) {
     }
 
     return rayPaths;
+}
+
+function getSvgWidthInPixels(svgElement) {
+    let width = svgElement.getAttribute("width");
+
+    if (width.endsWith("%")) {
+        // Remove the '%' character and convert to a float
+        const percentage = parseFloat(width) / 100;
+
+        // Get the parent element's width in pixels
+        const parentWidth = svgElement.parentElement.clientWidth;
+
+        // Calculate the width in pixels
+        width = percentage * parentWidth;
+    } else {
+        // Convert the width to a float if it's already in pixels
+        width = parseFloat(width);
+    }
+
+    return width;
 }

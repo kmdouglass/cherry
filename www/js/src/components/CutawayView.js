@@ -19,7 +19,6 @@ const CutawayView = ({ description, rawRayPaths }) => {
                 id="cutawaySVG"
                 width="100%"
                 height="300"
-                viewBox="0 0 800 300"
                 fill="none"
                 stroke="black"
                 xmlns="http://www.w3.org/2000/svg">
