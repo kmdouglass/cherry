@@ -1,15 +1,27 @@
 {
   "private": true,
   "scripts": {
-    "build:wasm": "RUSTFLAGS='-C target-feature=+atomics,+bulk-memory,+mutable-globals' rustup run nightly-2024-01-12 wasm-pack build --target web --out-dir ../../www/js/pkg ../../raytracer/cherry-js -- -Z build-std=panic_abort,std",
-    "build": "npm run build:wasm && webpack --config webpack.config.js",
-    "start": "webpack-dev-server"
+    "build:wasm:dev": "RUSTFLAGS='-C target-feature=+atomics,+bulk-memory,+mutable-globals' rustup run nightly-2024-01-12 wasm-pack build --target web --out-dir ../../www/js/pkg ../../raytracer/cherry-js -- -Z build-std=panic_abort,std",
+    "build:wasm:prod": "RUSTFLAGS='-C target-feature=+atomics,+bulk-memory,+mutable-globals' rustup run nightly-2024-01-12 wasm-pack build --release --target web --out-dir ../../www/js/pkg ../../raytracer/cherry-js -- -Z build-std=panic_abort,std",
+    "build:dev": "npm run build:wasm:dev && webpack --config webpack.config.js --mode=development",
+    "build:prod": "npm run build:wasm:prod && webpack --config webpack.config.js --mode=production",
+    "start": "webpack-dev-server --config webpack.config.js --mode=development"
   },
   "devDependencies": {
+    "@babel/core": "^7.25.2",
+    "@babel/preset-env": "^7.25.3",
+    "@babel/preset-react": "^7.24.7",
     "@webpack-cli/serve": "*",
+    "babel-loader": "^9.1.3",
     "copy-webpack-plugin": "*",
+    "css-loader": "^7.1.2",
+    "style-loader": "^4.0.0",
     "webpack": "*",
     "webpack-cli": "*",
     "webpack-dev-server": "*"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
   }
 }

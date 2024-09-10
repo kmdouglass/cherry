@@ -172,7 +172,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "cherry-rs",
- "cherry-rs-2",
  "serde",
  "serde-wasm-bindgen",
  "wasm-bindgen",
@@ -182,14 +181,6 @@ dependencies = [
 
 [[package]]
 name = "cherry-rs"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "serde",
-]
-
-[[package]]
-name = "cherry-rs-2"
 version = "0.1.0"
 dependencies = [
  "anyhow",

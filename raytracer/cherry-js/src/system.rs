@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use anyhow::{anyhow, Result};
 use serde::Serialize;
 
-use cherry_rs_2::{
+use cherry_rs::{
     components_view, ray_trace_3d_view, ApertureSpec, Component, CutawayView, FieldSpec, GapSpec,
     ParaxialView, ParaxialViewDescription, PupilSampling, RefractiveIndexSpec, SequentialModel,
     SubModelID, SurfaceSpec, TraceResults,

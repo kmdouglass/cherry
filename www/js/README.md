@@ -7,7 +7,11 @@ The contents of this folder are used to prototype changes to the Cherry Raytrace
 This is needed to build the Wasm binary and JS glue.
 
 ```console
-npm run build
+# Build for local development and testing
+npm run build:dev
+
+# Production build
+npm run build:prod
 ```
 
 ## Develop

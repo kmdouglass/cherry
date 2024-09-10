@@ -1,0 +1,19 @@
+.data-entry {
+  margin-top: 20px;
+}
+
+.tabs ul {
+  justify-content: center; /* This ensures the tabs are centered */
+}
+
+.tab-content {
+  padding: 20px;
+  border: 1px solid #dbdbdb;
+  border-top: none;
+}
+
+/* Optional: Add some styling for active tab */
+.tabs li.is-active a {
+  border-bottom-color: #3273dc;
+  color: #3273dc;
+}
