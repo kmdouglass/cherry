@@ -92,7 +92,7 @@ const SurfacesTable = ({ surfaces, setSurfaces }) => {
             <div className="editable-cell">
                 <span>{value}</span>
                 <input
-                    type="text"
+                    type="number"
                     value={value}
                     onChange={(e) => handleCellChange(e, index, field)}
                     onBlur={handleCellBlur}
@@ -105,7 +105,7 @@ const SurfacesTable = ({ surfaces, setSurfaces }) => {
         return (
             <div className="editable-cell">
                 <span onClick={() => handleCellClick(index, field)}>
-                {value}
+                  {value}
                 </span>
             </div>
         );

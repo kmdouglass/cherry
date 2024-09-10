@@ -28,25 +28,27 @@ function App({ wasmModule }) {
     useMemo(() => {
         if (wasmModule) {
             const opticalSystem = new wasmModule.OpticalSystem();
-            const { surface_specs, gap_specs } = convertUIStateToEngineFormat(surfaces);
+            const { surfaceSpecs, gapSpecs, fieldSpecs } = convertUIStateToEngineFormat(surfaces, fields);
 
             //Build the optical system
-            opticalSystem.setSurfaces(surface_specs);
-            opticalSystem.setGaps(gap_specs);
-            opticalSystem.setFields(fields);
+            opticalSystem.setSurfaces(surfaceSpecs);
+            opticalSystem.setGaps(gapSpecs);
+            opticalSystem.setFields(fieldSpecs);
             opticalSystem.setAperture(aperture);
             opticalSystem.setWavelengths(wavelengths);
             opticalSystem.build();
 
+            console.log("Surface specs:", surfaceSpecs);
+            console.log("Gap specs:", gapSpecs);
+            console.log("Field specs:", fieldSpecs);
+            console.log("Aperture:", aperture);
+            console.log("Wavelengths:", wavelengths);
+
+            console.log("Fields:", fields);
+
             // Render the optical system
             setDescription(opticalSystem.describe());
             setRawRayPaths(opticalSystem.traceChiefAndMarginalRays());
-
-            console.log("Surface specs:", surface_specs);
-            console.log("Gap specs:", gap_specs);
-            console.log("Fields:", fields);
-            console.log("Aperture:", aperture);
-            console.log("Wavelengths:", wavelengths);
 
             console.log("Rendered optical system.");
         }

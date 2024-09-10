@@ -18,9 +18,9 @@ const FieldsTable = ({ fields, setFields }) => {
   const handleCellChange = (e, index, field) => {
     const newFields = [...fields];
     if (field === 'angle') {
-      newFields[index].Angle.angle = parseFloat(e.target.value);
+      newFields[index].Angle.angle = e.target.value;
     } else if (field === 'spacing') {
-      newFields[index].Angle.pupil_sampling.SquareGrid.spacing = parseFloat(e.target.value);
+      newFields[index].Angle.pupil_sampling.SquareGrid.spacing = e.target.value;
     }
     setFields(newFields);
   };
@@ -95,9 +95,11 @@ const FieldsTable = ({ fields, setFields }) => {
       );
     }
     return (
-      <span onClick={() => handleCellClick(index, field)} style={{ cursor: 'pointer' }}>
-        {value}
-      </span>
+      <div className="editable-cell">
+        <span onClick={() => handleCellClick(index, field)}>
+          {value}
+        </span>
+      </div>
     );
   };
 
