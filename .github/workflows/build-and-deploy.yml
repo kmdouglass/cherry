@@ -1,0 +1,79 @@
+name: Build Rust WASM and JS Bundle
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+# Allow only one concurrent deployment, skipping runs queued between the run in-progress and latest queued.
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@master
+      with:
+        toolchain: nightly-2024-01-12
+        components: rust-src
+
+    - name: Install wasm-pack
+      run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+    - name: Build WASM module
+      run: |
+        RUSTFLAGS='-C target-feature=+atomics,+bulk-memory,+mutable-globals' \
+        rustup run nightly-2024-01-12 \
+        wasm-pack build --release --target web --out-dir ../../www/js/pkg raytracer/cherry-js -- -Z build-std=panic_abort,std
+
+    - name: Upload WASM artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: wasm-build
+        path: www/js/pkg
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Install npm dependencies
+      working-directory: ./www/js
+      run: npm ci
+
+    - name: Build JS bundle
+      working-directory: ./www/js
+      run: npm run build:prod
+
+    - name: Setup Pages
+      uses: actions/configure-pages@v4
+
+    - name: Upload JS bundle artifacts
+      uses: actions/upload-pages-artifact@v3
+      with:
+        path: www/js/dist
+
+  deploy:
+    needs: build
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    permissions:
+      pages: write
+      id-token: write
+    
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
