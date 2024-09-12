@@ -39,6 +39,14 @@ pub struct SequentialSubModel {
     gaps: Vec<Gap>,
 }
 
+/// A view of a single submodel in a sequential system.
+///
+/// This is used to slice the system into smaller parts.
+#[derive(Debug)]
+pub struct SequentialSubModelView<'a> {
+    gaps: &'a [Gap],
+}
+
 /// A unique identifier for a submodel.
 ///
 /// The first element is the index of the wavelength in the system's list of
@@ -337,21 +345,33 @@ impl SequentialSubModel {
             .is_infinite()
     }
 
-    pub(crate) fn iter<'a>(&'a self, surfaces: &'a [Surface]) -> SequentialSubModelIter<'a> {
+    pub(crate) fn try_iter<'a>(&'a self, surfaces: &'a [Surface]) -> Result<SequentialSubModelIter<'a>> {
         SequentialSubModelIter::new(surfaces, &self.gaps)
     }
 }
 
+impl<'a> SequentialSubModelView<'a> {
+    fn new(gaps: &'a [Gap]) -> Self {
+        Self { gaps }
+    }
+}
+
 impl<'a> SequentialSubModelIter<'a> {
-    fn new(surfaces: &'a [Surface], gaps: &'a [Gap]) -> Self {
-        Self {
+    fn new(surfaces: &'a [Surface], gaps: &'a [Gap]) -> Result<Self> {
+        if surfaces.len() != gaps.len() + 1 {
+            return Err(anyhow!(
+                "The number of surfaces must be one more than the number of gaps."
+            ));
+        }
+
+        Ok(Self {
             surfaces,
             gaps,
             index: 0,
-        }
+        })
     }
 
-    pub fn reverse(self) -> SequentialSubModelReverseIter<'a> {
+    pub fn try_reverse(self) -> Result<SequentialSubModelReverseIter<'a>> {
         SequentialSubModelReverseIter::new(self.surfaces, self.gaps)
     }
 }
@@ -386,13 +406,19 @@ impl<'a> ExactSizeIterator for SequentialSubModelIter<'a> {
 }
 
 impl<'a> SequentialSubModelReverseIter<'a> {
-    fn new(surfaces: &'a [Surface], gaps: &'a [Gap]) -> Self {
-        Self {
+    fn new(surfaces: &'a [Surface], gaps: &'a [Gap]) -> Result<Self> {
+        if surfaces.len() != gaps.len() + 1 {
+            return Err(anyhow!(
+                "The number of surfaces must be one more than the number of gaps."
+            ));
+        }
+
+        Ok(Self {
             surfaces,
             gaps,
             // We will never iterate from the image space surface in reverse.
             index: 1,
-        }
+        })
     }
 }
 
