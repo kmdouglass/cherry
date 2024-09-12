@@ -27,30 +27,35 @@ function App({ wasmModule }) {
     // Update the optical system during each render
     useMemo(() => {
         if (wasmModule) {
-            const opticalSystem = new wasmModule.OpticalSystem();
-            const { surfaceSpecs, gapSpecs, fieldSpecs } = convertUIStateToEngineFormat(surfaces, fields);
+            try {
+                // TODO: Memory leak here?
+                const opticalSystem = new wasmModule.OpticalSystem();
+                const { surfaceSpecs, gapSpecs, fieldSpecs } = convertUIStateToEngineFormat(surfaces, fields);
 
-            //Build the optical system
-            opticalSystem.setSurfaces(surfaceSpecs);
-            opticalSystem.setGaps(gapSpecs);
-            opticalSystem.setFields(fieldSpecs);
-            opticalSystem.setAperture(aperture);
-            opticalSystem.setWavelengths(wavelengths);
-            opticalSystem.build();
+                //Build the optical system
+                opticalSystem.setSurfaces(surfaceSpecs);
+                opticalSystem.setGaps(gapSpecs);
+                opticalSystem.setFields(fieldSpecs);
+                opticalSystem.setAperture(aperture);
+                opticalSystem.setWavelengths(wavelengths);
+                opticalSystem.build();
 
-            console.log("Surface specs:", surfaceSpecs);
-            console.log("Gap specs:", gapSpecs);
-            console.log("Field specs:", fieldSpecs);
-            console.log("Aperture:", aperture);
-            console.log("Wavelengths:", wavelengths);
+                console.log("Surface specs:", surfaceSpecs);
+                console.log("Gap specs:", gapSpecs);
+                console.log("Field specs:", fieldSpecs);
+                console.log("Aperture:", aperture);
+                console.log("Wavelengths:", wavelengths);
 
-            console.log("Fields:", fields);
+                console.log("Fields:", fields);
 
-            // Render the optical system
-            setDescription(opticalSystem.describe());
-            setRawRayPaths(opticalSystem.traceChiefAndMarginalRays());
+                // Render the optical system
+                setDescription(opticalSystem.describe());
+                setRawRayPaths(opticalSystem.traceChiefAndMarginalRays());
 
-            console.log("Rendered optical system.");
+                console.log("Rendered optical system.");
+            } catch (e) {
+                console.error(e);
+            }
         }
     }, [wasmModule, surfaces, fields, aperture]);
 

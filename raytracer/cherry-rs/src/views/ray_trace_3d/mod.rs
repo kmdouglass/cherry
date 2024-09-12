@@ -63,6 +63,7 @@ fn ray_trace_sub_model(
     paraxial_sub_view: &ParaxialSubView,
     pupil_sampling: Option<PupilSampling>,
 ) -> TraceResults {
+    // TODO: Validate inputs!
     let rays = rays(
         aperture_spec,
         sequential_sub_model,
