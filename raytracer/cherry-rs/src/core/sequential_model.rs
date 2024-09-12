@@ -31,11 +31,17 @@ pub(crate) struct Gap {
 #[derive(Debug)]
 pub struct SequentialModel {
     surfaces: Vec<Surface>,
-    submodels: HashMap<SubModelID, SequentialSubModel>,
+    submodels: HashMap<SubModelID, SequentialSubModelBase>,
+}
+
+pub trait SequentialSubModel {
+    fn gaps(&self) -> &[Gap];
+    fn is_obj_at_inf(&self) -> bool;
+    fn try_iter<'a>(&'a self, surfaces: &'a [Surface]) -> Result<SequentialSubModelIter<'a>>;
 }
 
 #[derive(Debug)]
-pub struct SequentialSubModel {
+pub struct SequentialSubModelBase {
     gaps: Vec<Gap>,
 }
 
@@ -182,14 +188,14 @@ impl SequentialModel {
         let surfaces = Self::surf_specs_to_surfs(&surface_specs, &gap_specs);
 
         let model_ids: Vec<SubModelID> = Self::calc_model_ids(&surfaces, &wavelengths);
-        let mut models: HashMap<SubModelID, SequentialSubModel> = HashMap::new();
+        let mut models: HashMap<SubModelID, SequentialSubModelBase> = HashMap::new();
         for model_id in model_ids.iter() {
             let wavelength = match model_id.0 {
                 Some(idx) => Some(wavelengths[idx]),
                 None => None,
             };
             let gaps = Self::gap_specs_to_gaps(&gap_specs, wavelength)?;
-            let model = SequentialSubModel::new(gaps);
+            let model = SequentialSubModelBase::new(gaps);
             models.insert(*model_id, model);
         }
 
@@ -203,7 +209,7 @@ impl SequentialModel {
         &self.surfaces
     }
 
-    pub fn submodels(&self) -> &HashMap<SubModelID, SequentialSubModel> {
+    pub fn submodels(&self) -> &HashMap<SubModelID, SequentialSubModelBase> {
         &self.submodels
     }
 
@@ -328,16 +334,18 @@ impl SequentialModel {
     }
 }
 
-impl SequentialSubModel {
+impl SequentialSubModelBase {
     pub(crate) fn new(gaps: Vec<Gap>) -> Self {
         Self { gaps }
     }
+}
 
-    pub(crate) fn gaps(&self) -> &[Gap] {
+impl SequentialSubModel for SequentialSubModelBase {
+    fn gaps(&self) -> &[Gap] {
         &self.gaps
     }
 
-    pub(crate) fn is_obj_at_inf(&self) -> bool {
+    fn is_obj_at_inf(&self) -> bool {
         self.gaps
             .first()
             .expect("There must be at least one gap in a sequential submodel.")
@@ -345,7 +353,7 @@ impl SequentialSubModel {
             .is_infinite()
     }
 
-    pub(crate) fn try_iter<'a>(&'a self, surfaces: &'a [Surface]) -> Result<SequentialSubModelIter<'a>> {
+    fn try_iter<'a>(&'a self, surfaces: &'a [Surface]) -> Result<SequentialSubModelIter<'a>> {
         SequentialSubModelIter::new(surfaces, &self.gaps)
     }
 }
@@ -353,6 +361,24 @@ impl SequentialSubModel {
 impl<'a> SequentialSubModelView<'a> {
     fn new(gaps: &'a [Gap]) -> Self {
         Self { gaps }
+    }
+}
+
+impl<'a> SequentialSubModel for SequentialSubModelView<'a> {
+    fn gaps(&self) -> &[Gap] {
+        self.gaps
+    }
+
+    fn is_obj_at_inf(&self) -> bool {
+        self.gaps
+            .first()
+            .expect("There must be at least one gap in a sequential submodel.")
+            .thickness
+            .is_infinite()
+    }
+
+    fn try_iter<'b>(&'b self, surfaces: &'b [Surface]) -> Result<SequentialSubModelIter<'b>> {
+        SequentialSubModelIter::new(surfaces, self.gaps)
     }
 }
 
