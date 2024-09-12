@@ -75,7 +75,7 @@ impl System {
         }
     }
 
-    pub fn trace(&self) -> HashMap<SubModelID, TraceResults> {
+    pub fn trace(&self) -> Result<HashMap<SubModelID, TraceResults>> {
         ray_trace_3d_view(
             &self.aperture_spec,
             &self.field_specs,
@@ -85,7 +85,7 @@ impl System {
         )
     }
 
-    pub fn trace_chief_and_marginal_rays(&self) -> HashMap<SubModelID, TraceResults> {
+    pub fn trace_chief_and_marginal_rays(&self) -> Result<HashMap<SubModelID, TraceResults>> {
         ray_trace_3d_view(
             &self.aperture_spec,
             &self.field_specs,

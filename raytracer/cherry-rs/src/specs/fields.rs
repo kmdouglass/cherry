@@ -62,7 +62,10 @@ impl FieldSpec {
     /// Validate the field specification.
     pub fn validate(&self) -> Result<()> {
         match self {
-            FieldSpec::Angle { angle, pupil_sampling } => {
+            FieldSpec::Angle {
+                angle,
+                pupil_sampling,
+            } => {
                 if angle.is_nan() {
                     anyhow::bail!("Field angle must be a number");
                 }
@@ -71,7 +74,10 @@ impl FieldSpec {
                 }
                 pupil_sampling.validate()?;
             }
-            FieldSpec::ObjectHeight { height, pupil_sampling } => {
+            FieldSpec::ObjectHeight {
+                height,
+                pupil_sampling,
+            } => {
                 if height.is_nan() {
                     anyhow::bail!("Field height must be a number");
                 }
@@ -97,7 +103,9 @@ mod test {
         let square_grid = PupilSampling::SquareGrid { spacing: -0.1 };
         assert!(square_grid.validate().is_err());
 
-        let square_grid = PupilSampling::SquareGrid { spacing: Float::NAN };
+        let square_grid = PupilSampling::SquareGrid {
+            spacing: Float::NAN,
+        };
         assert!(square_grid.validate().is_err());
     }
 
@@ -135,7 +143,9 @@ mod test {
 
         let angle = FieldSpec::Angle {
             angle: 45.0,
-            pupil_sampling: PupilSampling::SquareGrid { spacing: Float::NAN },
+            pupil_sampling: PupilSampling::SquareGrid {
+                spacing: Float::NAN,
+            },
         };
         assert!(angle.validate().is_err());
 

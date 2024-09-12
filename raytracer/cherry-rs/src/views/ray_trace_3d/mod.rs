@@ -31,14 +31,14 @@ pub fn ray_trace_3d_view(
     sequential_model: &SequentialModel,
     paraxial_view: &ParaxialView,
     pupil_sampling: Option<PupilSampling>,
-) -> HashMap<SubModelID, TraceResults> {
+) -> Result<HashMap<SubModelID, TraceResults>> {
     let results = sequential_model
         .submodels()
         .iter()
         .map(|(id, submodel)| {
             let surfaces = sequential_model.surfaces();
             let paraxial_sub_view = paraxial_view.subviews.get(id).unwrap();
-            (
+            Ok((
                 *id,
                 ray_trace_sub_model(
                     &aperture_spec,
@@ -47,8 +47,8 @@ pub fn ray_trace_3d_view(
                     surfaces,
                     paraxial_sub_view,
                     pupil_sampling,
-                ),
-            )
+                )?,
+            ))
         })
         .collect();
 
@@ -62,8 +62,7 @@ fn ray_trace_sub_model(
     surfaces: &[Surface],
     paraxial_sub_view: &ParaxialSubView,
     pupil_sampling: Option<PupilSampling>,
-) -> TraceResults {
-    // TODO: Validate inputs!
+) -> Result<TraceResults> {
     let rays = rays(
         aperture_spec,
         sequential_sub_model,
@@ -71,11 +70,10 @@ fn ray_trace_sub_model(
         paraxial_sub_view,
         field_specs,
         pupil_sampling,
-    )
-    .unwrap();
+    )?;
 
     let mut sequential_sub_model_iter = sequential_sub_model.iter(surfaces);
-    trace(&mut sequential_sub_model_iter, rays)
+    Ok(trace(&mut sequential_sub_model_iter, rays))
 }
 
 /// Returns the rays to trace through the system as defined by the fields.
@@ -311,7 +309,8 @@ mod tests {
             &sequential_model,
             &paraxial_view,
             None,
-        );
+        )
+        .unwrap();
 
         assert_eq!(results.len(), 1);
     }
