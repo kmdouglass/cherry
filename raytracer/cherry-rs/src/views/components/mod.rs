@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     core::{sequential_model::Surface, Float, RefractiveIndex},
-    RefractiveIndexSpec, SequentialModel,
+    RefractiveIndexSpec, SequentialModel, SequentialSubModel,
 };
 
 mod test_cases;
@@ -39,6 +39,7 @@ pub fn components_view(
     let max_idx = surfaces.len() - 1;
     let mut paired_surfaces = HashSet::new();
 
+    // TODO: This is a temporary solution to get the submodel due to the need for gaps.
     // Ignore wavelengths and axes, just get any submodel for now
     let sequential_sub_model = sequential_model
         .submodels()

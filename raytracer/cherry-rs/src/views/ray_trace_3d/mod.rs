@@ -8,7 +8,7 @@ use anyhow::Result;
 
 use crate::{
     core::{
-        sequential_model::{SequentialModel, SequentialSubModelBase, SubModelID, Surface},
+        sequential_model::{SequentialModel, SequentialSubModel, SubModelID, Surface},
         Float, PI,
     },
     specs::{
@@ -58,7 +58,7 @@ pub fn ray_trace_3d_view(
 fn ray_trace_sub_model(
     aperture_spec: &ApertureSpec,
     field_specs: &[FieldSpec],
-    sequential_sub_model: &SequentialSubModelBase,
+    sequential_sub_model: &impl SequentialSubModel,
     surfaces: &[Surface],
     paraxial_sub_view: &ParaxialSubView,
     pupil_sampling: Option<PupilSampling>,
@@ -85,7 +85,7 @@ fn ray_trace_sub_model(
 ///  in the field specs for every field if provided.
 fn rays(
     aperture_spec: &ApertureSpec,
-    sequential_sub_model: &SequentialSubModelBase,
+    sequential_sub_model: &impl SequentialSubModel,
     surfaces: &[Surface],
     paraxial_sub_view: &ParaxialSubView,
     field_specs: &[FieldSpec],
@@ -151,7 +151,7 @@ fn rays(
 /// * `field_id` - The ID of the field.
 fn pupil_ray_fan(
     aperture_spec: &ApertureSpec,
-    sequential_sub_model: &SequentialSubModelBase,
+    sequential_sub_model: &impl SequentialSubModel,
     surfaces: &[Surface],
     paraxial_sub_view: &ParaxialSubView,
     num_rays: usize,
@@ -202,7 +202,7 @@ fn pupil_ray_fan(
 /// * `field_id` - The field ID.
 fn pupil_ray_sq_grid(
     aperture_spec: &ApertureSpec,
-    sequential_sub_model: &SequentialSubModelBase,
+    sequential_sub_model: &impl SequentialSubModel,
     surfaces: &[Surface],
     paraxial_sub_view: &ParaxialSubView,
     spacing: Float,
@@ -245,7 +245,7 @@ fn pupil_ray_sq_grid(
 /// Determines the entrance pupil of the subview.
 fn entrance_pupil(
     aperture_spec: &ApertureSpec,
-    sequential_sub_model: &SequentialSubModelBase,
+    sequential_sub_model: &impl SequentialSubModel,
     surfaces: &[Surface],
     paraxial_sub_view: &ParaxialSubView,
 ) -> Result<Pupil> {

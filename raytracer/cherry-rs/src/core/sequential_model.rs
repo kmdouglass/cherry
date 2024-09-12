@@ -209,7 +209,7 @@ impl SequentialModel {
         &self.surfaces
     }
 
-    pub fn submodels(&self) -> &HashMap<SubModelID, SequentialSubModelBase> {
+    pub fn submodels(&self) -> &HashMap<SubModelID, impl SequentialSubModel> {
         &self.submodels
     }
 
