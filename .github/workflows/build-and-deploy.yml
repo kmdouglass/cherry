@@ -53,7 +53,7 @@ jobs:
       run: npm run build:prod
 
     - name: Setup Pages
-      uses: actions/configure-pages@v4
+      uses: actions/configure-pages@v5
 
     - name: Upload JS bundle artifacts
       uses: actions/upload-pages-artifact@v3
