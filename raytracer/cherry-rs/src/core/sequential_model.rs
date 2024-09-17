@@ -1,5 +1,6 @@
 /// Data types for modeling sequential ray tracing systems.
 use std::collections::HashMap;
+use std::ops::{Index, Range};
 
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
@@ -22,7 +23,7 @@ pub enum Axis {
 }
 
 #[derive(Debug)]
-pub(crate) struct Gap {
+pub struct Gap {
     pub thickness: Float,
     pub refractive_index: RefractiveIndex,
 }
@@ -38,6 +39,12 @@ pub trait SequentialSubModel {
     fn gaps(&self) -> &[Gap];
     fn is_obj_at_inf(&self) -> bool;
     fn try_iter<'a>(&'a self, surfaces: &'a [Surface]) -> Result<SequentialSubModelIter<'a>>;
+
+    fn slice(&self, idx: Range<usize>) -> SequentialSubModelView<'_> {
+        SequentialSubModelView {
+            gaps: &self.gaps()[idx],
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -64,14 +71,14 @@ pub struct SubModelID(pub Option<usize>, pub Axis);
 /// An iterator over the surfaces and gaps in a submodel.
 ///
 /// Most operations in sequential modeling involve use of this iterator.
-pub(crate) struct SequentialSubModelIter<'a> {
+pub struct SequentialSubModelIter<'a> {
     surfaces: &'a [Surface],
     gaps: &'a [Gap],
     index: usize,
 }
 
 /// A reverse iterator over the surfaces and gaps in a submodel.
-pub(crate) struct SequentialSubModelReverseIter<'a> {
+pub struct SequentialSubModelReverseIter<'a> {
     surfaces: &'a [Surface],
     gaps: &'a [Gap],
     index: usize,
@@ -386,7 +393,7 @@ impl<'a> SequentialSubModelIter<'a> {
     fn new(surfaces: &'a [Surface], gaps: &'a [Gap]) -> Result<Self> {
         if surfaces.len() != gaps.len() + 1 {
             return Err(anyhow!(
-                "The number of surfaces must be one more than the number of gaps."
+                "The number of surfaces must be one more than the number of gaps in a forward sequential submodel."
             ));
         }
 
@@ -398,7 +405,7 @@ impl<'a> SequentialSubModelIter<'a> {
     }
 
     pub fn try_reverse(self) -> Result<SequentialSubModelReverseIter<'a>> {
-        SequentialSubModelReverseIter::new(self.surfaces, self.gaps)
+        SequentialSubModelReverseIter::new(&self.surfaces, self.gaps)
     }
 }
 
@@ -433,9 +440,10 @@ impl<'a> ExactSizeIterator for SequentialSubModelIter<'a> {
 
 impl<'a> SequentialSubModelReverseIter<'a> {
     fn new(surfaces: &'a [Surface], gaps: &'a [Gap]) -> Result<Self> {
+        // Note that this requirement is different than the forward iterator.
         if surfaces.len() != gaps.len() + 1 {
             return Err(anyhow!(
-                "The number of surfaces must be one more than the number of gaps."
+                "The number of surfaces must be one more than the number of gaps in a reversed sequential submodel."
             ));
         }
 
@@ -452,6 +460,7 @@ impl<'a> Iterator for SequentialSubModelReverseIter<'a> {
     type Item = Step<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
+        // Verify index's starting value; it's not necessarily 0.
         let n = self.gaps.len();
         let forward_index = n - self.index;
         if self.index < n {

@@ -211,13 +211,13 @@ impl ParaxialSubView {
             }));
         }
 
-        // Trace a ray from the aperture stop to the object space to determine the entrance pupil
-        // location.
+        // Trace a ray from the aperture stop to the object space to determine the
+        // entrance pupil location.
         let ray = arr2(&[[0.0], [1.0]]);
         let results = Self::trace(
             ray,
-            sequential_sub_model, // TODO MUST SLICE THIS AS WELL
-            &surfaces[..aperture_stop - 1],
+            &sequential_sub_model.slice(0..*aperture_stop),
+            &surfaces[0..aperture_stop + 1],
             self.axis,
             true,
         )?;
