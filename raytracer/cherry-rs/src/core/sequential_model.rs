@@ -40,8 +40,8 @@ pub trait SequentialSubModel {
     fn is_obj_at_inf(&self) -> bool;
     fn try_iter<'a>(&'a self, surfaces: &'a [Surface]) -> Result<SequentialSubModelIter<'a>>;
 
-    fn slice(&self, idx: Range<usize>) -> SequentialSubModelView<'_> {
-        SequentialSubModelView {
+    fn slice(&self, idx: Range<usize>) -> SequentialSubModelSlice<'_> {
+        SequentialSubModelSlice {
             gaps: &self.gaps()[idx],
         }
     }
@@ -56,7 +56,7 @@ pub struct SequentialSubModelBase {
 ///
 /// This is used to slice the system into smaller parts.
 #[derive(Debug)]
-pub struct SequentialSubModelView<'a> {
+pub struct SequentialSubModelSlice<'a> {
     gaps: &'a [Gap],
 }
 
@@ -365,13 +365,13 @@ impl SequentialSubModel for SequentialSubModelBase {
     }
 }
 
-impl<'a> SequentialSubModelView<'a> {
+impl<'a> SequentialSubModelSlice<'a> {
     fn new(gaps: &'a [Gap]) -> Self {
         Self { gaps }
     }
 }
 
-impl<'a> SequentialSubModel for SequentialSubModelView<'a> {
+impl<'a> SequentialSubModel for SequentialSubModelSlice<'a> {
     fn gaps(&self) -> &[Gap] {
         self.gaps
     }
