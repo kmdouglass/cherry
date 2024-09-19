@@ -28,7 +28,7 @@ function App({ wasmModule }) {
     useMemo(() => {
         if (wasmModule) {
             try {
-                console.debug("Raw surfaces:", surfaces);
+                //console.debug("Raw surfaces:", surfaces);
 
                 // TODO: Memory leak here?
                 const opticalSystem = new wasmModule.OpticalSystem();
@@ -42,19 +42,19 @@ function App({ wasmModule }) {
                 opticalSystem.setWavelengths(wavelengths);
                 opticalSystem.build();
 
-                console.log("Surface specs:", surfaceSpecs);
-                console.log("Gap specs:", gapSpecs);
-                console.log("Field specs:", fieldSpecs);
-                console.log("Aperture:", aperture);
-                console.log("Wavelengths:", wavelengths);
+                //console.log("Surface specs:", surfaceSpecs);
+                //console.log("Gap specs:", gapSpecs);
+                //console.log("Field specs:", fieldSpecs);
+                //console.log("Aperture:", aperture);
+                //console.log("Wavelengths:", wavelengths);
 
-                console.log("Fields:", fields);
+                //console.log("Fields:", fields);
 
                 // Render the optical system
                 setDescription(opticalSystem.describe());
                 setRawRayPaths(opticalSystem.traceChiefAndMarginalRays());
 
-                console.log("Rendered optical system.");
+                //console.log("Rendered optical system.");
             } catch (e) {
                 console.error(e);
             }

@@ -4,6 +4,7 @@ import "../css/Table.css";
 
 const SurfacesTable = ({ surfaces, setSurfaces }) => {
     const [editingCell, setEditingCell] = useState(null);
+    const [invalidFields, setInvalidFields] = useState({});
 
     const getSurfaceTypeDefaultValues = (type) => {
         switch (type) {
@@ -35,20 +36,48 @@ const SurfacesTable = ({ surfaces, setSurfaces }) => {
     };
     
     const handleCellChange = (e, index, field) => {
+        const newValue = e.target.value;
         const newSurfaces = [...surfaces];
-        newSurfaces[index][field] = e.target.value;
+        const newInvalidFields = { ...invalidFields };
+        
+        newSurfaces[index][field] = newValue;
+        if (isNaN(parseFloat(newValue))) {
+            // Invalid input: store the raw input and mark as invalid
+            if (!newInvalidFields[index]) {
+                newInvalidFields[index] = {};
+            }
+        newInvalidFields[index][field] = true;
+        } else {
+            // A valid number; remove any invalid markers
+            if (newInvalidFields[index]) {
+               delete newInvalidFields[index][field];
+               if (Object.keys(newInvalidFields[index]).length === 0) {
+                   delete newInvalidFields[index];
+               }
+            }
+        }
+
         setSurfaces(newSurfaces);
-    };
+        setInvalidFields(newInvalidFields);
+  };
     
     const handleCellBlur = () => {
-        setEditingCell(null);
-    };
-    
-    const handleKeyDown = (e) => {
-        if (e.key === 'Enter') {
+      // Do not allow exiting the cell if the input is invalid
+      if (invalidFields[editingCell.index] && invalidFields[editingCell.index][editingCell.field]) {
+          return;
+      }
+      setEditingCell(null);
+  };
+
+  const handleKeyDown = (e) => {
+      if (e.key === 'Enter' && editingCell) {
+          // Do not allow exiting the cell if the input is invalid
+          if (invalidFields[editingCell.index] && invalidFields[editingCell.index][editingCell.field]) {
+              return;
+          }
           setEditingCell(null);
-        }
-    };
+      }
+  };
 
     const handleInsert = (index) => {
         const newSurfaces = [...surfaces];
@@ -87,9 +116,12 @@ const SurfacesTable = ({ surfaces, setSurfaces }) => {
     };
 
     const renderEditableCell = (value, index, field) => {
-        if (editingCell && editingCell.index === index && editingCell.field === field) {
+        const isEditing = editingCell && editingCell.index === index && editingCell.field === field;
+        const isInvalid = invalidFields[index] && invalidFields[index][field];
+
+        if (isEditing) {
         return (
-            <div className="editable-cell">
+            <div className={`editable-cell ${isInvalid ? 'invalid' : ''}`}>
                 <span>{value}</span>
                 <input
                     type="number"
@@ -103,7 +135,7 @@ const SurfacesTable = ({ surfaces, setSurfaces }) => {
         );
         }
         return (
-            <div className="editable-cell">
+            <div className={`editable-cell ${isInvalid ? 'invalid' : ''}`}>
                 <span onClick={() => handleCellClick(index, field)}>
                   {value}
                 </span>
