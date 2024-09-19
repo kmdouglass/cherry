@@ -28,6 +28,8 @@ function App({ wasmModule }) {
     useMemo(() => {
         if (wasmModule) {
             try {
+                console.debug("Raw surfaces:", surfaces);
+
                 // TODO: Memory leak here?
                 const opticalSystem = new wasmModule.OpticalSystem();
                 const { surfaceSpecs, gapSpecs, fieldSpecs } = convertUIStateToEngineFormat(surfaces, fields);

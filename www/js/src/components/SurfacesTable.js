@@ -8,11 +8,11 @@ const SurfacesTable = ({ surfaces, setSurfaces }) => {
     const getSurfaceTypeDefaultValues = (type) => {
         switch (type) {
           case 'Conic':
-            return { n: 1.5, thickness: 10, semiDiam: 25, roc: 100 };
+            return { type: "Conic", n: 1.5, thickness: 10, semiDiam: 12.5, roc: 100 };
           case 'Probe':
-            return { n: 1, thickness: 10, semiDiam: 25, roc: "" };
+            return { type: "Probe", n: 1, thickness: 10, semiDiam: 12.5, roc: "" };
           case 'Stop':
-            return { n: 1, thickness: 10, semiDiam: 25, roc: "" };
+            return { type: "Stop", n: 1, thickness: 10, semiDiam: 12.5, roc: "" };
           default:
             return {};
         }

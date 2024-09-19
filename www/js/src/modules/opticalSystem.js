@@ -7,6 +7,7 @@ export function convertUIStateToEngineFormat(surfaces, fields) {
         if (surface.type === 'Object' || surface.type === 'Image') {
             return surface.type;
         } else if (surface.type === 'Conic') {
+            console.debug("Conic surface:", surface);
             return {
                 "Conic": {
                     "semi_diameter": parseFloat(surface.semiDiam),
