@@ -46,7 +46,7 @@ const SurfacesTable = ({ surfaces, setSurfaces }) => {
             if (!newInvalidFields[index]) {
                 newInvalidFields[index] = {};
             }
-        newInvalidFields[index][field] = true;
+            newInvalidFields[index][field] = true;
         } else {
             // A valid number; remove any invalid markers
             if (newInvalidFields[index]) {

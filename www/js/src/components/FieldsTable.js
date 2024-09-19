@@ -4,6 +4,8 @@ import "../css/Table.css";
 
 const FieldsTable = ({ fields, setFields }) => {
   const [editingCell, setEditingCell] = useState(null);
+  const [invalidFields, setInvalidFields] = useState({});
+
 
   const handleFieldTypeChange = (index, newType) => {
     const newFields = [...fields];
@@ -16,21 +18,50 @@ const FieldsTable = ({ fields, setFields }) => {
   };
 
   const handleCellChange = (e, index, field) => {
+    const newValue = e.target.value;
     const newFields = [...fields];
+    const newInvalidFields = { ...invalidFields };
+
     if (field === 'angle') {
-      newFields[index].Angle.angle = e.target.value;
+      newFields[index].Angle.angle = newValue;
     } else if (field === 'spacing') {
-      newFields[index].Angle.pupil_sampling.SquareGrid.spacing = e.target.value;
+      newFields[index].Angle.pupil_sampling.SquareGrid.spacing = newValue;
     }
+
+    if (isNaN(parseFloat(newValue))) {
+        // Invalid input: store the raw input and mark as invalid
+        if (!newInvalidFields[index]) {
+            newInvalidFields[index] = {};
+        }
+        newInvalidFields[index][field] = true;
+    } else {
+        // A valid number; remove any invalid markers
+        if (newInvalidFields[index]) {
+          delete newInvalidFields[index][field];
+          if (Object.keys(newInvalidFields[index]).length === 0) {
+              delete newInvalidFields[index];
+          }
+        }
+    }
+  
     setFields(newFields);
+    setInvalidFields(newInvalidFields);
   };
 
   const handleCellBlur = () => {
+    // Do not allow exiting the cell if the input is invalid
+    if (invalidFields[editingCell.index] && invalidFields[editingCell.index][editingCell.field]) {
+      return;
+  } 
     setEditingCell(null);
   };
 
   const handleKeyDown = (e) => {
-    if (e.key === 'Enter') {
+    if (e.key === 'Enter' && editingCell) {
+      // Do not allow exiting the cell if the input is invalid
+      if (invalidFields[editingCell.index] && invalidFields[editingCell.index][editingCell.field]) {
+        return;
+    }
       setEditingCell(null);
     }
   };
@@ -79,9 +110,12 @@ const FieldsTable = ({ fields, setFields }) => {
 };
 
   const renderEditableCell = (value, index, field) => {
-    if (editingCell && editingCell.index === index && editingCell.field === field) {
+    const isEditing = editingCell && editingCell.index === index && editingCell.field === field;
+    const isInvalid = invalidFields[index] && invalidFields[index][field];
+  
+    if (isEditing) {
       return (
-        <div className="editable-cell">
+        <div className={`editable-cell ${isInvalid ? 'invalid' : ''}`}>
             <span>{value}</span>
             <input
                 type="number"
@@ -95,7 +129,7 @@ const FieldsTable = ({ fields, setFields }) => {
       );
     }
     return (
-      <div className="editable-cell">
+      <div className={`editable-cell ${isInvalid ? 'invalid' : ''}`}>
         <span onClick={() => handleCellClick(index, field)}>
           {value}
         </span>
