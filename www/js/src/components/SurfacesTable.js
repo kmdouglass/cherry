@@ -31,17 +31,26 @@ const SurfacesTable = ({ surfaces, setSurfaces }) => {
     }
 
     const handleCellClick = (index, field) => {
-        if (index === surfaces.length - 1) return; // Don't allow editing the last row
-        setEditingCell({ index, field });
+      // Don't allow editing the last row
+      if (index === surfaces.length - 1) return;
+
+      // Don't allow editing a cell if another cell is invalid
+      if (editingCell && invalidFields[editingCell.index] && invalidFields[editingCell.index][editingCell.field]) {
+          return;
+      }
+
+      setEditingCell({ index, field });
     };
     
     const handleCellChange = (e, index, field) => {
         const newValue = e.target.value;
         const newSurfaces = [...surfaces];
         const newInvalidFields = { ...invalidFields };
+
+        console.debug("newValue:", newValue);
         
         newSurfaces[index][field] = newValue;
-        if (isNaN(parseFloat(newValue))) {
+        if ((newValue != "Infinity") && isNaN(parseFloat(newValue))) {
             // Invalid input: store the raw input and mark as invalid
             if (!newInvalidFields[index]) {
                 newInvalidFields[index] = {};

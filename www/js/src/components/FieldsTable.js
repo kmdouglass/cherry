@@ -14,6 +14,11 @@ const FieldsTable = ({ fields, setFields }) => {
   };
 
   const handleCellClick = (index, field) => {
+    // Don't allow editing a cell if another cell is invalid
+    if (editingCell && invalidFields[editingCell.index] && invalidFields[editingCell.index][editingCell.field]) {
+      return;
+    }
+
     setEditingCell({ index, field });
   };
 
