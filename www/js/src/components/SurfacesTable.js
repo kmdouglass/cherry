@@ -30,7 +30,7 @@ const SurfacesTable = ({ surfaces, setSurfaces }) => {
         setSurfaces(newSurfaces);
     }
 
-    const handleCellClick = (index, field) => {
+    const handleCellClick = (value, index, field) => {
       // Don't allow editing the last row
       if (index === surfaces.length - 1) return;
 
@@ -39,15 +39,13 @@ const SurfacesTable = ({ surfaces, setSurfaces }) => {
           return;
       }
 
-      setEditingCell({ index, field });
+      setEditingCell({ originalValue: value, index, field });
     };
     
     const handleCellChange = (e, index, field) => {
         const newValue = e.target.value;
         const newSurfaces = [...surfaces];
         const newInvalidFields = { ...invalidFields };
-
-        console.debug("newValue:", newValue);
         
         newSurfaces[index][field] = newValue;
         if ((newValue != "Infinity") && isNaN(parseFloat(newValue))) {
@@ -66,6 +64,7 @@ const SurfacesTable = ({ surfaces, setSurfaces }) => {
             }
         }
 
+        // TODO: Use reducer hook?
         setSurfaces(newSurfaces);
         setInvalidFields(newInvalidFields);
   };
@@ -86,16 +85,38 @@ const SurfacesTable = ({ surfaces, setSurfaces }) => {
           }
           setEditingCell(null);
       }
+
+      if (e.key === 'Escape' && editingCell) {
+          const newSurfaces = [...surfaces];
+          newSurfaces[editingCell.index][editingCell.field] = editingCell.originalValue;
+
+          // TODO: Use reducer hook?
+          setSurfaces(newSurfaces);
+          setInvalidFields({});
+          setEditingCell(null);
+      }
   };
 
     const handleInsert = (index) => {
-        const newSurfaces = [...surfaces];
-        newSurfaces.splice(index + 1, 0, getSurfaceTypeDefaultValues('Conic'));
-        setSurfaces(newSurfaces);
+      // Don't allow inserting a cell if another cell is invalid
+      if (editingCell && invalidFields[editingCell.index] && invalidFields[editingCell.index][editingCell.field]) {
+        return;
+      }
+  
+      const newSurfaces = [...surfaces];
+      newSurfaces.splice(index + 1, 0, getSurfaceTypeDefaultValues('Conic'));
+      setSurfaces(newSurfaces);
     };
   
     const handleDelete = (index) => {
-      if (index === 0 || index === surfaces.length - 1) return; // Don't allow deleting Object or Image plane
+      // Don't allow deleting Object or Image plane
+      if (index === 0 || index === surfaces.length - 1) return;
+
+      // Don't allow deleting a cell if another cell is invalid
+      if (editingCell && invalidFields[editingCell.index] && invalidFields[editingCell.index][editingCell.field]) {
+          return;
+      }
+
       const newSurfaces = [...surfaces];
       newSurfaces.splice(index, 1);
       setSurfaces(newSurfaces);
@@ -145,7 +166,7 @@ const SurfacesTable = ({ surfaces, setSurfaces }) => {
         }
         return (
             <div className={`editable-cell ${isInvalid ? 'invalid' : ''}`}>
-                <span onClick={() => handleCellClick(index, field)}>
+                <span onClick={() => handleCellClick(value, index, field)}>
                   {value}
                 </span>
             </div>

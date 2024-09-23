@@ -13,13 +13,13 @@ const FieldsTable = ({ fields, setFields }) => {
     setFields(newFields);
   };
 
-  const handleCellClick = (index, field) => {
+  const handleCellClick = (value, index, field) => {
     // Don't allow editing a cell if another cell is invalid
     if (editingCell && invalidFields[editingCell.index] && invalidFields[editingCell.index][editingCell.field]) {
       return;
     }
 
-    setEditingCell({ index, field });
+    setEditingCell({ originalValue: value, index, field });
   };
 
   const handleCellChange = (e, index, field) => {
@@ -49,6 +49,7 @@ const FieldsTable = ({ fields, setFields }) => {
         }
     }
   
+    // TODO: Use reducer hook?
     setFields(newFields);
     setInvalidFields(newInvalidFields);
   };
@@ -66,19 +67,42 @@ const FieldsTable = ({ fields, setFields }) => {
       // Do not allow exiting the cell if the input is invalid
       if (invalidFields[editingCell.index] && invalidFields[editingCell.index][editingCell.field]) {
         return;
+      }
+      setEditingCell(null);
     }
+
+    if (e.key === 'Escape' && editingCell) {
+      const newFields = [...fields];
+      // TODO: Remove the hard-coded "Angle" key as this will be a mess when I add other Field types
+      newFields[editingCell.index]["Angle"][editingCell.field] = editingCell.originalValue;
+
+      // TODO: Use reducer hook?
+      setFields(newFields);
+      setInvalidFields({});
       setEditingCell(null);
     }
   };
 
   const handleInsert = (index) => {
+    // Don't allow inserting a cell if another cell is invalid
+    if (editingCell && invalidFields[editingCell.index] && invalidFields[editingCell.index][editingCell.field]) {
+      return;
+    }
+
     const newFields = [...fields];
     newFields.splice(index + 1, 0, { Angle: { angle: 0, pupil_sampling: { SquareGrid: { spacing: 0.1 } } } });
     setFields(newFields);
   };
 
   const handleDelete = (index) => {
-    if (index === 0) return; // Don't allow deleting the first row
+    // Don't allow deleting the first row
+    if (index === 0) return;
+
+    // Don't allow deleting a cell if a cell is being edited
+    if (editingCell && invalidFields[editingCell.index] && invalidFields[editingCell.index][editingCell.field]) {
+      return;
+    }
+
     const newFields = [...fields];
     newFields.splice(index, 1);
     setFields(newFields);
@@ -135,7 +159,7 @@ const FieldsTable = ({ fields, setFields }) => {
     }
     return (
       <div className={`editable-cell ${isInvalid ? 'invalid' : ''}`}>
-        <span onClick={() => handleCellClick(index, field)}>
+        <span onClick={() => handleCellClick(value, index, field)}>
           {value}
         </span>
       </div>
