@@ -4,15 +4,16 @@ import "../css/Table.css";
 
 const SurfacesTable = ({ surfaces, setSurfaces }) => {
     const [editingCell, setEditingCell] = useState(null);
+    const [invalidFields, setInvalidFields] = useState({});
 
     const getSurfaceTypeDefaultValues = (type) => {
         switch (type) {
           case 'Conic':
-            return { n: 1.5, thickness: 10, semiDiam: 25, roc: 100 };
+            return { type: "Conic", n: 1.5, thickness: 10, semiDiam: 12.5, roc: 100 };
           case 'Probe':
-            return { n: 1, thickness: 10, semiDiam: 25, roc: "" };
+            return { type: "Probe", n: 1, thickness: 10, semiDiam: 12.5, roc: "" };
           case 'Stop':
-            return { n: 1, thickness: 10, semiDiam: 25, roc: "" };
+            return { type: "Stop", n: 1, thickness: 10, semiDiam: 12.5, roc: "" };
           default:
             return {};
         }
@@ -29,35 +30,93 @@ const SurfacesTable = ({ surfaces, setSurfaces }) => {
         setSurfaces(newSurfaces);
     }
 
-    const handleCellClick = (index, field) => {
-        if (index === surfaces.length - 1) return; // Don't allow editing the last row
-        setEditingCell({ index, field });
+    const handleCellClick = (value, index, field) => {
+      // Don't allow editing the last row
+      if (index === surfaces.length - 1) return;
+
+      // Don't allow editing a cell if another cell is invalid
+      if (editingCell && invalidFields[editingCell.index] && invalidFields[editingCell.index][editingCell.field]) {
+          return;
+      }
+
+      setEditingCell({ originalValue: value, index, field });
     };
     
     const handleCellChange = (e, index, field) => {
+        const newValue = e.target.value;
         const newSurfaces = [...surfaces];
-        newSurfaces[index][field] = e.target.value;
+        const newInvalidFields = { ...invalidFields };
+        
+        newSurfaces[index][field] = newValue;
+        if ((newValue != "Infinity") && isNaN(parseFloat(newValue))) {
+            // Invalid input: store the raw input and mark as invalid
+            if (!newInvalidFields[index]) {
+                newInvalidFields[index] = {};
+            }
+            newInvalidFields[index][field] = true;
+        } else {
+            // A valid number; remove any invalid markers
+            if (newInvalidFields[index]) {
+               delete newInvalidFields[index][field];
+               if (Object.keys(newInvalidFields[index]).length === 0) {
+                   delete newInvalidFields[index];
+               }
+            }
+        }
+
+        // TODO: Use reducer hook?
         setSurfaces(newSurfaces);
-    };
+        setInvalidFields(newInvalidFields);
+  };
     
     const handleCellBlur = () => {
-        setEditingCell(null);
-    };
-    
-    const handleKeyDown = (e) => {
-        if (e.key === 'Enter') {
+      // Do not allow exiting the cell if the input is invalid
+      if (invalidFields[editingCell.index] && invalidFields[editingCell.index][editingCell.field]) {
+          return;
+      }
+      setEditingCell(null);
+  };
+
+  const handleKeyDown = (e) => {
+      if (e.key === 'Enter' && editingCell) {
+          // Do not allow exiting the cell if the input is invalid
+          if (invalidFields[editingCell.index] && invalidFields[editingCell.index][editingCell.field]) {
+              return;
+          }
           setEditingCell(null);
-        }
-    };
+      }
+
+      if (e.key === 'Escape' && editingCell) {
+          const newSurfaces = [...surfaces];
+          newSurfaces[editingCell.index][editingCell.field] = editingCell.originalValue;
+
+          // TODO: Use reducer hook?
+          setSurfaces(newSurfaces);
+          setInvalidFields({});
+          setEditingCell(null);
+      }
+  };
 
     const handleInsert = (index) => {
-        const newSurfaces = [...surfaces];
-        newSurfaces.splice(index + 1, 0, getSurfaceTypeDefaultValues('Conic'));
-        setSurfaces(newSurfaces);
+      // Don't allow inserting a cell if another cell is invalid
+      if (editingCell && invalidFields[editingCell.index] && invalidFields[editingCell.index][editingCell.field]) {
+        return;
+      }
+  
+      const newSurfaces = [...surfaces];
+      newSurfaces.splice(index + 1, 0, getSurfaceTypeDefaultValues('Conic'));
+      setSurfaces(newSurfaces);
     };
   
     const handleDelete = (index) => {
-      if (index === 0 || index === surfaces.length - 1) return; // Don't allow deleting Object or Image plane
+      // Don't allow deleting Object or Image plane
+      if (index === 0 || index === surfaces.length - 1) return;
+
+      // Don't allow deleting a cell if another cell is invalid
+      if (editingCell && invalidFields[editingCell.index] && invalidFields[editingCell.index][editingCell.field]) {
+          return;
+      }
+
       const newSurfaces = [...surfaces];
       newSurfaces.splice(index, 1);
       setSurfaces(newSurfaces);
@@ -87,12 +146,15 @@ const SurfacesTable = ({ surfaces, setSurfaces }) => {
     };
 
     const renderEditableCell = (value, index, field) => {
-        if (editingCell && editingCell.index === index && editingCell.field === field) {
+        const isEditing = editingCell && editingCell.index === index && editingCell.field === field;
+        const isInvalid = invalidFields[index] && invalidFields[index][field];
+
+        if (isEditing) {
         return (
-            <div className="editable-cell">
+            <div className={`editable-cell ${isInvalid ? 'invalid' : ''}`}>
                 <span>{value}</span>
                 <input
-                    type="text"
+                    type="number"
                     value={value}
                     onChange={(e) => handleCellChange(e, index, field)}
                     onBlur={handleCellBlur}
@@ -103,9 +165,9 @@ const SurfacesTable = ({ surfaces, setSurfaces }) => {
         );
         }
         return (
-            <div className="editable-cell">
-                <span onClick={() => handleCellClick(index, field)}>
-                {value}
+            <div className={`editable-cell ${isInvalid ? 'invalid' : ''}`}>
+                <span onClick={() => handleCellClick(value, index, field)}>
+                  {value}
                 </span>
             </div>
         );

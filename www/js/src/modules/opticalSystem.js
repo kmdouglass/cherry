@@ -1,5 +1,5 @@
 /* Converts data from the UI state into inputs to the raytrace engine. */
-export function convertUIStateToEngineFormat(surfaces) {
+export function convertUIStateToEngineFormat(surfaces, fields) {
     const AIR = {"real": {"Constant": 1.0}, "imag": null};
 
     // QUESTION: Can float conversion be done any better?
@@ -35,11 +35,31 @@ export function convertUIStateToEngineFormat(surfaces) {
         };
     }
 
-    const surface_specs = surfaces.map(createSurfaceSpec);
-    const gap_specs = surfaces.slice(0, -1).map(createGapSpec);
+    function createFieldSpec(field) {
+        const angle = parseFloat(field.Angle.angle);
+        const pupil_sampling = field.Angle.pupil_sampling;
+        const pupil_sampling_type = Object.keys(pupil_sampling)[0];
+        const spacing = parseFloat(pupil_sampling[pupil_sampling_type].spacing);
+
+        return {
+            "Angle": {
+                "angle": angle,
+                "pupil_sampling": {
+                    [pupil_sampling_type]: {
+                        "spacing": spacing
+                    }
+                }
+            }
+        };
+    }
+
+    const surfaceSpecs = surfaces.map(createSurfaceSpec);
+    const gapSpecs = surfaces.slice(0, -1).map(createGapSpec);
+    const fieldSpecs = fields.map(createFieldSpec);
 
     return {
-        surface_specs,
-        gap_specs
+        surfaceSpecs,
+        gapSpecs,
+        fieldSpecs
     };
 }

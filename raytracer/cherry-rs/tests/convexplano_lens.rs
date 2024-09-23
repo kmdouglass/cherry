@@ -3,7 +3,7 @@ use cherry_rs::ParaxialView;
 
 fn paraxial_view() -> ParaxialView {
     let model = sequential_model();
-    ParaxialView::new(&model, false)
+    ParaxialView::new(&model, false).expect("Could not create paraxial view")
 }
 
 #[test]

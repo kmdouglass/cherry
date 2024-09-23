@@ -31,14 +31,14 @@ pub fn ray_trace_3d_view(
     sequential_model: &SequentialModel,
     paraxial_view: &ParaxialView,
     pupil_sampling: Option<PupilSampling>,
-) -> HashMap<SubModelID, TraceResults> {
+) -> Result<HashMap<SubModelID, TraceResults>> {
     let results = sequential_model
         .submodels()
         .iter()
         .map(|(id, submodel)| {
             let surfaces = sequential_model.surfaces();
             let paraxial_sub_view = paraxial_view.subviews.get(id).unwrap();
-            (
+            Ok((
                 *id,
                 ray_trace_sub_model(
                     &aperture_spec,
@@ -47,8 +47,8 @@ pub fn ray_trace_3d_view(
                     surfaces,
                     paraxial_sub_view,
                     pupil_sampling,
-                ),
-            )
+                )?,
+            ))
         })
         .collect();
 
@@ -58,11 +58,11 @@ pub fn ray_trace_3d_view(
 fn ray_trace_sub_model(
     aperture_spec: &ApertureSpec,
     field_specs: &[FieldSpec],
-    sequential_sub_model: &SequentialSubModel,
+    sequential_sub_model: &impl SequentialSubModel,
     surfaces: &[Surface],
     paraxial_sub_view: &ParaxialSubView,
     pupil_sampling: Option<PupilSampling>,
-) -> TraceResults {
+) -> Result<TraceResults> {
     let rays = rays(
         aperture_spec,
         sequential_sub_model,
@@ -70,11 +70,10 @@ fn ray_trace_sub_model(
         paraxial_sub_view,
         field_specs,
         pupil_sampling,
-    )
-    .unwrap();
+    )?;
 
-    let mut sequential_sub_model_iter = sequential_sub_model.iter(surfaces);
-    trace(&mut sequential_sub_model_iter, rays)
+    let mut sequential_sub_model_iter = sequential_sub_model.try_iter(surfaces)?;
+    Ok(trace(&mut sequential_sub_model_iter, rays))
 }
 
 /// Returns the rays to trace through the system as defined by the fields.
@@ -86,7 +85,7 @@ fn ray_trace_sub_model(
 ///  in the field specs for every field if provided.
 fn rays(
     aperture_spec: &ApertureSpec,
-    sequential_sub_model: &SequentialSubModel,
+    sequential_sub_model: &impl SequentialSubModel,
     surfaces: &[Surface],
     paraxial_sub_view: &ParaxialSubView,
     field_specs: &[FieldSpec],
@@ -152,7 +151,7 @@ fn rays(
 /// * `field_id` - The ID of the field.
 fn pupil_ray_fan(
     aperture_spec: &ApertureSpec,
-    sequential_sub_model: &SequentialSubModel,
+    sequential_sub_model: &impl SequentialSubModel,
     surfaces: &[Surface],
     paraxial_sub_view: &ParaxialSubView,
     num_rays: usize,
@@ -203,7 +202,7 @@ fn pupil_ray_fan(
 /// * `field_id` - The field ID.
 fn pupil_ray_sq_grid(
     aperture_spec: &ApertureSpec,
-    sequential_sub_model: &SequentialSubModel,
+    sequential_sub_model: &impl SequentialSubModel,
     surfaces: &[Surface],
     paraxial_sub_view: &ParaxialSubView,
     spacing: Float,
@@ -246,7 +245,7 @@ fn pupil_ray_sq_grid(
 /// Determines the entrance pupil of the subview.
 fn entrance_pupil(
     aperture_spec: &ApertureSpec,
-    sequential_sub_model: &SequentialSubModel,
+    sequential_sub_model: &impl SequentialSubModel,
     surfaces: &[Surface],
     paraxial_sub_view: &ParaxialSubView,
 ) -> Result<Pupil> {
@@ -290,7 +289,7 @@ mod tests {
     #[test]
     fn test_ray_trace_3d_view() {
         let sequential_model = sequential_model();
-        let paraxial_view = ParaxialView::new(&sequential_model, false);
+        let paraxial_view = ParaxialView::new(&sequential_model, false).unwrap();
 
         let aperture_spec = ApertureSpec::EntrancePupil { semi_diameter: 5.0 };
         let field_specs = vec![
@@ -310,7 +309,8 @@ mod tests {
             &sequential_model,
             &paraxial_view,
             None,
-        );
+        )
+        .unwrap();
 
         assert_eq!(results.len(), 1);
     }

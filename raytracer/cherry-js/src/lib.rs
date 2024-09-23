@@ -62,6 +62,9 @@ impl OpticalSystem {
 
     pub fn setFields(&mut self, fields: JsValue) -> Result<(), JsError> {
         let fields: Vec<FieldSpec> = serde_wasm_bindgen::from_value(fields)?;
+        for field in fields.iter() {
+            field.validate().map_err(|e| JsError::new(&e.to_string()))?;
+        }
         self.builder.field_specs(fields);
         Ok(())
     }
@@ -92,7 +95,9 @@ impl OpticalSystem {
         };
 
         let mut results = HashMap::new();
-        let raw_results = system_model.trace_chief_and_marginal_rays();
+        let raw_results = system_model.trace_chief_and_marginal_rays().map_err(|e| {
+            JsError::new(&format!("Failed to trace chief and marginal rays: {}", e))
+        })?;
         for (id, trace_results) in raw_results {
             let sanitized = Self::sanitize(trace_results);
             results.insert(id, sanitized);
@@ -108,7 +113,9 @@ impl OpticalSystem {
         };
 
         let mut results = HashMap::new();
-        let raw_results = system_model.trace();
+        let raw_results = system_model
+            .trace()
+            .map_err(|e| JsError::new(&format!("Failed to trace rays: {}", e)))?;
         for (id, trace_results) in raw_results {
             let sanitized = Self::sanitize(trace_results);
             results.insert(id, sanitized);
