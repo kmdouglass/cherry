@@ -96,7 +96,7 @@ fn propagate(rays: ParaxialRaysView, distance: Float) -> ParaxialRays {
 ///
 /// This will return an error if any of the z-intercepts are NaNs.
 fn z_intercepts(rays: ParaxialRaysView) -> Result<Array1<Float>> {
-    let results = (-&rays.row(0) / &rays.row(1)).to_owned();
+    let results = (-&rays.row(0) / rays.row(1)).to_owned();
 
     if results.iter().any(|&x| x.is_nan()) {
         return Err(anyhow!("Some z_intercepts are NaNs"));
@@ -150,10 +150,10 @@ impl ParaxialSubView {
             Self::calc_reverse_parallel_ray(sequential_sub_model, surfaces, axis)?;
 
         Ok(Self {
-            axis: axis,
-            is_obj_space_telecentric: is_obj_space_telecentric,
-            pseudo_marginal_ray: pseudo_marginal_ray,
-            reverse_parallel_ray: reverse_parallel_ray,
+            axis,
+            is_obj_space_telecentric,
+            pseudo_marginal_ray,
+            reverse_parallel_ray,
 
             aperture_stop: OnceCell::new(),
             entrance_pupil: OnceCell::new(),
@@ -185,7 +185,7 @@ impl ParaxialSubView {
                 / self.pseudo_marginal_ray[[self.pseudo_marginal_ray.shape()[0] - 1, 0, 0]];
 
             // Do not include the object or image surfaces when computing the aperture stop.
-            argmin(&ratios.slice(s![1..-1])) + 1
+            argmin(&ratios.slice(s![1..(ratios.len() - 1)])) + 1
         })
     }
 
@@ -242,8 +242,8 @@ impl ParaxialSubView {
         let semi_diameter = propagate(init_marginal_ray, distance)[[0, 0]];
 
         Ok(self.entrance_pupil.get_or_init(|| Pupil {
-            location: location,
-            semi_diameter: semi_diameter,
+            location,
+            semi_diameter,
         }))
     }
 
@@ -257,7 +257,7 @@ impl ParaxialSubView {
                     .map(|surface| surface.semi_diameter())
                     .collect::<Vec<Float>>(),
             );
-            let ratios = semi_diameters / &pmr.slice(s![.., 0, 0]);
+            let ratios = semi_diameters / pmr.slice(s![.., 0, 0]);
 
             let scale_factor = ratios[*self.aperture_stop(surfaces)];
 
@@ -383,7 +383,8 @@ fn surface_to_rtm(
 
     match surface {
         // Conics and torics behave the same in paraxial subviews.
-        Surface::Conic(_) | Surface::Toric(_) => match surface_type {
+        //Surface::Conic(_) | Surface::Toric(_) => match surface_type {
+        Surface::Conic(_) => match surface_type {
             SurfaceType::Refracting => arr2(&[
                 [1.0, t],
                 [

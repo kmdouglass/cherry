@@ -12,9 +12,9 @@ pub struct Vec3 {
 }
 
 /// Required to serialize Vec3 directly into an array instead of a JSON Object.
-impl Into<[Float; 3]> for Vec3 {
-    fn into(self) -> [Float; 3] {
-        self.e
+impl From<Vec3> for [Float; 3] {
+    fn from(val: Vec3) -> Self {
+        val.e
     }
 }
 

@@ -62,7 +62,7 @@ impl Ray {
 
             // Update the distance s using the Newton-Raphson method
             (sag, norm) = surf.sag_norm(p);
-            s = s - (p.z() - sag) / norm.dot(self.dir);
+            s -= (p.z() - sag) / norm.dot(self.dir);
 
             // Check for convergence by comparing the current and previous values of s
             if (s - s_1).abs() / Float::max(s, s_1) < TOL {
@@ -101,7 +101,8 @@ impl Ray {
 
         match surf {
             // Refracting surfaces
-            Surface::Conic(_) | Surface::Toric(_) => {
+            //Surface::Conic(_) | Surface::Toric(_) => {
+            Surface::Conic(_) => {
                 let mu = n_0 / n_1;
                 let cos_theta_1 = self.dir.dot(norm);
                 let term_1 = norm * (1.0 - mu * mu * (1.0 - cos_theta_1 * cos_theta_1)).sqrt();
@@ -162,6 +163,7 @@ impl Ray {
     ///   amount in x
     /// - radial_offset_y: Offset the radial position of the vectors by this
     ///   amount in y
+    #[allow(clippy::too_many_arguments)]
     pub fn fan(
         n: usize,
         r: Float,
@@ -175,7 +177,7 @@ impl Ray {
         let pos = Vec3::fan(n, r, theta, z, radial_offset_x, radial_offset_y);
         let dir: Vec<Vec3> = pos
             .iter()
-            .map(|p| {
+            .map(|_| {
                 let l = phi.sin() * theta.cos();
                 let m = phi.sin() * theta.sin();
                 let n = phi.cos();
@@ -217,7 +219,7 @@ impl Ray {
             Vec3::sq_grid_in_circ(radius, spacing, z, radial_offset_x, radial_offset_y);
         let dir: Vec<Vec3> = pos
             .iter()
-            .map(|p| {
+            .map(|_| {
                 let l = phi.sin() * theta.cos();
                 let m = phi.sin() * theta.sin();
                 let n = phi.cos();
