@@ -3,7 +3,6 @@ pub(super) mod math;
 pub(crate) mod sequential_model;
 
 use anyhow::{anyhow, Result};
-use serde::{Deserialize, Serialize};
 
 use crate::specs::gaps::{ImagSpec, RealSpec, RefractiveIndexSpec};
 
@@ -95,13 +94,13 @@ impl RefractiveIndex {
 
         let n = match spec.real {
             RealSpec::Constant(n) => n,
-            _ => !unimplemented!("Non-constant refractive indexes are not implemented."),
+            _ => return Err(anyhow!("Non-constant refractive indexes are not implemented."))
         };
 
         let k = match spec.imag {
             Some(ImagSpec::Constant(k)) => k,
             None => 0.0,
-            _ => !unimplemented!("Non-constant refractive indexes are not implemented."),
+            _ => return Err(anyhow!("Non-constant refractive indexes are not implemented."))
         };
 
         Ok(Self::new(n, k))

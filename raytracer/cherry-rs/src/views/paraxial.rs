@@ -150,10 +150,10 @@ impl ParaxialSubView {
             Self::calc_reverse_parallel_ray(sequential_sub_model, surfaces, axis)?;
 
         Ok(Self {
-            axis: axis,
-            is_obj_space_telecentric: is_obj_space_telecentric,
-            pseudo_marginal_ray: pseudo_marginal_ray,
-            reverse_parallel_ray: reverse_parallel_ray,
+            axis,
+            is_obj_space_telecentric,
+            pseudo_marginal_ray,
+            reverse_parallel_ray,
 
             aperture_stop: OnceCell::new(),
             entrance_pupil: OnceCell::new(),
@@ -242,8 +242,8 @@ impl ParaxialSubView {
         let semi_diameter = propagate(init_marginal_ray, distance)[[0, 0]];
 
         Ok(self.entrance_pupil.get_or_init(|| Pupil {
-            location: location,
-            semi_diameter: semi_diameter,
+            location,
+            semi_diameter,
         }))
     }
 

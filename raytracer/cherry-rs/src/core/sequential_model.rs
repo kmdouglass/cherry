@@ -1,6 +1,6 @@
 /// Data types for modeling sequential ray tracing systems.
 use std::collections::HashMap;
-use std::ops::{Index, Range};
+use std::ops::Range;
 
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
@@ -190,7 +190,7 @@ impl SequentialModel {
         surface_specs: &[SurfaceSpec],
         wavelengths: &[Float],
     ) -> Result<Self> {
-        Self::validate_specs(gap_specs, surface_specs, wavelengths)?;
+        Self::validate_specs(gap_specs, wavelengths)?;
 
         let surfaces = Self::surf_specs_to_surfs(&surface_specs, &gap_specs);
 
@@ -333,9 +333,9 @@ impl SequentialModel {
 
     fn validate_specs(
         gaps: &[GapSpec],
-        surfaces: &[SurfaceSpec],
         wavelengths: &[Float],
     ) -> Result<()> {
+        // TODO: Validate surface specs as well!
         Self::validate_gaps(gaps, wavelengths)?;
         Ok(())
     }
@@ -633,7 +633,7 @@ impl Surface {
 mod tests {
     use super::*;
     use crate::{
-        core::math::mat3::mat3,
+        core::math::mat3::Mat3,
         examples::convexplano_lens::sequential_model,
         specs::gaps::{RealSpec, RefractiveIndexSpec},
     };
@@ -670,7 +670,7 @@ mod tests {
         let surfaces = vec![
             Surface::Conic(Conic {
                 pos: Vec3::new(0.0, 0.0, 0.0),
-                rotation_matrix: mat3!(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
+                rotation_matrix: Mat3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
                 semi_diameter: 1.0,
                 radius_of_curvature: 1.0,
                 conic_constant: 0.0,
@@ -678,7 +678,7 @@ mod tests {
             }),
             Surface::Conic(Conic {
                 pos: Vec3::new(0.0, 0.0, 0.0),
-                rotation_matrix: mat3!(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
+                rotation_matrix: Mat3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
                 semi_diameter: 1.0,
                 radius_of_curvature: 1.0,
                 conic_constant: 0.0,
@@ -690,7 +690,7 @@ mod tests {
         let surfaces = vec![
             Surface::Conic(Conic {
                 pos: Vec3::new(0.0, 0.0, 0.0),
-                rotation_matrix: mat3!(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
+                rotation_matrix: Mat3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
                 semi_diameter: 1.0,
                 radius_of_curvature: 1.0,
                 conic_constant: 0.0,
@@ -698,7 +698,7 @@ mod tests {
             }),
             Surface::Toric(Toric {
                 pos: Vec3::new(0.0, 0.0, 0.0),
-                rotation_matrix: mat3!(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
+                rotation_matrix: Mat3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
                 semi_diameter: 1.0,
                 radius_of_curvature_y: 1.0,
                 radius_of_curvature_x: 1.0,

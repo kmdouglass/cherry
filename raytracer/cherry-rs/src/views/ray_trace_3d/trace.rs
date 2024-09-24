@@ -38,7 +38,7 @@ pub fn trace(
 
     // Iterate over all pairs of surfaces.
     for (ctr, step) in sequential_submodel.enumerate() {
-        let (gap_0, surf, gap_1) = step;
+        let (_, surf, _) = step;
 
         for ray in &mut rays {
             // Skip rays that have already terminated

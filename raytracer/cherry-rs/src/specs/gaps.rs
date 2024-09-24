@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::core::{Float, RefractiveIndex};
+use crate::core::Float;
 
 /// Specifies a gap in a sequential optical system model.
 #[derive(Serialize, Deserialize, Debug)]

@@ -175,7 +175,7 @@ impl Ray {
         let pos = Vec3::fan(n, r, theta, z, radial_offset_x, radial_offset_y);
         let dir: Vec<Vec3> = pos
             .iter()
-            .map(|p| {
+            .map(|_| {
                 let l = phi.sin() * theta.cos();
                 let m = phi.sin() * theta.sin();
                 let n = phi.cos();
@@ -217,7 +217,7 @@ impl Ray {
             Vec3::sq_grid_in_circ(radius, spacing, z, radial_offset_x, radial_offset_y);
         let dir: Vec<Vec3> = pos
             .iter()
-            .map(|p| {
+            .map(|_| {
                 let l = phi.sin() * theta.cos();
                 let m = phi.sin() * theta.sin();
                 let n = phi.cos();

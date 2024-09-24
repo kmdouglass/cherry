@@ -6,15 +6,6 @@ pub struct Mat3 {
     e: [[Float; 3]; 3],
 }
 
-/// Create a new 3x3 matrix in row-major order.
-macro_rules! mat3 {
-    ($e00:expr, $e01:expr, $e02:expr, $e10:expr, $e11:expr, $e12:expr, $e20:expr, $e21:expr, $e22:expr) => {
-        Mat3::new($e00, $e01, $e02, $e10, $e11, $e12, $e20, $e21, $e22)
-    };
-}
-
-pub(crate) use mat3;
-
 impl Mat3 {
     pub fn new(
         e00: Float,
@@ -90,11 +81,12 @@ impl std::ops::Mul<Vec3> for Mat3 {
 #[cfg(test)]
 mod test {
     use super::*;
+
     #[test]
     fn test_mat3_mul_vec3() {
         use super::*;
 
-        let mat = mat3!(1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7., 8.0, 9.0);
+        let mat = Mat3::new(1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7., 8.0, 9.0);
         let vec = Vec3::new(1.0, 2.0, 3.0);
 
         let res = mat * vec;
@@ -106,17 +98,17 @@ mod test {
     fn test_mat3_transpose() {
         use super::*;
 
-        let mat = mat3!(1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7., 8.0, 9.0);
+        let mat = Mat3::new(1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7., 8.0, 9.0);
 
         let res = mat.transpose();
 
-        assert_eq!(res, mat3!(1.0, 4.0, 7.0, 2.0, 5.0, 8.0, 3., 6.0, 9.0));
+        assert_eq!(res, Mat3::new(1.0, 4.0, 7.0, 2.0, 5.0, 8.0, 3., 6.0, 9.0));
     }
 
     #[test]
     fn test_mat3_from_euler_angles() {
         let (k, l, m) = (0.0, 0.0, 0.0); // no rotation
         let mat = Mat3::from_euler_angles(k, l, m);
-        assert_eq!(mat, mat3!(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0));
+        assert_eq!(mat, Mat3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0));
     }
 }
