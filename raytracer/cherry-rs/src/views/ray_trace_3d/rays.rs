@@ -163,6 +163,7 @@ impl Ray {
     ///   amount in x
     /// - radial_offset_y: Offset the radial position of the vectors by this
     ///   amount in y
+    #[allow(clippy::too_many_arguments)]
     pub fn fan(
         n: usize,
         r: Float,

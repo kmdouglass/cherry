@@ -7,6 +7,7 @@ pub struct Mat3 {
 }
 
 impl Mat3 {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         e00: Float,
         e01: Float,

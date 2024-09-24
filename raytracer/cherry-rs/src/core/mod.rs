@@ -94,13 +94,21 @@ impl RefractiveIndex {
 
         let n = match spec.real {
             RealSpec::Constant(n) => n,
-            _ => return Err(anyhow!("Non-constant refractive indexes are not implemented."))
+            _ => {
+                return Err(anyhow!(
+                    "Non-constant refractive indexes are not implemented."
+                ))
+            }
         };
 
         let k = match spec.imag {
             Some(ImagSpec::Constant(k)) => k,
             None => 0.0,
-            _ => return Err(anyhow!("Non-constant refractive indexes are not implemented."))
+            _ => {
+                return Err(anyhow!(
+                    "Non-constant refractive indexes are not implemented."
+                ))
+            }
         };
 
         Ok(Self::new(n, k))

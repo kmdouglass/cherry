@@ -185,7 +185,7 @@ impl ParaxialSubView {
                 / self.pseudo_marginal_ray[[self.pseudo_marginal_ray.shape()[0] - 1, 0, 0]];
 
             // Do not include the object or image surfaces when computing the aperture stop.
-            argmin(&ratios.slice(s![1..-1])) + 1
+            argmin(&ratios.slice(s![1..(ratios.len() - 1)])) + 1
         })
     }
 

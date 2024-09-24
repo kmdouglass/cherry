@@ -83,17 +83,6 @@ impl Surface {
 
         samples
     }
-
-    fn to_string(&self) -> String {
-        match self {
-            Self::Object(_) => "Object".to_string(),
-            Self::Image(_) => "Image".to_string(),
-            Self::Probe(_) => "Probe".to_string(),
-            Self::Stop(_) => "Stop".to_string(),
-            Self::Conic(_) => "Conic".to_string(),
-            //Self::Toric(_) => "Toric".to_string(),
-        }
-    }
 }
 
 #[cfg(test)]

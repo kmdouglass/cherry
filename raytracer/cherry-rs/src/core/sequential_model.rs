@@ -1,5 +1,6 @@
 /// Data types for modeling sequential ray tracing systems.
 use std::collections::HashMap;
+use std::fmt::{Display, Formatter};
 use std::ops::Range;
 
 use anyhow::{anyhow, Result};
@@ -193,16 +194,13 @@ impl SequentialModel {
     ) -> Result<Self> {
         Self::validate_specs(gap_specs, wavelengths)?;
 
-        let surfaces = Self::surf_specs_to_surfs(&surface_specs, &gap_specs);
+        let surfaces = Self::surf_specs_to_surfs(surface_specs, gap_specs);
 
-        let model_ids: Vec<SubModelID> = Self::calc_model_ids(&surfaces, &wavelengths);
+        let model_ids: Vec<SubModelID> = Self::calc_model_ids(&surfaces, wavelengths);
         let mut models: HashMap<SubModelID, SequentialSubModelBase> = HashMap::new();
         for model_id in model_ids.iter() {
-            let wavelength = match model_id.0 {
-                Some(idx) => Some(wavelengths[idx]),
-                None => None,
-            };
-            let gaps = Self::gap_specs_to_gaps(&gap_specs, wavelength)?;
+            let wavelength = model_id.0.map(|idx| wavelengths[idx]);
+            let gaps = Self::gap_specs_to_gaps(gap_specs, wavelength)?;
             let model = SequentialSubModelBase::new(gaps);
             models.insert(*model_id, model);
         }
@@ -306,7 +304,7 @@ impl SequentialModel {
 
         // Add the last surface
         surfaces.push(Surface::from_spec(
-            &surf_specs
+            surf_specs
                 .last()
                 .expect("There should always be one last surface."),
             cursor.pos(),
@@ -333,10 +331,7 @@ impl SequentialModel {
         Ok(())
     }
 
-    fn validate_specs(
-        gaps: &[GapSpec],
-        wavelengths: &[Float],
-    ) -> Result<()> {
+    fn validate_specs(gaps: &[GapSpec], wavelengths: &[Float]) -> Result<()> {
         // TODO: Validate surface specs as well!
         Self::validate_gaps(gaps, wavelengths)?;
         Ok(())
@@ -401,7 +396,7 @@ impl<'a> SequentialSubModelIter<'a> {
     }
 
     pub fn try_reverse(self) -> Result<SequentialSubModelReverseIter<'a>> {
-        SequentialSubModelReverseIter::new(&self.surfaces, self.gaps)
+        SequentialSubModelReverseIter::new(self.surfaces, self.gaps)
     }
 }
 
@@ -601,9 +596,7 @@ impl Surface {
             // Flat surfaces
             Self::Image(_) | Self::Object(_) | Self::Probe(_) | Self::Stop(_) => {
                 (0.0, Vec3::new(0.0, 0.0, 1.0))
-            }
-
-            //Self::Toric(_) => unimplemented!(),
+            } //Self::Toric(_) => unimplemented!(),
         }
     }
 
@@ -621,6 +614,19 @@ impl Surface {
             Self::Conic(conic) => conic.surface_type,
             //Self::Toric(toric) => toric.surface_type,
             _ => SurfaceType::NoOp,
+        }
+    }
+}
+
+impl Display for Surface {
+    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+        match self {
+            Self::Conic(_) => write!(f, "Conic"),
+            Self::Image(_) => write!(f, "Image"),
+            Self::Object(_) => write!(f, "Object"),
+            Self::Probe(_) => write!(f, "Probe"),
+            Self::Stop(_) => write!(f, "Stop"),
+            //Self::Toric(toric) => write!(f, "Toric surface at z = {}", toric.pos.z()),
         }
     }
 }
@@ -686,16 +692,16 @@ mod tests {
         // let surfaces = vec![
         //     Surface::Conic(Conic {
         //         pos: Vec3::new(0.0, 0.0, 0.0),
-        //         rotation_matrix: Mat3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
-        //         semi_diameter: 1.0,
+        //         rotation_matrix: Mat3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0,
+        // 0.0, 1.0),         semi_diameter: 1.0,
         //         radius_of_curvature: 1.0,
         //         conic_constant: 0.0,
         //         surface_type: SurfaceType::Refracting,
         //     }),
         //     Surface::Toric(Toric {
         //         pos: Vec3::new(0.0, 0.0, 0.0),
-        //         rotation_matrix: Mat3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
-        //         semi_diameter: 1.0,
+        //         rotation_matrix: Mat3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0,
+        // 0.0, 1.0),         semi_diameter: 1.0,
         //         radius_of_curvature_y: 1.0,
         //         radius_of_curvature_x: 1.0,
         //         conic_constant: 0.0,

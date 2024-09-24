@@ -87,16 +87,8 @@ impl RefractiveIndexSpec {
     }
 
     pub fn is_constant(&self) -> bool {
-        let is_real_part_const = match &self.real {
-            RealSpec::Constant(_) => true,
-            _ => false,
-        };
-
-        let is_imag_part_const = match &self.imag {
-            Some(ImagSpec::Constant(_)) => true,
-            None => true,
-            _ => false,
-        };
+        let is_real_part_const = matches!(&self.real, RealSpec::Constant(_));
+        let is_imag_part_const = matches!(&self.imag, Some(ImagSpec::Constant(_)) | None);
 
         is_real_part_const && is_imag_part_const
     }

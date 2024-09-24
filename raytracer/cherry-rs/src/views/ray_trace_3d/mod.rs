@@ -149,6 +149,7 @@ fn rays(
 /// * `theta` - The polar angle of the ray fan in the x-y plane.
 /// * `phi` - The angle of the ray w.r.t. the z-axis.
 /// * `field_id` - The ID of the field.
+#[allow(clippy::too_many_arguments)]
 fn pupil_ray_fan(
     aperture_spec: &ApertureSpec,
     sequential_sub_model: &impl SequentialSubModel,
