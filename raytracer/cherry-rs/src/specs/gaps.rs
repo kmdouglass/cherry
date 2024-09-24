@@ -69,7 +69,7 @@ pub enum ImagSpec {
 }
 
 impl GapSpec {
-    pub(crate) fn from_thickness_and_real_refractive_index(thickness: Float, n: Float) -> Self {
+    pub fn from_thickness_and_real_refractive_index(thickness: Float, n: Float) -> Self {
         let refractive_index = RefractiveIndexSpec {
             real: RealSpec::Constant(n),
             imag: None,

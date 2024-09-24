@@ -53,7 +53,7 @@ pub fn components_view(
         return Ok(components);
     }
 
-    while let Some((i, surf_pair)) = surface_pairs.next() {
+    for (i, surf_pair) in surface_pairs {
         if i == 0 || i == max_idx {
             // Don't include the object or image plane surfaces
             continue;
@@ -250,78 +250,78 @@ mod tests {
         SequentialModel::new(&gaps, &surfaces, &wavelengths).unwrap()
     }
     
-    pub fn petzval_lens() -> SequentialModel {
-        let surfaces = vec![
-            SurfaceSpec::Object,
-            SurfaceSpec::Conic {
-                semi_diameter: 28.478,
-                radius_of_curvature: 99.56266,
-                conic_constant: 0.0,
-                surf_type: crate::SurfaceType::Refracting,
-            },
-            SurfaceSpec::Conic {
-                semi_diameter: 26.276,
-                radius_of_curvature: -86.84002,
-                conic_constant: 0.0,
-                surf_type: crate::SurfaceType::Refracting,
-            },
-            SurfaceSpec::Conic {
-                semi_diameter: 21.01,
-                radius_of_curvature: -1187.63858,
-                conic_constant: 0.0,
-                surf_type: crate::SurfaceType::Refracting,
-            },
-            SurfaceSpec::Stop {
-                semi_diameter: 33.262,
-            },
-            SurfaceSpec::Conic {
-                semi_diameter: 20.543,
-                radius_of_curvature: 57.47491,
-                conic_constant: 0.0,
-                surf_type: crate::SurfaceType::Refracting,
-            },
-            SurfaceSpec::Conic {
-                semi_diameter: 20.074,
-                radius_of_curvature: -54.61685,
-                conic_constant: 0.0,
-                surf_type: crate::SurfaceType::Refracting,
-            },
-            SurfaceSpec::Conic {
-                semi_diameter: 16.492,
-                radius_of_curvature: -614.68633,
-                conic_constant: 0.0,
-                surf_type: crate::SurfaceType::Refracting,
-            },
-            SurfaceSpec::Conic {
-                semi_diameter: 17.297,
-                radius_of_curvature: -38.17110,
-                conic_constant: 0.0,
-                surf_type: crate::SurfaceType::Refracting,
-            },
-            SurfaceSpec::Conic {
-                semi_diameter: 18.94,
-                radius_of_curvature: Float::INFINITY,
-                conic_constant: 0.0,
-                surf_type: crate::SurfaceType::Refracting,
-            },
-            SurfaceSpec::Image,
-        ];
-        let gaps = vec![
-            GapSpec::from_thickness_and_real_refractive_index(Float::INFINITY, 1.0),
-            GapSpec::from_thickness_and_real_refractive_index(13.0, 1.5168),
-            GapSpec::from_thickness_and_real_refractive_index(4.0, 1.6645),
-            GapSpec::from_thickness_and_real_refractive_index(40.0, 1.0),
-            GapSpec::from_thickness_and_real_refractive_index(40.0, 1.0),
-            GapSpec::from_thickness_and_real_refractive_index(12.0, 1.6074),
-            GapSpec::from_thickness_and_real_refractive_index(3.0, 1.6727),
-            GapSpec::from_thickness_and_real_refractive_index(46.82210, 1.0),
-            GapSpec::from_thickness_and_real_refractive_index(2.0, 1.6727),
-            GapSpec::from_thickness_and_real_refractive_index(1.87179, 1.0),
-        ];
-        let wavelengths = vec![0.5876];
+    // pub fn petzval_lens() -> SequentialModel {
+    //     let surfaces = vec![
+    //         SurfaceSpec::Object,
+    //         SurfaceSpec::Conic {
+    //             semi_diameter: 28.478,
+    //             radius_of_curvature: 99.56266,
+    //             conic_constant: 0.0,
+    //             surf_type: crate::SurfaceType::Refracting,
+    //         },
+    //         SurfaceSpec::Conic {
+    //             semi_diameter: 26.276,
+    //             radius_of_curvature: -86.84002,
+    //             conic_constant: 0.0,
+    //             surf_type: crate::SurfaceType::Refracting,
+    //         },
+    //         SurfaceSpec::Conic {
+    //             semi_diameter: 21.01,
+    //             radius_of_curvature: -1187.63858,
+    //             conic_constant: 0.0,
+    //             surf_type: crate::SurfaceType::Refracting,
+    //         },
+    //         SurfaceSpec::Stop {
+    //             semi_diameter: 33.262,
+    //         },
+    //         SurfaceSpec::Conic {
+    //             semi_diameter: 20.543,
+    //             radius_of_curvature: 57.47491,
+    //             conic_constant: 0.0,
+    //             surf_type: crate::SurfaceType::Refracting,
+    //         },
+    //         SurfaceSpec::Conic {
+    //             semi_diameter: 20.074,
+    //             radius_of_curvature: -54.61685,
+    //             conic_constant: 0.0,
+    //             surf_type: crate::SurfaceType::Refracting,
+    //         },
+    //         SurfaceSpec::Conic {
+    //             semi_diameter: 16.492,
+    //             radius_of_curvature: -614.68633,
+    //             conic_constant: 0.0,
+    //             surf_type: crate::SurfaceType::Refracting,
+    //         },
+    //         SurfaceSpec::Conic {
+    //             semi_diameter: 17.297,
+    //             radius_of_curvature: -38.17110,
+    //             conic_constant: 0.0,
+    //             surf_type: crate::SurfaceType::Refracting,
+    //         },
+    //         SurfaceSpec::Conic {
+    //             semi_diameter: 18.94,
+    //             radius_of_curvature: Float::INFINITY,
+    //             conic_constant: 0.0,
+    //             surf_type: crate::SurfaceType::Refracting,
+    //         },
+    //         SurfaceSpec::Image,
+    //     ];
+    //     let gaps = vec![
+    //         GapSpec::from_thickness_and_real_refractive_index(Float::INFINITY, 1.0),
+    //         GapSpec::from_thickness_and_real_refractive_index(13.0, 1.5168),
+    //         GapSpec::from_thickness_and_real_refractive_index(4.0, 1.6645),
+    //         GapSpec::from_thickness_and_real_refractive_index(40.0, 1.0),
+    //         GapSpec::from_thickness_and_real_refractive_index(40.0, 1.0),
+    //         GapSpec::from_thickness_and_real_refractive_index(12.0, 1.6074),
+    //         GapSpec::from_thickness_and_real_refractive_index(3.0, 1.6727),
+    //         GapSpec::from_thickness_and_real_refractive_index(46.82210, 1.0),
+    //         GapSpec::from_thickness_and_real_refractive_index(2.0, 1.6727),
+    //         GapSpec::from_thickness_and_real_refractive_index(1.87179, 1.0),
+    //     ];
+    //     let wavelengths = vec![0.5876];
     
-        SequentialModel::new(&gaps, &surfaces, &wavelengths).unwrap()
-    }
+    //     SequentialModel::new(&gaps, &surfaces, &wavelengths).unwrap()
+    // }
 
     #[test]
     fn test_new_no_components() {

@@ -94,11 +94,11 @@ pub enum Surface {
     Object(Object),
     Probe(Probe),
     Stop(Stop),
-    Toric(Toric),
+    //Toric(Toric),
 }
 
 #[derive(Debug)]
-pub(crate) struct Conic {
+pub struct Conic {
     pos: Vec3,
     rotation_matrix: Mat3,
     semi_diameter: Float,
@@ -108,41 +108,42 @@ pub(crate) struct Conic {
 }
 
 #[derive(Debug)]
-pub(crate) struct Image {
+pub struct Image {
     pos: Vec3,
     rotation_matrix: Mat3,
 }
 
 #[derive(Debug)]
-pub(crate) struct Object {
+pub struct Object {
     pos: Vec3,
     rotation_matrix: Mat3,
 }
 
 /// A surface without any effect on rays that is used to measure intersections.
 #[derive(Debug)]
-pub(crate) struct Probe {
+pub struct Probe {
     pos: Vec3,
     rotation_matrix: Mat3,
 }
 
 #[derive(Debug)]
-pub(crate) struct Stop {
+pub struct Stop {
     pos: Vec3,
     rotation_matrix: Mat3,
     semi_diameter: Float,
 }
 
-#[derive(Debug)]
-pub(crate) struct Toric {
-    pos: Vec3,
-    rotation_matrix: Mat3,
-    semi_diameter: Float,
-    radius_of_curvature_y: Float,
-    radius_of_curvature_x: Float,
-    conic_constant: Float,
-    surface_type: SurfaceType,
-}
+// TODO: Implement Toric surfaces
+//#[derive(Debug)]
+//pub struct Toric {
+//    pos: Vec3,
+//    rotation_matrix: Mat3,
+//    semi_diameter: Float,
+//    radius_of_curvature_y: Float,
+//    radius_of_curvature_x: Float,
+//    conic_constant: Float,
+//    surface_type: SurfaceType,
+//}
 
 impl Conic {
     pub fn sag_norm(&self, pos: Vec3) -> (Float, Vec3) {
@@ -229,7 +230,7 @@ impl SequentialModel {
             .iter()
             .filter_map(|surf| match surf {
                 Surface::Conic(conic) => Some(conic.semi_diameter),
-                Surface::Toric(toric) => Some(toric.semi_diameter),
+                //Surface::Toric(toric) => Some(toric.semi_diameter),
                 Surface::Stop(stop) => Some(stop.semi_diameter),
                 _ => None,
             })
@@ -274,11 +275,12 @@ impl SequentialModel {
 
     /// Returns true if the system is rotationally symmetric about the optical
     /// axis.
-    fn is_rotationally_symmetric(surfaces: &[Surface]) -> bool {
+    fn is_rotationally_symmetric(_surfaces: &[Surface]) -> bool {
         // Return false if any toric surface is present in the system.
-        !surfaces
-            .iter()
-            .any(|surf| matches!(surf, Surface::Toric(_)))
+        //!surfaces
+        //    .iter()
+        //    .any(|surf| matches!(surf, Surface::Toric(_)))
+        true
     }
 
     fn surf_specs_to_surfs(surf_specs: &[SurfaceSpec], gap_specs: &[GapSpec]) -> Vec<Surface> {
@@ -362,12 +364,6 @@ impl SequentialSubModel for SequentialSubModelBase {
 
     fn try_iter<'a>(&'a self, surfaces: &'a [Surface]) -> Result<SequentialSubModelIter<'a>> {
         SequentialSubModelIter::new(surfaces, &self.gaps)
-    }
-}
-
-impl<'a> SequentialSubModelSlice<'a> {
-    fn new(gaps: &'a [Gap]) -> Self {
-        Self { gaps }
     }
 }
 
@@ -516,21 +512,21 @@ impl Surface {
                 rotation_matrix,
                 semi_diameter: *semi_diameter,
             }),
-            SurfaceSpec::Toric {
-                semi_diameter,
-                radius_of_curvature_vert,
-                radius_of_curvature_horz,
-                conic_constant,
-                surf_type,
-            } => Self::Toric(Toric {
-                pos,
-                rotation_matrix,
-                semi_diameter: *semi_diameter,
-                radius_of_curvature_y: *radius_of_curvature_vert,
-                radius_of_curvature_x: *radius_of_curvature_horz,
-                conic_constant: *conic_constant,
-                surface_type: *surf_type,
-            }),
+            // SurfaceSpec::Toric {
+            //     semi_diameter,
+            //     radius_of_curvature_vert,
+            //     radius_of_curvature_horz,
+            //     conic_constant,
+            //     surf_type,
+            // } => Self::Toric(Toric {
+            //     pos,
+            //     rotation_matrix,
+            //     semi_diameter: *semi_diameter,
+            //     radius_of_curvature_y: *radius_of_curvature_vert,
+            //     radius_of_curvature_x: *radius_of_curvature_horz,
+            //     conic_constant: *conic_constant,
+            //     surface_type: *surf_type,
+            // }),
         }
     }
 
@@ -556,7 +552,7 @@ impl Surface {
     fn rocx(&self) -> Float {
         match self {
             Self::Conic(conic) => conic.radius_of_curvature,
-            Self::Toric(toric) => toric.radius_of_curvature_x,
+            //Self::Toric(toric) => toric.radius_of_curvature_x,
             _ => Float::INFINITY,
         }
     }
@@ -565,7 +561,7 @@ impl Surface {
     fn rocy(&self) -> Float {
         match self {
             Self::Conic(conic) => conic.radius_of_curvature,
-            Self::Toric(toric) => toric.radius_of_curvature_y,
+            //Self::Toric(toric) => toric.radius_of_curvature_y,
             _ => Float::INFINITY,
         }
     }
@@ -579,7 +575,7 @@ impl Surface {
             Self::Object(object) => object.rotation_matrix,
             Self::Probe(probe) => probe.rotation_matrix,
             Self::Stop(stop) => stop.rotation_matrix,
-            Self::Toric(toric) => toric.rotation_matrix,
+            //Self::Toric(toric) => toric.rotation_matrix,
         }
     }
 
@@ -591,7 +587,7 @@ impl Surface {
             Self::Object(object) => object.pos,
             Self::Probe(probe) => probe.pos,
             Self::Stop(stop) => stop.pos,
-            Self::Toric(toric) => toric.pos,
+            //Self::Toric(toric) => toric.pos,
         }
     }
 
@@ -607,14 +603,14 @@ impl Surface {
                 (0.0, Vec3::new(0.0, 0.0, 1.0))
             }
 
-            Self::Toric(_) => unimplemented!(),
+            //Self::Toric(_) => unimplemented!(),
         }
     }
 
     pub(crate) fn semi_diameter(&self) -> Float {
         match self {
             Self::Conic(conic) => conic.semi_diameter,
-            Self::Toric(toric) => toric.semi_diameter,
+            //Self::Toric(toric) => toric.semi_diameter,
             Self::Stop(stop) => stop.semi_diameter,
             _ => Float::INFINITY,
         }
@@ -623,7 +619,7 @@ impl Surface {
     pub(crate) fn surface_type(&self) -> SurfaceType {
         match self {
             Self::Conic(conic) => conic.surface_type,
-            Self::Toric(toric) => toric.surface_type,
+            //Self::Toric(toric) => toric.surface_type,
             _ => SurfaceType::NoOp,
         }
     }
@@ -687,26 +683,26 @@ mod tests {
         ];
         assert!(SequentialModel::is_rotationally_symmetric(&surfaces));
 
-        let surfaces = vec![
-            Surface::Conic(Conic {
-                pos: Vec3::new(0.0, 0.0, 0.0),
-                rotation_matrix: Mat3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
-                semi_diameter: 1.0,
-                radius_of_curvature: 1.0,
-                conic_constant: 0.0,
-                surface_type: SurfaceType::Refracting,
-            }),
-            Surface::Toric(Toric {
-                pos: Vec3::new(0.0, 0.0, 0.0),
-                rotation_matrix: Mat3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
-                semi_diameter: 1.0,
-                radius_of_curvature_y: 1.0,
-                radius_of_curvature_x: 1.0,
-                conic_constant: 0.0,
-                surface_type: SurfaceType::Refracting,
-            }),
-        ];
-        assert!(!SequentialModel::is_rotationally_symmetric(&surfaces));
+        // let surfaces = vec![
+        //     Surface::Conic(Conic {
+        //         pos: Vec3::new(0.0, 0.0, 0.0),
+        //         rotation_matrix: Mat3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
+        //         semi_diameter: 1.0,
+        //         radius_of_curvature: 1.0,
+        //         conic_constant: 0.0,
+        //         surface_type: SurfaceType::Refracting,
+        //     }),
+        //     Surface::Toric(Toric {
+        //         pos: Vec3::new(0.0, 0.0, 0.0),
+        //         rotation_matrix: Mat3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
+        //         semi_diameter: 1.0,
+        //         radius_of_curvature_y: 1.0,
+        //         radius_of_curvature_x: 1.0,
+        //         conic_constant: 0.0,
+        //         surface_type: SurfaceType::Refracting,
+        //     }),
+        // ];
+        // assert!(!SequentialModel::is_rotationally_symmetric(&surfaces));
     }
 
     #[test]

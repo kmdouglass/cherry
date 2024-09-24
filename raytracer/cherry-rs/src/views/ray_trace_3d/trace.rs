@@ -36,7 +36,6 @@ pub fn trace(
         results[0].push(Ok(ray.clone()));
     }
 
-    // Iterate over all pairs of surfaces.
     for (ctr, step) in sequential_submodel.enumerate() {
         let (_, surf, _) = step;
 

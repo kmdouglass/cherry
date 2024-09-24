@@ -96,7 +96,7 @@ fn propagate(rays: ParaxialRaysView, distance: Float) -> ParaxialRays {
 ///
 /// This will return an error if any of the z-intercepts are NaNs.
 fn z_intercepts(rays: ParaxialRaysView) -> Result<Array1<Float>> {
-    let results = (-&rays.row(0) / &rays.row(1)).to_owned();
+    let results = (-&rays.row(0) / rays.row(1)).to_owned();
 
     if results.iter().any(|&x| x.is_nan()) {
         return Err(anyhow!("Some z_intercepts are NaNs"));
@@ -257,7 +257,7 @@ impl ParaxialSubView {
                     .map(|surface| surface.semi_diameter())
                     .collect::<Vec<Float>>(),
             );
-            let ratios = semi_diameters / &pmr.slice(s![.., 0, 0]);
+            let ratios = semi_diameters / pmr.slice(s![.., 0, 0]);
 
             let scale_factor = ratios[*self.aperture_stop(surfaces)];
 
@@ -383,7 +383,8 @@ fn surface_to_rtm(
 
     match surface {
         // Conics and torics behave the same in paraxial subviews.
-        Surface::Conic(_) | Surface::Toric(_) => match surface_type {
+        //Surface::Conic(_) | Surface::Toric(_) => match surface_type {
+        Surface::Conic(_) => match surface_type {
             SurfaceType::Refracting => arr2(&[
                 [1.0, t],
                 [

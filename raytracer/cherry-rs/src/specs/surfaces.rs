@@ -25,11 +25,11 @@ pub enum SurfaceSpec {
     Stop {
         semi_diameter: Float,
     },
-    Toric {
-        semi_diameter: Float,
-        radius_of_curvature_vert: Float,
-        radius_of_curvature_horz: Float,
-        conic_constant: Float,
-        surf_type: SurfaceType,
-    },
+    // Toric {
+    //     semi_diameter: Float,
+    //     radius_of_curvature_vert: Float,
+    //     radius_of_curvature_horz: Float,
+    //     conic_constant: Float,
+    //     surf_type: SurfaceType,
+    // },
 }

@@ -41,8 +41,8 @@ pub fn ray_trace_3d_view(
             Ok((
                 *id,
                 ray_trace_sub_model(
-                    &aperture_spec,
-                    &field_specs,
+                    aperture_spec,
+                    field_specs,
                     submodel,
                     surfaces,
                     paraxial_sub_view,

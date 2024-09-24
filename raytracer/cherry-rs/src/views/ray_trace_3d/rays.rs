@@ -62,7 +62,7 @@ impl Ray {
 
             // Update the distance s using the Newton-Raphson method
             (sag, norm) = surf.sag_norm(p);
-            s = s - (p.z() - sag) / norm.dot(self.dir);
+            s -= (p.z() - sag) / norm.dot(self.dir);
 
             // Check for convergence by comparing the current and previous values of s
             if (s - s_1).abs() / Float::max(s, s_1) < TOL {
@@ -101,7 +101,8 @@ impl Ray {
 
         match surf {
             // Refracting surfaces
-            Surface::Conic(_) | Surface::Toric(_) => {
+            //Surface::Conic(_) | Surface::Toric(_) => {
+            Surface::Conic(_) => {
                 let mu = n_0 / n_1;
                 let cos_theta_1 = self.dir.dot(norm);
                 let term_1 = norm * (1.0 - mu * mu * (1.0 - cos_theta_1 * cos_theta_1)).sqrt();

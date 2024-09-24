@@ -91,7 +91,7 @@ impl Surface {
             Self::Probe(_) => "Probe".to_string(),
             Self::Stop(_) => "Stop".to_string(),
             Self::Conic(_) => "Conic".to_string(),
-            Self::Toric(_) => "Toric".to_string(),
+            //Self::Toric(_) => "Toric".to_string(),
         }
     }
 }

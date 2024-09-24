@@ -27,7 +27,7 @@ pub(crate) struct Cursor {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct RefractiveIndex {
+pub struct RefractiveIndex {
     eta: Complex<Float>,
 }
 
