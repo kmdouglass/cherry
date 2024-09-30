@@ -1,5 +1,8 @@
 # cherry-web
+
 Cherry Web Frontend
+
+**DEPRECATED** The current frontend is at [../js](../js).
 
 # Development
 
