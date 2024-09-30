@@ -1,36 +1,37 @@
-# Cherry raytracer
+# Cherry Ray Tracer
 
-## Prerequisite
+Optical system design in the browser
 
-Install the [Nix package manager](https://nixos.org/download.html).
+*This is alpha software. Emphasis is currently placed on feature development, not on fixing bugs or on improving code quality.*
+
+## Quickstart
+
+1. Go to https://kmdouglass.github.io/cherry/
+2. Start designing!
+
+## Prerequisites
+
+- Rust compiler (see [raytracer/rust-toolchain.toml](raytracer/rust-toolchain.toml) for the version)
+- Node 20 (for the frontend)
 
 ## Build
 
-From the repository's root directory:
-
+```console
+cd www/js
+npm run build:prod
 ```
-nix build .#site
-```
-
-This will build the contents of the [website](http://browser.science).
 
 ## Development
 
-First, build the raytracer's WASM module:
+Build the development package:
 
-```
-(cd raytracer && nix develop --command wasm-pack build  cherry-js)
-```
-
-Then, to develop the ClojureScript frontend interactively, install the dependencies and start the development server:
-
-```
-nix develop --command yarn workspace cherry-web install
-nix develop --command yarn workspace cherry-web start
+```console
+cd www/js
+npm build:dev
 ```
 
-Finally, in a separate terminal, build the ClojureScript application:
+Launch the development server
 
 ```
-(cd www/cljs && nix develop --command clj -M:shadow-cljs watch app)
+npm run start
 ```
