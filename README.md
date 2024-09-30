@@ -2,6 +2,8 @@
 
 Optical system design in the browser
 
+*This is alpha software. Emphasis is currently placed on feature development, not on fixing bugs or on improving code quality.*
+
 ## Quickstart
 
 1. Go to https://kmdouglass.github.io/cherry/
