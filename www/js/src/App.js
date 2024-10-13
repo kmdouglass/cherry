@@ -1,4 +1,4 @@
-import { convertUIStateToEngineFormat } from "./modules/opticalSystem";
+import { convertUIStateToEngineFormat, getOpticalSystem } from "./modules/opticalSystem";
 
 import { useMemo, useState } from "react";
 
@@ -24,14 +24,14 @@ function App({ wasmModule }) {
     const [description, setDescription] = useState(null);
     const [rawRayPaths, setRawRayPaths] = useState(null);
 
+    const opticalSystem = getOpticalSystem(wasmModule);
+
     // Update the optical system during each render
     useMemo(() => {
         if (wasmModule) {
             try {
                 //console.debug("Raw surfaces:", surfaces);
 
-                // TODO: Memory leak here?
-                const opticalSystem = new wasmModule.OpticalSystem();
                 const { surfaceSpecs, gapSpecs, fieldSpecs } = convertUIStateToEngineFormat(surfaces, fields);
 
                 //Build the optical system
