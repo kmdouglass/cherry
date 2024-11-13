@@ -1,6 +1,42 @@
 import { useState } from 'react';
 
-const Navbar = () => {
+/*
+  Converts the nested Maps and Objects to simple JSON strings.
+ */
+function deepStringify(obj) {
+    return JSON.stringify(obj, (key, value) => {
+      // Handle Map objects
+      if (value instanceof Map) {
+        const obj = {};
+        for (const [k, v] of value.entries()) {
+          // Convert key to string, handling arrays and objects
+          const stringKey = (typeof k === 'object') ? JSON.stringify(k) : String(k);
+          obj[stringKey] = v;
+        }
+        return {
+          dataType: 'Map',
+          value: obj
+        };
+      }
+      
+      // Handle Array objects with additional properties
+      if (Array.isArray(value)) {
+        const plainArray = [...value];
+        const additions = Object.entries(value)
+          .filter(([key]) => !plainArray.hasOwnProperty(key) && isNaN(parseInt(key)))
+          .reduce((obj, [key, val]) => ({ ...obj, [key]: val }), {});
+          
+        if (Object.keys(additions).length > 0) {
+          return { ...additions, elements: plainArray };
+        }
+        return plainArray;
+      }
+      
+      return value;
+    }, 2);
+  }
+
+const Navbar = ( {description} ) => {
     const [activeDropdown, setActiveDropdown] = useState(null);
 
     const toggleDropdown = (dropdown) => {
@@ -9,8 +45,31 @@ const Navbar = () => {
 
     // Skeleton callback functions
     const handleSave = () => {
-        console.log('Save clicked');
-        // Implement save functionality here
+        if (!description) {
+            console.warn("No data to save");
+            return;
+        }
+
+        // Create a data object combining both pieces of state
+        const dataToSave = description;
+
+        // Convert to JSON string
+        const jsonString = deepStringify(dataToSave);
+
+        // Create a blob and download link
+        const blob = new Blob([jsonString], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = "cherry.json";
+
+        // Trigger download
+        document.body.appendChild(link);
+        link.click();
+
+        // Cleanup
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
     };
 
     const handleConvexplanoLens = () => {

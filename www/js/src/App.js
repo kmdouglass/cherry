@@ -27,7 +27,7 @@ function App({ wasmModule }) {
     const opticalSystem = getOpticalSystem(wasmModule);
 
     // Update the optical system during each render
-    useMemo(() => {
+    const systemData = useMemo(() => {
         if (wasmModule) {
             try {
                 //console.debug("Raw surfaces:", surfaces);
@@ -51,20 +51,30 @@ function App({ wasmModule }) {
                 //console.log("Fields:", fields);
 
                 // Render the optical system
-                setDescription(opticalSystem.describe());
-                setRawRayPaths(opticalSystem.traceChiefAndMarginalRays());
+                const newDescription = opticalSystem.describe();
+                const newRayPaths = opticalSystem.traceChiefAndMarginalRays();
 
-                //console.log("Rendered optical system.");
+                setDescription(newDescription);
+                setRawRayPaths(newRayPaths);
+
+                return {
+                    "description": newDescription,
+                    "newRayPaths": newRayPaths
+                }
             } catch (e) {
                 console.error(e);
+                return {
+                    "description": null,
+                    "newRayPaths": null
+                }
             }
         }
-    }, [wasmModule, surfaces, fields, aperture]);
+    }, [wasmModule, surfaces, fields, aperture, wavelengths]);
 
 
     return (
         <div className="App">
-            <Navbar />
+            <Navbar description={systemData.description}/>
             <div className="container">
                 <CutawayView description={description} rawRayPaths={rawRayPaths} />
                 <DataEntry
