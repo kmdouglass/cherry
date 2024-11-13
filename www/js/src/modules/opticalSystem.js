@@ -1,3 +1,13 @@
+let instance = null;
+
+/* Returns an opticalSystem singleton to the application. */
+export function getOpticalSystem(wasmModule) {
+  if (!instance && wasmModule) {
+    instance = new wasmModule.OpticalSystem();
+  }
+  return instance;
+}
+
 /* Converts data from the UI state into inputs to the raytrace engine. */
 export function convertUIStateToEngineFormat(surfaces, fields) {
     const AIR = {"real": {"Constant": 1.0}, "imag": null};
