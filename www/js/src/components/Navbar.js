@@ -1,6 +1,7 @@
 import { useState } from 'react';
 
-import cpLensData from '../examples/convexplanoLens';
+import cpLensData from "../examples/convexplanoLens";
+import petzvalLensData from "../examples/petzvalLens";
 
 /*
   Converts the nested Maps and Objects to simple JSON strings.
@@ -81,7 +82,6 @@ const Navbar = ( {
     };
 
     const handleConvexplanoLens = () => {
-        console.log('Convexplano lens clicked');
         setSurfaces(cpLensData.surfaces);
         setFields(cpLensData.fields);
         setAperture(cpLensData.aperture);
@@ -90,7 +90,10 @@ const Navbar = ( {
 
     const handlePetzvalLens = () => {
         console.log('Petzval lens clicked');
-        // Implement petzval lens example here
+        setSurfaces(petzvalLensData.surfaces);
+        setFields(petzvalLensData.fields);
+        setAperture(petzvalLensData.aperture);
+        setWavelengths(petzvalLensData.wavelengths);
     };
 
     return (
