@@ -52,15 +52,23 @@ const Navbar = ( {
         setActiveDropdown(activeDropdown === dropdown ? null : dropdown);
     };
 
-    // Skeleton callback functions
     const handleSave = () => {
         if (!description) {
             console.warn("No data to save");
             return;
         }
 
-        // Create a data object combining both pieces of state
-        const dataToSave = description;
+        // Combine data for saving
+        const dataToSave = {
+            ...description,  // Preserve any existing description data
+            inputs: {
+                surfaces,
+                fields,
+                aperture,
+                wavelengths
+            }
+        };
+
 
         // Convert to JSON string
         const jsonString = deepStringify(dataToSave);
@@ -81,6 +89,10 @@ const Navbar = ( {
         URL.revokeObjectURL(url);
     };
 
+    const handleLoad = () => {
+        console.log("Load clicked!");
+    }
+
     const handleConvexplanoLens = () => {
         setSurfaces(cpLensData.surfaces);
         setFields(cpLensData.fields);
@@ -89,7 +101,6 @@ const Navbar = ( {
     };
 
     const handlePetzvalLens = () => {
-        console.log('Petzval lens clicked');
         setSurfaces(petzvalLensData.surfaces);
         setFields(petzvalLensData.fields);
         setAperture(petzvalLensData.aperture);
@@ -114,9 +125,14 @@ const Navbar = ( {
                         <a className="navbar-link" onClick={() => toggleDropdown("file")}>
                             File
                         </a>
-                        <div className="navbar-dropdown"><a className="navbar-item" id="file-save" onClick={handleSave}>
-                            Save
-                        </a></div>
+                        <div className="navbar-dropdown">
+                            <a className="navbar-item" id="file-save" onClick={handleSave}>
+                                Save
+                            </a>
+                            <a className="navbar-item" id="file-load" onClick={handleLoad}>
+                                Load...
+                            </a>
+                        </div>
                     </div>
 
                     <div className="navbar-item has-dropdown is-hoverable">
