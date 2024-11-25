@@ -1,5 +1,8 @@
 import { useState } from 'react';
 
+import cpLensData from "../examples/convexplanoLens";
+import petzvalLensData from "../examples/petzvalLens";
+
 /*
   Converts the nested Maps and Objects to simple JSON strings.
  */
@@ -36,7 +39,13 @@ function deepStringify(obj) {
     }, 2);
   }
 
-const Navbar = ( {description} ) => {
+const Navbar = ( {
+    surfaces, setSurfaces,
+    fields, setFields,
+    aperture, setAperture,
+    wavelengths, setWavelengths,
+    description
+} ) => {
     const [activeDropdown, setActiveDropdown] = useState(null);
 
     const toggleDropdown = (dropdown) => {
@@ -73,20 +82,25 @@ const Navbar = ( {description} ) => {
     };
 
     const handleConvexplanoLens = () => {
-        console.log('Convexplano lens clicked');
-        // Implement convexplano lens example here
+        setSurfaces(cpLensData.surfaces);
+        setFields(cpLensData.fields);
+        setAperture(cpLensData.aperture);
+        setWavelengths(cpLensData.wavelengths);
     };
 
     const handlePetzvalLens = () => {
         console.log('Petzval lens clicked');
-        // Implement petzval lens example here
+        setSurfaces(petzvalLensData.surfaces);
+        setFields(petzvalLensData.fields);
+        setAperture(petzvalLensData.aperture);
+        setWavelengths(petzvalLensData.wavelengths);
     };
 
     return (
         <nav className="navbar" role="navigation" aria-label="main navigation">
             <div className="navbar-brand">
                 <a className="navbar-item" href="/">
-                    🍒 Cherry Ray Tracer (alpha)
+                    🍒 Cherry Ray Tracer
                 </a>
                 <a aria-expanded="false" aria-label="menu" className="navbar-burger" data-target="navMenu" role="button">
                     <span aria-hidden></span>
