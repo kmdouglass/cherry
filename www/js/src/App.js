@@ -74,7 +74,13 @@ function App({ wasmModule }) {
 
     return (
         <div className="App">
-            <Navbar description={systemData.description}/>
+            <Navbar 
+                surfaces={surfaces} setSurfaces={setSurfaces}
+                fields={fields} setFields={setFields}
+                aperture={aperture} setAperture={setAperture}
+                wavelengths={wavelengths} setWavelengths={setWavelengths}
+                description={systemData.description}
+            />
             <div className="container">
                 <CutawayView description={description} rawRayPaths={rawRayPaths} />
                 <DataEntry

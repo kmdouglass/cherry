@@ -1,5 +1,7 @@
 import { useState } from 'react';
 
+import cpLensData from '../examples/convexplanoLens';
+
 /*
   Converts the nested Maps and Objects to simple JSON strings.
  */
@@ -36,7 +38,13 @@ function deepStringify(obj) {
     }, 2);
   }
 
-const Navbar = ( {description} ) => {
+const Navbar = ( {
+    surfaces, setSurfaces,
+    fields, setFields,
+    aperture, setAperture,
+    wavelengths, setWavelengths,
+    description
+} ) => {
     const [activeDropdown, setActiveDropdown] = useState(null);
 
     const toggleDropdown = (dropdown) => {
@@ -74,7 +82,10 @@ const Navbar = ( {description} ) => {
 
     const handleConvexplanoLens = () => {
         console.log('Convexplano lens clicked');
-        // Implement convexplano lens example here
+        setSurfaces(cpLensData.surfaces);
+        setFields(cpLensData.fields);
+        setAperture(cpLensData.aperture);
+        setWavelengths(cpLensData.wavelengths);
     };
 
     const handlePetzvalLens = () => {
