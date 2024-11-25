@@ -100,7 +100,7 @@ const Navbar = ( {
         <nav className="navbar" role="navigation" aria-label="main navigation">
             <div className="navbar-brand">
                 <a className="navbar-item" href="/">
-                    🍒 Cherry Ray Tracer (alpha)
+                    🍒 Cherry Ray Tracer
                 </a>
                 <a aria-expanded="false" aria-label="menu" className="navbar-burger" data-target="navMenu" role="button">
                     <span aria-hidden></span>
