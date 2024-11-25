@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from "react";
 
 import cpLensData from "../examples/convexplanoLens";
 import petzvalLensData from "../examples/petzvalLens";
@@ -13,11 +13,11 @@ function deepStringify(obj) {
         const obj = {};
         for (const [k, v] of value.entries()) {
           // Convert key to string, handling arrays and objects
-          const stringKey = (typeof k === 'object') ? JSON.stringify(k) : String(k);
+          const stringKey = (typeof k === "object") ? JSON.stringify(k) : String(k);
           obj[stringKey] = v;
         }
         return {
-          dataType: 'Map',
+          dataType: "Map",
           value: obj
         };
       }
@@ -47,20 +47,99 @@ const Navbar = ( {
     description
 } ) => {
     const [activeDropdown, setActiveDropdown] = useState(null);
+    const fileInputRef = useRef(null);
 
     const toggleDropdown = (dropdown) => {
         setActiveDropdown(activeDropdown === dropdown ? null : dropdown);
     };
 
-    // Skeleton callback functions
+    const showAlert = (message) => {
+        // Create alert container if it doesn't exist
+        let alertContainer = document.getElementById('alert-container');
+        if (!alertContainer) {
+            alertContainer = document.createElement('div');
+            alertContainer.id = 'alert-container';
+            alertContainer.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                z-index: 1000;
+                transition: opacity 0.3s ease-in-out;
+            `;
+            document.body.appendChild(alertContainer);
+        }
+
+        // Create new alert element
+        const alertElement = document.createElement('div');
+        alertElement.style.cssText = `
+            background-color: #f44336;
+            color: white;
+            padding: 15px 20px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            min-width: 300px;
+        `;
+
+        // Add message
+        const textElement = document.createElement('span');
+        textElement.textContent = message;
+        alertElement.appendChild(textElement);
+
+        // Add close button
+        const closeButton = document.createElement('button');
+        closeButton.innerHTML = '&times;';
+        closeButton.style.cssText = `
+            background: none;
+            border: none;
+            color: white;
+            font-size: 20px;
+            cursor: pointer;
+            padding: 0 5px;
+            margin-left: 10px;
+        `;
+        closeButton.onclick = () => {
+            alertElement.style.opacity = '0';
+            setTimeout(() => alertElement.remove(), 300);
+        };
+        alertElement.appendChild(closeButton);
+
+        // Add to container
+        alertContainer.appendChild(alertElement);
+
+        // Auto remove after 5 seconds
+        setTimeout(() => {
+            if (alertElement.parentElement) {
+                alertElement.style.opacity = '0';
+                setTimeout(() => {
+                    if (alertElement.parentElement) {
+                        alertElement.remove();
+                    }
+                }, 300);
+            }
+        }, 5000);
+    };
+
     const handleSave = () => {
         if (!description) {
             console.warn("No data to save");
             return;
         }
 
-        // Create a data object combining both pieces of state
-        const dataToSave = description;
+        // Combine data for saving
+        const dataToSave = {
+            ...description,  // Preserve any existing description data
+            inputs: {
+                surfaces,
+                fields,
+                aperture,
+                wavelengths
+            }
+        };
+
 
         // Convert to JSON string
         const jsonString = deepStringify(dataToSave);
@@ -81,6 +160,46 @@ const Navbar = ( {
         URL.revokeObjectURL(url);
     };
 
+    const handleLoad = () => {
+        fileInputRef.current?.click();
+    }
+
+    const handleFileChange = (event) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const jsonData = JSON.parse(e.target?.result);
+                
+                // Update all the state with the loaded data from the inputs object
+                if (jsonData.inputs) {
+                    const { surfaces: newSurfaces, fields: newFields, aperture: newAperture, wavelengths: newWavelengths } = jsonData.inputs;
+                    if (newSurfaces) setSurfaces(newSurfaces);
+                    if (newFields) setFields(newFields);
+                    if (newAperture) setAperture(newAperture);
+                    if (newWavelengths) setWavelengths(newWavelengths);
+                } else {
+                    throw new Error("Invalid file format: missing inputs data");
+                }
+                
+            } catch (error) {
+                console.error("Error parsing JSON file:", error);
+                showAlert(error instanceof Error ? error.message : "Failed to load file");
+            }
+        };
+
+        reader.onerror = () => {
+            showAlert("Failed to read file");
+        };
+
+        reader.readAsText(file);
+        
+        // Reset the file input so the same file can be selected again
+        event.target.value = "";
+    };
+
     const handleConvexplanoLens = () => {
         setSurfaces(cpLensData.surfaces);
         setFields(cpLensData.fields);
@@ -89,7 +208,6 @@ const Navbar = ( {
     };
 
     const handlePetzvalLens = () => {
-        console.log('Petzval lens clicked');
         setSurfaces(petzvalLensData.surfaces);
         setFields(petzvalLensData.fields);
         setAperture(petzvalLensData.aperture);
@@ -98,6 +216,14 @@ const Navbar = ( {
 
     return (
         <nav className="navbar" role="navigation" aria-label="main navigation">
+            {/* Hidden file input */}
+            <input
+                type="file"
+                ref={fileInputRef}
+                style={{ display: 'none' }}
+                accept=".json"
+                onChange={handleFileChange}
+            />
             <div className="navbar-brand">
                 <a className="navbar-item" href="/">
                     🍒 Cherry Ray Tracer
@@ -114,9 +240,14 @@ const Navbar = ( {
                         <a className="navbar-link" onClick={() => toggleDropdown("file")}>
                             File
                         </a>
-                        <div className="navbar-dropdown"><a className="navbar-item" id="file-save" onClick={handleSave}>
-                            Save
-                        </a></div>
+                        <div className="navbar-dropdown">
+                            <a className="navbar-item" id="file-save" onClick={handleSave}>
+                                Save
+                            </a>
+                            <a className="navbar-item" id="file-load" onClick={handleLoad}>
+                                Load...
+                            </a>
+                        </div>
                     </div>
 
                     <div className="navbar-item has-dropdown is-hoverable">
