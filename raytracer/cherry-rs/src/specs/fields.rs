@@ -69,8 +69,8 @@ impl FieldSpec {
                 if angle.is_nan() {
                     anyhow::bail!("Field angle must be a number");
                 }
-                if *angle < 0.0 || *angle > 90.0 {
-                    anyhow::bail!("Field angle must be in the range [0, 90]");
+                if *angle < -90.0 || *angle > 90.0 {
+                    anyhow::bail!("Field angle must be in the range [-90.0, 90]");
                 }
                 pupil_sampling.validate()?;
             }
