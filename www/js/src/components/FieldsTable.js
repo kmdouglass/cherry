@@ -27,13 +27,11 @@ const FieldsTable = ({ fields, setFields }) => {
     const newFields = [...fields];
     const newInvalidFields = { ...invalidFields };
 
-    if (field === 'angle') {
-      newFields[index].Angle.angle = newValue;
-    } else if (field === 'spacing') {
-      newFields[index].Angle.pupil_sampling.SquareGrid.spacing = newValue;
-    }
 
-    if (isNaN(parseFloat(newValue))) {
+    const invalidStates = (field === "angle" && (newValue < -90.0 || newValue > 90.0))
+        || isNaN(parseFloat(newValue));
+
+    if (invalidStates) {
         // Invalid input: store the raw input and mark as invalid
         if (!newInvalidFields[index]) {
             newInvalidFields[index] = {};
@@ -47,6 +45,12 @@ const FieldsTable = ({ fields, setFields }) => {
               delete newInvalidFields[index];
           }
         }
+    }
+
+    if (field === 'angle') {
+      newFields[index].Angle.angle = newValue;
+    } else if (field === 'spacing') {
+      newFields[index].Angle.pupil_sampling.SquareGrid.spacing = newValue;
     }
   
     // TODO: Use reducer hook?
