@@ -1,5 +1,5 @@
 /// A paraxial view into an optical system.
-use std::{cell::OnceCell, collections::HashMap};
+use std::collections::HashMap;
 
 use anyhow::{anyhow, Result};
 use ndarray::{arr2, s, Array, Array1, Array2, Array3, ArrayView2};
@@ -49,15 +49,13 @@ pub struct ParaxialViewDescription {
 
 #[derive(Debug)]
 pub struct ParaxialSubView {
-    axis: Axis, /* Eases method calls that require the axis, even though it is stored in the
-                 * SubModelID. */
     is_obj_space_telecentric: bool,
     pseudo_marginal_ray: ParaxialRayTraceResults,
     reverse_parallel_ray: ParaxialRayTraceResults,
 
-    aperture_stop: OnceCell<usize>,
-    entrance_pupil: OnceCell<Pupil>,
-    marginal_ray: OnceCell<ParaxialRayTraceResults>,
+    aperture_stop: usize,
+    entrance_pupil: Pupil,
+    marginal_ray: ParaxialRayTraceResults,
 }
 
 /// A paraxial description of an optical system.
@@ -65,9 +63,9 @@ pub struct ParaxialSubView {
 pub struct ParaxialSubViewDescription {
     pseudo_marginal_ray: ParaxialRayTraceResults,
     reverse_parallel_ray: ParaxialRayTraceResults,
-    aperture_stop: Option<usize>,
-    entrance_pupil: Option<Pupil>,
-    marginal_ray: Option<ParaxialRayTraceResults>,
+    aperture_stop: usize,
+    entrance_pupil: Pupil,
+    marginal_ray: ParaxialRayTraceResults,
 }
 
 /// A paraxial entrance or exit pupil.
@@ -148,16 +146,25 @@ impl ParaxialSubView {
             Self::calc_pseudo_marginal_ray(sequential_sub_model, surfaces, axis)?;
         let reverse_parallel_ray =
             Self::calc_reverse_parallel_ray(sequential_sub_model, surfaces, axis)?;
+        let aperture_stop = Self::calc_aperture_stop(surfaces, &pseudo_marginal_ray);
+        let marginal_ray = Self::calc_marginal_ray(surfaces, &pseudo_marginal_ray, &aperture_stop);
+        let entrance_pupil = Self::calc_entrance_pupil(
+            sequential_sub_model,
+            surfaces,
+            is_obj_space_telecentric,
+            &aperture_stop,
+            &axis,
+            &marginal_ray,
+        )?;
 
         Ok(Self {
-            axis,
             is_obj_space_telecentric,
             pseudo_marginal_ray,
             reverse_parallel_ray,
 
-            aperture_stop: OnceCell::new(),
-            entrance_pupil: OnceCell::new(),
-            marginal_ray: OnceCell::new(),
+            aperture_stop,
+            entrance_pupil,
+            marginal_ray,
         })
     }
 
@@ -165,50 +172,69 @@ impl ParaxialSubView {
         ParaxialSubViewDescription {
             pseudo_marginal_ray: self.pseudo_marginal_ray.clone(),
             reverse_parallel_ray: self.reverse_parallel_ray.clone(),
-            aperture_stop: self.aperture_stop.get().cloned(),
-            entrance_pupil: self.entrance_pupil.get().cloned(),
-            marginal_ray: self.marginal_ray.get().cloned(),
+            aperture_stop: self.aperture_stop,
+            entrance_pupil: self.entrance_pupil.clone(),
+            marginal_ray: self.marginal_ray.clone(),
         }
     }
 
-    pub fn aperture_stop(&self, surfaces: &[Surface]) -> &usize {
-        self.aperture_stop.get_or_init(|| {
-            // Get all the semi-diameters of the surfaces and put them in an ndarray.
-            let semi_diameters = Array::from_vec(
-                surfaces
-                    .iter()
-                    .map(|surface| surface.semi_diameter())
-                    .collect::<Vec<Float>>(),
-            );
-
-            let ratios = semi_diameters
-                / self.pseudo_marginal_ray[[self.pseudo_marginal_ray.shape()[0] - 1, 0, 0]];
-
-            // Do not include the object or image surfaces when computing the aperture stop.
-            argmin(&ratios.slice(s![1..(ratios.len() - 1)])) + 1
-        })
+    pub fn aperture_stop(&self) -> &usize {
+        &self.aperture_stop
     }
 
-    pub fn entrance_pupil(
-        &self,
+    pub fn entrance_pupil(&self) -> &Pupil {
+        &self.entrance_pupil
+    }
+
+    pub fn is_obj_space_telecentric(&self) -> &bool {
+        &self.is_obj_space_telecentric
+    }
+
+    pub fn marginal_ray(&self) -> &ParaxialRayTraceResults {
+        &self.marginal_ray
+    }
+
+    fn calc_aperture_stop(
+        surfaces: &[Surface],
+        pseudo_marginal_ray: &ParaxialRayTraceResults,
+    ) -> usize {
+        // Get all the semi-diameters of the surfaces and put them in an ndarray.
+        let semi_diameters = Array::from_vec(
+            surfaces
+                .iter()
+                .map(|surface| surface.semi_diameter())
+                .collect::<Vec<Float>>(),
+        );
+
+        let ratios =
+            semi_diameters / pseudo_marginal_ray[[pseudo_marginal_ray.shape()[0] - 1, 0, 0]];
+
+        // Do not include the object or image surfaces when computing the aperture stop.
+        argmin(&ratios.slice(s![1..(ratios.len() - 1)])) + 1
+    }
+
+    fn calc_entrance_pupil(
         sequential_sub_model: &impl SequentialSubModel,
         surfaces: &[Surface],
-    ) -> Result<&Pupil> {
+        is_obj_space_telecentric: bool,
+        aperture_stop: &usize,
+        axis: &Axis,
+        marginal_ray: &ParaxialRayTraceResults,
+    ) -> Result<Pupil> {
         // In case the object space is telecentric, the entrance pupil is at infinity.
-        if self.is_obj_space_telecentric {
-            return Ok(self.entrance_pupil.get_or_init(|| Pupil {
+        if is_obj_space_telecentric {
+            return Ok(Pupil {
                 location: Float::INFINITY,
                 semi_diameter: Float::NAN,
-            }));
+            });
         }
 
         // In case the aperture stop is the first surface.
-        let aperture_stop = self.aperture_stop(surfaces);
         if *aperture_stop == 1usize {
-            return Ok(self.entrance_pupil.get_or_init(|| Pupil {
+            return Ok(Pupil {
                 location: 0.0,
                 semi_diameter: surfaces[1].semi_diameter(),
-            }));
+            });
         }
 
         // Trace a ray from the aperture stop to the object space to determine the
@@ -218,7 +244,7 @@ impl ParaxialSubView {
             ray,
             &sequential_sub_model.slice(0..*aperture_stop),
             &surfaces[0..aperture_stop + 1],
-            self.axis,
+            axis,
             true,
         )?;
         let location = z_intercepts(results.slice(s![-1, .., ..]))?[0];
@@ -238,31 +264,31 @@ impl ParaxialSubView {
                 .thickness
                 + location
         };
-        let init_marginal_ray = self.marginal_ray(surfaces).slice(s![0, .., ..1]);
+        let init_marginal_ray = marginal_ray.slice(s![0, .., ..1]);
         let semi_diameter = propagate(init_marginal_ray, distance)[[0, 0]];
 
-        Ok(self.entrance_pupil.get_or_init(|| Pupil {
+        Ok(Pupil {
             location,
             semi_diameter,
-        }))
+        })
     }
 
-    pub fn marginal_ray(&self, surfaces: &[Surface]) -> &ParaxialRayTraceResults {
-        self.marginal_ray.get_or_init(|| {
-            let pmr = &self.pseudo_marginal_ray;
+    fn calc_marginal_ray(
+        surfaces: &[Surface],
+        pseudo_marginal_ray: &ParaxialRayTraceResults,
+        aperture_stop: &usize,
+    ) -> ParaxialRayTraceResults {
+        let semi_diameters = Array::from_vec(
+            surfaces
+                .iter()
+                .map(|surface| surface.semi_diameter())
+                .collect::<Vec<Float>>(),
+        );
+        let ratios = semi_diameters / pseudo_marginal_ray.slice(s![.., 0, 0]);
 
-            let semi_diameters = Array::from_vec(
-                surfaces
-                    .iter()
-                    .map(|surface| surface.semi_diameter())
-                    .collect::<Vec<Float>>(),
-            );
-            let ratios = semi_diameters / pmr.slice(s![.., 0, 0]);
+        let scale_factor = ratios[*aperture_stop];
 
-            let scale_factor = ratios[*self.aperture_stop(surfaces)];
-
-            pmr * scale_factor
-        })
+        pseudo_marginal_ray * scale_factor
     }
 
     /// Compute the pseudo-marginal ray.
@@ -279,7 +305,7 @@ impl ParaxialSubView {
             arr2(&[[0.0], [1.0]])
         };
 
-        Self::trace(ray, sequential_sub_model, surfaces, axis, false)
+        Self::trace(ray, sequential_sub_model, surfaces, &axis, false)
     }
 
     /// Compute the reverse parallel ray.
@@ -290,14 +316,14 @@ impl ParaxialSubView {
     ) -> Result<ParaxialRayTraceResults> {
         let ray = arr2(&[[1.0], [0.0]]);
 
-        Self::trace(ray, sequential_sub_model, surfaces, axis, true)
+        Self::trace(ray, sequential_sub_model, surfaces, &axis, true)
     }
 
     /// Compute the ray transfer matrix for each gap/surface pair.
     fn rtms(
         sequential_sub_model: &impl SequentialSubModel,
         surfaces: &[Surface],
-        axis: Axis,
+        axis: &Axis,
         reverse: bool,
     ) -> Result<Vec<RayTransferMatrix>> {
         let mut txs: Vec<RayTransferMatrix> = Vec::new();
@@ -343,7 +369,7 @@ impl ParaxialSubView {
         rays: ParaxialRays,
         sequential_sub_model: &impl SequentialSubModel,
         surfaces: &[Surface],
-        axis: Axis,
+        axis: &Axis,
         reverse: bool,
     ) -> Result<ParaxialRayTraceResults> {
         let txs = Self::rtms(sequential_sub_model, surfaces, axis, reverse)?;
@@ -465,9 +491,9 @@ mod test {
 
     #[test]
     fn test_aperture_stop() {
-        let (view, sequential_model) = setup();
+        let (view, _) = setup();
 
-        let aperture_stop = view.aperture_stop(sequential_model.surfaces());
+        let aperture_stop = view.aperture_stop();
         let expected = 1;
 
         assert_eq!(*aperture_stop, expected);
@@ -475,17 +501,9 @@ mod test {
 
     #[test]
     fn test_entrance_pupil() {
-        let (view, sequential_model) = setup();
+        let (view, _) = setup();
 
-        let entrance_pupil = view
-            .entrance_pupil(
-                sequential_model
-                    .submodels()
-                    .get(&SubModelID(Some(0usize), Axis::Y))
-                    .unwrap(),
-                sequential_model.surfaces(),
-            )
-            .unwrap();
+        let entrance_pupil = view.entrance_pupil();
         let expected = Pupil {
             location: 0.0,
             semi_diameter: 12.5,
@@ -501,9 +519,9 @@ mod test {
 
     #[test]
     fn test_marginal_ray() {
-        let (view, sequential_model) = setup();
+        let (view, _) = setup();
 
-        let marginal_ray = view.marginal_ray(sequential_model.surfaces());
+        let marginal_ray = view.marginal_ray();
         let expected = arr3(&[
             [[12.5000], [0.0]],
             [[12.5000], [-0.1647]],

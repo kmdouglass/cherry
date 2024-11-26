@@ -536,7 +536,7 @@ impl Surface {
         r_transv > r_max * r_max
     }
 
-    pub(crate) fn roc(&self, axis: Axis) -> Float {
+    pub(crate) fn roc(&self, axis: &Axis) -> Float {
         match axis {
             Axis::X => self.rocx(),
             Axis::Y => self.rocy(),

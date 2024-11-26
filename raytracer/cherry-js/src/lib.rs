@@ -2,7 +2,6 @@ mod system;
 
 use std::collections::HashMap;
 
-use anyhow::anyhow;
 use wasm_bindgen::prelude::*;
 
 use cherry_rs::{ApertureSpec, FieldSpec, GapSpec, Ray, SurfaceSpec};

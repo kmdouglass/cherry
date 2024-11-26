@@ -47,7 +47,6 @@ impl System {
         surface_specs: &[SurfaceSpec],
         wavelengths: &[f64],
     ) -> Result<Self> {
-        // log wavelengths
         let sequential_model = SequentialModel::new(gap_specs, surface_specs, wavelengths)?;
 
         let components_view = components_view(

@@ -41,10 +41,10 @@ pub fn ray_trace_3d_view(
             Ok((
                 *id,
                 ray_trace_sub_model(
-                    aperture_spec,
                     field_specs,
                     submodel,
                     surfaces,
+                    aperture_spec,
                     paraxial_sub_view,
                     pupil_sampling,
                 )?,
@@ -56,17 +56,16 @@ pub fn ray_trace_3d_view(
 }
 
 fn ray_trace_sub_model(
-    aperture_spec: &ApertureSpec,
     field_specs: &[FieldSpec],
     sequential_sub_model: &impl SequentialSubModel,
     surfaces: &[Surface],
+    aperture_spec: &ApertureSpec,
     paraxial_sub_view: &ParaxialSubView,
     pupil_sampling: Option<PupilSampling>,
 ) -> Result<TraceResults> {
     let rays = rays(
-        aperture_spec,
-        sequential_sub_model,
         surfaces,
+        aperture_spec,
         paraxial_sub_view,
         field_specs,
         pupil_sampling,
@@ -84,9 +83,8 @@ fn ray_trace_sub_model(
 ///   method specified
 ///  in the field specs for every field if provided.
 fn rays(
-    aperture_spec: &ApertureSpec,
-    sequential_sub_model: &impl SequentialSubModel,
     surfaces: &[Surface],
+    aperture_spec: &ApertureSpec,
     paraxial_sub_view: &ParaxialSubView,
     field_specs: &[FieldSpec],
     sampling: Option<PupilSampling>,
@@ -108,9 +106,8 @@ fn rays(
 
                 let rays_field = match pupil_sampling {
                     PupilSampling::SquareGrid { spacing } => pupil_ray_sq_grid(
-                        aperture_spec,
-                        sequential_sub_model,
                         surfaces,
+                        aperture_spec,
                         paraxial_sub_view,
                         spacing,
                         angle,
@@ -120,9 +117,8 @@ fn rays(
                         // 3 rays -> two diametrically-opposed marginal rays at the pupil edge
                         // and a chief ray in the center
                         pupil_ray_fan(
-                            aperture_spec,
-                            sequential_sub_model,
                             surfaces,
+                            aperture_spec,
                             paraxial_sub_view,
                             3,
                             PI / 2.0,
@@ -151,21 +147,15 @@ fn rays(
 /// * `field_id` - The ID of the field.
 #[allow(clippy::too_many_arguments)]
 fn pupil_ray_fan(
-    aperture_spec: &ApertureSpec,
-    sequential_sub_model: &impl SequentialSubModel,
     surfaces: &[Surface],
+    aperture_spec: &ApertureSpec,
     paraxial_sub_view: &ParaxialSubView,
     num_rays: usize,
     theta: Float,
     phi: Float,
     field_id: usize,
 ) -> Result<Vec<Ray>> {
-    let ep = entrance_pupil(
-        aperture_spec,
-        sequential_sub_model,
-        surfaces,
-        paraxial_sub_view,
-    )?;
+    let ep = entrance_pupil(aperture_spec, paraxial_sub_view)?;
     let obj_z = surfaces[0].pos().z();
     let sur_z = surfaces[1].pos().z();
     let enp_z = ep.pos().z();
@@ -202,20 +192,14 @@ fn pupil_ray_fan(
 /// * `phi` - The angle of the ray w.r.t. the z-axis in radians.
 /// * `field_id` - The field ID.
 fn pupil_ray_sq_grid(
-    aperture_spec: &ApertureSpec,
-    sequential_sub_model: &impl SequentialSubModel,
     surfaces: &[Surface],
+    aperture_spec: &ApertureSpec,
     paraxial_sub_view: &ParaxialSubView,
     spacing: Float,
     phi: Float,
     field_id: usize,
 ) -> Result<Vec<Ray>> {
-    let ep = entrance_pupil(
-        aperture_spec,
-        sequential_sub_model,
-        surfaces,
-        paraxial_sub_view,
-    )?;
+    let ep = entrance_pupil(aperture_spec, paraxial_sub_view)?;
     let obj_z = surfaces[0].pos().z();
     let sur_z = surfaces[1].pos().z();
     let enp_z = ep.pos().z();
@@ -246,15 +230,13 @@ fn pupil_ray_sq_grid(
 /// Determines the entrance pupil of the subview.
 fn entrance_pupil(
     aperture_spec: &ApertureSpec,
-    sequential_sub_model: &impl SequentialSubModel,
-    surfaces: &[Surface],
     paraxial_sub_view: &ParaxialSubView,
 ) -> Result<Pupil> {
     let semi_diameter = match aperture_spec {
         ApertureSpec::EntrancePupil { semi_diameter } => *semi_diameter,
     };
 
-    let entrance_pupil = paraxial_sub_view.entrance_pupil(sequential_sub_model, surfaces)?;
+    let entrance_pupil = paraxial_sub_view.entrance_pupil();
     let z = entrance_pupil.pos().z();
 
     Ok(Pupil {
