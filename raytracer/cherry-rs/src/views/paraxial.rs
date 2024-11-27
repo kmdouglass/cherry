@@ -206,8 +206,11 @@ impl ParaxialSubView {
                 .collect::<Vec<Float>>(),
         );
 
-        let ratios =
-            semi_diameters / pseudo_marginal_ray[[pseudo_marginal_ray.shape()[0] - 1, 0, 0]];
+        // Absolute value is necessary because the pseudo-marginal ray trace
+        // can result in surface intersections that are negative.
+        let ratios = (semi_diameters
+            / pseudo_marginal_ray[[pseudo_marginal_ray.shape()[0] - 1, 0, 0]])
+        .mapv(|x| x.abs());
 
         // Do not include the object or image surfaces when computing the aperture stop.
         argmin(&ratios.slice(s![1..(ratios.len() - 1)])) + 1

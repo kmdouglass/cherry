@@ -1,8 +1,4 @@
-use ndarray::{arr3, Array3};
-
-use crate::{
-    n, GapSpec, Pupil, RealSpec, RefractiveIndexSpec, SequentialModel, SurfaceSpec, SurfaceType,
-};
+use crate::{n, GapSpec, RealSpec, RefractiveIndexSpec, SequentialModel, SurfaceSpec, SurfaceType};
 
 pub fn sequential_model() -> SequentialModel {
     let air = n!(1.0);
@@ -86,7 +82,7 @@ pub fn sequential_model() -> SequentialModel {
         surf_type: SurfaceType::Refracting,
     };
     let surf_7 = SurfaceSpec::Conic {
-        semi_diameter: 16.492,
+        semi_diameter: 20.074,
         radius_of_curvature: -614.68633,
         conic_constant: 0.0,
         surf_type: SurfaceType::Refracting,
@@ -115,17 +111,3 @@ pub fn sequential_model() -> SequentialModel {
 
 // Paraxial View values
 pub const APERTURE_STOP: usize = 4;
-
-pub const ENTRANCE_PUPIL: Pupil = Pupil {
-    location: 0.0,
-    semi_diameter: 12.5,
-};
-
-pub fn marginal_ray() -> Array3<f64> {
-    arr3(&[
-        [[12.5000], [0.0]],
-        [[12.5000], [-0.1647]],
-        [[11.6271], [-0.2495]],
-        [[-0.0003], [-0.2495]],
-    ])
-}
