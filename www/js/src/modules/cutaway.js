@@ -59,8 +59,10 @@ function commands(descr, rayPaths, centerSystem, centerSVG, sf) {
                 "color": "#999999",
                 "stroke-width": 1.0,
             });
+        } else if (surfType === "Conic" && isLensSurface(descr, surfId)) {
+            continue;
         } else if (surfType === "Conic") {
-            // These are the surface clear apertures
+            // These are the surface clear apertures and are needed for unpaired surfaces
             paths = toSVGCoordinates([surfSamples], centerSystem, centerSVG, sf);
             commands.push({
                 "type": surfType,
@@ -193,6 +195,24 @@ function stopPath(surfaceSamples, descr) {
 }
 
 /*
+    * Determines whether a surface is part of a lens.
+    * descr: a description of the optical system
+    * surfId: the id of the surface
+*/
+function isLensSurface(descr, surfId) {
+    for (let component of descr.components_view) {
+        if (component["Element"]) {
+            const surfIds = component["Element"]["surf_idxs"];
+            if (surfIds.includes(surfId)) {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+/*
     * Computes the center of the system's bounding box.
     * descr: a description of the optical system
     * returns: com, the coordinates of the center of mass
@@ -211,9 +231,10 @@ function center(descr) {
 /*
     * Compute the bounding box of a system description's surface samples.
     * samples: the surface samples of a system description
+    * padding: the padding to add to the bounding box
     * returns: [xMin, yMin, zMin, xMax, yMax, zMax]
 */
-function boundingBox(samples) {
+function boundingBox(samples, padding=0.01) {
     let xMin = Infinity;
     let xMax = -Infinity;
     let yMin = Infinity;
@@ -223,12 +244,12 @@ function boundingBox(samples) {
 
     for (let surfSamples of samples.values()) {
         for (let sample of surfSamples) {
-            xMin = Math.min(xMin, sample[0]);
-            xMax = Math.max(xMax, sample[0]);
-            yMin = Math.min(yMin, sample[1]);
-            yMax = Math.max(yMax, sample[1]);
-            zMin = Math.min(zMin, sample[2]);
-            zMax = Math.max(zMax, sample[2]);
+            xMin = Math.min(xMin, sample[0]) - padding;
+            xMax = Math.max(xMax, sample[0]) + padding;
+            yMin = Math.min(yMin, sample[1]) - padding;
+            yMax = Math.max(yMax, sample[1]) + padding;
+            zMin = Math.min(zMin, sample[2]) - padding;
+            zMax = Math.max(zMax, sample[2]) + padding;
         }
     }
 
