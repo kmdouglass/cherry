@@ -1,5 +1,5 @@
 use cherry_rs::examples::petzval_lens::*;
-use cherry_rs::ParaxialView;
+use cherry_rs::{CutawayView, ParaxialView};
 
 fn paraxial_view() -> ParaxialView {
     let model = sequential_model();
@@ -24,4 +24,14 @@ fn test_paraxial_view_aperture_stop() {
 
         assert_eq!(APERTURE_STOP, *result)
     }
+}
+
+/// Regression test for https://github.com/kmdouglass/cherry/issues/144
+#[test]
+fn test_stop_type() {
+    let model = sequential_model();
+    let cutaway_view = CutawayView::new(&model, 20);
+    let surface_types = cutaway_view.surface_types;
+
+    assert_eq!("Stop", surface_types[&APERTURE_STOP]);
 }

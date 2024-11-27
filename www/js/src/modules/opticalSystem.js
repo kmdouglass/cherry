@@ -14,7 +14,7 @@ export function convertUIStateToEngineFormat(surfaces, fields, aperture) {
 
     // QUESTION: Can float conversion be done any better?
     function createSurfaceSpec(surface) {
-        if (surface.type === 'Object' || surface.type === 'Image') {
+        if (surface.type === 'Object' || surface.type === 'Image' || surface.type === 'Probe') {
             return surface.type;
         } else if (surface.type === 'Conic') {
             return {
@@ -23,6 +23,12 @@ export function convertUIStateToEngineFormat(surfaces, fields, aperture) {
                     "radius_of_curvature": parseFloat(surface.roc) || Infinity,
                     "conic_constant": 0.0,
                     "surf_type": "Refracting"
+                }
+            };
+        } else if (surface.type === "Stop") {
+            return {
+                "Stop": {
+                    "semi_diameter": parseFloat(surface.semiDiam)
                 }
             };
         } else {
