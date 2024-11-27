@@ -6,7 +6,7 @@ const surfaces = [
     { type: "Stop", n: 1.0, thickness: 40.0, semiDiam: 16.631},
     { type: "Conic", n: 1.6074, thickness: 12.0, semiDiam: 20.543, roc: 57.47491 },
     { type: "Conic", n: 1.6727, thickness: 3.0, semiDiam: 20.074, roc: -54.61685 },
-    { type: "Conic", n: 1.0, thickness: 46.82210, semiDiam: 16.492, roc: -614.68633 },
+    { type: "Conic", n: 1.0, thickness: 46.82210, semiDiam: 20.074, roc: -614.68633 },
     { type: "Conic", n: 1.6727, thickness: 2.0, semiDiam: 17.297, roc: -38.17110 },
     { type: "Conic", n: 1.0, thickness: 1.87179, semiDiam: 18.94, roc: "Infinity" },
     { type: "Image", n: "", thickness: "", semiDiam: 25.0, roc: "" },

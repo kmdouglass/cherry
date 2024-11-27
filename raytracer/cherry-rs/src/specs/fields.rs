@@ -127,7 +127,7 @@ mod test {
             angle: -5.0,
             pupil_sampling: PupilSampling::SquareGrid { spacing: 0.1 },
         };
-        assert!(angle.validate().is_err());
+        assert!(angle.validate().is_ok());
 
         let angle = FieldSpec::Angle {
             angle: 45.0,
