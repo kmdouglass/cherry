@@ -16,6 +16,18 @@ pub struct RefractiveIndexSpec {
     pub imag: Option<ImagSpec>,
 }
 
+/// Creates a real refractive index spec.
+#[macro_export]
+macro_rules! n {
+    ($n:expr) => {
+        RefractiveIndexSpec {
+            real: RealSpec::Constant($n),
+            imag: None,
+        }
+    };
+    () => {};
+}
+
 /// Specifies the real part of a refractive index.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum RealSpec {
