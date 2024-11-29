@@ -205,6 +205,38 @@ const Navbar = ( {
         event.target.value = "";
     };
 
+    // Results handlers
+    const handleSummary = () => {
+        if (!description) {
+            console.warn("No data to summarize");
+            return;
+        }
+
+        const subviews = description.paraxial_view.subviews;
+
+        // Javascript is such shit
+        const targetKey = [...subviews.keys()].find(key => 
+            Array.isArray(key) && 
+            key.length === 2 && 
+            key[0] === 0 && 
+            key[1] === "Y"
+          );
+
+        // For now just manually pull out the data we want to display
+        const apertureStop = subviews.get(targetKey).aperture_stop;
+        const entrancePupilLocation = subviews.get(targetKey)["entrance_pupil"]["location"];
+        const entrancePupilSemiDiameter = subviews.get(targetKey)["entrance_pupil"]["semi_diameter"];
+
+        const summary = {
+            "Aperture Stop": apertureStop,
+            "Entrance Pupil Location": entrancePupilLocation,
+            "Entrance Pupil Semi-Diameter": entrancePupilSemiDiameter
+        };
+        
+        console.log("Summary:", summary);
+    }
+
+    // Examples handlers
     const handleConvexplanoLens = () => {
         setSurfaces(cpLensData.surfaces);
         setFields(cpLensData.fields);
@@ -255,6 +287,17 @@ const Navbar = ( {
                             </a>
                             <a className="navbar-item" id="file-load" onClick={handleLoad}>
                                 Load...
+                            </a>
+                        </div>
+                    </div>
+
+                    <div className={`navbar-item has-dropdown ${activeDropdown === "results" ? 'is-active' : ''}`}>
+                        <a className="navbar-link" onClick={() => toggleDropdown("results")}>
+                            Results
+                        </a>
+                        <div className="navbar-dropdown">
+                            <a className="navbar-item" id="results-summary" onClick={handleSummary}>
+                                Summary
                             </a>
                         </div>
                     </div>
