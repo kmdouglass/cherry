@@ -47,10 +47,15 @@ const Navbar = ( {
     description
 } ) => {
     const [activeDropdown, setActiveDropdown] = useState(null);
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const fileInputRef = useRef(null);
 
     const toggleDropdown = (dropdown) => {
         setActiveDropdown(activeDropdown === dropdown ? null : dropdown);
+    };
+
+    const toggleMobileMenu = () => {
+        setIsMobileMenuOpen(!isMobileMenuOpen);
     };
 
     const showAlert = (message) => {
@@ -216,7 +221,6 @@ const Navbar = ( {
 
     return (
         <nav className="navbar" role="navigation" aria-label="main navigation">
-            {/* Hidden file input */}
             <input
                 type="file"
                 ref={fileInputRef}
@@ -228,15 +232,20 @@ const Navbar = ( {
                 <a className="navbar-item" href="/">
                     🍒 Cherry Ray Tracer
                 </a>
-                <a aria-expanded="false" aria-label="menu" className="navbar-burger" data-target="navMenu" role="button">
-                    <span aria-hidden></span>
-                    <span aria-hidden></span>
-                    <span aria-hidden></span>
-                </a>
+                <button 
+                    className={`navbar-burger ${isMobileMenuOpen ? 'is-active' : ''}`}
+                    aria-label="menu" 
+                    aria-expanded={isMobileMenuOpen}
+                    onClick={toggleMobileMenu}
+                >
+                    <span aria-hidden="true"></span>
+                    <span aria-hidden="true"></span>
+                    <span aria-hidden="true"></span>
+                </button>
             </div>
-            <div className="navbar-menu">
+            <div className={`navbar-menu ${isMobileMenuOpen ? 'is-active' : ''}`}>
                 <div className="navbar-start">
-                    <div className="navbar-item has-dropdown is-hoverable">
+                    <div className={`navbar-item has-dropdown ${activeDropdown === "file" ? 'is-active' : ''}`}>
                         <a className="navbar-link" onClick={() => toggleDropdown("file")}>
                             File
                         </a>
@@ -250,7 +259,7 @@ const Navbar = ( {
                         </div>
                     </div>
 
-                    <div className="navbar-item has-dropdown is-hoverable">
+                    <div className={`navbar-item has-dropdown ${activeDropdown === "examples" ? 'is-active' : ''}`}>
                         <a className="navbar-link" onClick={() => toggleDropdown("examples")}>
                             Examples
                         </a>
