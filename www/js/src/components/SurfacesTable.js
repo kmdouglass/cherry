@@ -191,11 +191,11 @@ const SurfacesTable = ({ surfaces, setSurfaces }) => {
       <table className="table is-fullwidth">
         <thead>
           <tr>
-            <th>Surface Type</th>
-            <th>Refractive Index</th>
-            <th>Thickness</th>
-            <th>Semi-Diameter</th>
-            <th>Radius of Curvature</th>
+            <th className="has-text-weight-semibold has-text-right">Surface Type</th>
+            <th className="has-text-weight-semibold has-text-right">Refractive Index</th>
+            <th className="has-text-weight-semibold has-text-right">Thickness</th>
+            <th className="has-text-weight-semibold has-text-right">Semi-Diameter</th>
+            <th className="has-text-weight-semibold has-text-right">Radius of Curvature</th>
             <th>Actions</th>
           </tr>
         </thead>

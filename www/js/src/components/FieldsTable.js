@@ -187,10 +187,10 @@ const FieldsTable = ({ fields, setFields }) => {
     <table className="table is-fullwidth">
       <thead>
         <tr>
-          <th>Field Type</th>
-          <th>Angle</th>
-          <th>Pupil Sampling</th>
-          <th>Spacing</th>
+          <th className="has-text-weight-semibold has-text-right">Field Type</th>
+          <th className="has-text-weight-semibold has-text-right">Angle</th>
+          <th className="has-text-weight-semibold has-text-right">Pupil Sampling</th>
+          <th className="has-text-weight-semibold has-text-right">Spacing</th>
           <th>Actions</th>
         </tr>
       </thead>
