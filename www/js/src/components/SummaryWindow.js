@@ -14,7 +14,7 @@ const Modal = ({ isOpen, onClose, children }) => {
         <button className="modal-close" onClick={onClose}>×</button>
         {children}
       </div>
-      <style jsx>{`
+      <style jsx="true">{`
         .modal-overlay {
           position: fixed;
           top: 0;
@@ -72,7 +72,7 @@ const SummaryTable = ({ data }) => (
         </tr>
       ))}
     </tbody>
-    <style jsx>{`
+    <style jsx="true">{`
       .summary-table {
         width: 100%;
         border-collapse: collapse;
@@ -102,6 +102,8 @@ const SummaryWindow = ({ description, isOpen, onClose }) => {
     if (!description) return;
 
     const subviews = description.paraxial_view.subviews;
+
+    // Javascript is such shit
     const targetKey = [...subviews.keys()].find(key => 
         Array.isArray(key) && 
         key.length === 2 && 
@@ -109,6 +111,7 @@ const SummaryWindow = ({ description, isOpen, onClose }) => {
         key[1] === "Y"
     );
 
+    // Just pull out what we need for now; we can get fancy with processing subviews data later
     const apertureStop = subviews.get(targetKey).aperture_stop;
     const entrancePupilLocation = subviews.get(targetKey)["entrance_pupil"]["location"];
     const entrancePupilSemiDiameter = subviews.get(targetKey)["entrance_pupil"]["semi_diameter"];
