@@ -296,6 +296,20 @@ const Navbar = ( {
                         </div>
                     </div>
                 </div>
+
+                <div className="navbar-end">
+                    <a
+                        href="https://github.com/kmdouglass/cherry"
+                        className="navbar-item"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                    >
+                        <span className="icon mr-2">
+                            <i className="fab fa-github"></i>
+                        </span>
+                        <span>GitHub</span>
+                    </a>
+                </div>
             </div>
             <SummaryWindow 
                 description={description}
