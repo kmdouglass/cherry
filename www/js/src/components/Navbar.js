@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import SummaryWindow from "./SummaryWindow";
 
 import cpLensData from "../examples/convexplanoLens";
 import petzvalLensData from "../examples/petzvalLens";
@@ -48,6 +49,7 @@ const Navbar = ( {
 } ) => {
     const [activeDropdown, setActiveDropdown] = useState(null);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+    const [isSummaryOpen, setIsSummaryOpen] = useState(false);
     const fileInputRef = useRef(null);
 
     const toggleDropdown = (dropdown) => {
@@ -205,6 +207,16 @@ const Navbar = ( {
         event.target.value = "";
     };
 
+    // Results handlers
+    const handleSummary = () => {
+        if (!description) {
+            console.warn("No data to summarize");
+            return;
+        }
+        setIsSummaryOpen(true);
+    };
+
+    // Examples handlers
     const handleConvexplanoLens = () => {
         setSurfaces(cpLensData.surfaces);
         setFields(cpLensData.fields);
@@ -259,6 +271,17 @@ const Navbar = ( {
                         </div>
                     </div>
 
+                    <div className={`navbar-item has-dropdown ${activeDropdown === "results" ? 'is-active' : ''}`}>
+                        <a className="navbar-link" onClick={() => toggleDropdown("results")}>
+                            Results
+                        </a>
+                        <div className="navbar-dropdown">
+                            <a className="navbar-item" id="results-summary" onClick={handleSummary}>
+                                Summary
+                            </a>
+                        </div>
+                    </div>
+
                     <div className={`navbar-item has-dropdown ${activeDropdown === "examples" ? 'is-active' : ''}`}>
                         <a className="navbar-link" onClick={() => toggleDropdown("examples")}>
                             Examples
@@ -274,6 +297,13 @@ const Navbar = ( {
                     </div>
                 </div>
             </div>
+            <SummaryWindow 
+                description={description}
+                isOpen={isSummaryOpen}
+                onClose={() => {
+                    setIsSummaryOpen(false);
+                }}
+            />
         </nav>
     );
 };
