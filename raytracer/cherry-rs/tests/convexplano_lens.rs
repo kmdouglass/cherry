@@ -1,3 +1,5 @@
+use approx::assert_abs_diff_eq;
+
 use cherry_rs::examples::convexplano_lens::*;
 use cherry_rs::ParaxialView;
 
@@ -23,6 +25,20 @@ fn test_paraxial_view_aperture_stop() {
         let result = sub_view.aperture_stop();
 
         assert_eq!(APERTURE_STOP, *result)
+    }
+}
+
+#[test]
+fn test_paraxial_view_effective_focal_length() {
+    let model = sequential_model();
+    let sub_models = model.submodels();
+    let view = paraxial_view();
+
+    for (sub_model_id, _) in sub_models {
+        let sub_view = view.subviews.get(sub_model_id).unwrap();
+        let result = sub_view.effective_focal_length();
+
+        assert_abs_diff_eq!(EFFECTIVE_FOCAL_LENGTH, *result, epsilon = 1e-4)
     }
 }
 
