@@ -54,6 +54,7 @@ pub struct ParaxialSubView {
     reverse_parallel_ray: ParaxialRayTraceResults,
 
     aperture_stop: usize,
+    effective_focal_length: Float,
     entrance_pupil: Pupil,
     marginal_ray: ParaxialRayTraceResults,
 }
@@ -64,6 +65,7 @@ pub struct ParaxialSubViewDescription {
     pseudo_marginal_ray: ParaxialRayTraceResults,
     reverse_parallel_ray: ParaxialRayTraceResults,
     aperture_stop: usize,
+    effective_focal_length: Float,
     entrance_pupil: Pupil,
     marginal_ray: ParaxialRayTraceResults,
 }
@@ -144,6 +146,7 @@ impl ParaxialSubView {
     ) -> Result<Self> {
         let pseudo_marginal_ray =
             Self::calc_pseudo_marginal_ray(sequential_sub_model, surfaces, axis)?;
+        let parallel_ray = Self::calc_parallel_ray(sequential_sub_model, surfaces, axis)?;
         let reverse_parallel_ray =
             Self::calc_reverse_parallel_ray(sequential_sub_model, surfaces, axis)?;
         let aperture_stop = Self::calc_aperture_stop(surfaces, &pseudo_marginal_ray);
@@ -156,6 +159,7 @@ impl ParaxialSubView {
             &axis,
             &marginal_ray,
         )?;
+        let effective_focal_length = Self::calc_effective_focal_length(&parallel_ray);
 
         Ok(Self {
             is_obj_space_telecentric,
@@ -163,6 +167,7 @@ impl ParaxialSubView {
             reverse_parallel_ray,
 
             aperture_stop,
+            effective_focal_length,
             entrance_pupil,
             marginal_ray,
         })
@@ -173,6 +178,7 @@ impl ParaxialSubView {
             pseudo_marginal_ray: self.pseudo_marginal_ray.clone(),
             reverse_parallel_ray: self.reverse_parallel_ray.clone(),
             aperture_stop: self.aperture_stop,
+            effective_focal_length: self.effective_focal_length,
             entrance_pupil: self.entrance_pupil.clone(),
             marginal_ray: self.marginal_ray.clone(),
         }
@@ -180,6 +186,10 @@ impl ParaxialSubView {
 
     pub fn aperture_stop(&self) -> &usize {
         &self.aperture_stop
+    }
+
+    pub fn effective_focal_length(&self) -> &Float {
+        &self.effective_focal_length
     }
 
     pub fn entrance_pupil(&self) -> &Pupil {
@@ -214,6 +224,21 @@ impl ParaxialSubView {
 
         // Do not include the object or image surfaces when computing the aperture stop.
         argmin(&ratios.slice(s![1..(ratios.len() - 1)])) + 1
+    }
+
+    fn calc_effective_focal_length(parallel_ray: &ParaxialRayTraceResults) -> Float {
+        let y_1 = parallel_ray.slice(s![1, 0, 0]);
+        let u_final = parallel_ray.slice(s![-2, 1, 0]);
+        // q: how do I divide a single element ndarray by another in the line below?
+
+        let efl = -y_1.into_scalar() / u_final.into_scalar();
+
+        // Handle edge case for infinite EFL
+        if efl.is_infinite() {
+            return Float::INFINITY;
+        }
+
+        efl
     }
 
     fn calc_entrance_pupil(
@@ -292,6 +317,17 @@ impl ParaxialSubView {
         let scale_factor = ratios[*aperture_stop];
 
         pseudo_marginal_ray * scale_factor
+    }
+
+    /// Compute the parallel ray.
+    fn calc_parallel_ray(
+        sequential_sub_model: &impl SequentialSubModel,
+        surfaces: &[Surface],
+        axis: Axis,
+    ) -> Result<ParaxialRayTraceResults> {
+        let ray = arr2(&[[1.0], [0.0]]);
+
+        Self::trace(ray, sequential_sub_model, surfaces, &axis, false)
     }
 
     /// Compute the pseudo-marginal ray.

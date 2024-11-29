@@ -53,6 +53,8 @@ pub fn sequential_model() -> SequentialModel {
 // Paraxial View values
 pub const APERTURE_STOP: usize = 1;
 
+pub const EFFECTIVE_FOCAL_LENGTH: f64 = 50.097;
+
 pub const ENTRANCE_PUPIL: Pupil = Pupil {
     location: 0.0,
     semi_diameter: 12.5,
