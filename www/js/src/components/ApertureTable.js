@@ -84,6 +84,7 @@ const ApertureTable = ({ aperture, setAperture }) => {
                     <input
                         type="number"
                         value={value}
+                        min="0"
                         onChange={handleCellChange}
                         onBlur={handleCellBlur}
                         onKeyDown={handleKeyDown}
@@ -106,10 +107,10 @@ const ApertureTable = ({ aperture, setAperture }) => {
             <table className="table" style={{ width: '100%' }}>
                 <thead>
                     <tr>
-                        <th className="has-text-weight-semibold" style={{ border: 'none', paddingLeft: 0 }}>
+                        <th className="has-text-weight-semibold has-text-right" style={{ border: 'none', paddingLeft: 0 }}>
                             Aperture Type
                         </th>
-                        <th className="has-text-weight-semibold" style={{ border: 'none', paddingLeft: 0 }}>
+                        <th className="has-text-weight-semibold has-text-right" style={{ border: 'none', paddingLeft: 0 }}>
                             Semi-Diameter
                         </th>
                     </tr>
