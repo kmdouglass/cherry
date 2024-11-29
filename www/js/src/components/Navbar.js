@@ -50,7 +50,6 @@ const Navbar = ( {
     const [activeDropdown, setActiveDropdown] = useState(null);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [isSummaryOpen, setIsSummaryOpen] = useState(false);
-    const [summaryData, setSummaryData] = useState(null);
     const fileInputRef = useRef(null);
 
     const toggleDropdown = (dropdown) => {
@@ -209,33 +208,11 @@ const Navbar = ( {
     };
 
     // Results handlers
-    // Update your handleSummary function
     const handleSummary = () => {
         if (!description) {
             console.warn("No data to summarize");
             return;
         }
-
-        const subviews = description.paraxial_view.subviews;
-
-        const targetKey = [...subviews.keys()].find(key => 
-            Array.isArray(key) && 
-            key.length === 2 && 
-            key[0] === 0 && 
-            key[1] === "Y"
-        );
-
-        const apertureStop = subviews.get(targetKey).aperture_stop;
-        const entrancePupilLocation = subviews.get(targetKey)["entrance_pupil"]["location"];
-        const entrancePupilSemiDiameter = subviews.get(targetKey)["entrance_pupil"]["semi_diameter"];
-
-        const summary = {
-            "Aperture Stop": apertureStop,
-            "Entrance Pupil Location": entrancePupilLocation,
-            "Entrance Pupil Semi-Diameter": entrancePupilSemiDiameter
-        };
-        
-        setSummaryData(summary);
         setIsSummaryOpen(true);
     };
 
@@ -321,7 +298,7 @@ const Navbar = ( {
                 </div>
             </div>
             <SummaryWindow 
-                summary={summaryData}
+                description={description}
                 isOpen={isSummaryOpen}
                 onClose={() => {
                     setIsSummaryOpen(false);

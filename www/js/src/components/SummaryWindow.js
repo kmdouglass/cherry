@@ -94,7 +94,33 @@ const SummaryTable = ({ data }) => (
   </table>
 );
 
-const SummaryWindow = ({ summary, isOpen, onClose }) => {
+const SummaryWindow = ({ description, isOpen, onClose }) => {
+  const [summary, setSummary] = useState(null);
+
+  // Update summary whenever description changes
+  useEffect(() => {
+    if (!description) return;
+
+    const subviews = description.paraxial_view.subviews;
+    const targetKey = [...subviews.keys()].find(key => 
+        Array.isArray(key) && 
+        key.length === 2 && 
+        key[0] === 0 && 
+        key[1] === "Y"
+    );
+
+    const apertureStop = subviews.get(targetKey).aperture_stop;
+    const entrancePupilLocation = subviews.get(targetKey)["entrance_pupil"]["location"];
+    const entrancePupilSemiDiameter = subviews.get(targetKey)["entrance_pupil"]["semi_diameter"];
+
+    const newSummary = {
+        "Aperture Stop": apertureStop,
+        "Entrance Pupil Location": entrancePupilLocation,
+        "Entrance Pupil Semi-Diameter": entrancePupilSemiDiameter
+    };
+    
+    setSummary(newSummary);
+  }, [description]);
   const [popupWindow, setPopupWindow] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -113,23 +139,23 @@ const SummaryWindow = ({ summary, isOpen, onClose }) => {
           // Fallback to modal if popup is blocked
           setIsModalOpen(true);
         } else {
-          
+
           setPopupWindow(popup);
           popup.document.open();
-          
+
           // Set up close detection using pagehide event
-          // This HAS to be done after the document is open for some reason
+          // This HAS to go after the popup is opened
           popup.addEventListener('pagehide', () => {
               setPopupWindow(null);
               onClose();
-        });
-
+            });
+          
           // Create basic HTML structure for the popup
           popup.document.write(`
             <!DOCTYPE html>
             <html>
               <head>
-                <title>System Properties</title>
+                <title>System Summary</title>
                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
                 <style>
                   body { 
@@ -158,7 +184,7 @@ const SummaryWindow = ({ summary, isOpen, onClose }) => {
                 </style>
               </head>
               <body>
-                <h2>Summary Results</h2>
+                <h2>System Summary</h2>
                 <div id="root"></div>
               </body>
             </html>
@@ -174,7 +200,7 @@ const SummaryWindow = ({ summary, isOpen, onClose }) => {
         setPopupWindow(null);
       }
       setIsModalOpen(false);
-    };
+    }
   }, [isOpen]);
 
   // Update popup content when summary changes
@@ -206,7 +232,7 @@ const SummaryWindow = ({ summary, isOpen, onClose }) => {
   return (
     <Modal isOpen={isModalOpen} onClose={onClose}>
       <h2 style={{ margin: '0 0 20px 0', paddingRight: '30px' }}>
-        System Properties
+        System Summary
       </h2>
       <SummaryTable data={summary || {}} />
     </Modal>
