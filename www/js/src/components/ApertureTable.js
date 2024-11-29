@@ -84,6 +84,7 @@ const ApertureTable = ({ aperture, setAperture }) => {
                     <input
                         type="number"
                         value={value}
+                        min="0"
                         onChange={handleCellChange}
                         onBlur={handleCellBlur}
                         onKeyDown={handleKeyDown}
