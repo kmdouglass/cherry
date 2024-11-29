@@ -113,11 +113,13 @@ const SummaryWindow = ({ description, isOpen, onClose }) => {
 
     // Just pull out what we need for now; we can get fancy with processing subviews data later
     const apertureStop = subviews.get(targetKey).aperture_stop;
+    const effectiveFocalLength = subviews.get(targetKey).effective_focal_length
     const entrancePupilLocation = subviews.get(targetKey)["entrance_pupil"]["location"];
     const entrancePupilSemiDiameter = subviews.get(targetKey)["entrance_pupil"]["semi_diameter"];
 
     const newSummary = {
-        "Aperture Stop": apertureStop,
+        "Aperture Stop (surface index)": apertureStop,
+        "Effective Focal Length": effectiveFocalLength,
         "Entrance Pupil Location": entrancePupilLocation,
         "Entrance Pupil Semi-Diameter": entrancePupilSemiDiameter
     };
@@ -142,6 +144,7 @@ const SummaryWindow = ({ description, isOpen, onClose }) => {
           // Fallback to modal if popup is blocked
           setIsModalOpen(true);
         } else {
+          // This is for popup window contents only and not modal contents!
 
           setPopupWindow(popup);
           popup.document.open();
@@ -188,6 +191,7 @@ const SummaryWindow = ({ description, isOpen, onClose }) => {
               </head>
               <body>
                 <h2>System Summary</h2>
+                <p>Distances are relative to the first surface.</p>
                 <div id="root"></div>
               </body>
             </html>
@@ -237,6 +241,7 @@ const SummaryWindow = ({ description, isOpen, onClose }) => {
       <h2 style={{ margin: '0 0 20px 0', paddingRight: '30px' }}>
         System Summary
       </h2>
+      <p>Distances are relative to the first surface.</p>
       <SummaryTable data={summary || {}} />
     </Modal>
   );
