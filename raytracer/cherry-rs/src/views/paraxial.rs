@@ -50,8 +50,6 @@ pub struct ParaxialViewDescription {
 #[derive(Debug)]
 pub struct ParaxialSubView {
     is_obj_space_telecentric: bool,
-    pseudo_marginal_ray: ParaxialRayTraceResults,
-    reverse_parallel_ray: ParaxialRayTraceResults,
 
     aperture_stop: usize,
     effective_focal_length: Float,
@@ -62,8 +60,6 @@ pub struct ParaxialSubView {
 /// A paraxial description of an optical system.
 #[derive(Debug, Serialize)]
 pub struct ParaxialSubViewDescription {
-    pseudo_marginal_ray: ParaxialRayTraceResults,
-    reverse_parallel_ray: ParaxialRayTraceResults,
     aperture_stop: usize,
     effective_focal_length: Float,
     entrance_pupil: Pupil,
@@ -163,8 +159,6 @@ impl ParaxialSubView {
 
         Ok(Self {
             is_obj_space_telecentric,
-            pseudo_marginal_ray,
-            reverse_parallel_ray,
 
             aperture_stop,
             effective_focal_length,
@@ -175,8 +169,6 @@ impl ParaxialSubView {
 
     fn describe(&self) -> ParaxialSubViewDescription {
         ParaxialSubViewDescription {
-            pseudo_marginal_ray: self.pseudo_marginal_ray.clone(),
-            reverse_parallel_ray: self.reverse_parallel_ray.clone(),
             aperture_stop: self.aperture_stop,
             effective_focal_length: self.effective_focal_length,
             entrance_pupil: self.entrance_pupil.clone(),
