@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import SummaryWindow from "./SummaryWindow";
 
 import cpLensData from "../examples/convexplanoLens";
 import petzvalLensData from "../examples/petzvalLens";
@@ -48,6 +49,8 @@ const Navbar = ( {
 } ) => {
     const [activeDropdown, setActiveDropdown] = useState(null);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+    const [isSummaryOpen, setIsSummaryOpen] = useState(false);
+    const [summaryData, setSummaryData] = useState(null);
     const fileInputRef = useRef(null);
 
     const toggleDropdown = (dropdown) => {
@@ -206,6 +209,7 @@ const Navbar = ( {
     };
 
     // Results handlers
+    // Update your handleSummary function
     const handleSummary = () => {
         if (!description) {
             console.warn("No data to summarize");
@@ -214,15 +218,13 @@ const Navbar = ( {
 
         const subviews = description.paraxial_view.subviews;
 
-        // Javascript is such shit
         const targetKey = [...subviews.keys()].find(key => 
             Array.isArray(key) && 
             key.length === 2 && 
             key[0] === 0 && 
             key[1] === "Y"
-          );
+        );
 
-        // For now just manually pull out the data we want to display
         const apertureStop = subviews.get(targetKey).aperture_stop;
         const entrancePupilLocation = subviews.get(targetKey)["entrance_pupil"]["location"];
         const entrancePupilSemiDiameter = subviews.get(targetKey)["entrance_pupil"]["semi_diameter"];
@@ -233,8 +235,9 @@ const Navbar = ( {
             "Entrance Pupil Semi-Diameter": entrancePupilSemiDiameter
         };
         
-        console.log("Summary:", summary);
-    }
+        setSummaryData(summary);
+        setIsSummaryOpen(true);
+    };
 
     // Examples handlers
     const handleConvexplanoLens = () => {
@@ -317,6 +320,13 @@ const Navbar = ( {
                     </div>
                 </div>
             </div>
+            <SummaryWindow 
+                summary={summaryData}
+                isOpen={isSummaryOpen}
+                onClose={() => {
+                    setIsSummaryOpen(false);
+                }}
+            />
         </nav>
     );
 };
