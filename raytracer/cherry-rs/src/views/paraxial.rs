@@ -9,7 +9,10 @@ use crate::{
     core::{
         argmin,
         math::vec3::Vec3,
-        sequential_model::{Axis, SequentialModel, SequentialSubModel, Step, SubModelID, Surface},
+        sequential_model::{
+            last_physical_surface, Axis, SequentialModel, SequentialSubModel, Step, SubModelID,
+            Surface,
+        },
         Float,
     },
     specs::surfaces::SurfaceType,
@@ -52,6 +55,7 @@ pub struct ParaxialSubView {
     is_obj_space_telecentric: bool,
 
     aperture_stop: usize,
+    back_focal_distance: Float,
     effective_focal_length: Float,
     entrance_pupil: Pupil,
     marginal_ray: ParaxialRayTraceResults,
@@ -61,6 +65,7 @@ pub struct ParaxialSubView {
 #[derive(Debug, Serialize)]
 pub struct ParaxialSubViewDescription {
     aperture_stop: usize,
+    back_focal_distance: Float,
     effective_focal_length: Float,
     entrance_pupil: Pupil,
     marginal_ray: ParaxialRayTraceResults,
@@ -146,6 +151,7 @@ impl ParaxialSubView {
         let reverse_parallel_ray =
             Self::calc_reverse_parallel_ray(sequential_sub_model, surfaces, axis)?;
         let aperture_stop = Self::calc_aperture_stop(surfaces, &pseudo_marginal_ray);
+        let back_focal_distance = Self::calc_back_focal_distance(surfaces, &parallel_ray)?;
         let marginal_ray = Self::calc_marginal_ray(surfaces, &pseudo_marginal_ray, &aperture_stop);
         let entrance_pupil = Self::calc_entrance_pupil(
             sequential_sub_model,
@@ -161,6 +167,7 @@ impl ParaxialSubView {
             is_obj_space_telecentric,
 
             aperture_stop,
+            back_focal_distance,
             effective_focal_length,
             entrance_pupil,
             marginal_ray,
@@ -170,6 +177,7 @@ impl ParaxialSubView {
     fn describe(&self) -> ParaxialSubViewDescription {
         ParaxialSubViewDescription {
             aperture_stop: self.aperture_stop,
+            back_focal_distance: self.back_focal_distance,
             effective_focal_length: self.effective_focal_length,
             entrance_pupil: self.entrance_pupil.clone(),
             marginal_ray: self.marginal_ray.clone(),
@@ -178,6 +186,10 @@ impl ParaxialSubView {
 
     pub fn aperture_stop(&self) -> &usize {
         &self.aperture_stop
+    }
+
+    pub fn back_focal_distance(&self) -> &Float {
+        &self.back_focal_distance
     }
 
     pub fn effective_focal_length(&self) -> &Float {
@@ -218,11 +230,28 @@ impl ParaxialSubView {
         argmin(&ratios.slice(s![1..(ratios.len() - 1)])) + 1
     }
 
+    fn calc_back_focal_distance(
+        surfaces: &[Surface],
+        parallel_ray: &ParaxialRayTraceResults,
+    ) -> Result<Float> {
+        let last_physical_surface_index =
+            last_physical_surface(surfaces).ok_or(anyhow!("There are no physical surfaces"))?;
+        let z_intercepts =
+            z_intercepts(parallel_ray.slice(s![last_physical_surface_index, .., ..]))?;
+
+        let bfd = z_intercepts[0];
+
+        // Handle edge case for infinite BFD
+        if bfd.is_infinite() {
+            return Ok(Float::INFINITY);
+        }
+
+        Ok(bfd)
+    }
+
     fn calc_effective_focal_length(parallel_ray: &ParaxialRayTraceResults) -> Float {
         let y_1 = parallel_ray.slice(s![1, 0, 0]);
         let u_final = parallel_ray.slice(s![-2, 1, 0]);
-        // q: how do I divide a single element ndarray by another in the line below?
-
         let efl = -y_1.into_scalar() / u_final.into_scalar();
 
         // Handle edge case for infinite EFL

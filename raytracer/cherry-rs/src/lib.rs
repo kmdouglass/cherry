@@ -6,7 +6,7 @@ mod views;
 pub mod examples;
 pub use core::{
     math::vec3::Vec3,
-    sequential_model::{SequentialModel, SequentialSubModel, SubModelID},
+    sequential_model::{last_physical_surface, SequentialModel, SequentialSubModel, SubModelID},
 };
 pub use specs::{
     aperture::ApertureSpec,

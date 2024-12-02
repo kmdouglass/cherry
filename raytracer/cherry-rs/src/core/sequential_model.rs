@@ -146,6 +146,15 @@ pub struct Stop {
 //    surface_type: SurfaceType,
 //}
 
+/// Returns the index of the last physical surface in the system.
+/// This is the last surface that is not an object, image, or probe surface.
+/// If no such surface exists, then the function returns None.
+pub fn last_physical_surface(surfaces: &[Surface]) -> Option<usize> {
+    surfaces
+        .iter()
+        .rposition(|surf| matches!(surf, Surface::Conic(_) | Surface::Stop(_)))
+}
+
 impl Conic {
     pub fn sag_norm(&self, pos: Vec3) -> (Float, Vec3) {
         if self.radius_of_curvature.is_infinite() {
@@ -732,5 +741,42 @@ mod tests {
         let model_ids = SequentialModel::calc_model_ids(surfaces, &wavelengths);
 
         assert_eq!(model_ids.len(), 1); // Circularly symmetric, no wavelengths
+    }
+
+    #[test]
+    fn test_last_physical_surface() {
+        let surfaces = vec![
+            Surface::Object(Object {
+                pos: Vec3::new(0.0, 0.0, 0.0),
+                rotation_matrix: Mat3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
+            }),
+            Surface::Conic(Conic {
+                pos: Vec3::new(0.0, 0.0, 0.0),
+                rotation_matrix: Mat3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
+                semi_diameter: 1.0,
+                radius_of_curvature: 1.0,
+                conic_constant: 0.0,
+                surface_type: SurfaceType::Refracting,
+            }),
+            Surface::Conic(Conic {
+                pos: Vec3::new(0.0, 0.0, 0.0),
+                rotation_matrix: Mat3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
+                semi_diameter: 1.0,
+                radius_of_curvature: 1.0,
+                conic_constant: 0.0,
+                surface_type: SurfaceType::Refracting,
+            }),
+            Surface::Probe(Probe {
+                pos: Vec3::new(0.0, 0.0, 0.0),
+                rotation_matrix: Mat3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
+            }),
+            Surface::Image(Image {
+                pos: Vec3::new(0.0, 0.0, 0.0),
+                rotation_matrix: Mat3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
+            }),
+        ];
+
+        let result = last_physical_surface(&surfaces);
+        assert_eq!(result, Some(2));
     }
 }
