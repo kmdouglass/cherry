@@ -479,6 +479,11 @@ impl<'a> Iterator for SequentialSubModelReverseIter<'a> {
 }
 
 impl Surface {
+    /// Returns the z-coordinate of the surface's vertex.
+    pub fn z(&self) -> Float {
+        self.pos().z()
+    }
+
     pub(crate) fn from_spec(spec: &SurfaceSpec, pos: Vec3) -> Self {
         // No rotation for the moment
         let euler_angles = Vec3::new(0.0, 0.0, 0.0);

@@ -56,6 +56,7 @@ pub struct ParaxialSubView {
 
     aperture_stop: usize,
     back_focal_distance: Float,
+    back_principal_plane: Float,
     effective_focal_length: Float,
     entrance_pupil: Pupil,
     marginal_ray: ParaxialRayTraceResults,
@@ -66,6 +67,7 @@ pub struct ParaxialSubView {
 pub struct ParaxialSubViewDescription {
     aperture_stop: usize,
     back_focal_distance: Float,
+    back_principal_plane: Float,
     effective_focal_length: Float,
     entrance_pupil: Pupil,
     marginal_ray: ParaxialRayTraceResults,
@@ -150,6 +152,7 @@ impl ParaxialSubView {
         let parallel_ray = Self::calc_parallel_ray(sequential_sub_model, surfaces, axis)?;
         let reverse_parallel_ray =
             Self::calc_reverse_parallel_ray(sequential_sub_model, surfaces, axis)?;
+
         let aperture_stop = Self::calc_aperture_stop(surfaces, &pseudo_marginal_ray);
         let back_focal_distance = Self::calc_back_focal_distance(surfaces, &parallel_ray)?;
         let marginal_ray = Self::calc_marginal_ray(surfaces, &pseudo_marginal_ray, &aperture_stop);
@@ -163,11 +166,15 @@ impl ParaxialSubView {
         )?;
         let effective_focal_length = Self::calc_effective_focal_length(&parallel_ray);
 
+        let back_principal_plane =
+            Self::calc_back_prinicpal_plane(surfaces, back_focal_distance, effective_focal_length)?;
+
         Ok(Self {
             is_obj_space_telecentric,
 
             aperture_stop,
             back_focal_distance,
+            back_principal_plane,
             effective_focal_length,
             entrance_pupil,
             marginal_ray,
@@ -178,6 +185,7 @@ impl ParaxialSubView {
         ParaxialSubViewDescription {
             aperture_stop: self.aperture_stop,
             back_focal_distance: self.back_focal_distance,
+            back_principal_plane: self.back_principal_plane,
             effective_focal_length: self.effective_focal_length,
             entrance_pupil: self.entrance_pupil.clone(),
             marginal_ray: self.marginal_ray.clone(),
@@ -190,6 +198,10 @@ impl ParaxialSubView {
 
     pub fn back_focal_distance(&self) -> &Float {
         &self.back_focal_distance
+    }
+
+    pub fn back_principal_plane(&self) -> &Float {
+        &self.back_principal_plane
     }
 
     pub fn effective_focal_length(&self) -> &Float {
@@ -249,12 +261,32 @@ impl ParaxialSubView {
         Ok(bfd)
     }
 
+    fn calc_back_prinicpal_plane(
+        surfaces: &[Surface],
+        back_focal_distance: Float,
+        effective_focal_length: Float,
+    ) -> Result<Float> {
+        let delta = back_focal_distance - effective_focal_length;
+
+        // Principal planes make no sense for surfaces without power
+        if delta.is_infinite() {
+            return Ok(Float::NAN);
+        }
+
+        // Find the z position of the last real surface
+        let last_physical_surface_index =
+            last_physical_surface(surfaces).ok_or(anyhow!("There are no physical surfaces"))?;
+        let last_surface_z = surfaces[last_physical_surface_index].z();
+
+        Ok(last_surface_z + delta)
+    }
+
     fn calc_effective_focal_length(parallel_ray: &ParaxialRayTraceResults) -> Float {
         let y_1 = parallel_ray.slice(s![1, 0, 0]);
         let u_final = parallel_ray.slice(s![-2, 1, 0]);
         let efl = -y_1.into_scalar() / u_final.into_scalar();
 
-        // Handle edge case for infinite EFL
+        // Handle edge case for negatively infinite EFL
         if efl.is_infinite() {
             return Float::INFINITY;
         }

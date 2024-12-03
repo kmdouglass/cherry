@@ -42,19 +42,19 @@ fn test_paraxial_view_back_focal_distance() {
     }
 }
 
-// #[test]
-// fn test_paraxial_view_back_principal_plane() {
-//     let model = sequential_model();
-//     let sub_models = model.submodels();
-//     let view = paraxial_view();
+#[test]
+fn test_paraxial_view_back_principal_plane() {
+    let model = sequential_model();
+    let sub_models = model.submodels();
+    let view = paraxial_view();
 
-//     for (sub_model_id, _) in sub_models {
-//         let sub_view = view.subviews.get(sub_model_id).unwrap();
-//         let result = sub_view.back_principal_plane();
+    for (sub_model_id, _) in sub_models {
+        let sub_view = view.subviews.get(sub_model_id).unwrap();
+        let result = sub_view.back_principal_plane();
 
-//         assert_abs_diff_eq!(BACK_PRINCIPAL_PLANE, *result, epsilon = 1e-4)
-//     }
-// }
+        assert_abs_diff_eq!(BACK_PRINCIPAL_PLANE, *result, epsilon = 1e-4)
+    }
+}
 
 #[test]
 fn test_paraxial_view_effective_focal_length() {
