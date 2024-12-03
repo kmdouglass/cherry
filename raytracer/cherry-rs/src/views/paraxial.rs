@@ -60,6 +60,7 @@ pub struct ParaxialSubView {
     effective_focal_length: Float,
     entrance_pupil: Pupil,
     front_focal_distance: Float,
+    front_principal_plane: Float,
     marginal_ray: ParaxialRayTraceResults,
 }
 
@@ -72,6 +73,7 @@ pub struct ParaxialSubViewDescription {
     effective_focal_length: Float,
     entrance_pupil: Pupil,
     front_focal_distance: Float,
+    front_principal_plane: Float,
     marginal_ray: ParaxialRayTraceResults,
 }
 
@@ -172,6 +174,8 @@ impl ParaxialSubView {
 
         let back_principal_plane =
             Self::calc_back_prinicpal_plane(surfaces, back_focal_distance, effective_focal_length)?;
+        let front_principal_plane =
+            Self::calc_front_principal_plane(front_focal_distance, effective_focal_length);
 
         Ok(Self {
             is_obj_space_telecentric,
@@ -182,6 +186,7 @@ impl ParaxialSubView {
             effective_focal_length,
             entrance_pupil,
             front_focal_distance,
+            front_principal_plane,
             marginal_ray,
         })
     }
@@ -194,6 +199,7 @@ impl ParaxialSubView {
             effective_focal_length: self.effective_focal_length,
             entrance_pupil: self.entrance_pupil.clone(),
             front_focal_distance: self.front_focal_distance,
+            front_principal_plane: self.front_principal_plane,
             marginal_ray: self.marginal_ray.clone(),
         }
     }
@@ -220,6 +226,10 @@ impl ParaxialSubView {
 
     pub fn front_focal_distance(&self) -> &Float {
         &self.front_focal_distance
+    }
+
+    pub fn front_principal_plane(&self) -> &Float {
+        &self.front_principal_plane
     }
 
     pub fn is_obj_space_telecentric(&self) -> &bool {
@@ -278,7 +288,7 @@ impl ParaxialSubView {
     ) -> Result<Float> {
         let delta = back_focal_distance - effective_focal_length;
 
-        // Principal planes make no sense for surfaces without power
+        // Principal planes make no sense for lenses without power
         if delta.is_infinite() {
             return Ok(Float::NAN);
         }
@@ -381,6 +391,18 @@ impl ParaxialSubView {
         }
 
         Ok(ffd)
+    }
+
+    fn calc_front_principal_plane(
+        front_focal_distance: Float,
+        effective_focal_length: Float,
+    ) -> Float {
+        // Principal planes make no sense for lenses without power
+        if front_focal_distance.is_infinite() {
+            return Float::NAN;
+        }
+
+        front_focal_distance + effective_focal_length
     }
 
     fn calc_marginal_ray(

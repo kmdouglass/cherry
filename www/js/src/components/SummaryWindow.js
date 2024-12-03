@@ -119,6 +119,7 @@ const SummaryWindow = ({ description, isOpen, onClose }) => {
     const entrancePupilLocation = subviews.get(targetKey)["entrance_pupil"]["location"];
     const entrancePupilSemiDiameter = subviews.get(targetKey)["entrance_pupil"]["semi_diameter"];
     const backPrincipalPlane = subviews.get(targetKey).back_principal_plane;
+    const frontPrincipalPlane = subviews.get(targetKey).front_principal_plane;
 
     const newSummary = {
         "Aperture Stop (surface index)": apertureStop,
@@ -127,7 +128,8 @@ const SummaryWindow = ({ description, isOpen, onClose }) => {
         "Front Focal Distance": frontFocalDistance,
         "Entrance Pupil Location": entrancePupilLocation,
         "Entrance Pupil Semi-Diameter": entrancePupilSemiDiameter,
-        "Back Principal Plane": backPrincipalPlane
+        "Back Principal Plane": backPrincipalPlane,
+        "Front Principal Plane": frontPrincipalPlane
     };
     
     setSummary(newSummary);
