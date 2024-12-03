@@ -113,15 +113,23 @@ const SummaryWindow = ({ description, isOpen, onClose }) => {
 
     // Just pull out what we need for now; we can get fancy with processing subviews data later
     const apertureStop = subviews.get(targetKey).aperture_stop;
-    const effectiveFocalLength = subviews.get(targetKey).effective_focal_length
+    const effectiveFocalLength = subviews.get(targetKey).effective_focal_length;
+    const backFocalDistance = subviews.get(targetKey).back_focal_distance;
+    const frontFocalDistance = subviews.get(targetKey).front_focal_distance;
     const entrancePupilLocation = subviews.get(targetKey)["entrance_pupil"]["location"];
     const entrancePupilSemiDiameter = subviews.get(targetKey)["entrance_pupil"]["semi_diameter"];
+    const backPrincipalPlane = subviews.get(targetKey).back_principal_plane;
+    const frontPrincipalPlane = subviews.get(targetKey).front_principal_plane;
 
     const newSummary = {
         "Aperture Stop (surface index)": apertureStop,
         "Effective Focal Length": effectiveFocalLength,
+        "Back Focal Distance": backFocalDistance,
+        "Front Focal Distance": frontFocalDistance,
         "Entrance Pupil Location": entrancePupilLocation,
-        "Entrance Pupil Semi-Diameter": entrancePupilSemiDiameter
+        "Entrance Pupil Semi-Diameter": entrancePupilSemiDiameter,
+        "Back Principal Plane": backPrincipalPlane,
+        "Front Principal Plane": frontPrincipalPlane
     };
     
     setSummary(newSummary);

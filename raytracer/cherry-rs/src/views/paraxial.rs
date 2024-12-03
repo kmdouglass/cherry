@@ -9,7 +9,10 @@ use crate::{
     core::{
         argmin,
         math::vec3::Vec3,
-        sequential_model::{Axis, SequentialModel, SequentialSubModel, Step, SubModelID, Surface},
+        sequential_model::{
+            first_physical_surface, last_physical_surface, reversed_surface_id, Axis,
+            SequentialModel, SequentialSubModel, Step, SubModelID, Surface,
+        },
         Float,
     },
     specs::surfaces::SurfaceType,
@@ -52,8 +55,12 @@ pub struct ParaxialSubView {
     is_obj_space_telecentric: bool,
 
     aperture_stop: usize,
+    back_focal_distance: Float,
+    back_principal_plane: Float,
     effective_focal_length: Float,
     entrance_pupil: Pupil,
+    front_focal_distance: Float,
+    front_principal_plane: Float,
     marginal_ray: ParaxialRayTraceResults,
 }
 
@@ -61,8 +68,12 @@ pub struct ParaxialSubView {
 #[derive(Debug, Serialize)]
 pub struct ParaxialSubViewDescription {
     aperture_stop: usize,
+    back_focal_distance: Float,
+    back_principal_plane: Float,
     effective_focal_length: Float,
     entrance_pupil: Pupil,
+    front_focal_distance: Float,
+    front_principal_plane: Float,
     marginal_ray: ParaxialRayTraceResults,
 }
 
@@ -145,7 +156,11 @@ impl ParaxialSubView {
         let parallel_ray = Self::calc_parallel_ray(sequential_sub_model, surfaces, axis)?;
         let reverse_parallel_ray =
             Self::calc_reverse_parallel_ray(sequential_sub_model, surfaces, axis)?;
+
         let aperture_stop = Self::calc_aperture_stop(surfaces, &pseudo_marginal_ray);
+        let back_focal_distance = Self::calc_back_focal_distance(surfaces, &parallel_ray)?;
+        let front_focal_distance =
+            Self::calc_front_focal_distance(surfaces, &reverse_parallel_ray)?;
         let marginal_ray = Self::calc_marginal_ray(surfaces, &pseudo_marginal_ray, &aperture_stop);
         let entrance_pupil = Self::calc_entrance_pupil(
             sequential_sub_model,
@@ -157,12 +172,21 @@ impl ParaxialSubView {
         )?;
         let effective_focal_length = Self::calc_effective_focal_length(&parallel_ray);
 
+        let back_principal_plane =
+            Self::calc_back_prinicpal_plane(surfaces, back_focal_distance, effective_focal_length)?;
+        let front_principal_plane =
+            Self::calc_front_principal_plane(front_focal_distance, effective_focal_length);
+
         Ok(Self {
             is_obj_space_telecentric,
 
             aperture_stop,
+            back_focal_distance,
+            back_principal_plane,
             effective_focal_length,
             entrance_pupil,
+            front_focal_distance,
+            front_principal_plane,
             marginal_ray,
         })
     }
@@ -170,8 +194,12 @@ impl ParaxialSubView {
     fn describe(&self) -> ParaxialSubViewDescription {
         ParaxialSubViewDescription {
             aperture_stop: self.aperture_stop,
+            back_focal_distance: self.back_focal_distance,
+            back_principal_plane: self.back_principal_plane,
             effective_focal_length: self.effective_focal_length,
             entrance_pupil: self.entrance_pupil.clone(),
+            front_focal_distance: self.front_focal_distance,
+            front_principal_plane: self.front_principal_plane,
             marginal_ray: self.marginal_ray.clone(),
         }
     }
@@ -180,12 +208,28 @@ impl ParaxialSubView {
         &self.aperture_stop
     }
 
+    pub fn back_focal_distance(&self) -> &Float {
+        &self.back_focal_distance
+    }
+
+    pub fn back_principal_plane(&self) -> &Float {
+        &self.back_principal_plane
+    }
+
     pub fn effective_focal_length(&self) -> &Float {
         &self.effective_focal_length
     }
 
     pub fn entrance_pupil(&self) -> &Pupil {
         &self.entrance_pupil
+    }
+
+    pub fn front_focal_distance(&self) -> &Float {
+        &self.front_focal_distance
+    }
+
+    pub fn front_principal_plane(&self) -> &Float {
+        &self.front_principal_plane
     }
 
     pub fn is_obj_space_telecentric(&self) -> &bool {
@@ -218,14 +262,51 @@ impl ParaxialSubView {
         argmin(&ratios.slice(s![1..(ratios.len() - 1)])) + 1
     }
 
+    fn calc_back_focal_distance(
+        surfaces: &[Surface],
+        parallel_ray: &ParaxialRayTraceResults,
+    ) -> Result<Float> {
+        let last_physical_surface_index =
+            last_physical_surface(surfaces).ok_or(anyhow!("There are no physical surfaces"))?;
+        let z_intercepts =
+            z_intercepts(parallel_ray.slice(s![last_physical_surface_index, .., ..]))?;
+
+        let bfd = z_intercepts[0];
+
+        // Handle edge case for infinite BFD
+        if bfd.is_infinite() {
+            return Ok(Float::INFINITY);
+        }
+
+        Ok(bfd)
+    }
+
+    fn calc_back_prinicpal_plane(
+        surfaces: &[Surface],
+        back_focal_distance: Float,
+        effective_focal_length: Float,
+    ) -> Result<Float> {
+        let delta = back_focal_distance - effective_focal_length;
+
+        // Principal planes make no sense for lenses without power
+        if delta.is_infinite() {
+            return Ok(Float::NAN);
+        }
+
+        // Find the z position of the last real surface
+        let last_physical_surface_index =
+            last_physical_surface(surfaces).ok_or(anyhow!("There are no physical surfaces"))?;
+        let last_surface_z = surfaces[last_physical_surface_index].z();
+
+        Ok(last_surface_z + delta)
+    }
+
     fn calc_effective_focal_length(parallel_ray: &ParaxialRayTraceResults) -> Float {
         let y_1 = parallel_ray.slice(s![1, 0, 0]);
         let u_final = parallel_ray.slice(s![-2, 1, 0]);
-        // q: how do I divide a single element ndarray by another in the line below?
-
         let efl = -y_1.into_scalar() / u_final.into_scalar();
 
-        // Handle edge case for infinite EFL
+        // Handle edge case for negatively infinite EFL
         if efl.is_infinite() {
             return Float::INFINITY;
         }
@@ -291,6 +372,37 @@ impl ParaxialSubView {
             location,
             semi_diameter,
         })
+    }
+
+    fn calc_front_focal_distance(
+        surfaces: &[Surface],
+        reverse_parallel_ray: &ParaxialRayTraceResults,
+    ) -> Result<Float> {
+        let first_physical_surface_index =
+            first_physical_surface(surfaces).ok_or(anyhow!("There are no physical surfaces"))?;
+        let index = reversed_surface_id(surfaces, first_physical_surface_index);
+        let z_intercepts = z_intercepts(reverse_parallel_ray.slice(s![index, .., ..]))?;
+
+        let ffd = z_intercepts[0];
+
+        // Handle edge case for infinite FFD
+        if ffd.is_infinite() {
+            return Ok(Float::INFINITY);
+        }
+
+        Ok(ffd)
+    }
+
+    fn calc_front_principal_plane(
+        front_focal_distance: Float,
+        effective_focal_length: Float,
+    ) -> Float {
+        // Principal planes make no sense for lenses without power
+        if front_focal_distance.is_infinite() {
+            return Float::NAN;
+        }
+
+        front_focal_distance + effective_focal_length
     }
 
     fn calc_marginal_ray(
