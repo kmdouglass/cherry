@@ -71,6 +71,20 @@ fn test_paraxial_view_effective_focal_length() {
 }
 
 #[test]
+fn test_paraxial_view_front_focal_distance() {
+    let model = sequential_model();
+    let sub_models = model.submodels();
+    let view = paraxial_view();
+
+    for (sub_model_id, _) in sub_models {
+        let sub_view = view.subviews.get(sub_model_id).unwrap();
+        let result = sub_view.front_focal_distance();
+
+        assert_abs_diff_eq!(FRONT_FOCAL_DISTANCE, *result, epsilon = 1e-4)
+    }
+}
+
+#[test]
 fn test_paraxial_view_entrance_pupil() {
     let model = sequential_model();
     let sub_models = model.submodels();

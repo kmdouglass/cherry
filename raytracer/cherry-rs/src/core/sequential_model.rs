@@ -146,6 +146,15 @@ pub struct Stop {
 //    surface_type: SurfaceType,
 //}
 
+/// Returns the index of the first physical surface in the system.
+/// This is the first surface that is not an object, image, or probe surface.
+/// If no such surface exists, then the function returns None.
+pub fn first_physical_surface(surfaces: &[Surface]) -> Option<usize> {
+    surfaces
+        .iter()
+        .position(|surf| matches!(surf, Surface::Conic(_) | Surface::Stop(_)))
+}
+
 /// Returns the index of the last physical surface in the system.
 /// This is the last surface that is not an object, image, or probe surface.
 /// If no such surface exists, then the function returns None.
@@ -153,6 +162,12 @@ pub fn last_physical_surface(surfaces: &[Surface]) -> Option<usize> {
     surfaces
         .iter()
         .rposition(|surf| matches!(surf, Surface::Conic(_) | Surface::Stop(_)))
+}
+
+/// Returns the id of a surface in a reversed system.
+pub fn reversed_surface_id(surfaces: &[Surface], surf_id: usize) -> usize {
+    // Reversed IDs are ray starts, then image plane, then surfaces
+    surfaces.len() - surf_id - 1
 }
 
 impl Conic {
@@ -749,6 +764,43 @@ mod tests {
     }
 
     #[test]
+    fn test_first_physical_surface() {
+        let surfaces = vec![
+            Surface::Object(Object {
+                pos: Vec3::new(0.0, 0.0, 0.0),
+                rotation_matrix: Mat3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
+            }),
+            Surface::Probe(Probe {
+                pos: Vec3::new(0.0, 0.0, 0.0),
+                rotation_matrix: Mat3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
+            }),
+            Surface::Conic(Conic {
+                pos: Vec3::new(0.0, 0.0, 0.0),
+                rotation_matrix: Mat3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
+                semi_diameter: 1.0,
+                radius_of_curvature: 1.0,
+                conic_constant: 0.0,
+                surface_type: SurfaceType::Refracting,
+            }),
+            Surface::Conic(Conic {
+                pos: Vec3::new(0.0, 0.0, 0.0),
+                rotation_matrix: Mat3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
+                semi_diameter: 1.0,
+                radius_of_curvature: 1.0,
+                conic_constant: 0.0,
+                surface_type: SurfaceType::Refracting,
+            }),
+            Surface::Image(Image {
+                pos: Vec3::new(0.0, 0.0, 0.0),
+                rotation_matrix: Mat3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
+            }),
+        ];
+
+        let result = first_physical_surface(&surfaces);
+        assert_eq!(result, Some(2));
+    }
+
+    #[test]
     fn test_last_physical_surface() {
         let surfaces = vec![
             Surface::Object(Object {
@@ -783,5 +835,45 @@ mod tests {
 
         let result = last_physical_surface(&surfaces);
         assert_eq!(result, Some(2));
+    }
+
+    #[test]
+    fn test_reversed_surface_id() {
+        let surfaces = vec![
+            Surface::Object(Object {
+                pos: Vec3::new(0.0, 0.0, 0.0),
+                rotation_matrix: Mat3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
+            }),
+            Surface::Conic(Conic {
+                pos: Vec3::new(0.0, 0.0, 0.0),
+                rotation_matrix: Mat3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
+                semi_diameter: 1.0,
+                radius_of_curvature: 1.0,
+                conic_constant: 0.0,
+                surface_type: SurfaceType::Refracting,
+            }),
+            Surface::Conic(Conic {
+                pos: Vec3::new(0.0, 0.0, 0.0),
+                rotation_matrix: Mat3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
+                semi_diameter: 1.0,
+                radius_of_curvature: 1.0,
+                conic_constant: 0.0,
+                surface_type: SurfaceType::Refracting,
+            }),
+            Surface::Probe(Probe {
+                pos: Vec3::new(0.0, 0.0, 0.0),
+                rotation_matrix: Mat3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
+            }),
+            Surface::Image(Image {
+                pos: Vec3::new(0.0, 0.0, 0.0),
+                rotation_matrix: Mat3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
+            }),
+        ];
+
+        let result = reversed_surface_id(&surfaces, 2);
+        assert_eq!(result, 2);
+
+        let result = reversed_surface_id(&surfaces, 1);
+        assert_eq!(result, 3);
     }
 }

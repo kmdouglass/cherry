@@ -10,8 +10,8 @@ use crate::{
         argmin,
         math::vec3::Vec3,
         sequential_model::{
-            last_physical_surface, Axis, SequentialModel, SequentialSubModel, Step, SubModelID,
-            Surface,
+            first_physical_surface, last_physical_surface, reversed_surface_id, Axis,
+            SequentialModel, SequentialSubModel, Step, SubModelID, Surface,
         },
         Float,
     },
@@ -59,6 +59,7 @@ pub struct ParaxialSubView {
     back_principal_plane: Float,
     effective_focal_length: Float,
     entrance_pupil: Pupil,
+    front_focal_distance: Float,
     marginal_ray: ParaxialRayTraceResults,
 }
 
@@ -70,6 +71,7 @@ pub struct ParaxialSubViewDescription {
     back_principal_plane: Float,
     effective_focal_length: Float,
     entrance_pupil: Pupil,
+    front_focal_distance: Float,
     marginal_ray: ParaxialRayTraceResults,
 }
 
@@ -155,6 +157,8 @@ impl ParaxialSubView {
 
         let aperture_stop = Self::calc_aperture_stop(surfaces, &pseudo_marginal_ray);
         let back_focal_distance = Self::calc_back_focal_distance(surfaces, &parallel_ray)?;
+        let front_focal_distance =
+            Self::calc_front_focal_distance(surfaces, &reverse_parallel_ray)?;
         let marginal_ray = Self::calc_marginal_ray(surfaces, &pseudo_marginal_ray, &aperture_stop);
         let entrance_pupil = Self::calc_entrance_pupil(
             sequential_sub_model,
@@ -177,6 +181,7 @@ impl ParaxialSubView {
             back_principal_plane,
             effective_focal_length,
             entrance_pupil,
+            front_focal_distance,
             marginal_ray,
         })
     }
@@ -188,6 +193,7 @@ impl ParaxialSubView {
             back_principal_plane: self.back_principal_plane,
             effective_focal_length: self.effective_focal_length,
             entrance_pupil: self.entrance_pupil.clone(),
+            front_focal_distance: self.front_focal_distance,
             marginal_ray: self.marginal_ray.clone(),
         }
     }
@@ -210,6 +216,10 @@ impl ParaxialSubView {
 
     pub fn entrance_pupil(&self) -> &Pupil {
         &self.entrance_pupil
+    }
+
+    pub fn front_focal_distance(&self) -> &Float {
+        &self.front_focal_distance
     }
 
     pub fn is_obj_space_telecentric(&self) -> &bool {
@@ -352,6 +362,25 @@ impl ParaxialSubView {
             location,
             semi_diameter,
         })
+    }
+
+    fn calc_front_focal_distance(
+        surfaces: &[Surface],
+        reverse_parallel_ray: &ParaxialRayTraceResults,
+    ) -> Result<Float> {
+        let first_physical_surface_index =
+            first_physical_surface(surfaces).ok_or(anyhow!("There are no physical surfaces"))?;
+        let index = reversed_surface_id(surfaces, first_physical_surface_index);
+        let z_intercepts = z_intercepts(reverse_parallel_ray.slice(s![index, .., ..]))?;
+
+        let ffd = z_intercepts[0];
+
+        // Handle edge case for infinite FFD
+        if ffd.is_infinite() {
+            return Ok(Float::INFINITY);
+        }
+
+        Ok(ffd)
     }
 
     fn calc_marginal_ray(
