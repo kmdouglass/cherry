@@ -57,6 +57,39 @@ fn test_paraxial_view_back_principal_plane() {
 }
 
 #[test]
+fn test_paraxial_view_entrance_pupil() {
+    let model = sequential_model();
+    let sub_models = model.submodels();
+    let view = paraxial_view();
+
+    for (sub_model_id, _) in sub_models {
+        let sub_view = view.subviews.get(sub_model_id).unwrap();
+        let result = sub_view.entrance_pupil();
+
+        assert_eq!(ENTRANCE_PUPIL, *result)
+    }
+}
+
+#[test]
+fn test_paraxial_view_exit_pupil() {
+    let model = sequential_model();
+    let sub_models = model.submodels();
+    let view = paraxial_view();
+
+    for (sub_model_id, _) in sub_models {
+        let sub_view = view.subviews.get(sub_model_id).unwrap();
+        let result = sub_view.exit_pupil();
+
+        assert_abs_diff_eq!(EXIT_PUPIL.location, result.location, epsilon = 1e-4);
+        assert_abs_diff_eq!(
+            EXIT_PUPIL.semi_diameter,
+            result.semi_diameter,
+            epsilon = 1e-4
+        );
+    }
+}
+
+#[test]
 fn test_paraxial_view_effective_focal_length() {
     let model = sequential_model();
     let sub_models = model.submodels();
@@ -95,19 +128,5 @@ fn test_paraxial_view_front_principal_plane() {
         let result = sub_view.front_principal_plane();
 
         assert_abs_diff_eq!(FRONT_PRINCIPAL_PLANE, *result, epsilon = 1e-4)
-    }
-}
-
-#[test]
-fn test_paraxial_view_entrance_pupil() {
-    let model = sequential_model();
-    let sub_models = model.submodels();
-    let view = paraxial_view();
-
-    for (sub_model_id, _) in sub_models {
-        let sub_view = view.subviews.get(sub_model_id).unwrap();
-        let result = sub_view.entrance_pupil();
-
-        assert_eq!(ENTRANCE_PUPIL, *result)
     }
 }

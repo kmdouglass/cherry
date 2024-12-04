@@ -1,5 +1,5 @@
 /// A paraxial view into an optical system.
-use std::collections::HashMap;
+use std::{borrow::Borrow, collections::HashMap};
 
 use anyhow::{anyhow, Result};
 use ndarray::{arr2, s, Array, Array1, Array2, Array3, ArrayView2};
@@ -59,6 +59,7 @@ pub struct ParaxialSubView {
     back_principal_plane: Float,
     effective_focal_length: Float,
     entrance_pupil: Pupil,
+    exit_pupil: Pupil,
     front_focal_distance: Float,
     front_principal_plane: Float,
     marginal_ray: ParaxialRayTraceResults,
@@ -72,6 +73,7 @@ pub struct ParaxialSubViewDescription {
     back_principal_plane: Float,
     effective_focal_length: Float,
     entrance_pupil: Pupil,
+    exit_pupil: Pupil,
     front_focal_distance: Float,
     front_principal_plane: Float,
     marginal_ray: ParaxialRayTraceResults,
@@ -170,6 +172,12 @@ impl ParaxialSubView {
             &axis,
             &marginal_ray,
         )?;
+        let exit_pupil = Self::calc_exit_pupil(
+            sequential_sub_model,
+            surfaces,
+            &aperture_stop,
+            &marginal_ray,
+        )?;
         let effective_focal_length = Self::calc_effective_focal_length(&parallel_ray);
 
         let back_principal_plane =
@@ -185,6 +193,7 @@ impl ParaxialSubView {
             back_principal_plane,
             effective_focal_length,
             entrance_pupil,
+            exit_pupil,
             front_focal_distance,
             front_principal_plane,
             marginal_ray,
@@ -198,6 +207,7 @@ impl ParaxialSubView {
             back_principal_plane: self.back_principal_plane,
             effective_focal_length: self.effective_focal_length,
             entrance_pupil: self.entrance_pupil.clone(),
+            exit_pupil: self.exit_pupil.clone(),
             front_focal_distance: self.front_focal_distance,
             front_principal_plane: self.front_principal_plane,
             marginal_ray: self.marginal_ray.clone(),
@@ -222,6 +232,10 @@ impl ParaxialSubView {
 
     pub fn entrance_pupil(&self) -> &Pupil {
         &self.entrance_pupil
+    }
+
+    pub fn exit_pupil(&self) -> &Pupil {
+        &self.exit_pupil
     }
 
     pub fn front_focal_distance(&self) -> &Float {
@@ -367,6 +381,50 @@ impl ParaxialSubView {
         };
         let init_marginal_ray = marginal_ray.slice(s![0, .., ..1]);
         let semi_diameter = propagate(init_marginal_ray, distance)[[0, 0]];
+
+        Ok(Pupil {
+            location,
+            semi_diameter,
+        })
+    }
+
+    fn calc_exit_pupil(
+        sequential_sub_model: &impl SequentialSubModel,
+        surfaces: &[Surface],
+        aperture_stop: &usize,
+        marginal_ray: &ParaxialRayTraceResults,
+    ) -> Result<Pupil> {
+        let last_physical_surface_id =
+            last_physical_surface(surfaces).ok_or(anyhow!("There are no physical surfaces"))?;
+        if last_physical_surface_id == *aperture_stop {
+            return Ok(Pupil {
+                location: surfaces[last_physical_surface_id].z(),
+                semi_diameter: surfaces[last_physical_surface_id].semi_diameter(),
+            });
+        }
+
+        // Trace a ray through the aperture stop forwards through the system
+        let ray = arr2(&[[0.0], [1.0]]);
+
+        let results = Self::trace(
+            ray,
+            &sequential_sub_model.slice(*aperture_stop..sequential_sub_model.len()),
+            &surfaces[*aperture_stop..],
+            &Axis::Y,
+            false,
+        )?;
+
+        // Distance is relative to the last physical surface
+        let sliced_last_physical_surface_id = last_physical_surface_id - aperture_stop;
+        let distance = z_intercepts(results.slice(s![sliced_last_physical_surface_id, .., ..]))?[0];
+        let last_physical_surface = surfaces[last_physical_surface_id].borrow();
+        let location = last_physical_surface.z() + distance;
+
+        // Propagate the marginal ray to the exit pupil location and find its height
+        let semi_diameter = propagate(
+            marginal_ray.slice(s![last_physical_surface_id, .., ..]),
+            distance,
+        )[[0, 0]];
 
         Ok(Pupil {
             location,

@@ -64,6 +64,11 @@ pub const ENTRANCE_PUPIL: Pupil = Pupil {
     semi_diameter: 12.5,
 };
 
+pub const EXIT_PUPIL: Pupil = Pupil {
+    location: 1.8017,
+    semi_diameter: 12.5,
+};
+
 pub const FRONT_FOCAL_DISTANCE: f64 = -EFFECTIVE_FOCAL_LENGTH;
 
 pub const FRONT_PRINCIPAL_PLANE: f64 = 0.0;

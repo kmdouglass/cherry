@@ -118,6 +118,8 @@ const SummaryWindow = ({ description, isOpen, onClose }) => {
     const frontFocalDistance = subviews.get(targetKey).front_focal_distance;
     const entrancePupilLocation = subviews.get(targetKey)["entrance_pupil"]["location"];
     const entrancePupilSemiDiameter = subviews.get(targetKey)["entrance_pupil"]["semi_diameter"];
+    const exitPupilLocation = subviews.get(targetKey)["exit_pupil"]["location"];
+    const exitPupilSemiDiameter = subviews.get(targetKey)["exit_pupil"]["semi_diameter"];
     const backPrincipalPlane = subviews.get(targetKey).back_principal_plane;
     const frontPrincipalPlane = subviews.get(targetKey).front_principal_plane;
 
@@ -128,6 +130,8 @@ const SummaryWindow = ({ description, isOpen, onClose }) => {
         "Front Focal Distance": frontFocalDistance,
         "Entrance Pupil Location": entrancePupilLocation,
         "Entrance Pupil Semi-Diameter": entrancePupilSemiDiameter,
+        "Exit Pupil Location": exitPupilLocation,
+        "Exit Pupil Semi-Diameter": exitPupilSemiDiameter,
         "Back Principal Plane": backPrincipalPlane,
         "Front Principal Plane": frontPrincipalPlane
     };
