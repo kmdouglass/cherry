@@ -1,7 +1,8 @@
 use ndarray::{arr3, Array3};
 
 use crate::{
-    GapSpec, Pupil, RealSpec, RefractiveIndexSpec, SequentialModel, SurfaceSpec, SurfaceType,
+    FieldSpec, GapSpec, Pupil, PupilSampling, RealSpec, RefractiveIndexSpec, SequentialModel,
+    SurfaceSpec, SurfaceType,
 };
 
 pub fn sequential_model() -> SequentialModel {
@@ -50,6 +51,19 @@ pub fn sequential_model() -> SequentialModel {
     SequentialModel::new(&gaps, &surfaces, &wavelengths).unwrap()
 }
 
+pub fn field_specs() -> Vec<FieldSpec> {
+    vec![
+        FieldSpec::Angle {
+            angle: 0.0,
+            pupil_sampling: PupilSampling::ChiefAndMarginalRays,
+        },
+        FieldSpec::Angle {
+            angle: 5.0,
+            pupil_sampling: PupilSampling::ChiefAndMarginalRays,
+        },
+    ]
+}
+
 // Paraxial View values
 pub const APERTURE_STOP: usize = 1;
 
@@ -72,6 +86,17 @@ pub const EXIT_PUPIL: Pupil = Pupil {
 pub const FRONT_FOCAL_DISTANCE: f64 = -EFFECTIVE_FOCAL_LENGTH;
 
 pub const FRONT_PRINCIPAL_PLANE: f64 = 0.0;
+
+// For a 5 degree field angle
+// Paraxial angle = tan(field angle)
+pub fn chief_ray() -> Array3<f64> {
+    arr3(&[
+        [[0.0], [0.087489]],
+        [[0.0], [0.0577482]],
+        [[0.306067], [0.087489]],
+        [[4.382944], [0.087489]],
+    ])
+}
 
 pub fn marginal_ray() -> Array3<f64> {
     arr3(&[

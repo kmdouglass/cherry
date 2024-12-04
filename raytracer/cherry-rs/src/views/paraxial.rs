@@ -16,6 +16,7 @@ use crate::{
         Float,
     },
     specs::surfaces::SurfaceType,
+    FieldSpec,
 };
 
 const DEFAULT_THICKNESS: Float = 0.0;
@@ -57,6 +58,7 @@ pub struct ParaxialSubView {
     aperture_stop: usize,
     back_focal_distance: Float,
     back_principal_plane: Float,
+    chief_ray: ParaxialRayTraceResults,
     effective_focal_length: Float,
     entrance_pupil: Pupil,
     exit_pupil: Pupil,
@@ -71,6 +73,7 @@ pub struct ParaxialSubViewDescription {
     aperture_stop: usize,
     back_focal_distance: Float,
     back_principal_plane: Float,
+    chief_ray: ParaxialRayTraceResults,
     effective_focal_length: Float,
     entrance_pupil: Pupil,
     exit_pupil: Pupil,
@@ -114,8 +117,55 @@ fn z_intercepts(rays: ParaxialRaysView) -> Result<Array1<Float>> {
     Ok(results)
 }
 
+/// Compute the maximum field angle given a set of field specs.
+///
+/// The maximum field angle is the maximum absolute value of the paraxial angle.
+///
+/// # Arguments
+/// * `obj_pupil_sepration` - The separation between the object and the entrance
+///   pupil.
+/// * `field_specs` - The field specs.
+///
+/// # Returns
+/// A tuple containing the maximum field angle and the height of the field.
+fn max_field(obj_pupil_sepration: Float, field_specs: &[FieldSpec]) -> (Float, Float) {
+    let mut max_angle = 0.0;
+    let mut max_height = 0.0;
+
+    for field_spec in field_specs {
+        let (height, paraxial_angle) = match field_spec {
+            FieldSpec::Angle {
+                angle,
+                pupil_sampling: _,
+            } => {
+                let paraxial_angle = angle.to_radians().tan();
+                let height = -obj_pupil_sepration * paraxial_angle;
+                (height, paraxial_angle)
+            }
+            FieldSpec::ObjectHeight {
+                height,
+                pupil_sampling: _,
+            } => {
+                let paraxial_angle = -height / obj_pupil_sepration;
+                (*height, paraxial_angle)
+            }
+        };
+
+        if paraxial_angle.abs() > max_angle {
+            max_angle = paraxial_angle.abs();
+            max_height = height;
+        }
+    }
+
+    (max_angle, max_height)
+}
+
 impl ParaxialView {
-    pub fn new(sequential_model: &SequentialModel, is_obj_space_telecentric: bool) -> Result<Self> {
+    pub fn new(
+        sequential_model: &SequentialModel,
+        field_specs: &[FieldSpec],
+        is_obj_space_telecentric: bool,
+    ) -> Result<Self> {
         let subviews: Result<HashMap<SubModelID, ParaxialSubView>> = sequential_model
             .submodels()
             .iter()
@@ -124,7 +174,13 @@ impl ParaxialView {
                 let axis = id.1;
                 Ok((
                     *id,
-                    ParaxialSubView::new(submodel, surfaces, axis, is_obj_space_telecentric)?,
+                    ParaxialSubView::new(
+                        submodel,
+                        surfaces,
+                        axis,
+                        field_specs,
+                        is_obj_space_telecentric,
+                    )?,
                 ))
             })
             .collect();
@@ -151,6 +207,7 @@ impl ParaxialSubView {
         sequential_sub_model: &impl SequentialSubModel,
         surfaces: &[Surface],
         axis: Axis,
+        field_specs: &[FieldSpec],
         is_obj_space_telecentric: bool,
     ) -> Result<Self> {
         let pseudo_marginal_ray =
@@ -185,12 +242,21 @@ impl ParaxialSubView {
         let front_principal_plane =
             Self::calc_front_principal_plane(front_focal_distance, effective_focal_length);
 
+        let chief_ray: ParaxialRayTraceResults = Self::calc_chief_ray(
+            surfaces,
+            sequential_sub_model,
+            &axis,
+            field_specs,
+            &entrance_pupil,
+        )?;
+
         Ok(Self {
             is_obj_space_telecentric,
 
             aperture_stop,
             back_focal_distance,
             back_principal_plane,
+            chief_ray,
             effective_focal_length,
             entrance_pupil,
             exit_pupil,
@@ -205,6 +271,7 @@ impl ParaxialSubView {
             aperture_stop: self.aperture_stop,
             back_focal_distance: self.back_focal_distance,
             back_principal_plane: self.back_principal_plane,
+            chief_ray: self.chief_ray.clone(),
             effective_focal_length: self.effective_focal_length,
             entrance_pupil: self.entrance_pupil.clone(),
             exit_pupil: self.exit_pupil.clone(),
@@ -224,6 +291,10 @@ impl ParaxialSubView {
 
     pub fn back_principal_plane(&self) -> &Float {
         &self.back_principal_plane
+    }
+
+    pub fn chief_ray(&self) -> &ParaxialRayTraceResults {
+        &self.chief_ray
     }
 
     pub fn effective_focal_length(&self) -> &Float {
@@ -313,6 +384,34 @@ impl ParaxialSubView {
         let last_surface_z = surfaces[last_physical_surface_index].z();
 
         Ok(last_surface_z + delta)
+    }
+
+    /// Computes the paraxial chief ray for a given field.
+    fn calc_chief_ray(
+        surfaces: &[Surface],
+        sequential_sub_model: &impl SequentialSubModel,
+        axis: &Axis,
+        field_specs: &[FieldSpec],
+        entrance_pupil: &Pupil,
+    ) -> Result<ParaxialRayTraceResults> {
+        let enp_loc = entrance_pupil.location;
+        let obj_loc = surfaces.first().ok_or(anyhow!("No surfaces provided"))?.z();
+        let sep = if obj_loc.is_infinite() {
+            0.0
+        } else {
+            enp_loc - obj_loc
+        };
+
+        let (paraxial_angle, height) = max_field(sep, field_specs);
+
+        if paraxial_angle.is_infinite() {
+            return Err(anyhow!(
+                "Cannot compute chief ray from an infinite field angle"
+            ));
+        }
+
+        let initial_ray: ParaxialRays = arr2(&[[height], [paraxial_angle]]);
+        Self::trace(initial_ray, sequential_sub_model, surfaces, axis, false)
     }
 
     fn calc_effective_focal_length(parallel_ray: &ParaxialRayTraceResults) -> Float {
@@ -682,10 +781,26 @@ mod test {
             .submodels()
             .get(&SubModelID(Some(0usize), Axis::Y))
             .expect("Submodel not found.");
+        let field_specs = vec![
+            FieldSpec::Angle {
+                angle: 0.0,
+                pupil_sampling: crate::PupilSampling::SquareGrid { spacing: 0.1 },
+            },
+            FieldSpec::Angle {
+                angle: 5.0,
+                pupil_sampling: crate::PupilSampling::SquareGrid { spacing: 0.1 },
+            },
+        ];
 
         (
-            ParaxialSubView::new(seq_sub_model, sequential_model.surfaces(), Axis::Y, false)
-                .unwrap(),
+            ParaxialSubView::new(
+                seq_sub_model,
+                sequential_model.surfaces(),
+                Axis::Y,
+                &field_specs,
+                false,
+            )
+            .unwrap(),
             sequential_model,
         )
     }

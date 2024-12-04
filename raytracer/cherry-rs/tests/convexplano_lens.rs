@@ -5,13 +5,28 @@ use cherry_rs::ParaxialView;
 
 fn paraxial_view() -> ParaxialView {
     let model = sequential_model();
-    ParaxialView::new(&model, false).expect("Could not create paraxial view")
+    ParaxialView::new(&model, &field_specs(), false).expect("Could not create paraxial view")
 }
 
 #[test]
 fn test_describe_paraxial_view() {
     let view = paraxial_view();
     let _ = view.describe();
+}
+
+#[test]
+fn test_paraxial_view_chief_ray() {
+    let model = sequential_model();
+    let sub_models = model.submodels();
+    let view = paraxial_view();
+    let chief_ray = chief_ray();
+
+    for sub_model_id in sub_models.keys() {
+        let sub_view = view.subviews.get(sub_model_id).unwrap();
+        let result = sub_view.chief_ray();
+
+        assert_abs_diff_eq!(chief_ray, result, epsilon = 1e-4);
+    }
 }
 
 #[test]
