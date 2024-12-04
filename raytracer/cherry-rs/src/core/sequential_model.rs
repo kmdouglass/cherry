@@ -39,6 +39,13 @@ pub struct SequentialModel {
 pub trait SequentialSubModel {
     fn gaps(&self) -> &[Gap];
     fn is_obj_at_inf(&self) -> bool;
+
+    fn is_empty(&self) -> bool {
+        self.gaps().is_empty()
+    }
+    fn len(&self) -> usize {
+        self.gaps().len()
+    }
     fn try_iter<'a>(&'a self, surfaces: &'a [Surface]) -> Result<SequentialSubModelIter<'a>>;
 
     fn slice(&self, idx: Range<usize>) -> SequentialSubModelSlice<'_> {
