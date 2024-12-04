@@ -54,7 +54,7 @@ impl System {
             RefractiveIndexSpec::from_real_refractive_index(BACKGROUND_REFRACTIVE_INDEX),
         )?;
         let cutaway_view = CutawayView::new(&sequential_model, 20);
-        let paraxial_view = ParaxialView::new(&sequential_model, false)?;
+        let paraxial_view = ParaxialView::new(&sequential_model, field_specs, false)?;
 
         Ok(Self {
             sequential_model,

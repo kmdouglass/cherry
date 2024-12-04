@@ -272,7 +272,6 @@ mod tests {
     #[test]
     fn test_ray_trace_3d_view() {
         let sequential_model = sequential_model();
-        let paraxial_view = ParaxialView::new(&sequential_model, false).unwrap();
 
         let aperture_spec = ApertureSpec::EntrancePupil { semi_diameter: 5.0 };
         let field_specs = vec![
@@ -285,6 +284,8 @@ mod tests {
                 pupil_sampling: PupilSampling::ChiefAndMarginalRays,
             },
         ];
+
+        let paraxial_view = ParaxialView::new(&sequential_model, &field_specs, false).unwrap();
 
         let results = ray_trace_3d_view(
             &aperture_spec,

@@ -1,4 +1,7 @@
-use crate::{n, GapSpec, RealSpec, RefractiveIndexSpec, SequentialModel, SurfaceSpec, SurfaceType};
+use crate::{
+    n, FieldSpec, GapSpec, PupilSampling, RealSpec, RefractiveIndexSpec, SequentialModel,
+    SurfaceSpec, SurfaceType,
+};
 
 pub fn sequential_model() -> SequentialModel {
     let air = n!(1.0);
@@ -107,6 +110,19 @@ pub fn sequential_model() -> SequentialModel {
     let wavelengths: Vec<f64> = vec![0.567];
 
     SequentialModel::new(&gaps, &surfaces, &wavelengths).unwrap()
+}
+
+pub fn field_specs() -> Vec<FieldSpec> {
+    vec![
+        FieldSpec::Angle {
+            angle: 0.0,
+            pupil_sampling: PupilSampling::ChiefAndMarginalRays,
+        },
+        FieldSpec::Angle {
+            angle: 5.0,
+            pupil_sampling: PupilSampling::ChiefAndMarginalRays,
+        },
+    ]
 }
 
 // Paraxial View values
