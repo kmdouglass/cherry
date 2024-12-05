@@ -145,3 +145,22 @@ fn test_paraxial_view_front_principal_plane() {
         assert_abs_diff_eq!(FRONT_PRINCIPAL_PLANE, *result, epsilon = 1e-4)
     }
 }
+
+#[test]
+fn test_paraxial_view_image_plane() {
+    let model = sequential_model();
+    let sub_models = model.submodels();
+    let view = paraxial_view();
+
+    for (sub_model_id, _) in sub_models {
+        let sub_view = view.subviews.get(sub_model_id).unwrap();
+        let result = sub_view.paraxial_image_plane();
+
+        assert_abs_diff_eq!(PARAXIAL_IMAGE_PLANE.location, result.location, epsilon = 1e-4);
+        assert_abs_diff_eq!(
+            PARAXIAL_IMAGE_PLANE.semi_diameter,
+            result.semi_diameter,
+            epsilon = 1e-4
+        );
+    }
+}

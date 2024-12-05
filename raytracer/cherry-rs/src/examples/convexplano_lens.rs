@@ -1,8 +1,8 @@
 use ndarray::{arr3, Array3};
 
 use crate::{
-    FieldSpec, GapSpec, Pupil, PupilSampling, RealSpec, RefractiveIndexSpec, SequentialModel,
-    SurfaceSpec, SurfaceType,
+    FieldSpec, GapSpec, ImagePlane, Pupil, PupilSampling, RealSpec, RefractiveIndexSpec,
+    SequentialModel, SurfaceSpec, SurfaceType,
 };
 
 pub fn sequential_model() -> SequentialModel {
@@ -86,6 +86,12 @@ pub const EXIT_PUPIL: Pupil = Pupil {
 pub const FRONT_FOCAL_DISTANCE: f64 = -EFFECTIVE_FOCAL_LENGTH;
 
 pub const FRONT_PRINCIPAL_PLANE: f64 = 0.0;
+
+// For a 5 degree field angle
+pub const PARAXIAL_IMAGE_PLANE: ImagePlane = ImagePlane {
+    location: 51.8987,
+    semi_diameter: 4.3829,
+};
 
 // For a 5 degree field angle
 // Paraxial angle = tan(field angle)

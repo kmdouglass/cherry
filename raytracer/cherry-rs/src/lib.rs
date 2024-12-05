@@ -18,6 +18,8 @@ pub use specs::{
 pub use views::{
     components::{components_view, Component},
     cutaway::CutawayView,
-    paraxial::{ParaxialSubViewDescription, ParaxialView, ParaxialViewDescription, Pupil},
+    paraxial::{
+        ImagePlane, ParaxialSubViewDescription, ParaxialView, ParaxialViewDescription, Pupil,
+    },
     ray_trace_3d::{ray_trace_3d_view, Ray, TraceResults},
 };
