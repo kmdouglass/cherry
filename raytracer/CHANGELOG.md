@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - A macro `n` for easily creating real `RefractiveIndexSpec`s.
 - A Petzval lens example.
-- The following paraxial properties are now computed in the paraxial view: back focal distance, front focal distance, effective focal length, exit pupil, back principal plane, front principal plane, the chief ray.
+- The following paraxial properties are now computed in the paraxial view: back focal distance, front focal distance, effective focal length, exit pupil, back principal plane, front principal plane, the chief ray, and the paraxial image plane.
 
 ### Fixed
 

@@ -122,12 +122,16 @@ const SummaryWindow = ({ description, isOpen, onClose }) => {
     const exitPupilSemiDiameter = subviews.get(targetKey)["exit_pupil"]["semi_diameter"];
     const backPrincipalPlane = subviews.get(targetKey).back_principal_plane;
     const frontPrincipalPlane = subviews.get(targetKey).front_principal_plane;
+    const paraxialImagePlaneLocation = subviews.get(targetKey).paraxial_image_plane.location;
+    const paraxialImagePlaneSemiDiameter = subviews.get(targetKey).paraxial_image_plane.semi_diameter;
 
     const newSummary = {
         "Aperture Stop (surface index)": apertureStop,
         "Effective Focal Length": effectiveFocalLength,
         "Back Focal Distance": backFocalDistance,
         "Front Focal Distance": frontFocalDistance,
+        "Paraxial Image Plane Location": paraxialImagePlaneLocation,
+        "Paraxial Image Plane Semi-Diameter": paraxialImagePlaneSemiDiameter,
         "Entrance Pupil Location": entrancePupilLocation,
         "Entrance Pupil Semi-Diameter": entrancePupilSemiDiameter,
         "Exit Pupil Location": exitPupilLocation,
