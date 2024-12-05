@@ -65,6 +65,7 @@ pub struct ParaxialSubView {
     front_focal_distance: Float,
     front_principal_plane: Float,
     marginal_ray: ParaxialRayTraceResults,
+    paraxial_image_plane: ImagePlane,
 }
 
 /// A paraxial description of an optical system.
@@ -80,6 +81,7 @@ pub struct ParaxialSubViewDescription {
     front_focal_distance: Float,
     front_principal_plane: Float,
     marginal_ray: ParaxialRayTraceResults,
+    paraxial_image_plane: ImagePlane,
 }
 
 /// A paraxial entrance or exit pupil.
@@ -90,6 +92,18 @@ pub struct ParaxialSubViewDescription {
 /// * `semi_diameter` - The semi-diameter of the pupil.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Pupil {
+    pub location: Float,
+    pub semi_diameter: Float,
+}
+
+/// A paraxial image plane.
+///
+/// # Attributes
+/// * `location` - The location of the image plane relative to the first
+///   physical surface
+/// * `semi_diameter` - The semi-diameter of the image plane
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ImagePlane {
     pub location: Float,
     pub semi_diameter: Float,
 }
@@ -249,6 +263,8 @@ impl ParaxialSubView {
             field_specs,
             &entrance_pupil,
         )?;
+        let paraxial_image_plane =
+            Self::calc_paraxial_image_plane(surfaces, &marginal_ray, &chief_ray)?;
 
         Ok(Self {
             is_obj_space_telecentric,
@@ -263,6 +279,7 @@ impl ParaxialSubView {
             front_focal_distance,
             front_principal_plane,
             marginal_ray,
+            paraxial_image_plane,
         })
     }
 
@@ -278,6 +295,7 @@ impl ParaxialSubView {
             front_focal_distance: self.front_focal_distance,
             front_principal_plane: self.front_principal_plane,
             marginal_ray: self.marginal_ray.clone(),
+            paraxial_image_plane: self.paraxial_image_plane.clone(),
         }
     }
 
@@ -323,6 +341,10 @@ impl ParaxialSubView {
 
     pub fn marginal_ray(&self) -> &ParaxialRayTraceResults {
         &self.marginal_ray
+    }
+
+    pub fn paraxial_image_plane(&self) -> &ImagePlane {
+        &self.paraxial_image_plane
     }
 
     fn calc_aperture_stop(
@@ -589,6 +611,36 @@ impl ParaxialSubView {
         let ray = arr2(&[[1.0], [0.0]]);
 
         Self::trace(ray, sequential_sub_model, surfaces, &axis, false)
+    }
+
+    /// Compute the paraxial image plane.
+    fn calc_paraxial_image_plane(
+        surfaces: &[Surface],
+        marginal_ray: &ParaxialRayTraceResults,
+        chief_ray: &ParaxialRayTraceResults,
+    ) -> Result<ImagePlane> {
+        let last_physical_surface_id =
+            last_physical_surface(surfaces).ok_or(anyhow!("There are no physical surfaces"))?;
+        let last_surface = surfaces[last_physical_surface_id].borrow();
+
+        let dz = z_intercepts(marginal_ray.slice(s![last_physical_surface_id, .., ..]))?[0];
+        let location = if dz.is_infinite() {
+            // Ensure positive infinity is returned for infinite image planes
+            Float::INFINITY
+        } else {
+            last_surface.z() + dz
+        };
+
+        // Propagate the chief ray from the last physical surface to the image plane to
+        // determine its semi-diameter.
+        let ray = chief_ray.slice(s![last_physical_surface_id, .., ..]);
+        let propagated = propagate(ray, dz);
+        let semi_diameter = propagated[[0, 0]].abs();
+
+        Ok(ImagePlane {
+            location,
+            semi_diameter,
+        })
     }
 
     /// Compute the pseudo-marginal ray.
