@@ -92,7 +92,7 @@ pub struct ParaxialSubView {
 }
 
 /// A paraxial description of a submodel of an optical system.
-/// 
+///
 /// This is used primarily for serialization of data for export.
 #[derive(Debug, Serialize)]
 pub struct ParaxialSubViewDescription {
