@@ -159,7 +159,7 @@ pub struct Stop {
 /// Returns the index of the first physical surface in the system.
 /// This is the first surface that is not an object, image, or probe surface.
 /// If no such surface exists, then the function returns None.
-pub fn first_physical_surface(surfaces: &[Surface]) -> Option<usize> {
+pub(crate) fn first_physical_surface(surfaces: &[Surface]) -> Option<usize> {
     surfaces
         .iter()
         .position(|surf| matches!(surf, Surface::Conic(_) | Surface::Stop(_)))
