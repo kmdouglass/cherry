@@ -2,10 +2,8 @@ import { useState } from "react";
 
 import "../css/Table.css";
 
-const FieldsTable = ({ fields, setFields }) => {
+const FieldsTable = ({ fields, setFields, invalidFields, setInvalidFields }) => {
   const [editingCell, setEditingCell] = useState(null);
-  const [invalidFields, setInvalidFields] = useState({});
-
 
   const handleFieldTypeChange = (index, newType) => {
     const newFields = [...fields];

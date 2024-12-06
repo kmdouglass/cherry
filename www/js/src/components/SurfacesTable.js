@@ -2,9 +2,8 @@ import { useState } from "react";
 
 import "../css/Table.css";
 
-const SurfacesTable = ({ surfaces, setSurfaces }) => {
+const SurfacesTable = ({ surfaces, setSurfaces, invalidFields, setInvalidFields }) => {
     const [editingCell, setEditingCell] = useState(null);
-    const [invalidFields, setInvalidFields] = useState({});
 
     const getSurfaceTypeDefaultValues = (type) => {
         switch (type) {
@@ -150,19 +149,19 @@ const SurfacesTable = ({ surfaces, setSurfaces }) => {
         const isInvalid = invalidFields[index] && invalidFields[index][field];
 
         if (isEditing) {
-        return (
-            <div className={`editable-cell ${isInvalid ? 'invalid' : ''}`}>
-                <span>{value}</span>
-                <input
-                    type="number"
-                    value={value}
-                    onChange={(e) => handleCellChange(e, index, field)}
-                    onBlur={handleCellBlur}
-                    onKeyDown={handleKeyDown}
-                    autoFocus
-                />
-            </div>
-        );
+          return (
+              <div className={`editable-cell ${isInvalid ? 'invalid' : ''}`}>
+                  <span>{value}</span>
+                  <input
+                      type="number"
+                      value={value}
+                      onChange={(e) => handleCellChange(e, index, field)}
+                      onBlur={handleCellBlur}
+                      onKeyDown={handleKeyDown}
+                      autoFocus
+                  />
+              </div>
+          );
         }
         return (
             <div className={`editable-cell ${isInvalid ? 'invalid' : ''}`}>

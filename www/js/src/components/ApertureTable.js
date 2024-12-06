@@ -2,9 +2,8 @@ import { useState } from "react";
 
 import "../css/Table.css";
 
-const ApertureTable = ({ aperture, setAperture }) => {
+const ApertureTable = ({ aperture, setAperture, invalidFields, setInvalidFields }) => {
     const [editingCell, setEditingCell] = useState(null);
-    const [invalidFields, setInvalidFields] = useState({});
 
     const handleTypeChange = (e) => {
         // For now we just maintain the same structure since we only have EntrancePupil
