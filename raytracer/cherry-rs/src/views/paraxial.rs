@@ -1,4 +1,12 @@
 /// A paraxial view into an optical system.
+///
+/// Paraxial optics is a simplified model of optical systems that assumes that
+/// rays are close to the optic axis and that angles are small. Rays are traced
+/// through the system using ray transfer matrices, which are 2x2 matrices that
+/// describe how rays propagate through and interact with optical surfaces. The
+/// paraxial view is used to compute the paraxial parameters of an optical
+/// system, such as the entrance and exit pupils, the back and front focal
+/// distances, and the effective focal length.
 use std::{borrow::Borrow, collections::HashMap};
 
 use anyhow::{anyhow, Result};
@@ -41,16 +49,31 @@ type ParaxialRayTraceResults = Array3<Float>;
 /// A 2 x 2 array representing a ray transfer matrix for paraxial rays.
 type RayTransferMatrix = Array2<Float>;
 
+/// A paraxial view into an optical system.
+///
+/// A paraxial view is a set of paraxial subviews that describe the first order
+/// properties of an optical system, such as the entrance and exit pupils, the
+/// back and front focal distances, and the effective focal length.
+///
+/// Subviews are indexed by a pair of submodel IDs.
 #[derive(Debug)]
 pub struct ParaxialView {
-    pub subviews: HashMap<SubModelID, ParaxialSubView>,
+    subviews: HashMap<SubModelID, ParaxialSubView>,
 }
 
+/// A description of a paraxial optical system.
+///
+/// This is used primarily for serialization of data for export.
 #[derive(Debug, Serialize)]
 pub struct ParaxialViewDescription {
     subviews: HashMap<SubModelID, ParaxialSubViewDescription>,
 }
 
+/// A paraxial subview of an optical system.
+///
+/// A paraxial subview is identified by a single submodel ID that corresponds to
+/// a submodel of a sequential model. It is not created by the user, but rather
+/// by instantiating a new ParaxialView struct.
 #[derive(Debug)]
 pub struct ParaxialSubView {
     is_obj_space_telecentric: bool,
@@ -68,7 +91,9 @@ pub struct ParaxialSubView {
     paraxial_image_plane: ImagePlane,
 }
 
-/// A paraxial description of an optical system.
+/// A paraxial description of a submodel of an optical system.
+/// 
+/// This is used primarily for serialization of data for export.
 #[derive(Debug, Serialize)]
 pub struct ParaxialSubViewDescription {
     aperture_stop: usize,
@@ -175,6 +200,18 @@ fn max_field(obj_pupil_sepration: Float, field_specs: &[FieldSpec]) -> (Float, F
 }
 
 impl ParaxialView {
+    /// Creates a new ParaxialView of a SequentialModel.
+    ///
+    /// # Arguments
+    /// * `sequential_model` - The sequential model to create a paraxial view
+    ///   of.
+    /// * `field_specs` - The field specs of the optical system. These are
+    ///   necessary to compute parameters such as the chief ray.
+    /// * `is_obj_space_telecentric` - Whether the object space is telecentric.
+    ///   This forces the chief ray to be parallel to the optic axis.
+    ///
+    /// # Returns
+    /// A new ParaxialView.
     pub fn new(
         sequential_model: &SequentialModel,
         field_specs: &[FieldSpec],
@@ -204,6 +241,12 @@ impl ParaxialView {
         })
     }
 
+    /// Returns a description of the paraxial view.
+    ///
+    /// This is used primarily for serialization of data for export.
+    ///
+    /// # Returns
+    /// A description of the paraxial view.
     pub fn describe(&self) -> ParaxialViewDescription {
         ParaxialViewDescription {
             subviews: self
@@ -212,6 +255,16 @@ impl ParaxialView {
                 .map(|(id, subview)| (*id, subview.describe()))
                 .collect(),
         }
+    }
+
+    /// Returns the subviews of the paraxial view.
+    ///
+    /// Each subview corresponds to a submodel of the sequential model.
+    ///
+    /// # Returns
+    /// The subviews of the paraxial view.
+    pub fn subviews(&self) -> &HashMap<SubModelID, ParaxialSubView> {
+        &self.subviews
     }
 }
 

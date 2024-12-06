@@ -37,7 +37,7 @@ pub fn ray_trace_3d_view(
         .iter()
         .map(|(id, submodel)| {
             let surfaces = sequential_model.surfaces();
-            let paraxial_sub_view = paraxial_view.subviews.get(id).unwrap();
+            let paraxial_sub_view = paraxial_view.subviews().get(id).unwrap();
             Ok((
                 *id,
                 ray_trace_sub_model(

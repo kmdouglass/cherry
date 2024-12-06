@@ -16,7 +16,7 @@ use crate::specs::{
 };
 
 /// The transverse direction along which system properties will be computed with
-/// respect to the current reference frame of the cursor.
+/// respect to the reference frame of the system.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Axis {
     X,
@@ -73,6 +73,9 @@ pub struct SequentialSubModelSlice<'a> {
 /// The first element is the index of the wavelength in the system's list of
 /// wavelengths. The second element is the transverse axis along which the model
 /// is computed.
+/// 
+/// The wavelength index is None if no wavelengths are provided. This is the case
+/// when refractive indices are constant and provided directly by the user.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct SubModelID(pub Option<usize>, pub Axis);
 

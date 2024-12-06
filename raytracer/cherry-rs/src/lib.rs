@@ -6,7 +6,7 @@ mod views;
 pub mod examples;
 pub use core::{
     math::vec3::Vec3,
-    sequential_model::{last_physical_surface, SequentialModel, SequentialSubModel, SubModelID},
+    sequential_model::{Axis, last_physical_surface, SequentialModel, SequentialSubModel, SubModelID},
 };
 pub use specs::{
     aperture::ApertureSpec,
@@ -19,7 +19,8 @@ pub use views::{
     components::{components_view, Component},
     cutaway::CutawayView,
     paraxial::{
-        ImagePlane, ParaxialSubViewDescription, ParaxialView, ParaxialViewDescription, Pupil,
+        ImagePlane, ParaxialSubView, ParaxialSubViewDescription, ParaxialView,
+        ParaxialViewDescription, Pupil,
     },
     ray_trace_3d::{ray_trace_3d_view, Ray, TraceResults},
 };
