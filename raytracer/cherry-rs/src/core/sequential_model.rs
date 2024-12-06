@@ -23,6 +23,7 @@ pub enum Axis {
     Y,
 }
 
+/// A gap between two surfaces in a sequential system.
 #[derive(Debug)]
 pub struct Gap {
     pub thickness: Float,
@@ -30,12 +31,38 @@ pub struct Gap {
 }
 
 /// A collection of submodels for sequential ray tracing.
+///
+/// A sequential model is a collection of surfaces and gaps that define the
+/// optical system. The model is divided into submodels, each of which is
+/// computed along a specific axis and for a specific wavelength.
 #[derive(Debug)]
 pub struct SequentialModel {
     surfaces: Vec<Surface>,
     submodels: HashMap<SubModelID, SequentialSubModelBase>,
 }
 
+/// A submodel of a sequential optical system.
+///
+/// A sequential submodel is the primary unit of computation in a sequential
+/// optical system. It is a collection of N surfaces and N - 1 gaps from which
+/// an iterator can be created to trace rays through the system.
+///
+/// A forward iterator for a system of N surfaces looks like the following:
+///
+/// ```text
+/// S0   S1    S2    S3        S(N-1)    S(N)
+///  \  /  \  /  \  /  \   ... /    \    /  \
+///   G0    G1    G2    G3          G(N-1)   None
+///   --------    --------          -------------
+///    Step 0      Step 2             Step(N-1)
+///         --------
+///          Step 1
+/// ```
+///
+/// Step 0 is the tuple (Gap 0, Step 1, Gap 1), Step 1 is (Gap 1, Step 2, Gap
+/// 2), and so on.
+///
+/// A reverse iterator for the same system looks like the following:
 pub trait SequentialSubModel {
     fn gaps(&self) -> &[Gap];
     fn is_obj_at_inf(&self) -> bool;
@@ -73,9 +100,9 @@ pub struct SequentialSubModelSlice<'a> {
 /// The first element is the index of the wavelength in the system's list of
 /// wavelengths. The second element is the transverse axis along which the model
 /// is computed.
-/// 
-/// The wavelength index is None if no wavelengths are provided. This is the case
-/// when refractive indices are constant and provided directly by the user.
+///
+/// The wavelength index is None if no wavelengths are provided. This is the
+/// case when refractive indices are constant and provided directly by the user.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct SubModelID(pub Option<usize>, pub Axis);
 
@@ -221,6 +248,14 @@ impl Gap {
 
 impl SequentialModel {
     /// Creates a new sequential model of an optical system.
+    ///
+    /// # Arguments
+    /// * `gap_specs` - The specifications for the gaps between the surfaces.
+    /// * `surface_specs` - The specifications for the surfaces in the system.
+    /// * `wavelengths` - The wavelengths at which to model the system.
+    ///
+    /// # Returns
+    /// A new sequential model.
     pub fn new(
         gap_specs: &[GapSpec],
         surface_specs: &[SurfaceSpec],
@@ -245,10 +280,12 @@ impl SequentialModel {
         })
     }
 
+    /// Returns the surfaces in the system.
     pub fn surfaces(&self) -> &[Surface] {
         &self.surfaces
     }
 
+    /// Returns the submodels in the system.
     pub fn submodels(&self) -> &HashMap<SubModelID, impl SequentialSubModel> {
         &self.submodels
     }
