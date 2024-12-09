@@ -26,6 +26,17 @@ pub enum Component {
     UnpairedSurface { surf_idx: usize },
 }
 
+/// Determine the components of an optical system.
+///
+/// Components are the basic building blocks of an optical system. They are
+/// either elements or stops. Elements are pairs of surfaces that interact with
+/// light rays. Stops are hard stops that block light rays.
+///
+/// Components serve to group surfaces together into individual lenses.
+///
+/// # Arguments
+/// * `sequential_model` - The sequential model of the optical system.
+/// * `background` - The refractive index of the background medium.
 pub fn components_view(
     sequential_model: &SequentialModel,
     background: RefractiveIndexSpec,

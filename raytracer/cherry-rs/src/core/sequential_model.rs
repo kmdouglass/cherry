@@ -16,13 +16,14 @@ use crate::specs::{
 };
 
 /// The transverse direction along which system properties will be computed with
-/// respect to the current reference frame of the cursor.
+/// respect to the reference frame of the system.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Axis {
     X,
     Y,
 }
 
+/// A gap between two surfaces in a sequential system.
 #[derive(Debug)]
 pub struct Gap {
     pub thickness: Float,
@@ -30,12 +31,86 @@ pub struct Gap {
 }
 
 /// A collection of submodels for sequential ray tracing.
+///
+/// A sequential model is a collection of surfaces and gaps that define the
+/// optical system. The model is divided into submodels, each of which is
+/// computed along a specific axis and for a specific wavelength.
+///
+/// See the documentation for
+/// [SequentialSubModel](trait@SequentialSubModel) for more information.
 #[derive(Debug)]
 pub struct SequentialModel {
     surfaces: Vec<Surface>,
     submodels: HashMap<SubModelID, SequentialSubModelBase>,
 }
 
+/// A submodel of a sequential optical system.
+///
+/// A sequential submodel is the primary unit of computation in a sequential
+/// optical system. It is a collection of N + 1 surfaces and N gaps from which
+/// an iterator can be created to trace rays through the system.
+///
+/// Each submodel represents a sequence of surfaces and gaps for a given
+/// set of system parameters, such as wavelength and transverse axis. The set of
+/// all submodels spans the entire set of parameters of interest.
+///
+/// The iterator over a submodel yields a series of steps, each of which is a
+/// tuple of the form (Gap, Surface, Option\<Gap\>). The first element of a step
+/// is the gap before the surface, the second element is the surface itself, and
+/// the third element is the gap after the surface. The last Gap is optional
+/// because no gap exists after the image plane surface.
+///
+/// Given a system of N + 1 surfaces and N gaps, the first surface S0 is always
+/// an object plane and the last surface S(N) is always an image plane. The
+/// length of the iterator is N.
+///
+/// A forward iterator for such a system looks like the following:
+///
+/// ```text
+/// S0   S1    S2    S3        S(N-1)    S(N)
+///  \  /  \  /  \  /  \   ... /    \    /  \
+///   G0    G1    G2    G3          G(N-1)   None
+///   --------    --------          -------------
+///    Step 0      Step 2             Step(N-1)
+///         --------
+///          Step 1
+/// ```
+///
+/// Step 0 is the tuple (G0, S1, G1), Step 1 is (G1, S2, G2), and so on.
+///
+/// A reverse iterator for the same system looks like the following:
+///
+/// ```text
+///    S(N)   S(N-1)  S(N-2)  S(N-3)            S1    S0
+///   /    \  /    \  /    \  /    \      ...  /  \  /
+/// None  G(N-1)  G(N-2)  G(N-3)    G(N-4)    G1    G0
+///       --------------  ----------------    ---------
+///           Step 0           Step 2         Step(N-2)
+///               --------------
+///                   Step 1
+/// ```
+///
+/// In the reverse iteration, we  never iterate from the image plane surface.
+/// For this reason, the number of steps in the reverse iterator is N - 1.
+///
+/// If `i` is the index of a surface in the forward iterator and `j` the index
+/// of the surface in the reverse iterator, then the two indexes are related by
+/// the equation j = N - i as shown above.
+///
+/// Strictly speaking, the last gap need not be None. Additionally, the first
+/// and last surfaces need not be object and image planes, repectively. These
+/// constraints are guaranteed at the level of the SequentialModel. However,
+/// since a SequentialSubModel is always created by a SequentialModel, we can
+/// assume that these constraints are always met. This would not be the case for
+/// user-supplied implementations of this trait, where care should be taken to
+/// ensure that the implementation conforms to these constraints.
+///
+/// With all of these constraints, the problem of sequential optical modeling is
+/// reduced to the problem of iterating over the surfaces and gaps in a submodel
+/// and determining what happens at each step. The same iterator can be used for
+/// different modeling approaches, e.g. paraxial ray tracing, 3D ray tracing,
+/// paraxial Gaussian beam propagation, etc. without changing the representation
+/// of the underlying system.
 pub trait SequentialSubModel {
     fn gaps(&self) -> &[Gap];
     fn is_obj_at_inf(&self) -> bool;
@@ -73,6 +148,9 @@ pub struct SequentialSubModelSlice<'a> {
 /// The first element is the index of the wavelength in the system's list of
 /// wavelengths. The second element is the transverse axis along which the model
 /// is computed.
+///
+/// The wavelength index is None if no wavelengths are provided. This is the
+/// case when refractive indices are constant and provided directly by the user.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct SubModelID(pub Option<usize>, pub Axis);
 
@@ -93,7 +171,10 @@ pub struct SequentialSubModelReverseIter<'a> {
 }
 
 /// A single ray tracing step in a sequential system.
-pub(crate) type Step<'a> = (&'a Gap, &'a Surface, Option<&'a Gap>);
+///
+/// See the documentation for
+/// [SequentialSubModel](trait@SequentialSubModel) for more information.
+pub type Step<'a> = (&'a Gap, &'a Surface, Option<&'a Gap>);
 
 #[derive(Debug)]
 pub enum Surface {
@@ -156,7 +237,7 @@ pub struct Stop {
 /// Returns the index of the first physical surface in the system.
 /// This is the first surface that is not an object, image, or probe surface.
 /// If no such surface exists, then the function returns None.
-pub fn first_physical_surface(surfaces: &[Surface]) -> Option<usize> {
+pub(crate) fn first_physical_surface(surfaces: &[Surface]) -> Option<usize> {
     surfaces
         .iter()
         .position(|surf| matches!(surf, Surface::Conic(_) | Surface::Stop(_)))
@@ -218,6 +299,14 @@ impl Gap {
 
 impl SequentialModel {
     /// Creates a new sequential model of an optical system.
+    ///
+    /// # Arguments
+    /// * `gap_specs` - The specifications for the gaps between the surfaces.
+    /// * `surface_specs` - The specifications for the surfaces in the system.
+    /// * `wavelengths` - The wavelengths at which to model the system.
+    ///
+    /// # Returns
+    /// A new sequential model.
     pub fn new(
         gap_specs: &[GapSpec],
         surface_specs: &[SurfaceSpec],
@@ -242,10 +331,12 @@ impl SequentialModel {
         })
     }
 
+    /// Returns the surfaces in the system.
     pub fn surfaces(&self) -> &[Surface] {
         &self.surfaces
     }
 
+    /// Returns the submodels in the system.
     pub fn submodels(&self) -> &HashMap<SubModelID, impl SequentialSubModel> {
         &self.submodels
     }

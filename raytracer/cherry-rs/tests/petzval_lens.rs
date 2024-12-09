@@ -19,7 +19,7 @@ fn test_paraxial_view_aperture_stop() {
     let view = paraxial_view();
 
     for sub_model_id in sub_models.keys() {
-        let sub_view = view.subviews.get(sub_model_id).unwrap();
+        let sub_view = view.subviews().get(sub_model_id).unwrap();
         let result = sub_view.aperture_stop();
 
         assert_eq!(APERTURE_STOP, *result)

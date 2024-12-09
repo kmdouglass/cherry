@@ -25,6 +25,17 @@ pub use trace::TraceResults;
 
 use super::paraxial::{ParaxialSubView, ParaxialView};
 
+/// Perform a 3D ray trace on a sequential model.
+///
+/// # Arguments
+/// * `aperture_spec` - The aperture specification.
+/// * `field_specs` - The field specifications.
+/// * `sequential_model` - The sequential model.
+/// * `paraxial_view` - A paraxial view. This is required for finding a system's
+///   entrance pupil.
+/// * `pupil_sampling` - The pupil sampling method. This will override the
+///   sampling
+///  method specified in the field specs for every field if provided.
 pub fn ray_trace_3d_view(
     aperture_spec: &ApertureSpec,
     field_specs: &[FieldSpec],
@@ -37,7 +48,7 @@ pub fn ray_trace_3d_view(
         .iter()
         .map(|(id, submodel)| {
             let surfaces = sequential_model.surfaces();
-            let paraxial_sub_view = paraxial_view.subviews.get(id).unwrap();
+            let paraxial_sub_view = paraxial_view.subviews().get(id).unwrap();
             Ok((
                 *id,
                 ray_trace_sub_model(
