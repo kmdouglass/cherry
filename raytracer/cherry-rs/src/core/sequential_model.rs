@@ -37,7 +37,7 @@ pub struct Gap {
 /// computed along a specific axis and for a specific wavelength.
 ///
 /// See the documentation for
-/// [SequentialSubModel](trait.SequentialSubModel.html) for more information.
+/// [SequentialSubModel](trait@SequentialSubModel) for more information.
 #[derive(Debug)]
 pub struct SequentialModel {
     surfaces: Vec<Surface>,
@@ -173,7 +173,7 @@ pub struct SequentialSubModelReverseIter<'a> {
 /// A single ray tracing step in a sequential system.
 ///
 /// See the documentation for
-/// [SequentialSubModel](trait.SequentialSubModel.html) for more information.
+/// [SequentialSubModel](trait@SequentialSubModel) for more information.
 pub type Step<'a> = (&'a Gap, &'a Surface, Option<&'a Gap>);
 
 #[derive(Debug)]
