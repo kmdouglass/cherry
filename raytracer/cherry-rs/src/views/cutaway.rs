@@ -7,6 +7,9 @@ use crate::{
     SequentialModel,
 };
 
+/// A cutaway view through a center transverse plane of a sequential model.
+///
+/// The cutaway view is a 2D representation of the surfaces in the y-z plane.
 #[derive(Debug, Clone, Serialize)]
 pub struct CutawayView {
     pub path_samples: HashMap<usize, Vec<Vec3>>,

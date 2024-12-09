@@ -4,7 +4,7 @@ use super::rays::Ray;
 use crate::core::sequential_model::SequentialSubModelIter;
 
 /// Results of tracing rays through a system.
-/// 
+///
 /// The first index corresponds to the surface number, and the second index
 /// corresponds to the ray number. The value is a Result, where the Ok variant
 /// contains the ray at the intersection point and the Err variant contains an
