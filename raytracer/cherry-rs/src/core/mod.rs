@@ -92,8 +92,39 @@ impl RefractiveIndex {
             ));
         }
 
-        let n = match spec.real {
-            RealSpec::Constant(n) => n,
+        // If no wavelength is provided, set it to 0. It won't be used anyway.
+        let wavelength = if wavelength.is_none() {
+            0.0
+        } else {
+            wavelength.unwrap()
+        };
+
+        let n: Float = match &spec.real {
+            RealSpec::Constant(n) => *n,
+            RealSpec::Formula1 { wavelength_range, c } => {
+                if wavelength < wavelength_range[0] || wavelength > wavelength_range[1] {
+                    return Err(anyhow!(
+                        "The wavelength is outside the range of the real spec."
+                    ));
+                }
+                let mut sum = 0.0;
+                for i in 1..c.len() {
+                    sum += c[i] * wavelength.powi(2) / (wavelength.powi(2) - c[i + 1]);
+                }
+                (1.0 + c[0] + sum).sqrt()
+            },
+            RealSpec::Formula2 { wavelength_range, c } => {
+                if wavelength < wavelength_range[0] || wavelength > wavelength_range[1] {
+                    return Err(anyhow!(
+                        "The wavelength is outside the range of the real spec."
+                    ));
+                }
+                let mut sum = 0.0;
+                for i in (1..c.len()).step_by(2) {
+                    sum += c[i] * wavelength.powi(2) / (wavelength.powi(2) - c[i + 1]);
+                }
+                (1.0 + c[0] + sum).sqrt()
+            }
             _ => {
                 return Err(anyhow!(
                     "Non-constant refractive indexes are not implemented."
@@ -117,6 +148,7 @@ impl RefractiveIndex {
 
 #[cfg(test)]
 mod test {
+    use approx::assert_abs_diff_eq;
     use super::*;
 
     #[test]
@@ -150,6 +182,22 @@ mod test {
 
         let n = RefractiveIndex::try_from_spec(&spec, None).unwrap();
         assert_eq!(n.eta.real, 1.5);
+        assert_eq!(n.eta.imag, 0.0);
+    }
+
+    #[test]
+    fn test_formula_2() {
+        // N-BK7 from refractiveindex.info
+        let spec = RefractiveIndexSpec {
+            real: RealSpec::Formula2 {
+                wavelength_range: [0.3, 2.5],
+                c: vec![0.0, 1.03961212, 0.00600069867, 0.231792344, 0.0200179144, 1.01046945, 103.560653],
+            },
+            imag: None,
+        };
+
+        let n = RefractiveIndex::try_from_spec(&spec, Some(0.5876)).unwrap();
+        assert_abs_diff_eq!(n.eta.real, 1.51680, epsilon = 1e-5);
         assert_eq!(n.eta.imag, 0.0);
     }
 }

@@ -45,12 +45,12 @@ pub enum RealSpec {
         wavelength_range: [Float; 2],
 
         // Coefficients for the Sellmeier equation.
-        c: [Float; 17],
+        c: Vec<Float>,
     },
     // Alternative Sellmeier formula.
     Formula2 {
         wavelength_range: [Float; 2],
-        c: [Float; 17],
+        c: Vec<Float>,
     },
     Formula3 {
         wavelength_range: [Float; 2],
@@ -87,19 +87,6 @@ pub enum RealSpec {
 pub enum ImagSpec {
     Constant(Float),
     TabulatedK { data: Vec<[Float; 2]> },
-}
-
-impl GapSpec {
-    pub fn from_thickness_and_real_refractive_index(thickness: Float, n: Float) -> Self {
-        let refractive_index = RefractiveIndexSpec {
-            real: RealSpec::Constant(n),
-            imag: None,
-        };
-        Self {
-            thickness,
-            refractive_index,
-        }
-    }
 }
 
 impl RefractiveIndexSpec {
