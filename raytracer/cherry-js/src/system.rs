@@ -3,9 +3,9 @@ use std::collections::{HashMap, HashSet};
 use anyhow::{anyhow, Result};
 use serde::Serialize;
 
-use cherry_rs::{
+use cherry_rs::{n,
     components_view, ray_trace_3d_view, ApertureSpec, Component, CutawayView, FieldSpec, GapSpec,
-    ParaxialView, ParaxialViewDescription, PupilSampling, RefractiveIndexSpec, SequentialModel,
+    ParaxialView, ParaxialViewDescription, PupilSampling, RealSpec, RefractiveIndexSpec, SequentialModel,
     SubModelID, SurfaceSpec, TraceResults,
 };
 
@@ -51,7 +51,7 @@ impl System {
 
         let components_view = components_view(
             &sequential_model,
-            RefractiveIndexSpec::from_real_refractive_index(BACKGROUND_REFRACTIVE_INDEX),
+            n!(BACKGROUND_REFRACTIVE_INDEX),
         )?;
         let cutaway_view = CutawayView::new(&sequential_model, 20);
         let paraxial_view = ParaxialView::new(&sequential_model, field_specs, false)?;

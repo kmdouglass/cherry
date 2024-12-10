@@ -29,19 +29,28 @@ macro_rules! n {
 }
 
 /// Specifies the real part of a refractive index.
+/// The variants of this spec correspond to the formulas from
+/// refractiveindex.info.
+///
+/// # See also
+/// - [RefractiveIndex.info](https://github.com/polyanskiy/refractiveindex.info-database)
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum RealSpec {
     Constant(Float),
     TabulatedN {
         data: Vec<[Float; 2]>,
     },
+    // Sellmeier formula.
     Formula1 {
         wavelength_range: [Float; 2],
-        coefficients: Vec<Float>,
+
+        // Coefficients for the Sellmeier equation.
+        c: [Float; 17],
     },
+    // Alternative Sellmeier formula.
     Formula2 {
         wavelength_range: [Float; 2],
-        coefficients: Vec<Float>,
+        c: [Float; 17],
     },
     Formula3 {
         wavelength_range: [Float; 2],
@@ -103,12 +112,5 @@ impl RefractiveIndexSpec {
         let is_imag_part_const = matches!(&self.imag, Some(ImagSpec::Constant(_)) | None);
 
         is_real_part_const && is_imag_part_const
-    }
-
-    pub fn from_real_refractive_index(n: Float) -> Self {
-        Self {
-            real: RealSpec::Constant(n),
-            imag: None,
-        }
     }
 }
