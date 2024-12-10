@@ -2,6 +2,18 @@ use serde::{Deserialize, Serialize};
 
 use crate::core::Float;
 
+/// Creates a real refractive index spec.
+#[macro_export]
+macro_rules! n {
+    ($n:expr) => {
+        RefractiveIndexSpec {
+            real: $crate::RealSpec::Constant($n),
+            imag: None,
+        }
+    };
+    () => {};
+}
+
 /// Specifies a gap in a sequential optical system model.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct GapSpec {
@@ -14,18 +26,6 @@ pub struct GapSpec {
 pub struct RefractiveIndexSpec {
     pub real: RealSpec,
     pub imag: Option<ImagSpec>,
-}
-
-/// Creates a real refractive index spec.
-#[macro_export]
-macro_rules! n {
-    ($n:expr) => {
-        RefractiveIndexSpec {
-            real: RealSpec::Constant($n),
-            imag: None,
-        }
-    };
-    () => {};
 }
 
 /// Specifies the real part of a refractive index.

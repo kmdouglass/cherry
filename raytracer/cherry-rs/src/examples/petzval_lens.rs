@@ -1,6 +1,6 @@
 use crate::{
-    n, FieldSpec, GapSpec, PupilSampling, RealSpec, RefractiveIndexSpec, SequentialModel,
-    SurfaceSpec, SurfaceType,
+    n, FieldSpec, GapSpec, PupilSampling, RefractiveIndexSpec, SequentialModel, SurfaceSpec,
+    SurfaceType,
 };
 
 pub fn sequential_model() -> SequentialModel {

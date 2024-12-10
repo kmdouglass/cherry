@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     core::{sequential_model::Surface, Float, RefractiveIndex},
-    RealSpec, RefractiveIndexSpec, SequentialModel, SequentialSubModel,
+    RefractiveIndexSpec, SequentialModel, SequentialSubModel,
 };
 
 const TOL: Float = 1e-6;

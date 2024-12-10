@@ -93,10 +93,10 @@ impl RefractiveIndex {
         }
 
         // If no wavelength is provided, set it to 0. It won't be used anyway.
-        let wavelength = if wavelength.is_none() {
-            0.0
+        let wavelength = if let Some(wavelength) = wavelength {
+            wavelength
         } else {
-            wavelength.unwrap()
+            0.0
         };
 
         let n: Float = match &spec.real {
