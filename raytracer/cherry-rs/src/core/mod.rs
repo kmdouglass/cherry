@@ -147,6 +147,29 @@ impl RefractiveIndex {
                 }
                 (c[0] + sum).sqrt()
             }
+            RealSpec::Formula4 {
+                wavelength_range,
+                c,
+            } => {
+                if wavelength < wavelength_range[0] || wavelength > wavelength_range[1] {
+                    return Err(anyhow!(
+                        "The wavelength is outside the range of the real spec."
+                    ));
+                }
+
+                let mut sum = 0.0;
+                for i in (1..c.len()).step_by(4) {
+                    // Formula 4 is kind of wild.
+                    if i <= 9 {
+                        sum += c[i] * wavelength.powf(c[i + 1])
+                            / (wavelength.powi(2) - c[i + 2].powf(c[i + 3]));
+                    } else {
+                        sum += c[i] * wavelength.powf(c[i + 1]);
+                    }
+                }
+                (c[0] + sum).sqrt()
+            }
+
             _ => {
                 return Err(anyhow!(
                     "Non-constant refractive indexes are not implemented."
@@ -159,7 +182,7 @@ impl RefractiveIndex {
             None => 0.0,
             _ => {
                 return Err(anyhow!(
-                    "Non-constant refractive indexes are not implemented."
+                    "Non-constant imaginary parts of refractive indexes are not implemented."
                 ))
             }
         };
@@ -270,6 +293,21 @@ mod test {
         };
         let n = RefractiveIndex::try_from_spec(&spec, Some(0.5876)).unwrap();
         assert_abs_diff_eq!(n.eta.real, 1.6700, epsilon = 1e-4);
+        assert_eq!(n.eta.imag, 0.0);
+    }
+
+    #[test]
+    fn test_try_from_spec_formula_4() {
+        // CH4N20 Urea from refractiveindex.info
+        let spec = RefractiveIndexSpec {
+            real: RealSpec::Formula4 {
+                wavelength_range: [0.3, 1.06],
+                c: vec![2.1823, 0.0125, 0.0, 0.0300, 1.0, 0.0, 0.0, 0.0, 1.0],
+            },
+            imag: None,
+        };
+        let n = RefractiveIndex::try_from_spec(&spec, Some(0.5876)).unwrap();
+        assert_abs_diff_eq!(n.eta.real, 1.4906, epsilon = 1e-4);
         assert_eq!(n.eta.imag, 0.0);
     }
 }
