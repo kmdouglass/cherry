@@ -131,6 +131,22 @@ impl RefractiveIndex {
                 }
                 (1.0 + c[0] + sum).sqrt()
             }
+            RealSpec::Formula3 {
+                wavelength_range,
+                c,
+            } => {
+                if wavelength < wavelength_range[0] || wavelength > wavelength_range[1] {
+                    return Err(anyhow!(
+                        "The wavelength is outside the range of the real spec."
+                    ));
+                }
+
+                let mut sum = 0.0;
+                for i in (1..c.len()).step_by(2) {
+                    sum += c[i] * wavelength.powf(c[i + 1]);
+                }
+                (c[0] + sum).sqrt()
+            }
             _ => {
                 return Err(anyhow!(
                     "Non-constant refractive indexes are not implemented."
@@ -227,6 +243,33 @@ mod test {
 
         let n = RefractiveIndex::try_from_spec(&spec, Some(0.5876)).unwrap();
         assert_abs_diff_eq!(n.eta.real, 1.51680, epsilon = 1e-5);
+        assert_eq!(n.eta.imag, 0.0);
+    }
+
+    #[test]
+    fn test_try_from_spec_formula_3() {
+        // Ohara BAH10 from refractiveindex.info
+        let spec = RefractiveIndexSpec {
+            real: RealSpec::Formula3 {
+                wavelength_range: [0.365, 0.9],
+                c: vec![
+                    2.730459,
+                    -0.01063385,
+                    2.0,
+                    0.01942756,
+                    -2.0,
+                    0.0008209873,
+                    -4.0,
+                    -5.210457e-05,
+                    -6.0,
+                    4.447534e-06,
+                    -8.0,
+                ],
+            },
+            imag: None,
+        };
+        let n = RefractiveIndex::try_from_spec(&spec, Some(0.5876)).unwrap();
+        assert_abs_diff_eq!(n.eta.real, 1.6700, epsilon = 1e-4);
         assert_eq!(n.eta.imag, 0.0);
     }
 }

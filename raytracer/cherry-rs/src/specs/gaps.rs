@@ -52,33 +52,34 @@ pub enum RealSpec {
         wavelength_range: [Float; 2],
         c: Vec<Float>,
     },
+    // Polynomial formula.
     Formula3 {
         wavelength_range: [Float; 2],
-        coefficients: Vec<Float>,
+        c: Vec<Float>,
     },
     Formula4 {
         wavelength_range: [Float; 2],
-        coefficients: Vec<Float>,
+        c: Vec<Float>,
     },
     Formula5 {
         wavelength_range: [Float; 2],
-        coefficients: Vec<Float>,
+        c: Vec<Float>,
     },
     Formula6 {
         wavelength_range: [Float; 2],
-        coefficients: Vec<Float>,
+        c: Vec<Float>,
     },
     Formula7 {
         wavelength_range: [Float; 2],
-        coefficients: Vec<Float>,
+        c: Vec<Float>,
     },
     Formula8 {
         wavelength_range: [Float; 2],
-        coefficients: Vec<Float>,
+        c: Vec<Float>,
     },
     Formula9 {
         wavelength_range: [Float; 2],
-        coefficients: Vec<Float>,
+        c: Vec<Float>,
     },
 }
 
