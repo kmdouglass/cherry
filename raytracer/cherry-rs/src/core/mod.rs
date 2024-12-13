@@ -194,6 +194,7 @@ impl RefractiveIndex {
                 wavelength_range,
                 c,
             } => {
+                // Gases
                 if wavelength < wavelength_range[0] || wavelength > wavelength_range[1] {
                     return Err(anyhow!(
                         "The wavelength is outside the range of the real spec."
@@ -205,6 +206,24 @@ impl RefractiveIndex {
                     sum += c[i] / (c[i + 1] - wavelength.powi(-2));
                 }
                 1.0 + c[0] + sum
+            }
+            RealSpec::Formula7 {
+                wavelength_range,
+                c,
+            } => {
+                // Herzberger
+                if wavelength < wavelength_range[0] || wavelength > wavelength_range[1] {
+                    return Err(anyhow!(
+                        "The wavelength is outside the range of the real spec."
+                    ));
+                }
+                let mut sum = 0.0;
+                for i in (3..c.len()).step_by(2) {
+                    sum += c[i] * wavelength.powi(i as i32 - 1);
+                }
+                c[0] + c[1] / (wavelength.powi(2) - 0.028)
+                    + c[2] / (wavelength.powi(2) - 0.028).powi(2)
+                    + sum
             }
 
             _ => {
@@ -375,6 +394,21 @@ mod test {
         };
         let n = RefractiveIndex::try_from_spec(&spec, Some(0.5876)).unwrap();
         assert_abs_diff_eq!(n.eta.real, 1.00013881, epsilon = 1e-8);
+        assert_eq!(n.eta.imag, 0.0);
+    }
+
+    #[test]
+    fn test_try_from_spec_formula_7() {
+        // Si (Edwards) in main shelf of refractiveindex.info
+        let spec = RefractiveIndexSpec {
+            real: RealSpec::Formula7 {
+                wavelength_range: [2.4373, 25.0],
+                c: vec![3.41983, 0.159906, -0.123109, 1.26878E-6, -1.95104E-9],
+            },
+            imag: None,
+        };
+        let n = RefractiveIndex::try_from_spec(&spec, Some(2.4373)).unwrap();
+        assert_abs_diff_eq!(n.eta.real, 3.4434, epsilon = 1e-4);
         assert_eq!(n.eta.imag, 0.0);
     }
 }
