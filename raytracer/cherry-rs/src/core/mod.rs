@@ -105,6 +105,7 @@ impl RefractiveIndex {
                 wavelength_range,
                 c,
             } => {
+                // Sellmeier (preferred)
                 if wavelength < wavelength_range[0] || wavelength > wavelength_range[1] {
                     return Err(anyhow!(
                         "The wavelength is outside the range of the real spec."
@@ -120,6 +121,7 @@ impl RefractiveIndex {
                 wavelength_range,
                 c,
             } => {
+                // Sellmeier-2
                 if wavelength < wavelength_range[0] || wavelength > wavelength_range[1] {
                     return Err(anyhow!(
                         "The wavelength is outside the range of the real spec."
@@ -135,6 +137,7 @@ impl RefractiveIndex {
                 wavelength_range,
                 c,
             } => {
+                // Polynomial
                 if wavelength < wavelength_range[0] || wavelength > wavelength_range[1] {
                     return Err(anyhow!(
                         "The wavelength is outside the range of the real spec."
@@ -151,6 +154,7 @@ impl RefractiveIndex {
                 wavelength_range,
                 c,
             } => {
+                // RefractiveIndex.INFO
                 if wavelength < wavelength_range[0] || wavelength > wavelength_range[1] {
                     return Err(anyhow!(
                         "The wavelength is outside the range of the real spec."
@@ -168,6 +172,23 @@ impl RefractiveIndex {
                     }
                 }
                 (c[0] + sum).sqrt()
+            }
+            RealSpec::Formula5 {
+                wavelength_range,
+                c,
+            } => {
+                // Cauchy
+                if wavelength < wavelength_range[0] || wavelength > wavelength_range[1] {
+                    return Err(anyhow!(
+                        "The wavelength is outside the range of the real spec."
+                    ));
+                }
+
+                let mut sum = 0.0;
+                for i in (1..c.len()).step_by(2) {
+                    sum += c[i] * wavelength.powf(c[i + 1]);
+                }
+                c[0] + sum
             }
 
             _ => {
@@ -308,6 +329,21 @@ mod test {
         };
         let n = RefractiveIndex::try_from_spec(&spec, Some(0.5876)).unwrap();
         assert_abs_diff_eq!(n.eta.real, 1.4906, epsilon = 1e-4);
+        assert_eq!(n.eta.imag, 0.0);
+    }
+
+    #[test]
+    fn test_try_from_spec_formula_5() {
+        // BK7 matching liquid from refractiveindex.info
+        let spec = RefractiveIndexSpec {
+            real: RealSpec::Formula5 {
+                wavelength_range: [0.31, 1.55],
+                c: vec![1.502787, 455872.4E-8, -2.0, 9.844856E-5, -4.0],
+            },
+            imag: None,
+        };
+        let n = RefractiveIndex::try_from_spec(&spec, Some(0.5876)).unwrap();
+        assert_abs_diff_eq!(n.eta.real, 1.5168, epsilon = 1e-4);
         assert_eq!(n.eta.imag, 0.0);
     }
 }
