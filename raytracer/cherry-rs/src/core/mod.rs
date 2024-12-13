@@ -190,6 +190,22 @@ impl RefractiveIndex {
                 }
                 c[0] + sum
             }
+            RealSpec::Formula6 {
+                wavelength_range,
+                c,
+            } => {
+                if wavelength < wavelength_range[0] || wavelength > wavelength_range[1] {
+                    return Err(anyhow!(
+                        "The wavelength is outside the range of the real spec."
+                    ));
+                }
+
+                let mut sum = 0.0;
+                for i in (1..c.len()).step_by(2) {
+                    sum += c[i] / (c[i + 1] - wavelength.powi(-2));
+                }
+                1.0 + c[0] + sum
+            }
 
             _ => {
                 return Err(anyhow!(
@@ -344,6 +360,21 @@ mod test {
         };
         let n = RefractiveIndex::try_from_spec(&spec, Some(0.5876)).unwrap();
         assert_abs_diff_eq!(n.eta.real, 1.5168, epsilon = 1e-4);
+        assert_eq!(n.eta.imag, 0.0);
+    }
+
+    #[test]
+    fn test_try_from_spec_formula_6() {
+        // H2 (Peck) in main shelf from refractiveindex.info
+        let spec = RefractiveIndexSpec {
+            real: RealSpec::Formula6 {
+                wavelength_range: [0.168, 1.6945],
+                c: vec![0.0, 0.0148956, 180.7, 0.0049037, 92.0],
+            },
+            imag: None,
+        };
+        let n = RefractiveIndex::try_from_spec(&spec, Some(0.5876)).unwrap();
+        assert_abs_diff_eq!(n.eta.real, 1.00013881, epsilon = 1e-8);
         assert_eq!(n.eta.imag, 0.0);
     }
 }
