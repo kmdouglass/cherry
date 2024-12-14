@@ -242,11 +242,26 @@ impl RefractiveIndex {
                 println!("sum: {}", sum);
                 ((2.0 * sum + 1.0) / (1.0 - sum)).sqrt()
             }
+            RealSpec::Formula9 {
+                wavelength_range,
+                c,
+            } => {
+                // Exotic
+                if wavelength < wavelength_range[0] || wavelength > wavelength_range[1] {
+                    return Err(anyhow!(
+                        "The wavelength is outside the range of the real spec."
+                    ));
+                }
 
+                (c[0]
+                    + c[1] / (wavelength.powi(2) - c[2])
+                    + c[3] * (wavelength - c[4]) / ((wavelength - c[4]).powi(2) + c[5]))
+                    .sqrt()
+            }
             _ => {
                 return Err(anyhow!(
-                    "Non-constant refractive indexes are not implemented."
-                ))
+                    "Tabulated real refractive indexes are not implemented."
+                ));
             }
         };
 
@@ -441,6 +456,21 @@ mod test {
         };
         let n = RefractiveIndex::try_from_spec(&spec, Some(0.5876)).unwrap();
         assert_abs_diff_eq!(n.eta.real, 2.2636, epsilon = 1e-4);
+        assert_eq!(n.eta.imag, 0.0);
+    }
+
+    #[test]
+    fn test_try_from_spec_formula_9() {
+        // CH4N2O Urea (Rosker-e) from refractiveindex.info
+        let spec = RefractiveIndexSpec {
+            real: RealSpec::Formula9 {
+                wavelength_range: [0.3, 1.06],
+                c: vec![2.51527, 0.0240, 0.0300, 0.020, 1.52, 0.8771],
+            },
+            imag: None,
+        };
+        let n = RefractiveIndex::try_from_spec(&spec, Some(0.5876)).unwrap();
+        assert_abs_diff_eq!(n.eta.real, 1.6065, epsilon = 1e-4);
         assert_eq!(n.eta.imag, 0.0);
     }
 }
