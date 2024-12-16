@@ -1,14 +1,10 @@
 /// Shared data types for modeling ray tracing systems.
 pub(super) mod math;
+pub(crate) mod refractive_index;
 pub(crate) mod sequential_model;
-
-use anyhow::{anyhow, Result};
-
-use crate::specs::gaps::{ImagSpec, RealSpec, RefractiveIndexSpec};
 
 pub(crate) use math::array::argmin;
 use math::vec3::Vec3;
-use math::Complex;
 
 pub(crate) type Float = f64;
 
@@ -24,11 +20,6 @@ pub(crate) struct Cursor {
 
     /// The direction of the cursor expressed as a unit vector.
     dir: Vec3,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct RefractiveIndex {
-    eta: Complex<Float>,
 }
 
 impl Cursor {
@@ -61,60 +52,6 @@ impl Cursor {
     }
 }
 
-impl RefractiveIndex {
-    pub(crate) fn new(n: Float, k: Float) -> Self {
-        Self {
-            eta: Complex { real: n, imag: k },
-        }
-    }
-
-    pub(crate) fn n(&self) -> Float {
-        self.eta.real
-    }
-
-    pub(crate) fn k(&self) -> Float {
-        self.eta.imag
-    }
-
-    /// Creates a RefractiveIndex instance from a RefractiveIndexSpec.
-    ///
-    /// A wavelength is required to compute the refractive index from the spec
-    /// if the refractive index is specified as a function of wavelength.
-    /// Otherwise, the real part of the refractive index is provided by the user
-    /// as a constant value.
-    pub(crate) fn try_from_spec(
-        spec: &RefractiveIndexSpec,
-        wavelength: Option<Float>,
-    ) -> Result<Self> {
-        if wavelength.is_none() && spec.depends_on_wavelength() {
-            return Err(anyhow!(
-                "The refractive index must be a constant when no wavelength is provided."
-            ));
-        }
-
-        let n = match spec.real {
-            RealSpec::Constant(n) => n,
-            _ => {
-                return Err(anyhow!(
-                    "Non-constant refractive indexes are not implemented."
-                ))
-            }
-        };
-
-        let k = match spec.imag {
-            Some(ImagSpec::Constant(k)) => k,
-            None => 0.0,
-            _ => {
-                return Err(anyhow!(
-                    "Non-constant refractive indexes are not implemented."
-                ))
-            }
-        };
-
-        Ok(Self::new(n, k))
-    }
-}
-
 #[cfg(test)]
 mod test {
     use super::*;
@@ -139,17 +76,5 @@ mod test {
         let mut cursor = Cursor::new(Float::NEG_INFINITY);
         cursor.advance(Float::INFINITY);
         assert_eq!(cursor.pos(), Vec3::new(0.0, 0.0, 0.0));
-    }
-
-    #[test]
-    fn test_refractive_index_try_from_spec() {
-        let spec = RefractiveIndexSpec {
-            real: RealSpec::Constant(1.5),
-            imag: None,
-        };
-
-        let n = RefractiveIndex::try_from_spec(&spec, None).unwrap();
-        assert_eq!(n.eta.real, 1.5);
-        assert_eq!(n.eta.imag, 0.0);
     }
 }

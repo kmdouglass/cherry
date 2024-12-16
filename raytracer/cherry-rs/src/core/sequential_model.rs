@@ -8,7 +8,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::core::{
     math::{mat3::Mat3, vec3::Vec3},
-    Cursor, Float, RefractiveIndex,
+    refractive_index::RefractiveIndex,
+    Cursor, Float,
 };
 use crate::specs::{
     gaps::GapSpec,
@@ -782,7 +783,7 @@ mod tests {
                 refractive_index: RefractiveIndexSpec {
                     real: RealSpec::Formula2 {
                         wavelength_range: [0.3, 0.8],
-                        coefficients: vec![1.0, 2.0, 3.0, 4.0],
+                        c: vec![1.0, 2.0, 3.0],
                     },
                     imag: None,
                 },

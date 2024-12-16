@@ -2,6 +2,18 @@ use serde::{Deserialize, Serialize};
 
 use crate::core::Float;
 
+/// Creates a real refractive index spec.
+#[macro_export]
+macro_rules! n {
+    ($n:expr) => {
+        RefractiveIndexSpec {
+            real: $crate::RealSpec::Constant($n),
+            imag: None,
+        }
+    };
+    () => {};
+}
+
 /// Specifies a gap in a sequential optical system model.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct GapSpec {
@@ -16,60 +28,58 @@ pub struct RefractiveIndexSpec {
     pub imag: Option<ImagSpec>,
 }
 
-/// Creates a real refractive index spec.
-#[macro_export]
-macro_rules! n {
-    ($n:expr) => {
-        RefractiveIndexSpec {
-            real: RealSpec::Constant($n),
-            imag: None,
-        }
-    };
-    () => {};
-}
-
 /// Specifies the real part of a refractive index.
+/// The variants of this spec correspond to the formulas from
+/// refractiveindex.info.
+///
+/// # See also
+/// - [RefractiveIndex.info](https://github.com/polyanskiy/refractiveindex.info-database)
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum RealSpec {
     Constant(Float),
     TabulatedN {
         data: Vec<[Float; 2]>,
     },
+    // Sellmeier formula.
     Formula1 {
         wavelength_range: [Float; 2],
-        coefficients: Vec<Float>,
+
+        // Coefficients for the Sellmeier equation.
+        c: Vec<Float>,
     },
+    // Alternative Sellmeier formula.
     Formula2 {
         wavelength_range: [Float; 2],
-        coefficients: Vec<Float>,
+        c: Vec<Float>,
     },
+    // Polynomial formula.
     Formula3 {
         wavelength_range: [Float; 2],
-        coefficients: Vec<Float>,
+        c: Vec<Float>,
     },
     Formula4 {
         wavelength_range: [Float; 2],
-        coefficients: Vec<Float>,
+        c: Vec<Float>,
     },
     Formula5 {
         wavelength_range: [Float; 2],
-        coefficients: Vec<Float>,
+        c: Vec<Float>,
     },
     Formula6 {
         wavelength_range: [Float; 2],
-        coefficients: Vec<Float>,
+        c: Vec<Float>,
     },
     Formula7 {
         wavelength_range: [Float; 2],
-        coefficients: Vec<Float>,
+        c: Vec<Float>,
     },
     Formula8 {
         wavelength_range: [Float; 2],
-        coefficients: Vec<Float>,
+        c: Vec<Float>,
     },
     Formula9 {
         wavelength_range: [Float; 2],
-        coefficients: Vec<Float>,
+        c: Vec<Float>,
     },
 }
 
@@ -78,19 +88,6 @@ pub enum RealSpec {
 pub enum ImagSpec {
     Constant(Float),
     TabulatedK { data: Vec<[Float; 2]> },
-}
-
-impl GapSpec {
-    pub fn from_thickness_and_real_refractive_index(thickness: Float, n: Float) -> Self {
-        let refractive_index = RefractiveIndexSpec {
-            real: RealSpec::Constant(n),
-            imag: None,
-        };
-        Self {
-            thickness,
-            refractive_index,
-        }
-    }
 }
 
 impl RefractiveIndexSpec {
@@ -103,12 +100,5 @@ impl RefractiveIndexSpec {
         let is_imag_part_const = matches!(&self.imag, Some(ImagSpec::Constant(_)) | None);
 
         is_real_part_const && is_imag_part_const
-    }
-
-    pub fn from_real_refractive_index(n: Float) -> Self {
-        Self {
-            real: RealSpec::Constant(n),
-            imag: None,
-        }
     }
 }

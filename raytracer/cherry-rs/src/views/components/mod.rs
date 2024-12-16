@@ -4,7 +4,7 @@ use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    core::{sequential_model::Surface, Float, RefractiveIndex},
+    core::{refractive_index::RefractiveIndex, sequential_model::Surface, Float},
     RefractiveIndexSpec, SequentialModel, SequentialSubModel,
 };
 
@@ -113,7 +113,7 @@ fn same_medium(eta_1: RefractiveIndex, eta_2: RefractiveIndex) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use crate::{core::Float, GapSpec, RefractiveIndexSpec, SequentialModel, SurfaceSpec};
+    use crate::{core::Float, n, GapSpec, RefractiveIndexSpec, SequentialModel, SurfaceSpec};
 
     use super::*;
 
@@ -232,23 +232,35 @@ mod tests {
         // Aperture stop is a hard stop in front of the lens
 
         let surf_0 = SurfaceSpec::Object;
-        let gap_0 = GapSpec::from_thickness_and_real_refractive_index(Float::INFINITY, 1.0);
+        let gap_0 = GapSpec {
+            thickness: Float::INFINITY,
+            refractive_index: n!(1.0),
+        };
         let surf_1 = SurfaceSpec::Stop { semi_diameter: 5.0 };
-        let gap_1 = GapSpec::from_thickness_and_real_refractive_index(5.0, 1.0);
+        let gap_1 = GapSpec {
+            thickness: 5.0,
+            refractive_index: n!(1.0),
+        };
         let surf_2 = SurfaceSpec::Conic {
             semi_diameter: 6.882,
             radius_of_curvature: Float::INFINITY,
             conic_constant: 0.0,
             surf_type: crate::SurfaceType::Refracting,
         };
-        let gap_2 = GapSpec::from_thickness_and_real_refractive_index(5.0, 1.515);
+        let gap_2 = GapSpec {
+            thickness: 5.0,
+            refractive_index: n!(1.515),
+        };
         let surf_3 = SurfaceSpec::Conic {
             semi_diameter: 7.367,
             radius_of_curvature: -25.84,
             conic_constant: 0.0,
             surf_type: crate::SurfaceType::Refracting,
         };
-        let gap_3 = GapSpec::from_thickness_and_real_refractive_index(47.974, 1.0);
+        let gap_3 = GapSpec {
+            thickness: 47.974,
+            refractive_index: n!(1.0),
+        };
         let surf_4 = SurfaceSpec::Image;
 
         let surfaces = vec![surf_0, surf_1, surf_2, surf_3, surf_4];
