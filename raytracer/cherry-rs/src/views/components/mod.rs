@@ -4,7 +4,7 @@ use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    core::{sequential_model::Surface, Float, RefractiveIndex},
+    core::{refractive_index::RefractiveIndex, sequential_model::Surface, Float},
     RefractiveIndexSpec, SequentialModel, SequentialSubModel,
 };
 

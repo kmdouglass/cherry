@@ -8,7 +8,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::core::{
     math::{mat3::Mat3, vec3::Vec3},
-    Cursor, Float, RefractiveIndex,
+    refractive_index::RefractiveIndex,
+    Cursor, Float,
 };
 use crate::specs::{
     gaps::GapSpec,

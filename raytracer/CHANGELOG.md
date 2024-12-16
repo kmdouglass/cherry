@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Support for creating `RealSpec` instances from RefractiveIndex.info dispersion formulas 1 - 9.
+
 ### Fixed
 
 - Fixed an import error in the `n` macro that required `RealSpec` to be imported inside a module to use it.
