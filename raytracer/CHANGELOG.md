@@ -9,11 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Support for creating `RealSpec` instances from RefractiveIndex.info dispersion formulas 1 - 9.
+- A `ri-info` feature for loading materials data from the RefractiveIndex.info database.
+- A `axial_primary_color` method to `ParaxialView` for computing the axial primary color aberration of a lens.
+
+### Changed
+
+- `RefractiveIndexSpec` is now a trait which supports getting refractive index data from any generic materials database.
+- The examples, including the associated tests, were moved into a Cargo-specific `examples` folder.
 
 ### Fixed
 
-- Fixed an import error in the `n` macro that required `RealSpec` to be imported inside a module to use it.
+- Fixed an import error in the `n` macro.
 
 ## [0.2.0] 2024-12-09
 

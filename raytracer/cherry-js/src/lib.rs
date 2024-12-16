@@ -6,7 +6,7 @@ use wasm_bindgen::prelude::*;
 
 use cherry_rs::{ApertureSpec, FieldSpec, GapSpec, Ray, SurfaceSpec};
 
-use system::{System, SystemBuilder};
+use system::{GapSpecConstantN, System, SystemBuilder};
 
 #[wasm_bindgen]
 #[derive(Debug)]
@@ -48,7 +48,8 @@ impl OpticalSystem {
     }
 
     pub fn setGaps(&mut self, gaps: JsValue) -> Result<(), JsError> {
-        let gaps: Vec<GapSpec> = serde_wasm_bindgen::from_value(gaps)?;
+        let inputs: Vec<GapSpecConstantN> = serde_wasm_bindgen::from_value(gaps)?;
+        let gaps: Vec<GapSpec> = inputs.into_iter().map(GapSpec::from).collect();
         self.builder.gap_specs(gaps);
         Ok(())
     }

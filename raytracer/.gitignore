@@ -1,6 +1,4 @@
+/cherry-rs/data
 /target
 
 .vscode
-
-# Nix
-result

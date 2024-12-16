@@ -18,8 +18,9 @@
 //!   This may differ from any pupils that can be derived directly from the
 //!   surfaces and gaps.
 //! - [FieldSpec](enum@FieldSpec) - Describes the field points of the system.
-//! - [RefractiveIndexSpec](struct@RefractiveIndexSpec) - Describes the
-//!   refractive index of a gap.
+//! - [RefractiveIndexSpec](trait@RefractiveIndexSpec) - Describes the
+//!   refractive index of a gap. This is a trait so that different material
+//!   databases may be implemented.
 //! - Wavelength - Describes a single wavelength to model.
 //!
 //! The outputs of the system are provided by views, such as:
@@ -36,7 +37,7 @@
 //! # Quick Start
 //! ```rust
 //! use cherry_rs::{
-//!     n, ray_trace_3d_view, ApertureSpec, FieldSpec, GapSpec, ImagePlane, ParaxialView, Pupil, PupilSampling, RealSpec, RefractiveIndexSpec,
+//!     n, ray_trace_3d_view, ApertureSpec, FieldSpec, GapSpec, ImagePlane, ParaxialView, Pupil, PupilSampling, RefractiveIndexSpec,
 //!     SequentialModel, SurfaceSpec, SurfaceType,
 //! };
 //!
@@ -121,6 +122,7 @@
 //! ```
 
 mod core;
+mod materials;
 mod specs;
 mod views;
 
@@ -133,7 +135,7 @@ pub use core::{
 pub use specs::{
     aperture::ApertureSpec,
     fields::{FieldSpec, PupilSampling},
-    gaps::{GapSpec, ImagSpec, RealSpec, RefractiveIndexSpec},
+    gaps::{ConstantRefractiveIndex, GapSpec, RefractiveIndexSpec},
     surfaces::SurfaceSpec,
     surfaces::SurfaceType,
 };
