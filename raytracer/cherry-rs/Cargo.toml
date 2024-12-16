@@ -1,6 +1,6 @@
 [package]
 name = "cherry-rs"
-version = "0.2.0"
+version = "0.3.0"
 authors = ["Kyle M. Douglass <kyle.m.douglass@gmail.com>"]
 repository = "https://github.com/kmdouglass/cherry"
 edition = "2021"
@@ -10,10 +10,16 @@ license-file = "../../LICENSE.txt"
 [lib]
 crate-type = ["lib"]
 
+[features]
+materials = [ "dep:dirs", "dep:ria" ]
+
 [dependencies]
 anyhow = "1.0"
 ndarray = { version = "0.15", features = [ "serde" ] }
 serde = { version = "1", features = [ "derive" ] }
+
+dirs = { version = "5", optional = true}
+ria = { path = "../../../refractiveindex.info-adapters", version = "0.2", optional = true }
 
 [dev-dependencies]
 approx = { version = "0.5" }

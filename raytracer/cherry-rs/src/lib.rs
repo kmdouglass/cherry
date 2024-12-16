@@ -124,6 +124,9 @@ mod core;
 mod specs;
 mod views;
 
+#[cfg(feature = "materials")]
+pub mod materials;
+
 // API
 pub mod examples;
 pub use core::{
