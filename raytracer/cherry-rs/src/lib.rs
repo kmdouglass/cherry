@@ -36,7 +36,7 @@
 //! # Quick Start
 //! ```rust
 //! use cherry_rs::{
-//!     n, ray_trace_3d_view, ApertureSpec, FieldSpec, GapSpec, ImagePlane, ParaxialView, Pupil, PupilSampling, RealSpec, RefractiveIndexSpec,
+//!     n, ray_trace_3d_view, ApertureSpec, FieldSpec, GapSpec, ImagePlane, ParaxialView, Pupil, PupilSampling, RefractiveIndexSpec,
 //!     SequentialModel, SurfaceSpec, SurfaceType,
 //! };
 //!
@@ -136,7 +136,7 @@ pub use core::{
 pub use specs::{
     aperture::ApertureSpec,
     fields::{FieldSpec, PupilSampling},
-    gaps::{GapSpec, ImagSpec, RealSpec, RefractiveIndexSpec},
+    gaps::{ConstantRefractiveIndex, GapSpec, RefractiveIndexSpec},
     surfaces::SurfaceSpec,
     surfaces::SurfaceType,
 };

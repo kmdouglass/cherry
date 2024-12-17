@@ -1,15 +1,25 @@
 use std::collections::{HashMap, HashSet};
 
 use anyhow::{anyhow, Result};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use cherry_rs::{
     components_view, n, ray_trace_3d_view, ApertureSpec, Component, CutawayView, FieldSpec,
-    GapSpec, ParaxialView, ParaxialViewDescription, PupilSampling, RealSpec, RefractiveIndexSpec,
+    GapSpec, ParaxialView, ParaxialViewDescription, PupilSampling,
     SequentialModel, SubModelID, SurfaceSpec, TraceResults,
 };
 
 const BACKGROUND_REFRACTIVE_INDEX: f64 = 1.0;
+
+/// Handles the gap specs from the JS side.
+/// 
+/// These will be converted to `GapSpec` instances, which contain trait objects that cannot be
+/// serialized/deserialized.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct GapSpecConstantN {
+    pub thickness: f64,
+    pub refractive_index: f64,
+}
 
 #[derive(Debug)]
 pub struct System {
@@ -37,6 +47,15 @@ pub struct SystemDescription {
     pub components_view: HashSet<Component>,
     pub cutaway_view: CutawayView,
     pub paraxial_view: ParaxialViewDescription,
+}
+
+impl From<GapSpecConstantN> for GapSpec {
+    fn from(gap: GapSpecConstantN) -> Self {
+        GapSpec {
+            thickness: gap.thickness,
+            refractive_index: n!(gap.refractive_index),
+        }
+    }
 }
 
 impl System {

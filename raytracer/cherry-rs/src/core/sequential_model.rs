@@ -149,11 +149,8 @@ pub struct SequentialSubModelSlice<'a> {
 /// The first element is the index of the wavelength in the system's list of
 /// wavelengths. The second element is the transverse axis along which the model
 /// is computed.
-///
-/// The wavelength index is None if no wavelengths are provided. This is the
-/// case when refractive indices are constant and provided directly by the user.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct SubModelID(pub Option<usize>, pub Axis);
+pub struct SubModelID(pub usize, pub Axis);
 
 /// An iterator over the surfaces and gaps in a submodel.
 ///
@@ -288,9 +285,10 @@ impl Conic {
 }
 
 impl Gap {
-    pub(crate) fn try_from_spec(spec: &GapSpec, wavelength: Option<Float>) -> Result<Self> {
+    pub(crate) fn try_from_spec(spec: &GapSpec, wavelength: Float) -> Result<Self> {
         let thickness = spec.thickness;
-        let refractive_index = RefractiveIndex::try_from_spec(&spec.refractive_index, wavelength)?;
+        let refractive_index =
+            RefractiveIndex::try_from_spec(spec.refractive_index.as_ref(), wavelength)?;
         Ok(Self {
             thickness,
             refractive_index,
@@ -320,7 +318,7 @@ impl SequentialModel {
         let model_ids: Vec<SubModelID> = Self::calc_model_ids(&surfaces, wavelengths);
         let mut models: HashMap<SubModelID, SequentialSubModelBase> = HashMap::new();
         for model_id in model_ids.iter() {
-            let wavelength = model_id.0.map(|idx| wavelengths[idx]);
+            let wavelength = wavelengths[model_id.0];
             let gaps = Self::gap_specs_to_gaps(gap_specs, wavelength)?;
             let model = SequentialSubModelBase::new(gaps);
             models.insert(*model_id, model);
@@ -361,14 +359,6 @@ impl SequentialModel {
     /// Computes the unique IDs for each paraxial model.
     fn calc_model_ids(surfaces: &[Surface], wavelengths: &[Float]) -> Vec<SubModelID> {
         let mut ids = Vec::new();
-        if wavelengths.is_empty() && Self::is_rotationally_symmetric(surfaces) {
-            ids.push(SubModelID(None, Axis::Y));
-            return ids;
-        } else if wavelengths.is_empty() {
-            ids.push(SubModelID(None, Axis::X));
-            ids.push(SubModelID(None, Axis::Y));
-            return ids;
-        }
 
         let axes: Vec<Axis> = if Self::is_rotationally_symmetric(surfaces) {
             vec![Axis::Y]
@@ -378,14 +368,14 @@ impl SequentialModel {
 
         for (idx, _wavelength) in wavelengths.iter().enumerate() {
             for axis in axes.iter() {
-                let id = SubModelID(Some(idx), *axis);
+                let id = SubModelID(idx, *axis);
                 ids.push(id);
             }
         }
         ids
     }
 
-    fn gap_specs_to_gaps(gap_specs: &[GapSpec], wavelength: Option<Float>) -> Result<Vec<Gap>> {
+    fn gap_specs_to_gaps(gap_specs: &[GapSpec], wavelength: Float) -> Result<Vec<Gap>> {
         let mut gaps = Vec::new();
         for gap_spec in gap_specs.iter() {
             let gap = Gap::try_from_spec(gap_spec, wavelength)?;
@@ -435,28 +425,24 @@ impl SequentialModel {
         surfaces
     }
 
-    fn validate_gaps(gaps: &[GapSpec], wavelengths: &[Float]) -> Result<()> {
+    fn validate_gaps(gaps: &[GapSpec]) -> Result<()> {
         if gaps.is_empty() {
             return Err(anyhow!("The system must have at least one gap."));
-        }
-
-        // If no wavelengths are specified, then the gaps must explicitly specify the
-        // refractive index.
-        if wavelengths.is_empty() {
-            for gap in gaps.iter() {
-                if gap.refractive_index.depends_on_wavelength() {
-                    return Err(anyhow!(
-                        "The refractive index of the gap must be a constant when no wavelengths are provided."
-                    ));
-                }
-            }
         }
         Ok(())
     }
 
     fn validate_specs(gaps: &[GapSpec], wavelengths: &[Float]) -> Result<()> {
         // TODO: Validate surface specs as well!
-        Self::validate_gaps(gaps, wavelengths)?;
+        Self::validate_gaps(gaps)?;
+        Self::validate_wavelegths(wavelengths)?;
+        Ok(())
+    }
+
+    fn validate_wavelegths(wavelengths: &[Float]) -> Result<()> {
+        if wavelengths.is_empty() {
+            return Err(anyhow!("The system must have at least one wavelength."));
+        }
         Ok(())
     }
 }
@@ -762,38 +748,7 @@ impl Display for Surface {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        core::math::mat3::Mat3,
-        examples::convexplano_lens::sequential_model,
-        specs::gaps::{RealSpec, RefractiveIndexSpec},
-    };
-
-    #[test]
-    fn gaps_must_specify_ri_when_no_wavelengths_provided() {
-        let gaps = vec![
-            GapSpec {
-                thickness: 1.0,
-                refractive_index: RefractiveIndexSpec {
-                    real: RealSpec::Constant(1.0),
-                    imag: None,
-                },
-            },
-            GapSpec {
-                thickness: 1.0,
-                refractive_index: RefractiveIndexSpec {
-                    real: RealSpec::Formula2 {
-                        wavelength_range: [0.3, 0.8],
-                        c: vec![1.0, 2.0, 3.0],
-                    },
-                    imag: None,
-                },
-            },
-        ];
-        let wavelengths = Vec::new();
-
-        let result = SequentialModel::validate_gaps(&gaps, &wavelengths);
-        assert!(result.is_err());
-    }
+    use crate::{core::math::mat3::Mat3, examples::convexplano_lens::sequential_model};
 
     #[test]
     fn is_rotationally_symmetric() {
@@ -849,17 +804,6 @@ mod tests {
 
         assert_eq!(model_ids.len(), 2); // Two wavelengths, rotationally
                                         // symmetric
-    }
-
-    #[test]
-    fn test_calc_model_ids_no_wavelength() {
-        let sequential_model = sequential_model();
-        let surfaces = sequential_model.surfaces();
-        let wavelengths = Vec::new();
-
-        let model_ids = SequentialModel::calc_model_ids(surfaces, &wavelengths);
-
-        assert_eq!(model_ids.len(), 1); // Circularly symmetric, no wavelengths
     }
 
     #[test]

@@ -1,7 +1,4 @@
-use crate::{
-    n, FieldSpec, GapSpec, PupilSampling, RefractiveIndexSpec, SequentialModel, SurfaceSpec,
-    SurfaceType,
-};
+use crate::{n, FieldSpec, GapSpec, PupilSampling, SequentialModel, SurfaceSpec, SurfaceType};
 
 pub fn sequential_model() -> SequentialModel {
     let air = n!(1.0);

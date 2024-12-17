@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use std::rc::Rc;
 
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
@@ -39,7 +40,7 @@ pub enum Component {
 /// * `background` - The refractive index of the background medium.
 pub fn components_view(
     sequential_model: &SequentialModel,
-    background: RefractiveIndexSpec,
+    background: Rc<dyn RefractiveIndexSpec>,
 ) -> Result<HashSet<Component>> {
     let mut components = HashSet::new();
 
@@ -57,7 +58,8 @@ pub fn components_view(
         .ok_or(anyhow!("No submodels found in the sequential model."))?;
     let gaps = sequential_sub_model.gaps();
 
-    let background_refractive_index = RefractiveIndex::try_from_spec(&background, None)?;
+    // TODO: Yep, hardcoding 0.5876 is a hack. Again, this is temporary.
+    let background_refractive_index = RefractiveIndex::try_from_spec(background.as_ref(), 0.5876)?;
 
     if max_idx < 2 {
         // There are no components because only the object and image plane exist.
@@ -113,28 +115,19 @@ fn same_medium(eta_1: RefractiveIndex, eta_2: RefractiveIndex) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use crate::{core::Float, n, GapSpec, RefractiveIndexSpec, SequentialModel, SurfaceSpec};
+    use std::rc::Rc;
+
+    use crate::{core::Float, n, GapSpec, SequentialModel, SurfaceSpec};
 
     use super::*;
 
-    const AIR: RefractiveIndexSpec = RefractiveIndexSpec {
-        real: crate::RealSpec::Constant(1.0),
-        imag: None,
-    };
-
-    const NBK7: RefractiveIndexSpec = RefractiveIndexSpec {
-        real: crate::RealSpec::Constant(1.515),
-        imag: None,
-    };
-
     pub fn empty_system() -> SequentialModel {
+        let air: Rc<dyn RefractiveIndexSpec> = n!(1.0);
+
         let surf_0 = SurfaceSpec::Object;
         let gap_0 = GapSpec {
             thickness: 1.0,
-            refractive_index: RefractiveIndexSpec {
-                real: crate::RealSpec::Constant(1.0),
-                imag: None,
-            },
+            refractive_index: air,
         };
         let surf_1 = SurfaceSpec::Image;
 
@@ -147,11 +140,13 @@ mod tests {
 
     pub fn silly_unpaired_surface() -> SequentialModel {
         // A silly system for edge case testing only.
+        let air = n!(1.0);
+        let nbk7 = n!(1.515);
 
         let surf_0 = SurfaceSpec::Object;
         let gap_0 = GapSpec {
             thickness: Float::INFINITY,
-            refractive_index: AIR,
+            refractive_index: air.clone(),
         };
         let surf_1 = SurfaceSpec::Conic {
             semi_diameter: 12.5,
@@ -161,7 +156,7 @@ mod tests {
         };
         let gap_1 = GapSpec {
             thickness: 5.3,
-            refractive_index: NBK7,
+            refractive_index: nbk7.clone(),
         };
         let surf_2 = SurfaceSpec::Conic {
             semi_diameter: 12.5,
@@ -171,7 +166,7 @@ mod tests {
         };
         let gap_2 = GapSpec {
             thickness: 46.6,
-            refractive_index: AIR,
+            refractive_index: air,
         };
         let surf_3 = SurfaceSpec::Conic {
             semi_diameter: 12.5,
@@ -181,7 +176,7 @@ mod tests {
         }; // Surface is unpaired
         let gap_3 = GapSpec {
             thickness: 20.0,
-            refractive_index: NBK7,
+            refractive_index: nbk7,
         };
         let surf_4 = SurfaceSpec::Image;
 
@@ -194,11 +189,13 @@ mod tests {
 
     pub fn silly_single_surface_and_stop() -> SequentialModel {
         // A silly system for edge case testing only.
+        let air = n!(1.0);
+        let nbk7 = n!(1.515);
 
         let surf_0 = SurfaceSpec::Object;
         let gap_0 = GapSpec {
             thickness: Float::INFINITY,
-            refractive_index: AIR,
+            refractive_index: air.clone(),
         };
         let surf_1 = SurfaceSpec::Conic {
             semi_diameter: 12.5,
@@ -208,14 +205,14 @@ mod tests {
         };
         let gap_1 = GapSpec {
             thickness: 10.0,
-            refractive_index: NBK7,
+            refractive_index: nbk7,
         };
         let surf_2 = SurfaceSpec::Stop {
             semi_diameter: 12.5,
         };
         let gap_2 = GapSpec {
             thickness: 10.0,
-            refractive_index: AIR,
+            refractive_index: air,
         };
         let surf_3 = SurfaceSpec::Image;
 
@@ -230,16 +227,18 @@ mod tests {
         // Wollaston landscape lens: https://www.youtube.com/watch?v=YN6gTqYVYcw
         // f/5, EFL = 50 mm
         // Aperture stop is a hard stop in front of the lens
+        let air = n!(1.0);
+        let nbk7 = n!(1.515);
 
         let surf_0 = SurfaceSpec::Object;
         let gap_0 = GapSpec {
             thickness: Float::INFINITY,
-            refractive_index: n!(1.0),
+            refractive_index: air.clone(),
         };
         let surf_1 = SurfaceSpec::Stop { semi_diameter: 5.0 };
         let gap_1 = GapSpec {
             thickness: 5.0,
-            refractive_index: n!(1.0),
+            refractive_index: air.clone(),
         };
         let surf_2 = SurfaceSpec::Conic {
             semi_diameter: 6.882,
@@ -249,7 +248,7 @@ mod tests {
         };
         let gap_2 = GapSpec {
             thickness: 5.0,
-            refractive_index: n!(1.515),
+            refractive_index: nbk7,
         };
         let surf_3 = SurfaceSpec::Conic {
             semi_diameter: 7.367,
@@ -259,7 +258,7 @@ mod tests {
         };
         let gap_3 = GapSpec {
             thickness: 47.974,
-            refractive_index: n!(1.0),
+            refractive_index: air,
         };
         let surf_4 = SurfaceSpec::Image;
 
@@ -347,7 +346,7 @@ mod tests {
     fn test_new_no_components() {
         let sequential_model = empty_system();
 
-        let components = components_view(&sequential_model, AIR).unwrap();
+        let components = components_view(&sequential_model, n!(1.0)).unwrap();
 
         assert_eq!(components.len(), 0);
     }
@@ -356,7 +355,7 @@ mod tests {
     fn test_planoconvex_lens() {
         let sequential_model = crate::examples::convexplano_lens::sequential_model();
 
-        let components = components_view(&sequential_model, AIR).unwrap();
+        let components = components_view(&sequential_model, n!(1.0)).unwrap();
 
         assert_eq!(components.len(), 1);
         assert!(components.contains(&Component::Element { surf_idxs: (1, 2) }));
@@ -367,7 +366,7 @@ mod tests {
         // This is not a useful system but a good test.
         let sequential_model = silly_single_surface_and_stop();
 
-        let components = components_view(&sequential_model, AIR).unwrap();
+        let components = components_view(&sequential_model, n!(1.0)).unwrap();
 
         assert_eq!(components.len(), 1);
         assert!(components.contains(&Component::Stop { stop_idx: 2 })); // Hard stop
@@ -378,7 +377,7 @@ mod tests {
         // This is not a useful system but a good test.
         let sequential_model = silly_unpaired_surface();
 
-        let components = components_view(&sequential_model, AIR).unwrap();
+        let components = components_view(&sequential_model, n!(1.0)).unwrap();
 
         assert_eq!(components.len(), 2);
         assert!(components.contains(&Component::Element { surf_idxs: (1, 2) }));
@@ -389,7 +388,7 @@ mod tests {
     fn test_wollaston_landscape_lens() {
         let sequential_model = wollaston_landscape_lens();
 
-        let components = components_view(&sequential_model, AIR).unwrap();
+        let components = components_view(&sequential_model, n!(1.0)).unwrap();
 
         assert_eq!(components.len(), 2);
         assert!(components.contains(&Component::Stop { stop_idx: 1 })); // Hard stop

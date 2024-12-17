@@ -19,7 +19,7 @@ ndarray = { version = "0.15", features = [ "serde" ] }
 serde = { version = "1", features = [ "derive" ] }
 
 dirs = { version = "5", optional = true}
-ria = { path = "../../../refractiveindex.info-adapters", version = "0.2", optional = true }
+ria = { path = "../../../refractiveindex.info-adapters", version = "0.2", features = [ "cli" ], optional = true }
 
 [dev-dependencies]
 approx = { version = "0.5" }

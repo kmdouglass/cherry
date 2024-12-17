@@ -884,7 +884,7 @@ mod test {
         let sequential_model = convexplano_lens::sequential_model();
         let seq_sub_model = sequential_model
             .submodels()
-            .get(&SubModelID(Some(0usize), Axis::Y))
+            .get(&SubModelID(0usize, Axis::Y))
             .expect("Submodel not found.");
         let field_specs = vec![
             FieldSpec::Angle {
@@ -958,7 +958,7 @@ mod test {
         let sequential_model = convexplano_lens::sequential_model();
         let seq_sub_model = sequential_model
             .submodels()
-            .get(&SubModelID(Some(0usize), Axis::Y))
+            .get(&SubModelID(0usize, Axis::Y))
             .expect("Submodel not found.");
         let pseudo_marginal_ray = ParaxialSubView::calc_pseudo_marginal_ray(
             seq_sub_model,
@@ -982,7 +982,7 @@ mod test {
         let sequential_model = convexplano_lens::sequential_model();
         let seq_sub_model = sequential_model
             .submodels()
-            .get(&SubModelID(Some(0usize), Axis::Y))
+            .get(&SubModelID(0usize, Axis::Y))
             .expect("Submodel not found.");
         let reverse_parallel_ray = ParaxialSubView::calc_reverse_parallel_ray(
             seq_sub_model,

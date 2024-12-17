@@ -1,3 +1,6 @@
+use std::rc::Rc;
+
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
 use crate::core::Float;
@@ -6,99 +9,70 @@ use crate::core::Float;
 #[macro_export]
 macro_rules! n {
     ($n:expr) => {
-        RefractiveIndexSpec {
-            real: $crate::RealSpec::Constant($n),
-            imag: None,
-        }
+        std::rc::Rc::new($crate::ConstantRefractiveIndex::new($n, 0.0))
     };
     () => {};
 }
 
 /// Specifies a gap in a sequential optical system model.
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Debug)]
 pub struct GapSpec {
     pub thickness: Float,
-    pub refractive_index: RefractiveIndexSpec,
+    pub refractive_index: Rc<dyn RefractiveIndexSpec>,
 }
 
-/// Specifies the refractive index of the material constituting a gap.
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct RefractiveIndexSpec {
-    pub real: RealSpec,
-    pub imag: Option<ImagSpec>,
-}
-
-/// Specifies the real part of a refractive index.
-/// The variants of this spec correspond to the formulas from
-/// refractiveindex.info.
+/// Specifies the refractive index of a material.
 ///
-/// # See also
-/// - [RefractiveIndex.info](https://github.com/polyanskiy/refractiveindex.info-database)
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub enum RealSpec {
-    Constant(Float),
-    TabulatedN {
-        data: Vec<[Float; 2]>,
-    },
-    // Sellmeier formula.
-    Formula1 {
-        wavelength_range: [Float; 2],
+/// This is a trait rather than a definite type to allow for different materials
+/// databases to be used.
+pub trait RefractiveIndexSpec: std::fmt::Debug {
+    ///
+    /// # Arguments
+    /// * `wavelength` - The wavelength of the light in micrometers.
+    ///
+    /// # Returns
+    /// The real part of the refractive index.
+    ///
+    /// # Errors
+    /// If the wavelength is not within the valid range for the material.
+    fn n(&self, wavelength: Float) -> Result<Float>;
 
-        // Coefficients for the Sellmeier equation.
-        c: Vec<Float>,
-    },
-    // Alternative Sellmeier formula.
-    Formula2 {
-        wavelength_range: [Float; 2],
-        c: Vec<Float>,
-    },
-    // Polynomial formula.
-    Formula3 {
-        wavelength_range: [Float; 2],
-        c: Vec<Float>,
-    },
-    Formula4 {
-        wavelength_range: [Float; 2],
-        c: Vec<Float>,
-    },
-    Formula5 {
-        wavelength_range: [Float; 2],
-        c: Vec<Float>,
-    },
-    Formula6 {
-        wavelength_range: [Float; 2],
-        c: Vec<Float>,
-    },
-    Formula7 {
-        wavelength_range: [Float; 2],
-        c: Vec<Float>,
-    },
-    Formula8 {
-        wavelength_range: [Float; 2],
-        c: Vec<Float>,
-    },
-    Formula9 {
-        wavelength_range: [Float; 2],
-        c: Vec<Float>,
-    },
+    /// The imaginary part of a material's refractive index.
+    ///
+    /// # Arguments
+    /// * `wavelength` - The wavelength of the light in micrometers.
+    ///
+    /// # Returns
+    /// The imaginary part of the refractive index.
+    ///
+    /// # Errors
+    /// If the wavelength is not within the valid range for the material.
+    fn k(&self, wavelength: Float) -> Result<Float>;
 }
 
-/// Specifies the imaginary part of a refractive index.
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub enum ImagSpec {
-    Constant(Float),
-    TabulatedK { data: Vec<[Float; 2]> },
+pub struct ConstantRefractiveIndex {
+    n: Float,
+    k: Float,
 }
 
-impl RefractiveIndexSpec {
-    pub fn depends_on_wavelength(&self) -> bool {
-        !self.is_constant()
+impl ConstantRefractiveIndex {
+    /// Creates a new constant refractive index.
+    ///
+    /// # Arguments
+    /// * `n` - The real part of the refractive index.
+    /// * `k` - The imaginary part of the refractive index.
+    pub fn new(n: Float, k: Float) -> Self {
+        Self { n, k }
+    }
+}
+
+impl RefractiveIndexSpec for ConstantRefractiveIndex {
+    fn n(&self, _wavelength: Float) -> Result<Float> {
+        Ok(self.n)
     }
 
-    pub fn is_constant(&self) -> bool {
-        let is_real_part_const = matches!(&self.real, RealSpec::Constant(_));
-        let is_imag_part_const = matches!(&self.imag, Some(ImagSpec::Constant(_)) | None);
-
-        is_real_part_const && is_imag_part_const
+    fn k(&self, _wavelength: Float) -> Result<Float> {
+        Ok(self.k)
     }
 }
