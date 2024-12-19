@@ -11,8 +11,13 @@ impl RefractiveIndexSpec for Material {
         Ok(n)
     }
 
-    fn k(&self, wavelength: Float) -> Result<Float> {
-        let k = self.k(wavelength)?;
-        Ok(k)
+    fn k(&self, _wavelength: Float) -> Result<Float> {
+        //let k = self.k(wavelength)?;
+        //match k {
+        //    Some(k) => Ok(k),
+        //    None => Ok(0.0),
+        //}
+        return Ok(0.0);
+        todo!("Handle tabulated data.")
     }
 }

@@ -296,7 +296,10 @@ mod test_ri_info {
     use std::rc::Rc;
 
     use anyhow::Result;
+    use approx::assert_abs_diff_eq;
     use lib_ria::Store;
+
+    use cherry_rs::ParaxialView;
 
     pub fn load_store() -> Result<Store> {
         let filename = std::path::PathBuf::from("data/rii.db");
@@ -308,12 +311,26 @@ mod test_ri_info {
         Ok(store)
     }
 
+    const BACK_FOCAL_DISTANCE: f64 = 46.5987;
+
     #[test]
-    fn test_lens() {
+    fn test_paraxial_view_back_focal_distance() {
         let mut store = load_store().unwrap();
 
         // Remove the item so that we can pass ownership to a Rc.
         let air = Rc::new(store.remove("other:air:Ciddor").unwrap());
         let nbk7 = Rc::new(store.remove("glass:BK7:SCHOTT").unwrap());
+
+        let model = super::sequential_model(air, nbk7);
+        let sub_models = model.submodels();
+        let view = ParaxialView::new(&model, &super::FIELD_SPECS, false)
+            .expect("Could not create paraxial view");
+
+        for (sub_model_id, _) in sub_models {
+            let sub_view = view.subviews().get(sub_model_id).unwrap();
+            let result = sub_view.back_focal_distance();
+
+            assert_abs_diff_eq!(BACK_FOCAL_DISTANCE, *result, epsilon = 1e-4)
+        }
     }
 }
