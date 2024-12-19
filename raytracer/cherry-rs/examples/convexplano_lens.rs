@@ -1,9 +1,6 @@
 use std::rc::Rc;
 
-use cherry_rs::{
-    GapSpec, RefractiveIndexSpec, SequentialModel, SurfaceSpec,
-    SurfaceType,
-};
+use cherry_rs::{GapSpec, RefractiveIndexSpec, SequentialModel, SurfaceSpec, SurfaceType};
 
 pub fn sequential_model(
     n_air: Rc<dyn RefractiveIndexSpec>,
@@ -339,8 +336,8 @@ mod test_ri_info {
 
         let model = super::sequential_model(air, nbk7, &WAVELENGTHS);
         let sub_models = model.submodels();
-        let view = ParaxialView::new(&model, &FIELD_SPECS, false)
-            .expect("Could not create paraxial view");
+        let view =
+            ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
 
         for (sub_model_id, _) in sub_models {
             let sub_view = view.subviews().get(sub_model_id).unwrap();

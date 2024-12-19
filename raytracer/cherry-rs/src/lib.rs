@@ -18,8 +18,9 @@
 //!   This may differ from any pupils that can be derived directly from the
 //!   surfaces and gaps.
 //! - [FieldSpec](enum@FieldSpec) - Describes the field points of the system.
-//! - [RefractiveIndexSpec](struct@RefractiveIndexSpec) - Describes the
-//!   refractive index of a gap.
+//! - [RefractiveIndexSpec](trait@RefractiveIndexSpec) - Describes the
+//!   refractive index of a gap. This is a trait so that different material
+//!   databases may be implemented.
 //! - Wavelength - Describes a single wavelength to model.
 //!
 //! The outputs of the system are provided by views, such as:
