@@ -121,11 +121,9 @@
 //! ```
 
 mod core;
+mod materials;
 mod specs;
 mod views;
-
-#[cfg(feature = "materials")]
-pub mod materials;
 
 // API
 pub mod examples;

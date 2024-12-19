@@ -11,15 +11,14 @@ license-file = "../../LICENSE.txt"
 crate-type = ["lib"]
 
 [features]
-materials = [ "dep:dirs", "dep:ria" ]
+ri-info = [ "dep:ria" ]
 
 [dependencies]
 anyhow = "1.0"
 ndarray = { version = "0.15", features = [ "serde" ] }
 serde = { version = "1", features = [ "derive" ] }
 
-dirs = { version = "5", optional = true}
-ria = { path = "../../../refractiveindex.info-adapters", version = "0.2", features = [ "cli" ], optional = true }
+ria = { path = "../../../refractiveindex.info-adapters", version = "0.2", optional = true }
 
 [dev-dependencies]
 approx = { version = "0.5" }
