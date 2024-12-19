@@ -24,3 +24,7 @@ ria = { path = "../../../refractiveindex.info-adapters", version = "0.2", option
 approx = { version = "0.5" }
 bitcode = { version = "0.6", features = ["serde"] }
 ndarray = { version = "0.15", features = [ "approx-0_5", "serde" ] }
+
+[[example]]
+name = "convexplano_lens"
+crate-type = ["staticlib"]

@@ -7,9 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- A `ri-info` feature for loading materials data from the RefractiveIndex.info database.
+
 ### Changed
 
 - `RefractiveIndexSpec` is now a trait which supports getting refractive index data from any generic materials database.
+- The examples, including the associated tests, were moved into a Cargo-specific `examples` folder.
 
 ### Fixed
 
