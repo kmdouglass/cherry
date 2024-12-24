@@ -10,7 +10,7 @@ export function getOpticalSystem(wasmModule) {
 
 /* Converts data from the UI state into inputs to the raytrace engine. */
 export function convertUIStateToEngineFormat(surfaces, fields, aperture) {
-    const AIR = {"real": {"Constant": 1.0}, "imag": null};
+    const AIR = 1.0;
 
     // QUESTION: Can float conversion be done any better?
     function createSurfaceSpec(surface) {
@@ -47,7 +47,7 @@ export function convertUIStateToEngineFormat(surfaces, fields, aperture) {
     function createGapSpec(surface) {
         return {
             "thickness": parseFloat(surface.thickness) === 'Infinity' ? Infinity : (parseFloat(surface.thickness) || 0),
-            "refractive_index": parseFloat(surface.n) ? {"real": {"Constant": parseFloat(surface.n)}, "imag": null} : AIR
+            "refractive_index": parseFloat(surface.n)
         };
     }
 

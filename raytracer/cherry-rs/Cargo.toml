@@ -1,6 +1,6 @@
 [package]
 name = "cherry-rs"
-version = "0.2.0"
+version = "0.3.0"
 authors = ["Kyle M. Douglass <kyle.m.douglass@gmail.com>"]
 repository = "https://github.com/kmdouglass/cherry"
 edition = "2021"
@@ -10,11 +10,21 @@ license-file = "../../LICENSE.txt"
 [lib]
 crate-type = ["lib"]
 
+[features]
+ri-info = [ "dep:ria" ]
+
 [dependencies]
 anyhow = "1.0"
 ndarray = { version = "0.15", features = [ "serde" ] }
 serde = { version = "1", features = [ "derive" ] }
 
+ria = { version = "0.2", optional = true }
+
 [dev-dependencies]
 approx = { version = "0.5" }
+bitcode = { version = "0.6", features = ["serde"] }
 ndarray = { version = "0.15", features = [ "approx-0_5", "serde" ] }
+
+[[example]]
+name = "convexplano_lens"
+crate-type = ["staticlib"]

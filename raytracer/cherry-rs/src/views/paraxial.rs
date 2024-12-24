@@ -266,6 +266,75 @@ impl ParaxialView {
     pub fn subviews(&self) -> &HashMap<SubModelID, ParaxialSubView> {
         &self.subviews
     }
+
+    /// Computes the axial primary color aberration of the optical system.
+    ///
+    /// Here, axial primary color is the difference in focal length
+    /// between the maximum and minimum wavelengths. If the traditional
+    /// defintion of axial primary color is desired, then the user must
+    /// enter the wavelengths for the Fraunhofer F and C lines as minimum and
+    /// maximum wavelengths to the underlying sequential model.
+    ///
+    /// # Arguments
+    /// * `wavelengths` - The wavelengths to compute the axial primary color.
+    ///   These must match the wavelengths used in the underlying sequential
+    ///   model.
+    ///
+    /// # Returns
+    /// A HashMap containing the axial primary color for each axis.
+    ///
+    /// # Errors
+    /// An error is returned if the number of wavelengths does not match the
+    /// number of unique wavelengths in the paraxial view.
+    pub fn axial_primary_color(&self, wavelengths: &[Float]) -> Result<HashMap<Axis, Float>> {
+        let unique_wavelengths = self.subviews.keys().map(|id| id.0).collect::<Vec<usize>>();
+        if unique_wavelengths.len() != wavelengths.len() {
+            return Err(anyhow!(
+                "The number of wavelengths must match the number of unique wavelengths in the system."
+            ));
+        }
+
+        // Find the indexes of the minimum and maximum wavelengths. Return with the
+        // empty axial primary color if there are no wavelengths.
+        let min_wav_index = wavelengths
+            .iter()
+            .enumerate()
+            .min_by(|(_, a), (_, b)| a.total_cmp(b))
+            .map(|(index, _)| index)
+            .unwrap_or_default();
+        let max_wav_index = wavelengths
+            .iter()
+            .enumerate()
+            .max_by(|(_, a), (_, b)| a.total_cmp(b))
+            .map(|(index, _)| index)
+            .unwrap_or_default();
+
+        let mut axial_primary_color: HashMap<Axis, Float> = HashMap::new();
+        let mut efls_min_wav: HashMap<SubModelID, Float> = HashMap::new();
+        let mut efls_max_wav: HashMap<SubModelID, Float> = HashMap::new();
+
+        for (id, subview) in &self.subviews {
+            if id.0 == min_wav_index {
+                efls_min_wav.insert(*id, *subview.effective_focal_length());
+            } else if id.0 == max_wav_index {
+                efls_max_wav.insert(*id, *subview.effective_focal_length());
+            }
+        }
+
+        // Subtract EFLs that have the same Axis value for their submodel ID. They won't
+        // have the same wavelength, so we can't use the same key to access them from
+        // the EFLs HashMaps.
+        for (id_min, efl_min) in efls_min_wav.iter() {
+            for (id_max, efl_max) in efls_max_wav.iter() {
+                if id_min.1 == id_max.1 {
+                    let apc = (efl_max - efl_min).abs();
+                    axial_primary_color.insert(id_min.1, apc);
+                }
+            }
+        }
+
+        Ok(axial_primary_color)
+    }
 }
 
 impl ParaxialSubView {
@@ -884,7 +953,7 @@ mod test {
         let sequential_model = convexplano_lens::sequential_model();
         let seq_sub_model = sequential_model
             .submodels()
-            .get(&SubModelID(Some(0usize), Axis::Y))
+            .get(&SubModelID(0usize, Axis::Y))
             .expect("Submodel not found.");
         let field_specs = vec![
             FieldSpec::Angle {
@@ -958,7 +1027,7 @@ mod test {
         let sequential_model = convexplano_lens::sequential_model();
         let seq_sub_model = sequential_model
             .submodels()
-            .get(&SubModelID(Some(0usize), Axis::Y))
+            .get(&SubModelID(0usize, Axis::Y))
             .expect("Submodel not found.");
         let pseudo_marginal_ray = ParaxialSubView::calc_pseudo_marginal_ray(
             seq_sub_model,
@@ -982,7 +1051,7 @@ mod test {
         let sequential_model = convexplano_lens::sequential_model();
         let seq_sub_model = sequential_model
             .submodels()
-            .get(&SubModelID(Some(0usize), Axis::Y))
+            .get(&SubModelID(0usize, Axis::Y))
             .expect("Submodel not found.");
         let reverse_parallel_ray = ParaxialSubView::calc_reverse_parallel_ray(
             seq_sub_model,

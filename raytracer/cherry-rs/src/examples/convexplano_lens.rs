@@ -1,20 +1,13 @@
 use ndarray::{arr3, Array3};
 
 use crate::{
-    FieldSpec, GapSpec, ImagePlane, Pupil, PupilSampling, RealSpec, RefractiveIndexSpec,
-    SequentialModel, SurfaceSpec, SurfaceType,
+    n, FieldSpec, GapSpec, ImagePlane, Pupil, PupilSampling, SequentialModel, SurfaceSpec,
+    SurfaceType,
 };
 
 pub fn sequential_model() -> SequentialModel {
-    let air = RefractiveIndexSpec {
-        real: RealSpec::Constant(1.0),
-        imag: None,
-    };
-    // Glass: N-BK7
-    let nbk7 = RefractiveIndexSpec {
-        real: RealSpec::Constant(1.515),
-        imag: None,
-    };
+    let air = n!(1.0);
+    let nbk7 = n!(1.515);
 
     let gap_0 = GapSpec {
         thickness: f64::INFINITY,
