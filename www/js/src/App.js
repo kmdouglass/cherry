@@ -1,4 +1,5 @@
 import { convertUIStateToEngineFormat, getOpticalSystem } from "./modules/opticalSystem";
+import { useMaterialsService } from "./services/materialsDataService";
 
 import { useMemo, useState } from "react";
 
@@ -8,6 +9,9 @@ import Navbar from "./components/Navbar";
 import DataEntry from "./components/DataEntry";
 
 function App({ wasmModule }) {
+    // Load the material data
+    const { materialsService, isLoading, error } = useMaterialsService();
+
     // Application state and initial values.
     const [surfaces, setSurfaces] = useState([
         { type: 'Object', n: 1, thickness: 'Infinity', semiDiam: 12.5, roc: '' },
@@ -71,6 +75,14 @@ function App({ wasmModule }) {
         }
     }, [wasmModule, surfaces, fields, aperture, wavelengths]);
 
+    // Render the application
+    if (isLoading) {
+        return <div>Loading materials...</div>;
+    }
+
+    if (error) {
+        return <div>Error loading materials: {error.message}</div>;
+    }
 
     return (
         <div className="App">
