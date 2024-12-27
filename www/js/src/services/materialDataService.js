@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 
 const INITIAL_DATA_URL = "/data/initial-data.json";
-const SERVICE_WORKER_URL = "/workers/materialServiceWorker.js";
+const SERVICE_WORKER_URL = new URL("/materialServiceWorker.js", import.meta.url);
 
 export class MaterialDataService {
   constructor() {
@@ -11,11 +11,8 @@ export class MaterialDataService {
   }
 
   checkIndexedDBAvailable() {
-    try {
-      return 'indexedDB' in window && window.indexedDB !== null;
-    } catch (e) {
-      return false;
-    }
+    // TODO Implement this
+    return false;
   }
 
   async initStorage() {
