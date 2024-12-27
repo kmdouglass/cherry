@@ -1,3 +1,4 @@
+const CompressionPlugin = require("compression-webpack-plugin");
 const CopyWebpackPlugin = require("copy-webpack-plugin");
 const { InjectManifest } = require('workbox-webpack-plugin');
 const path = require("path");
@@ -33,6 +34,7 @@ module.exports = {
     ]
   },
   plugins: [
+    new CompressionPlugin(),
     new CopyWebpackPlugin({
       patterns: [
         { from: "src/index.html", to: "index.html" },
