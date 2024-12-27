@@ -18,7 +18,8 @@
     "style-loader": "^4.0.0",
     "webpack": "*",
     "webpack-cli": "*",
-    "webpack-dev-server": "*"
+    "webpack-dev-server": "*",
+    "workbox-webpack-plugin": "^7.3.0"
   },
   "dependencies": {
     "react": "^18.3.1",

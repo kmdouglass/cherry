@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 
-const INITIAL_DATA_URL = "/data/initial-data.json";
-const SERVICE_WORKER_URL = new URL("/materialServiceWorker.js", import.meta.url);
+const INITIAL_DATA_URL = "/data/initial-materials-data.json";
+const FULL_DATA_URL = "/data/full-materials-data.json";
+const SERVICE_WORKER_URL = new URL('service-worker.js', __webpack_public_path__);
 
 export class MaterialDataService {
   constructor() {
@@ -31,17 +32,22 @@ export class MaterialDataService {
       }
     }
 
-    // Try to register service worker, but don't depend on it
     if ('serviceWorker' in navigator) {
       try {
-        const registration = await navigator.serviceWorker.register(SERVICE_WORKER_URL);
+        const registration = await navigator.serviceWorker.register(SERVICE_WORKER_URL, {
+          scope: '/'
+        });
+        
+        // Listen for updates from service worker
         navigator.serviceWorker.addEventListener('message', (event) => {
           if (event.data.type === 'MATERIALS_UPDATE_COMPLETE') {
             this.notifyUpdateListeners();
           }
         });
-      } catch (e) {
-        console.warn('Service Worker registration failed, will fetch data directly');
+        
+        console.log('Service Worker registered:', registration);
+      } catch (error) {
+        console.error('Service Worker registration failed:', error);
       }
     }
   }
@@ -93,15 +99,15 @@ export class MaterialDataService {
 
   async loadFullDataset() {
     try {
-      const response = await fetch('/materials-data.json.gz');
-      if (!response.ok) throw new Error('Network response was not ok');
+      const response = await fetch(FULL_DATA_URL);
+      if (!response.ok) throw new Error("Failed to fetch full material data");
 
-      const compressedData = await response.arrayBuffer();
-      const decompressedData = await this.decompressData(compressedData);
-      const fullData = JSON.parse(decompressedData);
+      const fullData = await response.json();
 
       // Update memory cache
-      fullData.forEach(material => this.memoryCache.set(material.id, material));
+      for (const [key, value] of Object.entries(fullData.inner)) {
+        this.memoryCache.set(key, value);
+      }
 
       // Try to update IndexedDB if available
       if (this.hasIndexedDB) {
