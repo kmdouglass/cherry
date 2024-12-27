@@ -1,4 +1,3 @@
-// src/service-worker.js
 import { precacheAndRoute } from 'workbox-precaching';
 import { registerRoute } from 'workbox-routing';
 import { CacheFirst } from 'workbox-strategies';
@@ -32,7 +31,9 @@ self.addEventListener('activate', (event) => {
   );
 });
 
+// TODO Is this used?
 async function loadFullMaterialsData() {
+  console.log('Loading full materials data');
   try {
     const response = await fetch(MATERIALS_DATA);
     if (!response.ok) throw new Error("Failed to fetch full material data");
