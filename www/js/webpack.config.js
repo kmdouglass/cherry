@@ -1,5 +1,6 @@
+const CompressionPlugin = require("compression-webpack-plugin");
 const CopyWebpackPlugin = require("copy-webpack-plugin");
-const path = require('path');
+const path = require("path");
 
 module.exports = {
   entry: "./src/index.js",
@@ -32,14 +33,25 @@ module.exports = {
     ]
   },
   plugins: [
+    new CompressionPlugin(),
     new CopyWebpackPlugin({
       patterns: [
         { from: "src/index.html", to: "index.html" },
-        { from: "src/data/catalog-nk.json", to: "data/catalog-nk.json" }
+        { from: "src/data/initial-materials-data.json", to: "data/initial-materials-data.json" }
+        //{ from: "src/data/full-materials-data.json", to: "data/full-materials-data.json" }
       ],
     })
   ],
   "experiments": {
     "asyncWebAssembly": true
+  },
+  devServer: {
+    static: {
+      directory: path.join(__dirname, 'dist')
+    },
+    devMiddleware: {
+      publicPath: '/'
+    },
+    compress: true // Enable gzip compression for everything served
   }
 };
