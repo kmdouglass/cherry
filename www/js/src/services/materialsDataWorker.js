@@ -13,7 +13,8 @@ onmessage = function (event) {
             fetch(arg)
                 .then(response => {
                     if (!response.ok) {
-                        throw new Error(`HTTP error! status: ${response.status}`);
+                        self.postMessage([MSG_ERR, `HTTP error! status: ${response.status}`]);
+                        // TODO Handle error
                     }
                     return response.json()
                 })

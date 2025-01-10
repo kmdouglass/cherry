@@ -6,9 +6,6 @@ module.exports = {
   entry: "./src/index.js",
   output: {
     path: path.resolve(__dirname, "dist"),
-    publicPath: process.env.NODE_ENV === "production"
-      ? "/cherry/" // GitHub Pages project path
-      : "/",       // Development server path
     filename: "bundle.js",
   },
   module: {

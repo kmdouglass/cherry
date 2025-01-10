@@ -80,9 +80,10 @@ function App({ wasmModule }) {
         return <div>Loading materials...</div>;
     }
 
-    if (error) {
-        return <div>Error loading materials: {error.message}</div>;
-    }
+    // TODO Handle error
+    //if (error) {
+    //    return <div>Error loading materials: {error.message}</div>;
+    //}
 
     return (
         <div className="App">
