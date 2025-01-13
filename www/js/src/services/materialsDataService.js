@@ -21,7 +21,6 @@ export class MaterialsDataService {
     // Wait for the worker to finish
     return new Promise((resolve, reject) => {
       this.worker.onmessage = (event) => {
-        console.log('Received message from the worker:', event.data);
         if (event.data === MSG_INITIALIZED) {
           resolve();
         } else {

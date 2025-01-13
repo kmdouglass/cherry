@@ -3,7 +3,6 @@ const CopyWebpackPlugin = require("copy-webpack-plugin");
 const path = require("path");
 
 module.exports = (env, argv) => {
-  console.log("argv: ", argv);
   return {
     entry: "./src/index.js",
     output: {

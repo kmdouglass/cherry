@@ -3,14 +3,11 @@ import { DATABASE_NAME, MSG_ERR, MSG_FETCH_INITIAL_DATA, MSG_INITIALIZED, OBJECT
 let db;
 
 onmessage = function (event) {
-    console.debug("Received message from the main thread: ", event.data);
-  
     const message = event.data[0];
     const arg = event.data[1];
 
     switch (message) {
         case MSG_FETCH_INITIAL_DATA:
-            console.log("Public path: ", __webpack_public_path__);
             fetch(arg)
                 .then(response => {
                     if (!response.ok) {
