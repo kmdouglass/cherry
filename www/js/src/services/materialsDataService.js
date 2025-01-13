@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 
 import { MSG_FETCH_INITIAL_DATA, MSG_INITIALIZED } from './materialsDataConstants';
 
-const INITIAL_DATA_URL = "/data/initial-materials-data.json";
+const INITIAL_DATA_URL = `${__webpack_public_path__}data/initial-materials-data.json`;
 const FULL_DATA_URL = "/data/full-materials-data.json";
 
 export class MaterialsDataService {
