@@ -1,4 +1,4 @@
-import { DATABASE_NAME, MSG_ERR, MSG_FETCH_INITIAL_DATA, MSG_INITIALIZED, OBJECT_STORE_NAME } from './materialsDataConstants';
+import { DATABASE_NAME, MSG_ERR, MSG_CLOSE_DB_CONNECTION, MSG_DB_CLOSED, MSG_FETCH_FULL_DATA, MSG_FETCH_INITIAL_DATA, MSG_FULL_DATA_FETCHED, MSG_INITIALIZED, OBJECT_STORE_NAME } from './materialsDataConstants';
 
 let db;
 
@@ -7,12 +7,13 @@ onmessage = function (event) {
     const arg = event.data[1];
 
     switch (message) {
+
+        // Initialize the database, fetch the initial data, and store it in IndexedDB
         case MSG_FETCH_INITIAL_DATA:
             fetch(arg)
                 .then(response => {
                     if (!response.ok) {
-                        self.postMessage([MSG_ERR, `HTTP error! status: ${response.status}`]);
-                        // TODO Handle error
+                        throw new Error(`HTTP error! status: ${response.status}`);
                     }
                     return response.json()
                 })
@@ -32,15 +33,52 @@ onmessage = function (event) {
                             .objectStore(OBJECT_STORE_NAME);
 
                         for (const [key, value] of Object.entries(data.inner)) {
-                            store.add(value, key);
+                            store.put(value, key);
                         }
                     } 
                     req.onerror = e => {
-                        self.postMessage([MSG_ERR, e.target.error?.message]);
+                        throw new Error(`Insertion into materials object store failed: {e.target.error?.message}`);
                     };
 
                     postMessage(MSG_INITIALIZED);
+                })
+                .catch(e => {
+                    self.postMessage([MSG_ERR, e]);
                 });
+            break;
+       
+
+        // Fetch the full materials data and store it in IndexedDB
+        case MSG_FETCH_FULL_DATA:
+            fetch(arg)
+                .then(response => {
+                    if (!response.ok) {
+                        console.debug(response);
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json()
+                })
+                .then(data => {
+                    // Put full data into indexedDB
+                    let store = db
+                        .transaction(DATABASE_NAME, "readwrite")
+                        .objectStore(OBJECT_STORE_NAME);
+
+                    for (const [key, value] of Object.entries(data.inner)) {
+                        store.put(value, key);
+                    }
+
+                    postMessage(MSG_FULL_DATA_FETCHED);
+                })
+                .catch(e => {
+                    self.postMessage([MSG_ERR, e]);
+                });
+            break;
+
+        // Close the database connection
+        case MSG_CLOSE_DB_CONNECTION:
+            db.close();
+            postMessage(MSG_DB_CLOSED);
             break;
     }
 };

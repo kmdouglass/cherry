@@ -10,7 +10,7 @@ import DataEntry from "./components/DataEntry";
 
 function App({ wasmModule }) {
     // Load the material data
-    const { materialsService, isLoading, error } = useMaterialsService();
+    const { materialsService, isLoadingInitialData, isLoadingFullData, error } = useMaterialsService();
 
     // Application state and initial values.
     const [surfaces, setSurfaces] = useState([
@@ -76,8 +76,8 @@ function App({ wasmModule }) {
     }, [wasmModule, surfaces, fields, aperture, wavelengths]);
 
     // Render the application
-    if (isLoading) {
-        return <div>Loading materials...</div>;
+    if (isLoadingInitialData) {
+        return <div>Loading initial materials data...</div>;
     }
 
     // TODO Handle error
