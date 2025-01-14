@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Materials dispersion data is now downloaded and added to the browser's IndexedDB database when the application starts.
+
 ## [0.2.0] 2024-12-09
 
 ### Added

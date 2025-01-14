@@ -39,8 +39,8 @@ module.exports = (env, argv) => {
       new CopyWebpackPlugin({
         patterns: [
           { from: "src/index.html", to: "index.html" },
-          { from: "src/data/initial-materials-data.json", to: "data/initial-materials-data.json" }
-          //{ from: "src/data/full-materials-data.json", to: "data/full-materials-data.json" }
+          { from: "src/data/initial-materials-data.json", to: "data/initial-materials-data.json" },
+          { from: "src/data/full-materials-data.json", to: "data/full-materials-data.json" },
         ],
       }),
     ],
