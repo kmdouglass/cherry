@@ -4,6 +4,7 @@ import "../css/DataEntry.css";
 import ApertureTable from "./ApertureTable";
 import FieldsTable from "./FieldsTable";
 import SurfacesTable from "./SurfacesTable";
+import WavelengthsTable from "./WavelengthsTable";
 
 
 const thereAreInvalidFields = (invalidFieldsObj) => {
@@ -15,7 +16,8 @@ const thereAreInvalidFields = (invalidFieldsObj) => {
 const DataEntry = ({
     surfaces, setSurfaces,
     fields, setFields,
-    aperture, setAperture
+    aperture, setAperture,
+    wavelengths, setWavelengths,
 }) => {
   const [activeTab, setActiveTab] = useState('surfaces');
   const [invalidFields, setInvalidFields] = useState({});
@@ -34,6 +36,8 @@ const DataEntry = ({
         return <FieldsTable fields={fields} setFields={setFields} invalidFields={invalidFields} setInvalidFields={setInvalidFields} />;
       case 'aperture':
         return <ApertureTable aperture={aperture} setAperture={setAperture} invalidFields={invalidFields} setInvalidFields={setInvalidFields} />;
+      case 'wavelengths':
+        return <WavelengthsTable wavelengths={wavelengths} setWavelengths={setWavelengths} invalidFields={invalidFields} setInvalidFields={setInvalidFields} />;
       default:
         return null;
     }
@@ -51,6 +55,9 @@ const DataEntry = ({
           </li>
           <li className={activeTab === 'aperture' ? 'is-active' : ''}>
             <a onClick={() => handleTabClick('aperture')}>Aperture</a>
+          </li>
+          <li className={activeTab === 'wavelengths' ? 'is-active' : ''}>
+            <a onClick={() => handleTabClick('wavelengths')}>Wavelengths</a>
           </li>
         </ul>
       </div>

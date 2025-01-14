@@ -36,14 +36,19 @@ function App({ wasmModule }) {
             try {
                 //console.debug("Raw surfaces:", surfaces);
 
-                const { surfaceSpecs, gapSpecs, fieldSpecs, apertureSpec } = convertUIStateToEngineFormat(surfaces, fields, aperture);
+                const { surfaceSpecs, gapSpecs, fieldSpecs, apertureSpec, wavelengthSpecs } = convertUIStateToEngineFormat(
+                    surfaces,
+                    fields,
+                    aperture,
+                    wavelengths
+                );
 
                 //Build the optical system
                 opticalSystem.setSurfaces(surfaceSpecs);
                 opticalSystem.setGaps(gapSpecs);
                 opticalSystem.setFields(fieldSpecs);
                 opticalSystem.setAperture(apertureSpec);
-                opticalSystem.setWavelengths(wavelengths);
+                opticalSystem.setWavelengths(wavelengthSpecs);
                 opticalSystem.build();
 
                 //console.log("Surface specs:", surfaceSpecs);
@@ -99,7 +104,8 @@ function App({ wasmModule }) {
                 <DataEntry
                     surfaces={surfaces} setSurfaces={setSurfaces}
                     fields={fields} setFields={setFields}
-                    aperture={aperture} setAperture={setAperture}                
+                    aperture={aperture} setAperture={setAperture} 
+                    wavelengths={wavelengths} setWavelengths={setWavelengths}               
                 />
             </div>
         </div>

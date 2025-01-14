@@ -25,7 +25,6 @@ const FieldsTable = ({ fields, setFields, invalidFields, setInvalidFields }) => 
     const newFields = [...fields];
     const newInvalidFields = { ...invalidFields };
 
-
     const invalidStates = (field === "angle" && (newValue < -90.0 || newValue > 90.0))
         || isNaN(parseFloat(newValue));
 

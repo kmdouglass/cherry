@@ -9,7 +9,7 @@ export function getOpticalSystem(wasmModule) {
 }
 
 /* Converts data from the UI state into inputs to the raytrace engine. */
-export function convertUIStateToEngineFormat(surfaces, fields, aperture) {
+export function convertUIStateToEngineFormat(surfaces, fields, aperture, wavelengths) {
     const AIR = 1.0;
 
     // QUESTION: Can float conversion be done any better?
@@ -79,15 +79,21 @@ export function convertUIStateToEngineFormat(surfaces, fields, aperture) {
         };
     }
 
+    function createWavelengthSpec(wavelengths) {
+        return wavelengths.map(w => parseFloat(w));
+    }
+
     const surfaceSpecs = surfaces.map(createSurfaceSpec);
     const gapSpecs = surfaces.slice(0, -1).map(createGapSpec);
     const fieldSpecs = fields.map(createFieldSpec);
     const apertureSpec = createApertureSpec(aperture);
+    const wavelengthSpecs = createWavelengthSpec(wavelengths);
 
     return {
         surfaceSpecs,
         gapSpecs,
         fieldSpecs,
-        apertureSpec
+        apertureSpec,
+        wavelengthSpecs,
     };
 }
