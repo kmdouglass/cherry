@@ -45,7 +45,7 @@ const DataEntry = ({
 
   return (
     <div className="data-entry">
-      <div className="tabs is-centered">
+      <div className="tabs is-centered is-small is-toggle is-toggle-rounded">
         <ul>
           <li className={activeTab === 'surfaces' ? 'is-active' : ''}>
             <a onClick={() => handleTabClick('surfaces')}>Surfaces</a>
