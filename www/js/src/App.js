@@ -101,12 +101,25 @@ function App({ wasmModule }) {
             />
             <div className="container">
                 <CutawayView description={description} rawRayPaths={rawRayPaths} />
-                <DataEntry
-                    surfaces={surfaces} setSurfaces={setSurfaces}
-                    fields={fields} setFields={setFields}
-                    aperture={aperture} setAperture={setAperture} 
-                    wavelengths={wavelengths} setWavelengths={setWavelengths}               
-                />
+                
+                <div className="tabs is-centered is-small is-toggle is-toggle-rounded">
+                    <ul>
+                        <li className="is-active">
+                            <a>Inputs</a>
+                        </li>
+                        <li>
+                            <a>Materials</a>
+                        </li>
+                    </ul>
+                </div>
+                <div className="box">
+                    <DataEntry
+                        surfaces={surfaces} setSurfaces={setSurfaces}
+                        fields={fields} setFields={setFields}
+                        aperture={aperture} setAperture={setAperture} 
+                        wavelengths={wavelengths} setWavelengths={setWavelengths}               
+                    />
+                </div>
             </div>
         </div>
     );
