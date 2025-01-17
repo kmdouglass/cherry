@@ -7,10 +7,14 @@ import "./css/cherry.css";
 import CutawayView from "./components/CutawayView";
 import Navbar from "./components/Navbar";
 import DataEntry from "./components/DataEntry";
+import MaterialsNavigator from "./components/MaterialsNavigator";
 
 function App({ wasmModule }) {
     // Load the material data
     const { materialsService, isLoadingInitialData, isLoadingFullData, error } = useMaterialsService();
+
+    // GUI state
+    const [activeDataEntryTab, setDataEntryActiveTab] = useState('inputs');
 
     // Application state and initial values.
     const [surfaces, setSurfaces] = useState([
@@ -80,7 +84,28 @@ function App({ wasmModule }) {
         }
     }, [wasmModule, surfaces, fields, aperture, wavelengths]);
 
-    // Render the application
+    const handleDataEntryTabClick = (tab) => {
+        setDataEntryActiveTab(tab);
+    }
+
+    const renderDataEntryTabContent = () => {
+        switch(activeDataEntryTab) {
+            case 'inputs':
+                return <DataEntry
+                    surfaces={surfaces} setSurfaces={setSurfaces}
+                    fields={fields} setFields={setFields}
+                    aperture={aperture} setAperture={setAperture}
+                    wavelengths={wavelengths} setWavelengths={setWavelengths}
+                />;
+            case 'materials':
+                return <MaterialsNavigator />;
+            default:
+                return null;
+        }
+    }
+
+    // --------------------------------------------------------------------------------
+    // Rendering
     if (isLoadingInitialData) {
         return <div>Loading initial materials data...</div>;
     }
@@ -104,22 +129,19 @@ function App({ wasmModule }) {
                 
                 <div className="tabs is-centered is-small is-toggle is-toggle-rounded">
                     <ul>
-                        <li className="is-active">
-                            <a>Inputs</a>
+                        <li className={activeDataEntryTab === 'inputs' ? 'is-active' : ''}>
+                            <a onClick={() => handleDataEntryTabClick('inputs')}>Inputs</a>
                         </li>
-                        <li>
-                            <a>Materials</a>
+                        <li className={activeDataEntryTab === 'materials' ? 'is-active' : ''}>
+                            <a onClick={() => handleDataEntryTabClick('materials')}>Materials</a>
                         </li>
                     </ul>
                 </div>
+
                 <div className="box">
-                    <DataEntry
-                        surfaces={surfaces} setSurfaces={setSurfaces}
-                        fields={fields} setFields={setFields}
-                        aperture={aperture} setAperture={setAperture} 
-                        wavelengths={wavelengths} setWavelengths={setWavelengths}               
-                    />
+                    {renderDataEntryTabContent()}
                 </div>
+
             </div>
         </div>
     );
