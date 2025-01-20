@@ -1,21 +1,42 @@
 import { useState, useEffect } from 'react';
 
-import { MSG_CLOSE_DB_CONNECTION, MSG_DB_CLOSED, MSG_FETCH_FULL_DATA, MSG_FETCH_INITIAL_DATA, MSG_FULL_DATA_FETCHED, MSG_INITIALIZED } from './materialsDataConstants';
+import {
+  DATABASE_NAME,
+  MSG_CLOSE_DB_CONNECTION,
+  MSG_DB_CLOSED,
+  MSG_FETCH_FULL_DATA,
+  MSG_FETCH_INITIAL_DATA,
+  MSG_FULL_DATA_FETCHED,
+  MSG_INITIALIZED } from './materialsDataConstants';
 
 const INITIAL_DATA_URL = `${__webpack_public_path__}data/initial-materials-data.json`;
 const FULL_DATA_URL = `${__webpack_public_path__}data/full-materials-data.json`;
 
 export class MaterialsDataService {
+  #dbConnection;
+  #worker;
+
   constructor() {
     this.worker = new Worker(new URL("./materialsDataWorker.js", import.meta.url));
-
     this.worker.onmessage = (event) => {
-      console.log('Received message from the worker:', event.data);
+      console.debug('Received message from the worker:', event.data);
     }
-
   }
 
-  async initStorage() {
+  /*
+   * Open a connection to the database and create the materials object store if it doesn't exist.
+   */
+  openDBConnection() {
+    let req = indexedDB.open(DATABASE_NAME, 1);
+    req.onsuccess = e => {
+      this.#dbConnection = e.target.result;
+    }
+    req.onerror = e => {
+      throw new Error(`Failed to open the database connection: ${e.target.error?.message}`);
+    }
+  }
+
+  async workerInitStorage() {
     this.worker.postMessage([MSG_FETCH_INITIAL_DATA, INITIAL_DATA_URL]);
 
     // Wait for the worker to finish
@@ -24,13 +45,13 @@ export class MaterialsDataService {
         if (event.data === MSG_INITIALIZED) {
           resolve();
         } else {
-          reject(new Error("Failed to initialize storage"));
+          reject(new Error(`Failed to initialize storage: ${event.data}`));
         }
       }
     });
 }
 
-  async fetchFullData() {
+  async workerFetchFullData() {
     this.worker.postMessage([MSG_FETCH_FULL_DATA, FULL_DATA_URL]);
   
     // Wait for the worker to finish
@@ -46,7 +67,7 @@ export class MaterialsDataService {
     });  
   }
 
-  async closeDBConnection() {
+  async workerCloseDBConnection() {
     this.worker.postMessage([MSG_CLOSE_DB_CONNECTION]);
 
     // Wait for the worker to finish
@@ -73,15 +94,15 @@ export function useMaterialsService() {
     async function init() {
       try {
         // Initialize storage and fetch initial data
-        await materialsService.initStorage();
+        await materialsService.workerInitStorage();
         setIsLoadingInitialData(false);
 
         // Fetch full data
-        await materialsService.fetchFullData();
+        await materialsService.workerFetchFullData();
         setIsLoadingFullData(false);
 
         // Close the database connection
-        await materialsService.closeDBConnection();
+        await materialsService.workerCloseDBConnection();
       } catch (e) {
         console.error(e);
         setError(e);

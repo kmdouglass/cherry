@@ -43,8 +43,6 @@ const SpecsExplorer = ({
     }
   };
 
-  console.log('activeTab:', activeTab);
-
   return (
     <div className="data-entry">
       <div className="tabs is-centered is-small is-toggle is-toggle-rounded">

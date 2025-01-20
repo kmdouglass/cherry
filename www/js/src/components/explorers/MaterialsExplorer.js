@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 
+import {DATABASE_NAME} from "../../services/materialsDataConstants";
+
 const MaterialsNavigator = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [matches, setMatches] = useState([]);
@@ -18,6 +20,8 @@ const MaterialsNavigator = () => {
       const db = await openDB();
       const store = db.transaction('materials', 'readonly').objectStore('materials');
       const allMaterials = await store.getAll();
+
+      console.log('All materials:', allMaterials);
 
       const matchingMaterials = allMaterials.filter(material => {
         const data = JSON.parse(material.value);
@@ -44,7 +48,7 @@ const MaterialsNavigator = () => {
   // Function to open IndexedDB
   const openDB = () => {
     return new Promise((resolve, reject) => {
-      const request = indexedDB.open('MaterialsDB', 1);
+      const request = indexedDB.open(DATABASE_NAME, 1);
       
       request.onerror = () => reject(request.error);
       request.onsuccess = () => resolve(request.result);
