@@ -6,15 +6,15 @@ import { useMemo, useState } from "react";
 import "./css/cherry.css";
 import CutawayView from "./components/CutawayView";
 import Navbar from "./components/Navbar";
-import DataEntry from "./components/DataEntry";
-import MaterialsNavigator from "./components/MaterialsNavigator";
+import SpecsExplorer from "./components/explorers/SpecsExplorer";
+import MaterialsNavigator from "./components/explorers/MaterialsExplorer";
 
 function App({ wasmModule }) {
     // Load the material data
     const { materialsService, isLoadingInitialData, isLoadingFullData, error } = useMaterialsService();
 
     // GUI state
-    const [activeDataEntryTab, setDataEntryActiveTab] = useState('inputs');
+    const [activeDataEntryTab, setDataEntryActiveTab] = useState('specs');
 
     // Application state and initial values.
     const [surfaces, setSurfaces] = useState([
@@ -88,10 +88,10 @@ function App({ wasmModule }) {
         setDataEntryActiveTab(tab);
     }
 
-    const renderDataEntryTabContent = () => {
+    const renderSpecsExplorerTabContent = () => {
         switch(activeDataEntryTab) {
-            case 'inputs':
-                return <DataEntry
+            case 'specs':
+                return <SpecsExplorer
                     surfaces={surfaces} setSurfaces={setSurfaces}
                     fields={fields} setFields={setFields}
                     aperture={aperture} setAperture={setAperture}
@@ -129,8 +129,8 @@ function App({ wasmModule }) {
                 
                 <div className="tabs is-centered is-small is-toggle is-toggle-rounded">
                     <ul>
-                        <li className={activeDataEntryTab === 'inputs' ? 'is-active' : ''}>
-                            <a onClick={() => handleDataEntryTabClick('inputs')}>Inputs</a>
+                        <li className={activeDataEntryTab === 'specs' ? 'is-active' : ''}>
+                            <a onClick={() => handleDataEntryTabClick('specs')}>Specs</a>
                         </li>
                         <li className={activeDataEntryTab === 'materials' ? 'is-active' : ''}>
                             <a onClick={() => handleDataEntryTabClick('materials')}>Materials</a>
@@ -139,7 +139,7 @@ function App({ wasmModule }) {
                 </div>
 
                 <div className="box">
-                    {renderDataEntryTabContent()}
+                    {renderSpecsExplorerTabContent()}
                 </div>
 
             </div>

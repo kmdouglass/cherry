@@ -1,10 +1,10 @@
 import { useState } from "react";
 
-import "../css/DataEntry.css";
-import ApertureTable from "./ApertureTable";
-import FieldsTable from "./FieldsTable";
-import SurfacesTable from "./SurfacesTable";
-import WavelengthsTable from "./WavelengthsTable";
+import "../../css/DataEntry.css";
+import ApertureTable from "./tables/ApertureTable";
+import FieldsTable from "./tables/FieldsTable";
+import SurfacesTable from "./tables/SurfacesTable";
+import WavelengthsTable from "./tables/WavelengthsTable";
 
 
 const thereAreInvalidFields = (invalidFieldsObj) => {
@@ -13,7 +13,7 @@ const thereAreInvalidFields = (invalidFieldsObj) => {
   return !(Object.keys(invalidFieldsObj).length === 0) && invalidFieldsObj.constructor === Object;
 }
 
-const DataEntry = ({
+const SpecsExplorer = ({
     surfaces, setSurfaces,
     fields, setFields,
     aperture, setAperture,
@@ -70,4 +70,4 @@ const DataEntry = ({
   );
 };
 
-export default DataEntry;
+export default SpecsExplorer;
