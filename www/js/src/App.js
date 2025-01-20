@@ -14,7 +14,8 @@ function App({ wasmModule }) {
     const { materialsService, isLoadingInitialData, isLoadingFullData, error } = useMaterialsService();
 
     // GUI state
-    const [activeDataEntryTab, setDataEntryActiveTab] = useState('specs');
+    const [activeSpecsExplorerTab, setSpecsExplorerActiveTab] = useState('specs');
+    const [invalidSpecsFields, setInvalidSpecsFields] = useState({});
 
     // Application state and initial values.
     const [surfaces, setSurfaces] = useState([
@@ -85,17 +86,26 @@ function App({ wasmModule }) {
     }, [wasmModule, surfaces, fields, aperture, wavelengths]);
 
     const handleDataEntryTabClick = (tab) => {
-        setDataEntryActiveTab(tab);
+        // Don't allow switching tabs if SpecsExplorer cell is invalid
+        if (thereAreInvalidSpecsFields(invalidSpecsFields)) return;
+        setSpecsExplorerActiveTab(tab);
+    }
+
+    const thereAreInvalidSpecsFields = (invalidFieldsObj) => {
+        // Check that the fields object is not empty.
+        // Javascript makes me so sad
+        return !(Object.keys(invalidFieldsObj).length === 0) && invalidFieldsObj.constructor === Object;
     }
 
     const renderSpecsExplorerTabContent = () => {
-        switch(activeDataEntryTab) {
+        switch(activeSpecsExplorerTab) {
             case 'specs':
                 return <SpecsExplorer
                     surfaces={surfaces} setSurfaces={setSurfaces}
                     fields={fields} setFields={setFields}
                     aperture={aperture} setAperture={setAperture}
                     wavelengths={wavelengths} setWavelengths={setWavelengths}
+                    invalidFields={invalidSpecsFields} setInvalidFields={setInvalidSpecsFields}
                 />;
             case 'materials':
                 return <MaterialsNavigator />;
@@ -129,10 +139,10 @@ function App({ wasmModule }) {
                 
                 <div className="tabs is-centered is-small is-toggle is-toggle-rounded">
                     <ul>
-                        <li className={activeDataEntryTab === 'specs' ? 'is-active' : ''}>
+                        <li className={activeSpecsExplorerTab === 'specs' ? 'is-active' : ''}>
                             <a onClick={() => handleDataEntryTabClick('specs')}>Specs</a>
                         </li>
-                        <li className={activeDataEntryTab === 'materials' ? 'is-active' : ''}>
+                        <li className={activeSpecsExplorerTab === 'materials' ? 'is-active' : ''}>
                             <a onClick={() => handleDataEntryTabClick('materials')}>Materials</a>
                         </li>
                     </ul>

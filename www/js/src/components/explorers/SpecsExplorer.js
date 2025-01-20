@@ -18,9 +18,9 @@ const SpecsExplorer = ({
     fields, setFields,
     aperture, setAperture,
     wavelengths, setWavelengths,
+    invalidFields, setInvalidFields,
 }) => {
   const [activeTab, setActiveTab] = useState('surfaces');
-  const [invalidFields, setInvalidFields] = useState({});
 
   const handleTabClick = (tab) => {
     // Don't allow switching tabs if another cell is invalid
