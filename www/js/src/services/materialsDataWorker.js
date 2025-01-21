@@ -24,8 +24,8 @@ onmessage = function (event) {
                         db = e.target.result;
                         const objectStore = db.createObjectStore(OBJECT_STORE_NAME);
 
+                        objectStore.createIndex("shelf", "shelf", { unique: false });
                         objectStore.createIndex("book", "book", { unique: false });
-                        objectStore.createIndex("page", "page", { unique: false });
                     }
                     return new Promise((resolve, reject) => {
                         req.onsuccess = e => {

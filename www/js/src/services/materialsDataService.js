@@ -2,18 +2,19 @@ import { useState, useEffect } from 'react';
 
 import {
   DATABASE_NAME,
+  KEY_SEPARATOR,
   MSG_CLOSE_DB_CONNECTION,
   MSG_DB_CLOSED,
   MSG_FETCH_FULL_DATA,
   MSG_FETCH_INITIAL_DATA,
   MSG_FULL_DATA_FETCHED,
-  MSG_INITIALIZED } from './materialsDataConstants';
+  MSG_INITIALIZED,
+  OBJECT_STORE_NAME } from './materialsDataConstants';
 
 const INITIAL_DATA_URL = `${__webpack_public_path__}data/initial-materials-data.json`;
 const FULL_DATA_URL = `${__webpack_public_path__}data/full-materials-data.json`;
 
 export class MaterialsDataService {
-  #dbConnection;
   #worker;
 
   constructor() {
@@ -26,15 +27,50 @@ export class MaterialsDataService {
   /*
    * Open a connection to the database and create the materials object store if it doesn't exist.
    */
-  openDBConnection() {
+  async openDBConnection() {
     let req = indexedDB.open(DATABASE_NAME, 1);
-    req.onsuccess = e => {
-      this.#dbConnection = e.target.result;
-    }
-    req.onerror = e => {
-      throw new Error(`Failed to open the database connection: ${e.target.error?.message}`);
-    }
+    
+    return new Promise((resolve, reject) => {
+      req.onsuccess = e => {
+        let db = e.target.result;
+        resolve(db);
+      }
+      req.onerror = e => {
+        reject(new Error(`Failed to open the database connection: ${e.target.error?.message}`));
+      }
+    })
   }
+
+  async getShelves() {
+    const shelves = new Set();
+
+    return this.openDBConnection()
+      .then(db => {
+        return new Promise((resolve, reject) => {
+          const transaction = db.transaction(OBJECT_STORE_NAME, "readonly");
+          const store = transaction.objectStore(OBJECT_STORE_NAME);          
+          const cursorRequest = store.openCursor();
+
+          cursorRequest.onsuccess = (event) => {
+              const cursor = event.target.result;
+              if (cursor) {
+                  // Split the cursor's key at the first colon to get the shelf name
+                  shelves.add(cursor.key.split(KEY_SEPARATOR)[0]);
+                  cursor.continue();
+              } else {
+                  // We're done - convert Set to Array and resolve
+                  resolve([db, Array.from(shelves)]);
+              }
+          };
+          
+          cursorRequest.onerror = () => reject(cursorRequest.error);
+        });
+      })
+      .then(([db, shelfNames]) => {
+        db.close();
+        return shelfNames;
+      })
+}
 
   async workerInitStorage() {
     this.worker.postMessage([MSG_FETCH_INITIAL_DATA, INITIAL_DATA_URL]);

@@ -8,3 +8,5 @@ export const MSG_FETCH_FULL_DATA = "fetch-full-data";
 export const MSG_FETCH_INITIAL_DATA = "fetch-initial-data";
 export const MSG_FULL_DATA_FETCHED = "Full data has been fetched";
 export const MSG_INITIALIZED = "Ready";
+
+export const KEY_SEPARATOR = ":";

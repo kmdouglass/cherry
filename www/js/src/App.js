@@ -7,14 +7,14 @@ import "./css/cherry.css";
 import CutawayView from "./components/CutawayView";
 import Navbar from "./components/Navbar";
 import SpecsExplorer from "./components/explorers/SpecsExplorer";
-import MaterialsNavigator from "./components/explorers/MaterialsExplorer";
+import MaterialsExplorer from "./components/explorers/MaterialsExplorer";
 
 function App({ wasmModule }) {
     // Load the material data
     const { materialsService, isLoadingInitialData, isLoadingFullData, error } = useMaterialsService();
 
     // GUI state
-    const [activeSpecsExplorerTab, setSpecsExplorerActiveTab] = useState('specs');
+    const [activeExplorersTab, setExplorersActiveTab] = useState('specs');
     const [invalidSpecsFields, setInvalidSpecsFields] = useState({});
 
     // Application state and initial values.
@@ -85,10 +85,10 @@ function App({ wasmModule }) {
         }
     }, [wasmModule, surfaces, fields, aperture, wavelengths]);
 
-    const handleDataEntryTabClick = (tab) => {
+    const handleExplorersTabClick = (tab) => {
         // Don't allow switching tabs if SpecsExplorer cell is invalid
         if (thereAreInvalidSpecsFields(invalidSpecsFields)) return;
-        setSpecsExplorerActiveTab(tab);
+        setExplorersActiveTab(tab);
     }
 
     const thereAreInvalidSpecsFields = (invalidFieldsObj) => {
@@ -98,7 +98,7 @@ function App({ wasmModule }) {
     }
 
     const renderSpecsExplorerTabContent = () => {
-        switch(activeSpecsExplorerTab) {
+        switch(activeExplorersTab) {
             case 'specs':
                 return <SpecsExplorer
                     surfaces={surfaces} setSurfaces={setSurfaces}
@@ -108,7 +108,7 @@ function App({ wasmModule }) {
                     invalidFields={invalidSpecsFields} setInvalidFields={setInvalidSpecsFields}
                 />;
             case 'materials':
-                return <MaterialsNavigator />;
+                return <MaterialsExplorer materialsService={materialsService} isLoadingFullData={isLoadingFullData} />;
             default:
                 return null;
         }
@@ -139,11 +139,11 @@ function App({ wasmModule }) {
                 
                 <div className="tabs is-centered is-small is-toggle is-toggle-rounded">
                     <ul>
-                        <li className={activeSpecsExplorerTab === 'specs' ? 'is-active' : ''}>
-                            <a onClick={() => handleDataEntryTabClick('specs')}>Specs</a>
+                        <li className={activeExplorersTab === 'specs' ? 'is-active' : ''}>
+                            <a onClick={() => handleExplorersTabClick('specs')}>Specs</a>
                         </li>
-                        <li className={activeSpecsExplorerTab === 'materials' ? 'is-active' : ''}>
-                            <a onClick={() => handleDataEntryTabClick('materials')}>Materials</a>
+                        <li className={activeExplorersTab === 'materials' ? 'is-active' : ''}>
+                            <a onClick={() => handleExplorersTabClick('materials')}>Materials</a>
                         </li>
                     </ul>
                 </div>
