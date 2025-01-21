@@ -19,15 +19,17 @@ const MaterialsExplorer = ( {materialsService, isLoadingFullData } ) => {
 
       return () => {  }
   }, [isLoadingFullData]);
+
+  const handleShelfChange = (event) => {
+    console.log(event.target.value);
+  }
   
   return (
     <div>
       <h1>Materials Explorer</h1>
-      <ul>
-        {shelves.map((shelf) => (
-          <li key={shelf}>{shelf}</li>
-        ))}
-      </ul>
+      Shelf <select name="shelves" id="shelves" onChange={handleShelfChange}>
+        {shelves.map(shelf => <option key={shelf} value={shelf}>{shelf}</option>)}
+      </select>
     </div>
   );
 };
