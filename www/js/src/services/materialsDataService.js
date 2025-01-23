@@ -42,12 +42,14 @@ export class MaterialsDataService {
   }
 
   /*
-   * Returns an array of all the unique shelf keys and full names in the database.
+   * Returns a map of all the unique shelves in the database.
+   *
+   * The map key is the shelf component of the key and the value is the full name of the shelf.
    */
   async getShelves() {
     // key: shelf key, value: shelf full name
     const shelves = new Map();
-    let shelf_key;
+    let shelfKey;
 
     return this.openDBConnection()
       .then(db => {
@@ -60,10 +62,10 @@ export class MaterialsDataService {
               const cursor = event.target.result;
               if (cursor) {
                   // Split the cursor's key at the first colon to get the shelf name
-                  shelf_key = cursor.key.split(KEY_SEPARATOR)[0];
+                  shelfKey = cursor.key.split(KEY_SEPARATOR)[0];
 
                   // We assume the full name is the same for all keys with the same shelf name
-                  shelves.set(shelf_key, cursor.value.shelf);
+                  shelves.set(shelfKey, cursor.value.shelf);
                   cursor.continue();
               } else {
                   // We're done
@@ -78,7 +80,44 @@ export class MaterialsDataService {
         db.close();
         return shelves;
       })
-}
+  }
+
+  /*
+   * Returns a map of all the books on the given shelf.
+   *
+   */
+  async getBooksOnShelf(shelf) {
+    const books = new Map();
+    let bookKey;
+
+    return this.openDBConnection()
+      .then(db => {
+        return new Promise((resolve, reject) => {
+          const transaction = db.transaction(OBJECT_STORE_NAME, "readonly");
+          const store = transaction.objectStore(OBJECT_STORE_NAME);
+          const index = store.index("shelf");
+          const keyRange = IDBKeyRange.only(shelf);
+          const cursorRequest = index.openCursor(keyRange);
+
+          cursorRequest.onsuccess = (event) => {
+            const cursor = event.target.result;
+            if (cursor) {
+              bookKey = cursor.primaryKey.split(KEY_SEPARATOR)[1];
+              books.set(bookKey, cursor.value.book);
+              cursor.continue();
+            } else {
+              resolve([db, books]);
+            }
+          };
+
+          cursorRequest.onerror = () => reject(request.error);
+        });
+      })
+      .then(([db, books]) => {
+        db.close();
+        return books;
+      })
+  }
 
   async workerInitStorage() {
     this.worker.postMessage([MSG_FETCH_INITIAL_DATA, INITIAL_DATA_URL]);
