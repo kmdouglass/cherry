@@ -41,8 +41,13 @@ export class MaterialsDataService {
     })
   }
 
+  /*
+   * Returns an array of all the unique shelf keys and full names in the database.
+   */
   async getShelves() {
-    const shelves = new Set();
+    // key: shelf key, value: shelf full name
+    const shelves = new Map();
+    let shelf_key;
 
     return this.openDBConnection()
       .then(db => {
@@ -55,20 +60,23 @@ export class MaterialsDataService {
               const cursor = event.target.result;
               if (cursor) {
                   // Split the cursor's key at the first colon to get the shelf name
-                  shelves.add(cursor.key.split(KEY_SEPARATOR)[0]);
+                  shelf_key = cursor.key.split(KEY_SEPARATOR)[0];
+
+                  // We assume the full name is the same for all keys with the same shelf name
+                  shelves.set(shelf_key, cursor.value.shelf);
                   cursor.continue();
               } else {
-                  // We're done - convert Set to Array and resolve
-                  resolve([db, Array.from(shelves)]);
+                  // We're done
+                  resolve([db, shelves]);
               }
           };
           
           cursorRequest.onerror = () => reject(cursorRequest.error);
         });
       })
-      .then(([db, shelfNames]) => {
+      .then(([db, shelves]) => {
         db.close();
-        return shelfNames;
+        return shelves;
       })
 }
 

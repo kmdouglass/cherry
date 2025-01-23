@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 
 const MaterialsExplorer = ( {materialsService, isLoadingFullData } ) => {
-  const [shelves, setShelves] = useState([]);
+  const [shelves, setShelves] = useState(new Map());
 
   useEffect(() => {
     if (isLoadingFullData) {
@@ -9,8 +9,9 @@ const MaterialsExplorer = ( {materialsService, isLoadingFullData } ) => {
     }
     materialsService
       .getShelves()
-      .then(shelfNames => {
-        setShelves(shelfNames || []);
+      .then(shelves => {
+        console.log(shelves);
+        setShelves(shelves || new Map());
       })
       .catch((error) => {
         console.error("Failed to fetch shelf names", error);
@@ -28,7 +29,9 @@ const MaterialsExplorer = ( {materialsService, isLoadingFullData } ) => {
     <div>
       <h1>Materials Explorer</h1>
       Shelf <select name="shelves" id="shelves" onChange={handleShelfChange}>
-        {shelves.map(shelf => <option key={shelf} value={shelf}>{shelf}</option>)}
+        {Array.from(shelves).map(([key, value]) => (
+          <option key={key} value={key}>{value}</option>
+        ))}
       </select>
     </div>
   );
