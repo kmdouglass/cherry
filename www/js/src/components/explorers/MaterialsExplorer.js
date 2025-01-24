@@ -66,21 +66,22 @@ const MaterialsExplorer = ( {materialsService, isLoadingFullData } ) => {
   return (
     <div>
       <h1>Materials Explorer</h1>
-      <h2>Shelf</h2>
+      <p>Powered by <a href="https://refractiveindex.info/" target="_blank">RefractiveIndex.INFO</a></p>
+      <h2 className="title is-3">Shelf</h2>
       <select name="shelves" id="shelves" value={selectedShelf || "" } onChange={handleShelfChange}>
         {Array.from(shelves).map(([key, value]) => (
           <option key={key} value={value}>{value}</option>
         ))}
       </select>
 
-      <h2>Book</h2>
-      <select name="books" id="books" onChange={handleBookChange}>
+      <h2 className="title is-3">Book</h2>
+      <select name="books" id="books" value={selectedBook || ""} onChange={handleBookChange}>
         {Array.from(books).map(([key, value]) => (
           <option key={key} value={value}>{value}</option>
         ))}
       </select>
 
-      <h2>Page</h2>
+      <h2 className="title is-3">Page</h2>
       <select name="pages" id="pages" onChange={handlePageChange}>
         {Array.from(pages).map(([key, value]) => (
           <option key={key} value={value}>{value}</option>
