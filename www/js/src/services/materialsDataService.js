@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 
 import {
   DATABASE_NAME,
+  INDEX_SHELF_NAME,
+  INDEX_SHELF_BOOK_NAME,
   KEY_SEPARATOR,
   MSG_CLOSE_DB_CONNECTION,
   MSG_DB_CLOSED,
@@ -95,7 +97,7 @@ export class MaterialsDataService {
         return new Promise((resolve, reject) => {
           const transaction = db.transaction(OBJECT_STORE_NAME, "readonly");
           const store = transaction.objectStore(OBJECT_STORE_NAME);
-          const index = store.index("shelf");
+          const index = store.index(INDEX_SHELF_NAME);
           const keyRange = IDBKeyRange.only(shelf);
           const cursorRequest = index.openCursor(keyRange);
 
@@ -116,6 +118,43 @@ export class MaterialsDataService {
       .then(([db, books]) => {
         db.close();
         return books;
+      })
+  }
+
+  /*
+   * Returns a map of all the pages in the given book and shelf.
+   *
+   */
+  async getPagesInBookOnShelf(book, shelf) {
+    const pages = new Map();
+    let pageKey;
+
+    return this.openDBConnection()
+      .then(db => {
+        return new Promise((resolve, reject) => {
+          const transaction = db.transaction(OBJECT_STORE_NAME, "readonly");
+          const store = transaction.objectStore(OBJECT_STORE_NAME);
+          const index = store.index(INDEX_SHELF_BOOK_NAME);
+          const keyRange = IDBKeyRange.only([shelf, book]);
+          const cursorRequest = index.openCursor(keyRange);
+
+          cursorRequest.onsuccess = (event) => {
+            const cursor = event.target.result;
+            if (cursor) {
+              pageKey = cursor.primaryKey.split(KEY_SEPARATOR)[2];
+              pages.set(pageKey, cursor.value.page);
+              cursor.continue();
+            } else {
+              resolve([db, pages]);
+            }
+          };
+
+          cursorRequest.onerror = () => reject(request.error);
+        });
+      })
+      .then(([db, pages]) => {
+        db.close();
+        return pages;
       })
   }
 

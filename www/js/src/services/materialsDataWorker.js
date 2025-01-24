@@ -1,4 +1,16 @@
-import { DATABASE_NAME, MSG_ERR, MSG_CLOSE_DB_CONNECTION, MSG_DB_CLOSED, MSG_FETCH_FULL_DATA, MSG_FETCH_INITIAL_DATA, MSG_FULL_DATA_FETCHED, MSG_INITIALIZED, OBJECT_STORE_NAME } from './materialsDataConstants';
+import {
+    DATABASE_NAME,
+    INDEX_SHELF_NAME,
+    INDEX_SHELF_BOOK_NAME,
+    MSG_ERR,
+    MSG_CLOSE_DB_CONNECTION,
+    MSG_DB_CLOSED,
+    MSG_FETCH_FULL_DATA,
+    MSG_FETCH_INITIAL_DATA,
+    MSG_FULL_DATA_FETCHED,
+    MSG_INITIALIZED,
+    OBJECT_STORE_NAME
+} from './materialsDataConstants';
 
 let db;
 
@@ -24,8 +36,8 @@ onmessage = function (event) {
                         db = e.target.result;
                         const objectStore = db.createObjectStore(OBJECT_STORE_NAME);
 
-                        objectStore.createIndex("shelf", "shelf", { unique: false });
-                        objectStore.createIndex("book", "book", { unique: false });
+                        objectStore.createIndex(INDEX_SHELF_NAME, "shelf", { unique: false });
+                        objectStore.createIndex(INDEX_SHELF_BOOK_NAME, ["shelf", "book"], { unique: false });
                     }
                     return new Promise((resolve, reject) => {
                         req.onsuccess = e => {
