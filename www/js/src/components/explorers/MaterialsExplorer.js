@@ -7,6 +7,9 @@ const MaterialsExplorer = ( {materialsService, isLoadingFullData } ) => {
   
   const [selectedShelf, setSelectedShelf] = useState(null);  // Array, 0: key, 1: value
   const [selectedBook, setSelectedBook] = useState(null);    // Array, 0: key, 1: value
+  const [selectedPage, setSelectedPage] = useState(null);    // Array, 0: key, 1: value
+
+  const [selectedMaterials, setSelectedMaterials] = useState([]);
 
  // Fetch shelf names when the component mounts and all data is loaded
  useEffect(() => {
@@ -45,7 +48,14 @@ const MaterialsExplorer = ( {materialsService, isLoadingFullData } ) => {
     if (!selectedBook) return;
   
     materialsService.getPagesInBookOnShelf(selectedBook[1], selectedShelf[1])
-      .then(pages => setPages(pages || new Map()))
+      .then(pages => {
+        setPages(pages || new Map())
+        // Set initial page
+
+          const firstPage = Array.from(pages || [])[0];
+          setSelectedPage(firstPage);
+        
+      })
       .catch(error => console.error("Failed to fetch page names", error));
   }, [selectedBook, selectedShelf, materialsService]);
 
@@ -66,13 +76,25 @@ const MaterialsExplorer = ( {materialsService, isLoadingFullData } ) => {
   }
   
   const handlePageChange = (event) => {
-    console.log(event.target.value);
+    const pageKey = event.target.value;
+    const pageName = pages.get(pageKey);
+    setSelectedPage([pageKey, pageName]);
+  }
+
+  const handleAddMaterial = () => {
+    if (!selectedShelf || !selectedBook || !selectedPage) return;
+
+    const key = `${selectedShelf[0]}:${selectedBook[0]}:${selectedPage[0]}`;
+    const name = `${selectedBook[1]} / ${selectedPage[1]}`;  // Don't show the shelf
+    
+    setSelectedMaterials(prev => [...prev, { key, name }]);
   }
 
   return (
     <div>
-      <h1>Materials Explorer</h1>
       <p>Powered by <a href="https://refractiveindex.info/" target="_blank">RefractiveIndex.INFO</a></p>
+
+      {/* Select materials UI */}
       <h4 className="title is-4">Shelf</h4>
       <select name="shelves" id="shelves" value={selectedShelf ? selectedShelf[0] : "" } onChange={handleShelfChange}>
         {Array.from(shelves).map(([key, value]) => (
@@ -88,9 +110,31 @@ const MaterialsExplorer = ( {materialsService, isLoadingFullData } ) => {
       </select>
 
       <h4 className="title is-4">Page</h4>
-      <select name="pages" id="pages" onChange={handlePageChange}>
+      <select name="pages" id="pages" value={selectedPage ? selectedPage[0] : ""} onChange={handlePageChange}>
         {Array.from(pages).map(([key, value]) => (
           <option key={key} value={key}>{value}</option>
+        ))}
+      </select>
+
+      {/* Add materials UI */}
+      <button 
+        onClick={handleAddMaterial}
+        disabled={!(selectedShelf && selectedBook && selectedPage)}
+        className="button is-primary mt-4"
+      >
+        Add Material
+      </button>
+
+      <h4 className="title is-4 mt-4">Selected Materials</h4>
+      <select 
+        multiple 
+        className="w-full h-32"
+        value={selectedMaterials.map(m => m.key)}
+      >
+        {selectedMaterials.map(material => (
+          <option key={material.key} value={material.key}>
+            {material.name}
+          </option>
         ))}
       </select>
     </div>
