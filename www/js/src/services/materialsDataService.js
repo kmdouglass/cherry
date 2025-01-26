@@ -87,6 +87,8 @@ export class MaterialsDataService {
   /*
    * Returns a map of all the books on the given shelf.
    *
+   * Parameters:
+   *  shelf: The shelf full name.
    */
   async getBooksOnShelf(shelf) {
     const books = new Map();
@@ -124,6 +126,8 @@ export class MaterialsDataService {
   /*
    * Returns a map of all the pages in the given book and shelf.
    *
+   * Parameters:
+   *     book: 
    */
   async getPagesInBookOnShelf(book, shelf) {
     const pages = new Map();
