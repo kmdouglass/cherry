@@ -92,51 +92,68 @@ const MaterialsExplorer = ( {materialsService, isLoadingFullData } ) => {
 
   return (
     <div>
-      <p>Powered by <a href="https://refractiveindex.info/" target="_blank">RefractiveIndex.INFO</a></p>
-
-      {/* Select materials UI */}
-      <h4 className="title is-4">Shelf</h4>
-      <select name="shelves" id="shelves" value={selectedShelf ? selectedShelf[0] : "" } onChange={handleShelfChange}>
-        {Array.from(shelves).map(([key, value]) => (
-          <option key={key} value={key}>{value}</option>
-        ))}
-      </select>
-
-      <h4 className="title is-4">Book</h4>
-      <select name="books" id="books" value={selectedBook ? selectedBook[0] : ""} onChange={handleBookChange}>
-        {Array.from(books).map(([key, value]) => (
-          <option key={key} value={key}>{value}</option>
-        ))}
-      </select>
-
-      <h4 className="title is-4">Page</h4>
-      <select name="pages" id="pages" value={selectedPage ? selectedPage[0] : ""} onChange={handlePageChange}>
-        {Array.from(pages).map(([key, value]) => (
-          <option key={key} value={key}>{value}</option>
-        ))}
-      </select>
-
-      {/* Add materials UI */}
-      <button 
-        onClick={handleAddMaterial}
-        disabled={!(selectedShelf && selectedBook && selectedPage)}
-        className="button is-primary mt-4"
-      >
-        Add Material
-      </button>
-
-      <h4 className="title is-4 mt-4">Selected Materials</h4>
-      <select 
-        multiple 
-        className="w-full h-32"
-        value={selectedMaterials.map(m => m.key)}
-      >
-        {selectedMaterials.map(material => (
-          <option key={material.key} value={material.key}>
-            {material.name}
-          </option>
-        ))}
-      </select>
+      <p className="has-text-centered">Powered by <a href="https://refractiveindex.info/" target="_blank">RefractiveIndex.INFO</a></p>
+  
+      <div className="columns">
+        {/* Left Column */}
+        <div className="column is-half">
+          <div className="box">
+            <h4 className="title is-4">Shelf</h4>
+            <div className="select is-fullwidth mb-4">
+              <select name="shelves" value={selectedShelf ? selectedShelf[0] : ""} onChange={handleShelfChange}>
+                {Array.from(shelves).map(([key, value]) => (
+                  <option key={key} value={key}>{value}</option>
+                ))}
+              </select>
+            </div>
+  
+            <h4 className="title is-4">Book</h4>
+            <div className="select is-fullwidth mb-4">
+              <select name="books" value={selectedBook ? selectedBook[0] : ""} onChange={handleBookChange}>
+                {Array.from(books).map(([key, value]) => (
+                  <option key={key} value={key}>{value}</option>
+                ))}
+              </select>
+            </div>
+  
+            <h4 className="title is-4">Page</h4>
+            <div className="select is-fullwidth">
+              <select name="pages" value={selectedPage ? selectedPage[0] : ""} onChange={handlePageChange}>
+                {Array.from(pages).map(([key, value]) => (
+                  <option key={key} value={key}>{value}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
+  
+        {/* Right Column */}
+        <div className="column is-half">
+          <div className="box">
+            <h4 className="title is-4">Selected Materials</h4>
+            <select multiple className="select is-multiple is-fullwidth mb-4" size="8">
+              {selectedMaterials.map(material => (
+                <option key={material.key} value={material.key}>
+                  {material.name}
+                </option>
+              ))}
+            </select>
+            
+            <div className="buttons">
+              <button 
+                onClick={handleAddMaterial}
+                disabled={!(selectedShelf && selectedBook && selectedPage)}
+                className="button is-primary"
+              >
+                Add Material
+              </button>
+              <button className="button is-danger">
+                Remove Material
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };
