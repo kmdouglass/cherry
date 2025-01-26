@@ -241,7 +241,7 @@ const Navbar = ( {
                 onChange={handleFileChange}
             />
             <div className="navbar-brand">
-                <a className="navbar-item" href="/">
+                <a className="navbar-item" href="/cherry">
                     🍒 Cherry Ray Tracer
                 </a>
                 <button 
