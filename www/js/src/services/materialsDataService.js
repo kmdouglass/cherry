@@ -18,12 +18,39 @@ const FULL_DATA_URL = `${__webpack_public_path__}data/full-materials-data.json`;
 
 export class MaterialsDataService {
   #worker;
+  #selectedMaterials;
 
   constructor() {
     this.worker = new Worker(new URL("./materialsDataWorker.js", import.meta.url));
     this.worker.onmessage = (event) => {
       console.debug('Received message from the worker:', event.data);
     }
+
+    this.#selectedMaterials = [];
+  }
+
+  /*
+   * Get the selected materials.
+   *
+   * Returns:
+   *    selectedMaterials: array of objects, each object has the following properties:
+   *     key: string, the key of the material in the database.
+   *     name: string, the display name of the material.
+   */ 
+  get selectedMaterials() {
+    return this.#selectedMaterials;
+  }
+
+  /*
+   * Set the selected materials.
+   *
+   * Parameters:
+   *    materials: array of objects, each object has the following properties:
+   *     key: string, the key of the material in the database.
+   *     name: string, the display name of the material.
+   */ 
+  set selectedMaterials(materials) {
+    this.#selectedMaterials = materials;
   }
 
   /*

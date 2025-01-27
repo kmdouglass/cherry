@@ -9,7 +9,8 @@ const MaterialsExplorer = ( {materialsService, isLoadingFullData } ) => {
   const [selectedBook, setSelectedBook] = useState(null);    // Array, 0: key, 1: value
   const [selectedPage, setSelectedPage] = useState(null);    // Array, 0: key, 1: value
 
-  const [selectedMaterials, setSelectedMaterials] = useState([]);
+  const [selectedMaterials, setSelectedMaterials] = useState([]);  // Materials service
+  const [selectedListItems, setSelectedListItems] = useState([]);  // Listbox
 
  // Fetch shelf names when the component mounts and all data is loaded
  useEffect(() => {
@@ -51,10 +52,8 @@ const MaterialsExplorer = ( {materialsService, isLoadingFullData } ) => {
       .then(pages => {
         setPages(pages || new Map())
         // Set initial page
-
           const firstPage = Array.from(pages || [])[0];
           setSelectedPage(firstPage);
-        
       })
       .catch(error => console.error("Failed to fetch page names", error));
   }, [selectedBook, selectedShelf, materialsService]);
@@ -65,7 +64,6 @@ const MaterialsExplorer = ( {materialsService, isLoadingFullData } ) => {
   
     setSelectedShelf([shelfKey, shelfName]);
     setSelectedBook(null);
-
   }
 
   const handleBookChange = (event) => {
@@ -87,7 +85,25 @@ const MaterialsExplorer = ( {materialsService, isLoadingFullData } ) => {
     const key = `${selectedShelf[0]}:${selectedBook[0]}:${selectedPage[0]}`;
     const name = `${selectedBook[1]} / ${selectedPage[1]}`;  // Don't show the shelf
     
-    setSelectedMaterials(prev => [...prev, { key, name }]);
+    const newMaterials = [...selectedMaterials, { key, name }];
+    setSelectedMaterials(newMaterials);
+    materialsService.selectedMaterials = newMaterials;
+  }
+
+  const handleRemoveMaterial = () => {
+    if (!selectedMaterials) return;
+
+    // Filter out the selected items
+    const newMaterials = selectedMaterials.filter(
+      material => !selectedListItems.includes(material.key)
+    );
+    
+    // Update state and service
+    setSelectedMaterials(newMaterials);
+    materialsService.selectedMaterials = newMaterials;
+    
+    // Clear selection
+    setSelectedListItems([]);
   }
 
   return (
@@ -131,7 +147,16 @@ const MaterialsExplorer = ( {materialsService, isLoadingFullData } ) => {
         <div className="column is-half">
           <div className="box">
             <h4 className="title is-4">Selected Materials</h4>
-            <select multiple className="select is-multiple is-fullwidth mb-4" size="8">
+            <select 
+              multiple 
+              className="select is-multiple is-fullwidth mb-4" 
+              size="8"
+              value={selectedListItems}
+              onChange={(e) => {
+                const selectedOptions = Array.from(e.target.selectedOptions, option => option.value);
+                setSelectedListItems(selectedOptions);
+              }}
+            >
               {selectedMaterials.map(material => (
                 <option key={material.key} value={material.key}>
                   {material.name}
@@ -147,7 +172,10 @@ const MaterialsExplorer = ( {materialsService, isLoadingFullData } ) => {
               >
                 Add Material
               </button>
-              <button className="button is-danger">
+              <button
+                onClick={handleRemoveMaterial}
+                className="button is-danger"
+              >
                 Remove Material
               </button>
             </div>
