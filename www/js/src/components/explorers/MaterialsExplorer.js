@@ -58,6 +58,12 @@ const MaterialsExplorer = ( {materialsService, isLoadingFullData } ) => {
       .catch(error => console.error("Failed to fetch page names", error));
   }, [selectedBook, selectedShelf, materialsService]);
 
+  // Populate listbox with selected materials
+  useEffect(() => {
+      setSelectedMaterials(materialsService.selectedMaterials || []);
+    }, [materialsService]
+  );
+
   const handleShelfChange = (event) => {
     const shelfKey = event.target.value;
     const shelfName = shelves.get(shelfKey);
@@ -84,6 +90,10 @@ const MaterialsExplorer = ( {materialsService, isLoadingFullData } ) => {
 
     const key = `${selectedShelf[0]}:${selectedBook[0]}:${selectedPage[0]}`;
     const name = `${selectedBook[1]} / ${selectedPage[1]}`;  // Don't show the shelf
+    
+    // Check if material already exists
+    const isDuplicate = selectedMaterials.some(material => material.key === key);
+    if (isDuplicate) return;
     
     const newMaterials = [...selectedMaterials, { key, name }];
     setSelectedMaterials(newMaterials);
@@ -174,6 +184,7 @@ const MaterialsExplorer = ( {materialsService, isLoadingFullData } ) => {
               </button>
               <button
                 onClick={handleRemoveMaterial}
+                disabled={selectedListItems.length === 0}
                 className="button is-danger"
               >
                 Remove Material
