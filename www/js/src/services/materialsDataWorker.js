@@ -29,8 +29,21 @@ onmessage = function (event) {
                     return response.json()
                 })
                 .then(data => {
+                    // Delete the database if it already exists
+                    let req = indexedDB.deleteDatabase(DATABASE_NAME);
+
+                    return new Promise((resolve, reject) => {
+                        req.onsuccess = () => {
+                            resolve(data);
+                        }
+                        req.onerror = e => {
+                            console.debug(`Failed to delete the database: ${e.target.error?.message}`);
+                        }
+                    })
+                })
+                .then(data => {
                     let req = this.indexedDB.open(DATABASE_NAME, 1);
-                    let objectStore;
+
                     req.onupgradeneeded = e => {
                         // Create the object store if it doesn't exist
                         db = e.target.result;
