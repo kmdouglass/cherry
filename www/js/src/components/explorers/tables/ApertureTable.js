@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import "../css/Table.css";
+import "../../../css/Table.css";
 
 const ApertureTable = ({ aperture, setAperture, invalidFields, setInvalidFields }) => {
     const [editingCell, setEditingCell] = useState(null);

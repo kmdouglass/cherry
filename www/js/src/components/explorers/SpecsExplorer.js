@@ -1,9 +1,10 @@
 import { useState } from "react";
 
-import "../css/DataEntry.css";
-import ApertureTable from "./ApertureTable";
-import FieldsTable from "./FieldsTable";
-import SurfacesTable from "./SurfacesTable";
+import "../../css/DataEntry.css";
+import ApertureTable from "./tables/ApertureTable";
+import FieldsTable from "./tables/FieldsTable";
+import SurfacesTable from "./tables/SurfacesTable";
+import WavelengthsTable from "./tables/WavelengthsTable";
 
 
 const thereAreInvalidFields = (invalidFieldsObj) => {
@@ -12,13 +13,14 @@ const thereAreInvalidFields = (invalidFieldsObj) => {
   return !(Object.keys(invalidFieldsObj).length === 0) && invalidFieldsObj.constructor === Object;
 }
 
-const DataEntry = ({
+const SpecsExplorer = ({
     surfaces, setSurfaces,
     fields, setFields,
-    aperture, setAperture
+    aperture, setAperture,
+    wavelengths, setWavelengths,
+    invalidFields, setInvalidFields,
 }) => {
   const [activeTab, setActiveTab] = useState('surfaces');
-  const [invalidFields, setInvalidFields] = useState({});
 
   const handleTabClick = (tab) => {
     // Don't allow switching tabs if another cell is invalid
@@ -34,6 +36,8 @@ const DataEntry = ({
         return <FieldsTable fields={fields} setFields={setFields} invalidFields={invalidFields} setInvalidFields={setInvalidFields} />;
       case 'aperture':
         return <ApertureTable aperture={aperture} setAperture={setAperture} invalidFields={invalidFields} setInvalidFields={setInvalidFields} />;
+      case 'wavelengths':
+        return <WavelengthsTable wavelengths={wavelengths} setWavelengths={setWavelengths} invalidFields={invalidFields} setInvalidFields={setInvalidFields} />;
       default:
         return null;
     }
@@ -41,7 +45,7 @@ const DataEntry = ({
 
   return (
     <div className="data-entry">
-      <div className="tabs is-centered">
+      <div className="tabs is-centered is-small is-toggle is-toggle-rounded">
         <ul>
           <li className={activeTab === 'surfaces' ? 'is-active' : ''}>
             <a onClick={() => handleTabClick('surfaces')}>Surfaces</a>
@@ -52,6 +56,9 @@ const DataEntry = ({
           <li className={activeTab === 'aperture' ? 'is-active' : ''}>
             <a onClick={() => handleTabClick('aperture')}>Aperture</a>
           </li>
+          <li className={activeTab === 'wavelengths' ? 'is-active' : ''}>
+            <a onClick={() => handleTabClick('wavelengths')}>Wavelengths</a>
+          </li>
         </ul>
       </div>
       <div className="tab-content">
@@ -61,4 +68,4 @@ const DataEntry = ({
   );
 };
 
-export default DataEntry;
+export default SpecsExplorer;

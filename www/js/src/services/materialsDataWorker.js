@@ -1,4 +1,16 @@
-import { DATABASE_NAME, MSG_ERR, MSG_CLOSE_DB_CONNECTION, MSG_DB_CLOSED, MSG_FETCH_FULL_DATA, MSG_FETCH_INITIAL_DATA, MSG_FULL_DATA_FETCHED, MSG_INITIALIZED, OBJECT_STORE_NAME } from './materialsDataConstants';
+import {
+    DATABASE_NAME,
+    INDEX_SHELF_NAME,
+    INDEX_SHELF_BOOK_NAME,
+    MSG_ERR,
+    MSG_CLOSE_DB_CONNECTION,
+    MSG_DB_CLOSED,
+    MSG_FETCH_FULL_DATA,
+    MSG_FETCH_INITIAL_DATA,
+    MSG_FULL_DATA_FETCHED,
+    MSG_INITIALIZED,
+    OBJECT_STORE_NAME
+} from './materialsDataConstants';
 
 let db;
 
@@ -7,7 +19,6 @@ onmessage = function (event) {
     const arg = event.data[1];
 
     switch (message) {
-
         // Initialize the database, fetch the initial data, and store it in IndexedDB
         case MSG_FETCH_INITIAL_DATA:
             fetch(arg)
@@ -18,28 +29,45 @@ onmessage = function (event) {
                     return response.json()
                 })
                 .then(data => {
-                    // Put initial data into indexedDB
-                    let req = indexedDB.open(DATABASE_NAME, 1);
+                    let req = this.indexedDB.open(DATABASE_NAME, 1);
+                    let objectStore;
                     req.onupgradeneeded = e => {
                         // Create the object store if it doesn't exist
                         db = e.target.result;
-                        db.createObjectStore(OBJECT_STORE_NAME);
+                        const objectStore = db.createObjectStore(OBJECT_STORE_NAME);
+
+                        objectStore.createIndex(INDEX_SHELF_NAME, "shelf", { unique: false });
+                        objectStore.createIndex(INDEX_SHELF_BOOK_NAME, ["shelf", "book"], { unique: false });
                     }
-                    req.onsuccess = e => {
-                        db = e.target.result;
-
-                        let store = db
-                            .transaction(DATABASE_NAME, "readwrite")
-                            .objectStore(OBJECT_STORE_NAME);
-
-                        for (const [key, value] of Object.entries(data.inner)) {
-                            store.put(value, key);
+                    return new Promise((resolve, reject) => {
+                        req.onsuccess = e => {
+                            db = e.target.result;
+                            resolve([db, data]);
                         }
-                    } 
-                    req.onerror = e => {
-                        throw new Error(`Insertion into materials object store failed: {e.target.error?.message}`);
-                    };
+                        req.onerror = e => {
+                            reject(new Error(`Failed initialize to the database: ${e.target.error?.message}`));
+                        }
+                    })
+                })
+                .then(([db, data]) => {
+                    let store = db
+                        .transaction(DATABASE_NAME, "readwrite")
+                        .objectStore(OBJECT_STORE_NAME);
 
+                    for (const [key, value] of Object.entries(data.inner)) {
+                        store.put(value, key);
+                    }
+
+                    return new Promise((resolve, reject) => {
+                        store.transaction.oncomplete = () => {
+                            resolve();
+                        }
+                        store.transaction.onerror = e => {
+                            reject(new Error(`Failed to insert data into the object store: ${e.target.error?.message}`));
+                        }
+                    })
+                })
+                .then(() => {
                     postMessage(MSG_INITIALIZED);
                 })
                 .catch(e => {
@@ -68,6 +96,16 @@ onmessage = function (event) {
                         store.put(value, key);
                     }
 
+                    return new Promise((resolve, reject) => {
+                        store.transaction.oncomplete = () => {
+                            resolve();
+                        }
+                        store.transaction.onerror = e => {
+                            reject(new Error(`Failed to insert data into the object store: ${e.target.error?.message}`));
+                        }
+                    })
+                })
+                .then(() => {
                     postMessage(MSG_FULL_DATA_FETCHED);
                 })
                 .catch(e => {

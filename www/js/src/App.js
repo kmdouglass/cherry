@@ -6,11 +6,16 @@ import { useMemo, useState } from "react";
 import "./css/cherry.css";
 import CutawayView from "./components/CutawayView";
 import Navbar from "./components/Navbar";
-import DataEntry from "./components/DataEntry";
+import SpecsExplorer from "./components/explorers/SpecsExplorer";
+import MaterialsExplorer from "./components/explorers/MaterialsExplorer";
 
 function App({ wasmModule }) {
     // Load the material data
     const { materialsService, isLoadingInitialData, isLoadingFullData, error } = useMaterialsService();
+
+    // GUI state
+    const [activeExplorersTab, setExplorersActiveTab] = useState('specs');
+    const [invalidSpecsFields, setInvalidSpecsFields] = useState({});
 
     // Application state and initial values.
     const [surfaces, setSurfaces] = useState([
@@ -36,14 +41,19 @@ function App({ wasmModule }) {
             try {
                 //console.debug("Raw surfaces:", surfaces);
 
-                const { surfaceSpecs, gapSpecs, fieldSpecs, apertureSpec } = convertUIStateToEngineFormat(surfaces, fields, aperture);
+                const { surfaceSpecs, gapSpecs, fieldSpecs, apertureSpec, wavelengthSpecs } = convertUIStateToEngineFormat(
+                    surfaces,
+                    fields,
+                    aperture,
+                    wavelengths
+                );
 
                 //Build the optical system
                 opticalSystem.setSurfaces(surfaceSpecs);
                 opticalSystem.setGaps(gapSpecs);
                 opticalSystem.setFields(fieldSpecs);
                 opticalSystem.setAperture(apertureSpec);
-                opticalSystem.setWavelengths(wavelengths);
+                opticalSystem.setWavelengths(wavelengthSpecs);
                 opticalSystem.build();
 
                 //console.log("Surface specs:", surfaceSpecs);
@@ -75,7 +85,37 @@ function App({ wasmModule }) {
         }
     }, [wasmModule, surfaces, fields, aperture, wavelengths]);
 
-    // Render the application
+    const handleExplorersTabClick = (tab) => {
+        // Don't allow switching tabs if SpecsExplorer cell is invalid
+        if (thereAreInvalidSpecsFields(invalidSpecsFields)) return;
+        setExplorersActiveTab(tab);
+    }
+
+    const thereAreInvalidSpecsFields = (invalidFieldsObj) => {
+        // Check that the fields object is not empty.
+        // Javascript makes me so sad
+        return !(Object.keys(invalidFieldsObj).length === 0) && invalidFieldsObj.constructor === Object;
+    }
+
+    const renderSpecsExplorerTabContent = () => {
+        switch(activeExplorersTab) {
+            case 'specs':
+                return <SpecsExplorer
+                    surfaces={surfaces} setSurfaces={setSurfaces}
+                    fields={fields} setFields={setFields}
+                    aperture={aperture} setAperture={setAperture}
+                    wavelengths={wavelengths} setWavelengths={setWavelengths}
+                    invalidFields={invalidSpecsFields} setInvalidFields={setInvalidSpecsFields}
+                />;
+            case 'materials':
+                return <MaterialsExplorer materialsService={materialsService} isLoadingFullData={isLoadingFullData} />;
+            default:
+                return null;
+        }
+    }
+
+    // --------------------------------------------------------------------------------
+    // Rendering
     if (isLoadingInitialData) {
         return <div>Loading initial materials data...</div>;
     }
@@ -96,11 +136,22 @@ function App({ wasmModule }) {
             />
             <div className="container">
                 <CutawayView description={description} rawRayPaths={rawRayPaths} />
-                <DataEntry
-                    surfaces={surfaces} setSurfaces={setSurfaces}
-                    fields={fields} setFields={setFields}
-                    aperture={aperture} setAperture={setAperture}                
-                />
+                
+                <div className="tabs is-centered is-small is-toggle is-toggle-rounded">
+                    <ul>
+                        <li className={activeExplorersTab === 'specs' ? 'is-active' : ''}>
+                            <a onClick={() => handleExplorersTabClick('specs')}>Specs</a>
+                        </li>
+                        <li className={activeExplorersTab === 'materials' ? 'is-active' : ''}>
+                            <a onClick={() => handleExplorersTabClick('materials')}>Materials</a>
+                        </li>
+                    </ul>
+                </div>
+
+                <div className="box">
+                    {renderSpecsExplorerTabContent()}
+                </div>
+
             </div>
         </div>
     );

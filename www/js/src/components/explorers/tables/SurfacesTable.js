@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import "../css/Table.css";
+import "../../../css/Table.css";
 
 const SurfacesTable = ({ surfaces, setSurfaces, invalidFields, setInvalidFields }) => {
     const [editingCell, setEditingCell] = useState(null);

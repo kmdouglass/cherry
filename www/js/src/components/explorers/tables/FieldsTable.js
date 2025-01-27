@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import "../css/Table.css";
+import "../../../css/Table.css";
 
 const FieldsTable = ({ fields, setFields, invalidFields, setInvalidFields }) => {
   const [editingCell, setEditingCell] = useState(null);
@@ -24,7 +24,6 @@ const FieldsTable = ({ fields, setFields, invalidFields, setInvalidFields }) => 
     const newValue = e.target.value;
     const newFields = [...fields];
     const newInvalidFields = { ...invalidFields };
-
 
     const invalidStates = (field === "angle" && (newValue < -90.0 || newValue > 90.0))
         || isNaN(parseFloat(newValue));
