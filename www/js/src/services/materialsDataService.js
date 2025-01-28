@@ -30,7 +30,30 @@ export class MaterialsDataService {
   }
 
   /*
+   * Get a material from the database.
+   */
+  async getMaterial(key) {
+    return this.openDBConnection()
+      .then(db => {
+        return new Promise((resolve, reject) => {
+          const transaction = db.transaction(OBJECT_STORE_NAME, "readonly");
+          const store = transaction.objectStore(OBJECT_STORE_NAME);
+          const request = store.get(key);
+
+          request.onsuccess = () => {
+            resolve(request.result);
+          };
+
+          request.onerror = () => reject(request.error);
+        });
+      });
+  }
+
+  /*
    * Get the selected materials.
+   *
+   * These are the materials that the user has selected to use in the system. It does not
+   * return a specific material from the database.
    *
    * Returns:
    *    selectedMaterials: array of objects, each object has the following properties:
