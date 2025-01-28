@@ -144,9 +144,13 @@ function App({ wasmModule }) {
                         <li className={activeExplorersTab === 'specs' ? 'is-active' : ''}>
                             <a onClick={() => handleExplorersTabClick('specs')}>Specs</a>
                         </li>
-                        <li className={activeExplorersTab === 'materials' ? 'is-active' : ''}>
-                            <a onClick={() => handleExplorersTabClick('materials')}>Materials</a>
-                        </li>
+
+                        {appModes.materials && (
+                            <li className={activeExplorersTab === 'materials' ? 'is-active' : ''}>
+                                <a onClick={() => handleExplorersTabClick('materials')}>Materials</a>
+                            </li>
+                        )}
+
                     </ul>
                 </div>
 
