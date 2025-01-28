@@ -45,7 +45,8 @@ const Navbar = ( {
     fields, setFields,
     aperture, setAperture,
     wavelengths, setWavelengths,
-    description
+    description,
+    appModes, setAppModes,
 } ) => {
     const [activeDropdown, setActiveDropdown] = useState(null);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -258,7 +259,7 @@ const Navbar = ( {
             <div className={`navbar-menu ${isMobileMenuOpen ? 'is-active' : ''}`}>
                 <div className="navbar-start">
                     <div className={`navbar-item has-dropdown ${activeDropdown === "file" ? 'is-active' : ''}`}>
-                        <a className="navbar-link" onClick={() => toggleDropdown("file")}>
+                        <a className="navbar-link is-arrowless" onClick={() => toggleDropdown("file")}>
                             File
                         </a>
                         <div className="navbar-dropdown">
@@ -271,8 +272,19 @@ const Navbar = ( {
                         </div>
                     </div>
 
+                    <div className={`navbar-item has-dropdown ${activeDropdown === "modes" ? 'is-active' : ''}`}>
+                        <a className="navbar-link is-arrowless" onClick={() => toggleDropdown("modes")}>
+                            Modes
+                        </a>
+                        <div className="navbar-dropdown">
+                            <a className="navbar-item" id="mode-materials" onClick={() => setAppModes({...appModes, materials: !appModes.materials }) }>
+                                Specify Materials {appModes.materials ? "✅" : "❌"}
+                            </a>
+                        </div>
+                    </div>
+
                     <div className={`navbar-item has-dropdown ${activeDropdown === "results" ? 'is-active' : ''}`}>
-                        <a className="navbar-link" onClick={() => toggleDropdown("results")}>
+                        <a className="navbar-link is-arrowless" onClick={() => toggleDropdown("results")}>
                             Results
                         </a>
                         <div className="navbar-dropdown">
@@ -283,7 +295,7 @@ const Navbar = ( {
                     </div>
 
                     <div className={`navbar-item has-dropdown ${activeDropdown === "examples" ? 'is-active' : ''}`}>
-                        <a className="navbar-link" onClick={() => toggleDropdown("examples")}>
+                        <a className="navbar-link is-arrowless" onClick={() => toggleDropdown("examples")}>
                             Examples
                         </a>
                         <div className="navbar-dropdown">

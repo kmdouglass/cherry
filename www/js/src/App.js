@@ -16,6 +16,7 @@ function App({ wasmModule }) {
     // GUI state
     const [activeExplorersTab, setExplorersActiveTab] = useState('specs');
     const [invalidSpecsFields, setInvalidSpecsFields] = useState({});
+    const [appModes, setAppModes] = useState({ materials: false });
 
     // Application state and initial values.
     const [surfaces, setSurfaces] = useState([
@@ -133,6 +134,7 @@ function App({ wasmModule }) {
                 aperture={aperture} setAperture={setAperture}
                 wavelengths={wavelengths} setWavelengths={setWavelengths}
                 description={systemData.description}
+                appModes={appModes} setAppModes={setAppModes}
             />
             <div className="container">
                 <CutawayView description={description} rawRayPaths={rawRayPaths} />
