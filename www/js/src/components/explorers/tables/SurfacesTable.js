@@ -187,6 +187,13 @@ const SurfacesTable = ({ surfaces, setSurfaces, invalidFields, setInvalidFields,
         </td>
       );
     };
+
+    const renderMaterialHeader = () => {
+      if (appModes.refractiveIndex) {
+        return <th className="has-text-weight-semibold has-text-right">Refractive Index</th>;
+      }
+      return <th className="has-text-weight-semibold has-text-right">Material</th>;
+    }
   
     return (
       <div className="surfaces-table">
@@ -195,7 +202,7 @@ const SurfacesTable = ({ surfaces, setSurfaces, invalidFields, setInvalidFields,
           <thead>
             <tr>
               <th className="has-text-weight-semibold has-text-right">Surface Type</th>
-              <th className="has-text-weight-semibold has-text-right">Refractive Index</th>
+              { renderMaterialHeader() }
               <th className="has-text-weight-semibold has-text-right">Thickness</th>
               <th className="has-text-weight-semibold has-text-right">Semi-Diameter</th>
               <th className="has-text-weight-semibold has-text-right">Radius of Curvature</th>
