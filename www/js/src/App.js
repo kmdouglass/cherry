@@ -16,7 +16,7 @@ function App({ wasmModule }) {
     // GUI state
     const [activeExplorersTab, setExplorersActiveTab] = useState('specs');
     const [invalidSpecsFields, setInvalidSpecsFields] = useState({});
-    const [appModes, setAppModes] = useState({ materials: false });
+    const [appModes, setAppModes] = useState({ materials: true });
 
     // Application state and initial values.
     const [surfaces, setSurfaces] = useState([

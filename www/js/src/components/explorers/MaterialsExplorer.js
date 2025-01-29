@@ -9,7 +9,7 @@ const MaterialsExplorer = ( {materialsService, isLoadingFullData } ) => {
   const [selectedBook, setSelectedBook] = useState(null);    // Array, 0: key, 1: value
   const [selectedPage, setSelectedPage] = useState(null);    // Array, 0: key, 1: value
 
-  const [selectedMaterials, setSelectedMaterials] = useState([]);  // Materials service
+  const [selectedMaterials, setSelectedMaterials] = useState(new Map());  // Materials service
   const [selectedListItems, setSelectedListItems] = useState([]);  // Listbox
 
  // Fetch shelf names when the component mounts and all data is loaded
@@ -85,17 +85,19 @@ const MaterialsExplorer = ( {materialsService, isLoadingFullData } ) => {
     setSelectedPage([pageKey, pageName]);
   }
 
-  const handleAddMaterial = () => {
+  const handleAddMaterial = async () => {
     if (!selectedShelf || !selectedBook || !selectedPage) return;
 
     const key = `${selectedShelf[0]}:${selectedBook[0]}:${selectedPage[0]}`;
-    const name = `${selectedBook[1]} / ${selectedPage[1]}`;  // Don't show the shelf
+
+    // Check if key alreayd in materials and return if it is
+    if (selectedMaterials.has(key)) return;
     
-    // Check if material already exists
-    const isDuplicate = selectedMaterials.some(material => material.key === key);
-    if (isDuplicate) return;
-    
-    const newMaterials = [...selectedMaterials, { key, name }];
+    const material = await materialsService.getMaterialFromDB(key);
+
+    const newMaterials = new Map(selectedMaterials);
+    newMaterials.set(key, material);
+
     setSelectedMaterials(newMaterials);
     materialsService.selectedMaterials = newMaterials;
   }
@@ -103,18 +105,16 @@ const MaterialsExplorer = ( {materialsService, isLoadingFullData } ) => {
   const handleRemoveMaterial = () => {
     if (!selectedMaterials) return;
 
-    // Filter out the selected items
-    const newMaterials = selectedMaterials.filter(
-      material => !selectedListItems.includes(material.key)
-    );
+    const newMaterials = new Map(selectedMaterials);
+    selectedListItems.forEach(key => newMaterials.delete(key));
     
-    // Update state and service
     setSelectedMaterials(newMaterials);
     materialsService.selectedMaterials = newMaterials;
-    
-    // Clear selection
+
     setSelectedListItems([]);
   }
+
+  console.log("selectedMaterials", selectedMaterials);
 
   return (
     <div>
@@ -167,10 +167,8 @@ const MaterialsExplorer = ( {materialsService, isLoadingFullData } ) => {
                 setSelectedListItems(selectedOptions);
               }}
             >
-              {selectedMaterials.map(material => (
-                <option key={material.key} value={material.key}>
-                  {material.name}
-                </option>
+              {Array.from(selectedMaterials).map(([key, material ]) => (
+                <option key={key} value={key}>{material.page}</option>
               ))}
             </select>
             

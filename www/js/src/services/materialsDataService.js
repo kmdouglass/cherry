@@ -26,13 +26,13 @@ export class MaterialsDataService {
       console.debug('Received message from the worker:', event.data);
     }
 
-    this.#selectedMaterials = [];
+    this.#selectedMaterials = new Map();
   }
 
   /*
    * Get a material from the database.
    */
-  async getMaterial(key) {
+  async getMaterialFromDB(key) {
     return this.openDBConnection()
       .then(db => {
         return new Promise((resolve, reject) => {
