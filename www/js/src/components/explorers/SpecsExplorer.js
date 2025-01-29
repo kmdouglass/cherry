@@ -19,6 +19,8 @@ const SpecsExplorer = ({
     aperture, setAperture,
     wavelengths, setWavelengths,
     invalidFields, setInvalidFields,
+    appModes, setAppModes,
+    materialsService,
 }) => {
   const [activeTab, setActiveTab] = useState('surfaces');
 
@@ -31,7 +33,12 @@ const SpecsExplorer = ({
   const renderTabContent = () => {
     switch(activeTab) {
       case 'surfaces':
-        return <SurfacesTable surfaces={surfaces} setSurfaces={setSurfaces} invalidFields={invalidFields} setInvalidFields={setInvalidFields} />;
+        return <SurfacesTable
+          surfaces={surfaces} setSurfaces={setSurfaces}
+          invalidFields={invalidFields} setInvalidFields={setInvalidFields}
+          appModes={appModes} setAppModes={setAppModes}
+          materialsService={materialsService}
+        />;
       case 'fields':
         return <FieldsTable fields={fields} setFields={setFields} invalidFields={invalidFields} setInvalidFields={setInvalidFields} />;
       case 'aperture':
@@ -56,9 +63,10 @@ const SpecsExplorer = ({
           <li className={activeTab === 'aperture' ? 'is-active' : ''}>
             <a onClick={() => handleTabClick('aperture')}>Aperture</a>
           </li>
+          { !appModes.refractiveIndex &&
           <li className={activeTab === 'wavelengths' ? 'is-active' : ''}>
             <a onClick={() => handleTabClick('wavelengths')}>Wavelengths</a>
-          </li>
+          </li>}
         </ul>
       </div>
       <div className="tab-content">

@@ -272,17 +272,6 @@ const Navbar = ( {
                         </div>
                     </div>
 
-                    <div className={`navbar-item has-dropdown ${activeDropdown === "modes" ? 'is-active' : ''}`}>
-                        <a className="navbar-link is-arrowless" onClick={() => toggleDropdown("modes")}>
-                            Modes
-                        </a>
-                        <div className="navbar-dropdown">
-                            <a className="navbar-item" id="mode-materials" onClick={() => setAppModes({...appModes, materials: !appModes.materials }) }>
-                                Specify Materials {appModes.materials ? "✅" : "❌"}
-                            </a>
-                        </div>
-                    </div>
-
                     <div className={`navbar-item has-dropdown ${activeDropdown === "results" ? 'is-active' : ''}`}>
                         <a className="navbar-link is-arrowless" onClick={() => toggleDropdown("results")}>
                             Results

@@ -16,7 +16,7 @@ function App({ wasmModule }) {
     // GUI state
     const [activeExplorersTab, setExplorersActiveTab] = useState('specs');
     const [invalidSpecsFields, setInvalidSpecsFields] = useState({});
-    const [appModes, setAppModes] = useState({ materials: true });
+    const [appModes, setAppModes] = useState({ refractiveIndex: false });
 
     // Application state and initial values.
     const [surfaces, setSurfaces] = useState([
@@ -107,6 +107,8 @@ function App({ wasmModule }) {
                     aperture={aperture} setAperture={setAperture}
                     wavelengths={wavelengths} setWavelengths={setWavelengths}
                     invalidFields={invalidSpecsFields} setInvalidFields={setInvalidSpecsFields}
+                    appModes={appModes} setAppModes={setAppModes}
+                    materialsService={materialsService}
                 />;
             case 'materials':
                 return <MaterialsExplorer materialsService={materialsService} isLoadingFullData={isLoadingFullData} />;
@@ -144,13 +146,9 @@ function App({ wasmModule }) {
                         <li className={activeExplorersTab === 'specs' ? 'is-active' : ''}>
                             <a onClick={() => handleExplorersTabClick('specs')}>Specs</a>
                         </li>
-
-                        {appModes.materials && (
-                            <li className={activeExplorersTab === 'materials' ? 'is-active' : ''}>
-                                <a onClick={() => handleExplorersTabClick('materials')}>Materials</a>
-                            </li>
-                        )}
-
+                        <li className={activeExplorersTab === 'materials' ? 'is-active' : ''}>
+                            <a onClick={() => handleExplorersTabClick('materials')}>Materials</a>
+                        </li>
                     </ul>
                 </div>
 

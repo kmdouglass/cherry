@@ -2,7 +2,9 @@ import { useState } from "react";
 
 import "../../../css/Table.css";
 
-const SurfacesTable = ({ surfaces, setSurfaces, invalidFields, setInvalidFields }) => {
+import ModeToggles from "./SurfacesModeToggles";
+
+const SurfacesTable = ({ surfaces, setSurfaces, invalidFields, setInvalidFields, appModes, setAppModes, materialsExplorer }) => {
     const [editingCell, setEditingCell] = useState(null);
 
     const getSurfaceTypeDefaultValues = (type) => {
@@ -187,30 +189,33 @@ const SurfacesTable = ({ surfaces, setSurfaces, invalidFields, setInvalidFields 
     };
   
     return (
-      <table className="table is-fullwidth">
-        <thead>
-          <tr>
-            <th className="has-text-weight-semibold has-text-right">Surface Type</th>
-            <th className="has-text-weight-semibold has-text-right">Refractive Index</th>
-            <th className="has-text-weight-semibold has-text-right">Thickness</th>
-            <th className="has-text-weight-semibold has-text-right">Semi-Diameter</th>
-            <th className="has-text-weight-semibold has-text-right">Radius of Curvature</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {surfaces.map((surface, index) => (
-            <tr key={index}>
-              {renderSurfaceTypeCell(surface, index)}
-              <td>{renderEditableCell(surface.n, index, "n")}</td>
-              <td>{renderEditableCell(surface.thickness, index, "thickness")}</td>
-              <td>{renderEditableCell(surface.semiDiam, index, "semiDiam")}</td>
-              <td>{renderEditableCell(surface.roc, index, "roc")}</td>
-              {renderActionButtons(index)}
+      <div className="surfaces-table">
+        <ModeToggles appModes={appModes} setAppModes={setAppModes} />
+        <table className="table is-fullwidth">
+          <thead>
+            <tr>
+              <th className="has-text-weight-semibold has-text-right">Surface Type</th>
+              <th className="has-text-weight-semibold has-text-right">Refractive Index</th>
+              <th className="has-text-weight-semibold has-text-right">Thickness</th>
+              <th className="has-text-weight-semibold has-text-right">Semi-Diameter</th>
+              <th className="has-text-weight-semibold has-text-right">Radius of Curvature</th>
+              <th>Actions</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {surfaces.map((surface, index) => (
+              <tr key={index}>
+                {renderSurfaceTypeCell(surface, index)}
+                <td>{renderEditableCell(surface.n, index, "n")}</td>
+                <td>{renderEditableCell(surface.thickness, index, "thickness")}</td>
+                <td>{renderEditableCell(surface.semiDiam, index, "semiDiam")}</td>
+                <td>{renderEditableCell(surface.roc, index, "roc")}</td>
+                {renderActionButtons(index)}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     );
   };
   
