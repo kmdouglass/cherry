@@ -114,8 +114,6 @@ const MaterialsExplorer = ( {materialsService, isLoadingFullData } ) => {
     setSelectedListItems([]);
   }
 
-  console.log("selectedMaterials", selectedMaterials);
-
   return (
     <div>
       <p className="has-text-centered">Powered by <a href="https://refractiveindex.info/" target="_blank">RefractiveIndex.INFO</a></p>

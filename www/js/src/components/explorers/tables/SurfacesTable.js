@@ -4,7 +4,7 @@ import "../../../css/Table.css";
 
 import ModeToggles from "./SurfacesModeToggles";
 
-const SurfacesTable = ({ surfaces, setSurfaces, invalidFields, setInvalidFields, appModes, setAppModes, materialsExplorer }) => {
+const SurfacesTable = ({ surfaces, setSurfaces, invalidFields, setInvalidFields, appModes, setAppModes, materialsService }) => {
     const [editingCell, setEditingCell] = useState(null);
 
     const getSurfaceTypeDefaultValues = (type) => {
@@ -194,7 +194,28 @@ const SurfacesTable = ({ surfaces, setSurfaces, invalidFields, setInvalidFields,
       }
       return <th className="has-text-weight-semibold has-text-right">Material</th>;
     }
+
+    const renderMaterialCell = (value, index, field) => {
+      if (appModes.refractiveIndex) {
+        return renderEditableCell(value, index, field);
+      }
+      // Return a dropdown box with the list of materials
+      // TODO Set the selected value to the current material!
+      return (
+        <div className="select">
+          <select value="3d:crystals:germanium">
+          {Array.from(materialsService.selectedMaterials).map(([key, material]) => (
+            <option key={key} value={key}>{material.page}</option>
+          ))}
+          </select>
+        </div>
+      )
+    }
   
+    materialsService.selectedMaterials.forEach((material, key) => {
+      console.log(key, material);
+      console.log(material.page);
+    });
     return (
       <div className="surfaces-table">
         <ModeToggles appModes={appModes} setAppModes={setAppModes} />
@@ -213,7 +234,9 @@ const SurfacesTable = ({ surfaces, setSurfaces, invalidFields, setInvalidFields,
             {surfaces.map((surface, index) => (
               <tr key={index}>
                 {renderSurfaceTypeCell(surface, index)}
-                <td>{renderEditableCell(surface.n, index, "n")}</td>
+
+                <td>{renderMaterialCell(surface.n, index, "n")}</td>
+
                 <td>{renderEditableCell(surface.thickness, index, "thickness")}</td>
                 <td>{renderEditableCell(surface.semiDiam, index, "semiDiam")}</td>
                 <td>{renderEditableCell(surface.roc, index, "roc")}</td>
