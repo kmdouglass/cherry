@@ -1,4 +1,4 @@
-import { convertUIStateToEngineFormat, getOpticalSystem } from "./modules/opticalSystem";
+import { convertUIStateToLibFormat, getOpticalSystem } from "./modules/opticalSystem";
 import { useMaterialsService } from "./services/materialsDataService";
 
 import { useMemo, useState } from "react";
@@ -34,20 +34,22 @@ function App({ wasmModule }) {
     const [description, setDescription] = useState(null);
     const [rawRayPaths, setRawRayPaths] = useState(null);
 
-    const opticalSystem = getOpticalSystem(wasmModule);
-
     // Update the optical system during each render
     const systemData = useMemo(() => {
         if (wasmModule) {
             try {
-                //console.debug("Raw surfaces:", surfaces);
+                const opticalSystem = getOpticalSystem(wasmModule);
 
-                const { surfaceSpecs, gapSpecs, fieldSpecs, apertureSpec, wavelengthSpecs } = convertUIStateToEngineFormat(
+                const { surfaceSpecs, gapSpecs, fieldSpecs, apertureSpec, wavelengthSpecs } = convertUIStateToLibFormat(
                     surfaces,
                     fields,
                     aperture,
-                    wavelengths
+                    wavelengths,
+                    appModes,
+                    materialsService,
                 );
+
+                console.log("gapSpecs", gapSpecs);
 
                 //Build the optical system
                 opticalSystem.setSurfaces(surfaceSpecs);
@@ -56,14 +58,6 @@ function App({ wasmModule }) {
                 opticalSystem.setAperture(apertureSpec);
                 opticalSystem.setWavelengths(wavelengthSpecs);
                 opticalSystem.build();
-
-                //console.log("Surface specs:", surfaceSpecs);
-                //console.log("Gap specs:", gapSpecs);
-                //console.log("Field specs:", fieldSpecs);
-                //console.log("Aperture:", aperture);
-                //console.log("Wavelengths:", wavelengths);
-
-                //console.log("Fields:", fields);
 
                 // Render the optical system
                 const newDescription = opticalSystem.describe();

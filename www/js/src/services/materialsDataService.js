@@ -56,9 +56,7 @@ export class MaterialsDataService {
    * return a specific material from the database.
    *
    * Returns:
-   *    selectedMaterials: array of objects, each object has the following properties:
-   *     key: string, the key of the material in the database.
-   *     name: string, the display name of the material.
+   *    selectedMaterials: Map of materials
    */ 
   get selectedMaterials() {
     return this.#selectedMaterials;
@@ -68,9 +66,7 @@ export class MaterialsDataService {
    * Set the selected materials.
    *
    * Parameters:
-   *    materials: array of objects, each object has the following properties:
-   *     key: string, the key of the material in the database.
-   *     name: string, the display name of the material.
+   *    materials: Map of materials
    */ 
   set selectedMaterials(materials) {
     this.#selectedMaterials = materials;

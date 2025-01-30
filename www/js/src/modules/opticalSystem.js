@@ -9,9 +9,7 @@ export function getOpticalSystem(wasmModule) {
 }
 
 /* Converts data from the UI state into inputs to the raytrace engine. */
-export function convertUIStateToEngineFormat(surfaces, fields, aperture, wavelengths) {
-    const AIR = 1.0;
-
+export function convertUIStateToLibFormat(surfaces, fields, aperture, wavelengths, appModes, materialsService) {
     // QUESTION: Can float conversion be done any better?
     function createSurfaceSpec(surface) {
         if (surface.type === 'Object' || surface.type === 'Image' || surface.type === 'Probe') {
@@ -45,10 +43,17 @@ export function convertUIStateToEngineFormat(surfaces, fields, aperture, wavelen
     }
 
     function createGapSpec(surface) {
-        return {
-            "thickness": parseFloat(surface.thickness) === 'Infinity' ? Infinity : (parseFloat(surface.thickness) || 0),
-            "refractive_index": parseFloat(surface.n)
-        };
+        if (appModes.refractiveIndex) {
+            return {
+                "thickness": parseFloat(surface.thickness) === 'Infinity' ? Infinity : (parseFloat(surface.thickness) || 0),
+                "refractive_index": parseFloat(surface.n)
+            }
+        } else {
+            return {
+                "thickness": parseFloat(surface.thickness) === 'Infinity' ? Infinity : (parseFloat(surface.thickness) || 0),
+                "material": materialsService.selectedMaterials.get(surface.materialKey || "") || ""
+            }
+        }
     }
 
     function createFieldSpec(field) {
