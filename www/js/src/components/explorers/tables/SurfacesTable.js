@@ -68,7 +68,7 @@ const SurfacesTable = ({ surfaces, setSurfaces, invalidFields, setInvalidFields,
         // TODO: Use reducer hook?
         setSurfaces(newSurfaces);
         setInvalidFields(newInvalidFields);
-  };
+    };
     
     const handleCellBlur = () => {
       // Do not allow exiting the cell if the input is invalid
@@ -76,27 +76,27 @@ const SurfacesTable = ({ surfaces, setSurfaces, invalidFields, setInvalidFields,
           return;
       }
       setEditingCell(null);
-  };
+    };
 
-  const handleKeyDown = (e) => {
-      if (e.key === 'Enter' && editingCell) {
-          // Do not allow exiting the cell if the input is invalid
-          if (invalidFields[editingCell.index] && invalidFields[editingCell.index][editingCell.field]) {
-              return;
-          }
-          setEditingCell(null);
-      }
+    const handleKeyDown = (e) => {
+        if (e.key === 'Enter' && editingCell) {
+            // Do not allow exiting the cell if the input is invalid
+            if (invalidFields[editingCell.index] && invalidFields[editingCell.index][editingCell.field]) {
+                return;
+            }
+            setEditingCell(null);
+        }
 
-      if (e.key === 'Escape' && editingCell) {
-          const newSurfaces = [...surfaces];
-          newSurfaces[editingCell.index][editingCell.field] = editingCell.originalValue;
+        if (e.key === 'Escape' && editingCell) {
+            const newSurfaces = [...surfaces];
+            newSurfaces[editingCell.index][editingCell.field] = editingCell.originalValue;
 
-          // TODO: Use reducer hook?
-          setSurfaces(newSurfaces);
-          setInvalidFields({});
-          setEditingCell(null);
-      }
-  };
+            // TODO: Use reducer hook?
+            setSurfaces(newSurfaces);
+            setInvalidFields({});
+            setEditingCell(null);
+        }
+    };
 
     const handleInsert = (index) => {
       // Don't allow inserting a cell if another cell is invalid
@@ -120,6 +120,13 @@ const SurfacesTable = ({ surfaces, setSurfaces, invalidFields, setInvalidFields,
 
       const newSurfaces = [...surfaces];
       newSurfaces.splice(index, 1);
+      setSurfaces(newSurfaces);
+    };
+
+    const handleMaterialChange = (e, index) => {
+      const newSurfaces = [...surfaces];
+
+      newSurfaces[index].materialKey = e.target.value;
       setSurfaces(newSurfaces);
     };
   
@@ -199,23 +206,20 @@ const SurfacesTable = ({ surfaces, setSurfaces, invalidFields, setInvalidFields,
       if (appModes.refractiveIndex) {
         return renderEditableCell(value, index, field);
       }
+
       // Return a dropdown box with the list of materials
-      // TODO Set the selected value to the current material!
       return (
         <div className="select">
-          <select value="3d:crystals:germanium">
-          {Array.from(materialsService.selectedMaterials).map(([key, material]) => (
-            <option key={key} value={key}>{material.page}</option>
-          ))}
+          <select value={surfaces[index].materialKey || ""} onChange={(event) => handleMaterialChange(event, index)}>
+            <option value="">Select a material</option>
+            {Array.from(materialsService.selectedMaterials).map(([key, material]) => (
+              <option key={key} value={key}>{material.page}</option>
+            ))}
           </select>
         </div>
       )
     }
-  
-    materialsService.selectedMaterials.forEach((material, key) => {
-      console.log(key, material);
-      console.log(material.page);
-    });
+
     return (
       <div className="surfaces-table">
         <ModeToggles appModes={appModes} setAppModes={setAppModes} />
@@ -240,6 +244,7 @@ const SurfacesTable = ({ surfaces, setSurfaces, invalidFields, setInvalidFields,
                 <td>{renderEditableCell(surface.thickness, index, "thickness")}</td>
                 <td>{renderEditableCell(surface.semiDiam, index, "semiDiam")}</td>
                 <td>{renderEditableCell(surface.roc, index, "roc")}</td>
+
                 {renderActionButtons(index)}
               </tr>
             ))}
