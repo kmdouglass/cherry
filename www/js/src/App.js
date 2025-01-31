@@ -79,7 +79,7 @@ function App({ wasmModule }) {
                 }
             }
         }
-    }, [wasmModule, surfaces, fields, aperture, wavelengths]);
+    }, [wasmModule, surfaces, fields, aperture, wavelengths, appModes]);
 
     const handleExplorersTabClick = (tab) => {
         // Don't allow switching tabs if SpecsExplorer cell is invalid
