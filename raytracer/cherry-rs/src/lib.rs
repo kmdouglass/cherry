@@ -148,3 +148,6 @@ pub use views::{
     },
     ray_trace_3d::{ray_trace_3d_view, Ray, TraceResults},
 };
+
+// Re-exports from dependencies
+pub use lib_ria::Material;

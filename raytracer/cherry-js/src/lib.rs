@@ -6,7 +6,18 @@ use wasm_bindgen::prelude::*;
 
 use cherry_rs::{ApertureSpec, FieldSpec, GapSpec, Ray, SurfaceSpec};
 
-use system::{GapSpecConstantN, System, SystemBuilder};
+use system::{GapSpecConstantN, GapSpecMaterial, System, SystemBuilder};
+
+/// Specifies the type of gap.
+///
+/// If `Material`, the gap is specified by a material specification and its dispersion data. If
+/// `RefractiveIndex`, the gap is specified directly by a refractive index value.
+#[wasm_bindgen]
+#[derive(Copy, Clone, Debug)]
+pub enum GapMode {
+    Material = 0,
+    RefractiveIndex = 1,
+}
 
 #[wasm_bindgen]
 #[derive(Debug)]
@@ -47,10 +58,19 @@ impl OpticalSystem {
         Ok(())
     }
 
-    pub fn setGaps(&mut self, gaps: JsValue) -> Result<(), JsError> {
-        let inputs: Vec<GapSpecConstantN> = serde_wasm_bindgen::from_value(gaps)?;
-        let gaps: Vec<GapSpec> = inputs.into_iter().map(GapSpec::from).collect();
-        self.builder.gap_specs(gaps);
+    pub fn setGaps(&mut self, gaps: JsValue, mode: GapMode) -> Result<(), JsError> {
+        match mode {
+            GapMode::Material => {
+                let gaps: Vec<GapSpecMaterial> = serde_wasm_bindgen::from_value(gaps)?;
+                let gaps: Vec<GapSpec> = gaps.into_iter().map(GapSpec::from).collect();
+                self.builder.gap_specs(gaps);
+            }
+            GapMode::RefractiveIndex => {
+                let gaps: Vec<GapSpecConstantN> = serde_wasm_bindgen::from_value(gaps)?;
+                let gaps: Vec<GapSpec> = gaps.into_iter().map(GapSpec::from).collect();
+                self.builder.gap_specs(gaps);
+            }
+        }
         Ok(())
     }
 

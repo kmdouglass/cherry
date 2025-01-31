@@ -48,12 +48,13 @@ function App({ wasmModule }) {
                     appModes,
                     materialsService,
                 );
+                const gapMode = appModes.refractiveIndex ? wasmModule.GapMode.RefractiveIndex : wasmModule.GapMode.Material;
 
                 console.log("gapSpecs", gapSpecs);
 
                 //Build the optical system
                 opticalSystem.setSurfaces(surfaceSpecs);
-                opticalSystem.setGaps(gapSpecs);
+                opticalSystem.setGaps(gapSpecs, gapMode);
                 opticalSystem.setFields(fieldSpecs);
                 opticalSystem.setAperture(apertureSpec);
                 opticalSystem.setWavelengths(wavelengthSpecs);
