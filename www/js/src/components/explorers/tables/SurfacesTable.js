@@ -207,6 +207,11 @@ const SurfacesTable = ({ surfaces, setSurfaces, invalidFields, setInvalidFields,
         return renderEditableCell(value, index, field);
       }
 
+      // If we are at the last (image) surface, don't allow changing the material
+      if (index === surfaces.length - 1) {
+        return <div></div>;
+      }
+
       // Return a dropdown box with the list of materials
       return (
         <div className="select">
