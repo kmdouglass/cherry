@@ -142,7 +142,8 @@ const Navbar = ( {
         // Combine data for saving
         const dataToSave = {
             ...description,  // Preserve any existing description data
-            inputs: {
+            appModes,
+            specs: {
                 surfaces,
                 fields,
                 aperture,
@@ -174,40 +175,50 @@ const Navbar = ( {
         fileInputRef.current?.click();
     }
 
-    const handleFileChange = (event) => {
+    const handleFileChange = async (event) => {
         const file = event.target.files?.[0];
         if (!file) return;
+    
+        try {
+            // Convert FileReader to Promise-based operation
+            const fileContent = await new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (e) => resolve(e.target?.result);
+                reader.onerror = () => reject(new Error("Failed to read file"));
+                reader.readAsText(file);
+            });
+    
+            const jsonData = JSON.parse(fileContent);
+            
+            // Update all the state with the loaded data from the inputs object
+            if (jsonData.specs && jsonData.appModes) {
+                const { surfaces: newSurfaces, fields: newFields, aperture: newAperture, wavelengths: newWavelengths } = jsonData.specs;
 
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            try {
-                const jsonData = JSON.parse(e.target?.result);
-                
-                // Update all the state with the loaded data from the inputs object
-                if (jsonData.inputs) {
-                    const { surfaces: newSurfaces, fields: newFields, aperture: newAperture, wavelengths: newWavelengths } = jsonData.inputs;
-                    if (newSurfaces) setSurfaces(newSurfaces);
-                    if (newFields) setFields(newFields);
-                    if (newAperture) setAperture(newAperture);
-                    if (newWavelengths) setWavelengths(newWavelengths);
-                } else {
-                    throw new Error("Invalid file format: missing inputs data");
+                // Clear materials first
+                materialsService.clearSelectedMaterials();
+                // Use newSurfaces to add materials
+                for (const surface of newSurfaces) {
+                    if (surface.material) {
+                        await materialsService.addMaterialToSelectedMaterials(surface.material);
+                    }
                 }
-                
-            } catch (error) {
-                console.error("Error parsing JSON file:", error);
-                showAlert(error instanceof Error ? error.message : "Failed to load file");
+
+                setAppModes(jsonData.appModes);
+
+                if (newSurfaces) setSurfaces(newSurfaces);
+                if (newFields) setFields(newFields);
+                if (newAperture) setAperture(newAperture);
+                if (newWavelengths) setWavelengths(newWavelengths);
+            } else {
+                throw new Error("Invalid file format: missing specs data and/or appModes");
             }
-        };
-
-        reader.onerror = () => {
-            showAlert("Failed to read file");
-        };
-
-        reader.readAsText(file);
-        
-        // Reset the file input so the same file can be selected again
-        event.target.value = "";
+            
+        } catch (error) {
+            showAlert(error instanceof Error ? error.message : "Failed to load file");
+        } finally {
+            // Reset the file input so the same file can be selected again
+            event.target.value = "";
+        }
     };
 
     // Results handlers
