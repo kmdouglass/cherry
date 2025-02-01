@@ -46,7 +46,22 @@ export class MaterialsDataService {
 
           request.onerror = () => reject(request.error);
         });
-      });
+      }
+    );
+  }
+
+  async addMaterialToSelectedMaterials(key) {
+      const material = await this.getMaterialFromDB(key);
+
+      if (material) {
+        const newMaterials = new Map(this.selectedMaterials);
+        newMaterials.set(key, material);
+        this.selectedMaterials = newMaterials
+      }
+  }
+
+  clearSelectedMaterials() {
+    this.selectedMaterials = new Map();
   }
 
   /*

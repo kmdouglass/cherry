@@ -132,6 +132,7 @@ function App({ wasmModule }) {
                 wavelengths={wavelengths} setWavelengths={setWavelengths}
                 description={systemData.description}
                 appModes={appModes} setAppModes={setAppModes}
+                materialsService={materialsService}
             />
             <div className="container">
                 <CutawayView description={description} rawRayPaths={rawRayPaths} />

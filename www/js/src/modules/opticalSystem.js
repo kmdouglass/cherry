@@ -51,7 +51,7 @@ export function convertUIStateToLibFormat(surfaces, fields, aperture, wavelength
         } else {
             return {
                 "thickness": parseFloat(surface.thickness) === 'Infinity' ? Infinity : (parseFloat(surface.thickness) || 0),
-                "material": materialsService.selectedMaterials.get(surface.materialKey || "") || ""
+                "material": materialsService.selectedMaterials.get(surface.material || "") || ""
             }
         }
     }

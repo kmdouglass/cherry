@@ -126,7 +126,7 @@ const SurfacesTable = ({ surfaces, setSurfaces, invalidFields, setInvalidFields,
     const handleMaterialChange = (e, index) => {
       const newSurfaces = [...surfaces];
 
-      newSurfaces[index].materialKey = e.target.value;
+      newSurfaces[index].material = e.target.value;
       setSurfaces(newSurfaces);
     };
   
@@ -215,7 +215,7 @@ const SurfacesTable = ({ surfaces, setSurfaces, invalidFields, setInvalidFields,
       // Return a dropdown box with the list of materials
       return (
         <div className="select">
-          <select value={surfaces[index].materialKey || ""} onChange={(event) => handleMaterialChange(event, index)}>
+          <select value={surfaces[index].material || ""} onChange={(event) => handleMaterialChange(event, index)}>
             <option value="">Select a material</option>
             {Array.from(materialsService.selectedMaterials).map(([key, material]) => (
               <option key={key} value={key}>{material.page}</option>

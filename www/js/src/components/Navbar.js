@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import SummaryWindow from "./SummaryWindow";
 
 import cpLensData from "../examples/convexplanoLens";
+import cpmLensData from "../examples/convexplanoLensWithMaterials";
 import petzvalLensData from "../examples/petzvalLens";
 
 /*
@@ -47,6 +48,7 @@ const Navbar = ( {
     wavelengths, setWavelengths,
     description,
     appModes, setAppModes,
+    materialsService,
 } ) => {
     const [activeDropdown, setActiveDropdown] = useState(null);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -219,17 +221,38 @@ const Navbar = ( {
 
     // Examples handlers
     const handleConvexplanoLens = () => {
+        materialsService.clearSelectedMaterials();
+
         setSurfaces(cpLensData.surfaces);
         setFields(cpLensData.fields);
         setAperture(cpLensData.aperture);
         setWavelengths(cpLensData.wavelengths);
+        setAppModes(cpLensData.appModes);
+    };
+
+    const handleConvexplanoLensWithMaterials = async () => {
+        materialsService.clearSelectedMaterials();
+        for (const surface of cpmLensData.surfaces) {
+            if (surface.material) {
+                await materialsService.addMaterialToSelectedMaterials(surface.material);
+            }
+        }
+
+        setSurfaces(cpmLensData.surfaces);
+        setFields(cpmLensData.fields);
+        setAperture(cpmLensData.aperture);
+        setWavelengths(cpmLensData.wavelengths);
+        setAppModes(cpmLensData.appModes);
     };
 
     const handlePetzvalLens = () => {
+        materialsService.clearSelectedMaterials();
+
         setSurfaces(petzvalLensData.surfaces);
         setFields(petzvalLensData.fields);
         setAperture(petzvalLensData.aperture);
         setWavelengths(petzvalLensData.wavelengths);
+        setAppModes(petzvalLensData.appModes);
     };
 
     return (
@@ -289,7 +312,10 @@ const Navbar = ( {
                         </a>
                         <div className="navbar-dropdown">
                             <a className="navbar-item" id="preset-planoconvex" onClick={handleConvexplanoLens}>
-                                Convexplano lens
+                                Convexplano lens (refractive indexes)
+                            </a>
+                            <a className="navbar-item" id="preset-planoconvex-materials" onClick={handleConvexplanoLensWithMaterials}>
+                                Convexplano lens (materials)
                             </a>
                             <a className="navbar-item" id="preset-petzval" onClick={handlePetzvalLens}>
                                 Petzval objective

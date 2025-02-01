@@ -90,16 +90,13 @@ const MaterialsExplorer = ( {materialsService, isLoadingFullData } ) => {
 
     const key = `${selectedShelf[0]}:${selectedBook[0]}:${selectedPage[0]}`;
 
-    // Check if key alreayd in materials and return if it is
+    // Check if key is already in materials and return if it is
     if (selectedMaterials.has(key)) return;
     
-    const material = await materialsService.getMaterialFromDB(key);
+    await materialsService.addMaterialToSelectedMaterials(key);
 
-    const newMaterials = new Map(selectedMaterials);
-    newMaterials.set(key, material);
-
+    const newMaterials = new Map(materialsService.selectedMaterials);
     setSelectedMaterials(newMaterials);
-    materialsService.selectedMaterials = newMaterials;
   }
 
   const handleRemoveMaterial = () => {
