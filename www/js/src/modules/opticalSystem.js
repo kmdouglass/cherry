@@ -85,6 +85,10 @@ export function convertUIStateToLibFormat(surfaces, fields, aperture, wavelength
     }
 
     function createWavelengthSpec(wavelengths) {
+        // Don't take into account wavelengths if refractive index mode is enabled
+        if (appModes.refractiveIndex) {
+            return [0.5876];
+        }
         return wavelengths.map(w => parseFloat(w));
     }
 
