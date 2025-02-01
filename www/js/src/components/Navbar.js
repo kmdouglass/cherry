@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import SummaryWindow from "./SummaryWindow";
 
 import cpLensData from "../examples/convexplanoLens";
+import cpmLensData from "../examples/convexplanoLensWithMaterials";
 import petzvalLensData from "../examples/petzvalLens";
 
 /*
@@ -45,7 +46,9 @@ const Navbar = ( {
     fields, setFields,
     aperture, setAperture,
     wavelengths, setWavelengths,
-    description
+    description,
+    appModes, setAppModes,
+    materialsService,
 } ) => {
     const [activeDropdown, setActiveDropdown] = useState(null);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -139,7 +142,8 @@ const Navbar = ( {
         // Combine data for saving
         const dataToSave = {
             ...description,  // Preserve any existing description data
-            inputs: {
+            appModes,
+            specs: {
                 surfaces,
                 fields,
                 aperture,
@@ -171,40 +175,50 @@ const Navbar = ( {
         fileInputRef.current?.click();
     }
 
-    const handleFileChange = (event) => {
+    const handleFileChange = async (event) => {
         const file = event.target.files?.[0];
         if (!file) return;
+    
+        try {
+            // Convert FileReader to Promise-based operation
+            const fileContent = await new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (e) => resolve(e.target?.result);
+                reader.onerror = () => reject(new Error("Failed to read file"));
+                reader.readAsText(file);
+            });
+    
+            const jsonData = JSON.parse(fileContent);
+            
+            // Update all the state with the loaded data from the inputs object
+            if (jsonData.specs && jsonData.appModes) {
+                const { surfaces: newSurfaces, fields: newFields, aperture: newAperture, wavelengths: newWavelengths } = jsonData.specs;
 
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            try {
-                const jsonData = JSON.parse(e.target?.result);
-                
-                // Update all the state with the loaded data from the inputs object
-                if (jsonData.inputs) {
-                    const { surfaces: newSurfaces, fields: newFields, aperture: newAperture, wavelengths: newWavelengths } = jsonData.inputs;
-                    if (newSurfaces) setSurfaces(newSurfaces);
-                    if (newFields) setFields(newFields);
-                    if (newAperture) setAperture(newAperture);
-                    if (newWavelengths) setWavelengths(newWavelengths);
-                } else {
-                    throw new Error("Invalid file format: missing inputs data");
+                // Clear materials first
+                materialsService.clearSelectedMaterials();
+                // Use newSurfaces to add materials
+                for (const surface of newSurfaces) {
+                    if (surface.material) {
+                        await materialsService.addMaterialToSelectedMaterials(surface.material);
+                    }
                 }
-                
-            } catch (error) {
-                console.error("Error parsing JSON file:", error);
-                showAlert(error instanceof Error ? error.message : "Failed to load file");
+
+                setAppModes(jsonData.appModes);
+
+                if (newSurfaces) setSurfaces(newSurfaces);
+                if (newFields) setFields(newFields);
+                if (newAperture) setAperture(newAperture);
+                if (newWavelengths) setWavelengths(newWavelengths);
+            } else {
+                throw new Error("Invalid file format: missing specs data and/or appModes");
             }
-        };
-
-        reader.onerror = () => {
-            showAlert("Failed to read file");
-        };
-
-        reader.readAsText(file);
-        
-        // Reset the file input so the same file can be selected again
-        event.target.value = "";
+            
+        } catch (error) {
+            showAlert(error instanceof Error ? error.message : "Failed to load file");
+        } finally {
+            // Reset the file input so the same file can be selected again
+            event.target.value = "";
+        }
     };
 
     // Results handlers
@@ -218,17 +232,38 @@ const Navbar = ( {
 
     // Examples handlers
     const handleConvexplanoLens = () => {
+        materialsService.clearSelectedMaterials();
+
         setSurfaces(cpLensData.surfaces);
         setFields(cpLensData.fields);
         setAperture(cpLensData.aperture);
         setWavelengths(cpLensData.wavelengths);
+        setAppModes(cpLensData.appModes);
+    };
+
+    const handleConvexplanoLensWithMaterials = async () => {
+        materialsService.clearSelectedMaterials();
+        for (const surface of cpmLensData.surfaces) {
+            if (surface.material) {
+                await materialsService.addMaterialToSelectedMaterials(surface.material);
+            }
+        }
+
+        setSurfaces(cpmLensData.surfaces);
+        setFields(cpmLensData.fields);
+        setAperture(cpmLensData.aperture);
+        setWavelengths(cpmLensData.wavelengths);
+        setAppModes(cpmLensData.appModes);
     };
 
     const handlePetzvalLens = () => {
+        materialsService.clearSelectedMaterials();
+
         setSurfaces(petzvalLensData.surfaces);
         setFields(petzvalLensData.fields);
         setAperture(petzvalLensData.aperture);
         setWavelengths(petzvalLensData.wavelengths);
+        setAppModes(petzvalLensData.appModes);
     };
 
     return (
@@ -258,7 +293,7 @@ const Navbar = ( {
             <div className={`navbar-menu ${isMobileMenuOpen ? 'is-active' : ''}`}>
                 <div className="navbar-start">
                     <div className={`navbar-item has-dropdown ${activeDropdown === "file" ? 'is-active' : ''}`}>
-                        <a className="navbar-link" onClick={() => toggleDropdown("file")}>
+                        <a className="navbar-link is-arrowless" onClick={() => toggleDropdown("file")}>
                             File
                         </a>
                         <div className="navbar-dropdown">
@@ -272,7 +307,7 @@ const Navbar = ( {
                     </div>
 
                     <div className={`navbar-item has-dropdown ${activeDropdown === "results" ? 'is-active' : ''}`}>
-                        <a className="navbar-link" onClick={() => toggleDropdown("results")}>
+                        <a className="navbar-link is-arrowless" onClick={() => toggleDropdown("results")}>
                             Results
                         </a>
                         <div className="navbar-dropdown">
@@ -283,12 +318,15 @@ const Navbar = ( {
                     </div>
 
                     <div className={`navbar-item has-dropdown ${activeDropdown === "examples" ? 'is-active' : ''}`}>
-                        <a className="navbar-link" onClick={() => toggleDropdown("examples")}>
+                        <a className="navbar-link is-arrowless" onClick={() => toggleDropdown("examples")}>
                             Examples
                         </a>
                         <div className="navbar-dropdown">
                             <a className="navbar-item" id="preset-planoconvex" onClick={handleConvexplanoLens}>
-                                Convexplano lens
+                                Convexplano lens (refractive indexes)
+                            </a>
+                            <a className="navbar-item" id="preset-planoconvex-materials" onClick={handleConvexplanoLensWithMaterials}>
+                                Convexplano lens (materials)
                             </a>
                             <a className="navbar-item" id="preset-petzval" onClick={handlePetzvalLens}>
                                 Petzval objective

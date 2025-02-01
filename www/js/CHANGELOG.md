@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Materials dispersion data is now downloaded and added to the browser's IndexedDB database when the application starts.
+- Users may now specify materials data to use in a lens design, and this data will be used to automatically compute refractive indexes at each wavelength.
 
 ## [0.2.0] 2024-12-09
 

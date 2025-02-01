@@ -1,24 +1,35 @@
 use std::collections::{HashMap, HashSet};
+use std::rc::Rc;
 
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 
 use cherry_rs::{
     components_view, n, ray_trace_3d_view, ApertureSpec, Component, CutawayView, FieldSpec,
-    GapSpec, ParaxialView, ParaxialViewDescription, PupilSampling,
+    GapSpec, Material, ParaxialView, ParaxialViewDescription, PupilSampling, RefractiveIndexSpec,
     SequentialModel, SubModelID, SurfaceSpec, TraceResults,
 };
 
 const BACKGROUND_REFRACTIVE_INDEX: f64 = 1.0;
 
-/// Handles the gap specs from the JS side.
-/// 
+/// Handles the refractive index gap specs from the JS side.
+///
 /// These will be converted to `GapSpec` instances, which contain trait objects that cannot be
 /// serialized/deserialized.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GapSpecConstantN {
     pub thickness: f64,
     pub refractive_index: f64,
+}
+
+/// Handles the material gap specs from the JS side.
+///
+/// These will be converted to `GapSpec` instances, which contain trait objects that cannot be
+/// serialized/deserialized.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct GapSpecMaterial {
+    pub thickness: f64,
+    pub material: Material,
 }
 
 #[derive(Debug)]
@@ -54,6 +65,17 @@ impl From<GapSpecConstantN> for GapSpec {
         GapSpec {
             thickness: gap.thickness,
             refractive_index: n!(gap.refractive_index),
+        }
+    }
+}
+
+impl From<GapSpecMaterial> for GapSpec {
+    fn from(gap: GapSpecMaterial) -> Self {
+        let material: Rc<dyn RefractiveIndexSpec> = Rc::new(gap.material);
+
+        GapSpec {
+            thickness: gap.thickness,
+            refractive_index: material,
         }
     }
 }

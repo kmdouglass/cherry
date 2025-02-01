@@ -21,6 +21,14 @@ const aperture = {"EntrancePupil": { "semi_diameter": 10.0 }};
 
 const wavelengths = [0.5876];
 
-const exampleData = {"surfaces": surfaces, "fields": fields, "aperture": aperture, "wavelengths": wavelengths} 
+const appModes = { "refractiveIndex": true };
+
+const exampleData = {
+    "surfaces": surfaces,
+    "fields": fields,
+    "aperture": aperture,
+    "wavelengths": wavelengths,
+    "appModes": appModes,
+};
 
 export default exampleData;

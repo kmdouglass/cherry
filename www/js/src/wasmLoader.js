@@ -1,4 +1,4 @@
-import init, { OpticalSystem } from "../pkg/cherry_js.js";
+import init, { OpticalSystem, GapMode } from "../pkg/cherry_js.js";
 
 let wasmModule = null;
 
@@ -9,7 +9,7 @@ export async function initializeWasm() {
 
     try {
         await init();
-        wasmModule = { OpticalSystem };
+        wasmModule = { OpticalSystem, GapMode };
         return wasmModule;
     } catch (error) {
         console.error("Failed to initialize WASM module:", error);

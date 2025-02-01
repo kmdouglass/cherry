@@ -2,7 +2,9 @@ import { useState } from "react";
 
 import "../../../css/Table.css";
 
-const SurfacesTable = ({ surfaces, setSurfaces, invalidFields, setInvalidFields }) => {
+import ModeToggles from "./SurfacesModeToggles";
+
+const SurfacesTable = ({ surfaces, setSurfaces, invalidFields, setInvalidFields, appModes, setAppModes, materialsService }) => {
     const [editingCell, setEditingCell] = useState(null);
 
     const getSurfaceTypeDefaultValues = (type) => {
@@ -66,7 +68,7 @@ const SurfacesTable = ({ surfaces, setSurfaces, invalidFields, setInvalidFields 
         // TODO: Use reducer hook?
         setSurfaces(newSurfaces);
         setInvalidFields(newInvalidFields);
-  };
+    };
     
     const handleCellBlur = () => {
       // Do not allow exiting the cell if the input is invalid
@@ -74,27 +76,27 @@ const SurfacesTable = ({ surfaces, setSurfaces, invalidFields, setInvalidFields 
           return;
       }
       setEditingCell(null);
-  };
+    };
 
-  const handleKeyDown = (e) => {
-      if (e.key === 'Enter' && editingCell) {
-          // Do not allow exiting the cell if the input is invalid
-          if (invalidFields[editingCell.index] && invalidFields[editingCell.index][editingCell.field]) {
-              return;
-          }
-          setEditingCell(null);
-      }
+    const handleKeyDown = (e) => {
+        if (e.key === 'Enter' && editingCell) {
+            // Do not allow exiting the cell if the input is invalid
+            if (invalidFields[editingCell.index] && invalidFields[editingCell.index][editingCell.field]) {
+                return;
+            }
+            setEditingCell(null);
+        }
 
-      if (e.key === 'Escape' && editingCell) {
-          const newSurfaces = [...surfaces];
-          newSurfaces[editingCell.index][editingCell.field] = editingCell.originalValue;
+        if (e.key === 'Escape' && editingCell) {
+            const newSurfaces = [...surfaces];
+            newSurfaces[editingCell.index][editingCell.field] = editingCell.originalValue;
 
-          // TODO: Use reducer hook?
-          setSurfaces(newSurfaces);
-          setInvalidFields({});
-          setEditingCell(null);
-      }
-  };
+            // TODO: Use reducer hook?
+            setSurfaces(newSurfaces);
+            setInvalidFields({});
+            setEditingCell(null);
+        }
+    };
 
     const handleInsert = (index) => {
       // Don't allow inserting a cell if another cell is invalid
@@ -118,6 +120,13 @@ const SurfacesTable = ({ surfaces, setSurfaces, invalidFields, setInvalidFields 
 
       const newSurfaces = [...surfaces];
       newSurfaces.splice(index, 1);
+      setSurfaces(newSurfaces);
+    };
+
+    const handleMaterialChange = (e, index) => {
+      const newSurfaces = [...surfaces];
+
+      newSurfaces[index].material = e.target.value;
       setSurfaces(newSurfaces);
     };
   
@@ -185,32 +194,68 @@ const SurfacesTable = ({ surfaces, setSurfaces, invalidFields, setInvalidFields 
         </td>
       );
     };
-  
+
+    const renderMaterialHeader = () => {
+      if (appModes.refractiveIndex) {
+        return <th className="has-text-weight-semibold has-text-right">Refractive Index</th>;
+      }
+      return <th className="has-text-weight-semibold has-text-right">Material</th>;
+    }
+
+    const renderMaterialCell = (value, index, field) => {
+      if (appModes.refractiveIndex) {
+        return renderEditableCell(value, index, field);
+      }
+
+      // If we are at the last (image) surface, don't allow changing the material
+      if (index === surfaces.length - 1) {
+        return <div></div>;
+      }
+
+      // Return a dropdown box with the list of materials
+      return (
+        <div className="select">
+          <select value={surfaces[index].material || ""} onChange={(event) => handleMaterialChange(event, index)}>
+            <option value="">Select a material</option>
+            {Array.from(materialsService.selectedMaterials).map(([key, material]) => (
+              <option key={key} value={key}>{material.page}</option>
+            ))}
+          </select>
+        </div>
+      )
+    }
+
     return (
-      <table className="table is-fullwidth">
-        <thead>
-          <tr>
-            <th className="has-text-weight-semibold has-text-right">Surface Type</th>
-            <th className="has-text-weight-semibold has-text-right">Refractive Index</th>
-            <th className="has-text-weight-semibold has-text-right">Thickness</th>
-            <th className="has-text-weight-semibold has-text-right">Semi-Diameter</th>
-            <th className="has-text-weight-semibold has-text-right">Radius of Curvature</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {surfaces.map((surface, index) => (
-            <tr key={index}>
-              {renderSurfaceTypeCell(surface, index)}
-              <td>{renderEditableCell(surface.n, index, "n")}</td>
-              <td>{renderEditableCell(surface.thickness, index, "thickness")}</td>
-              <td>{renderEditableCell(surface.semiDiam, index, "semiDiam")}</td>
-              <td>{renderEditableCell(surface.roc, index, "roc")}</td>
-              {renderActionButtons(index)}
+      <div className="surfaces-table">
+        <ModeToggles appModes={appModes} setAppModes={setAppModes} />
+        <table className="table is-fullwidth">
+          <thead>
+            <tr>
+              <th className="has-text-weight-semibold has-text-right">Surface Type</th>
+              { renderMaterialHeader() }
+              <th className="has-text-weight-semibold has-text-right">Thickness</th>
+              <th className="has-text-weight-semibold has-text-right">Semi-Diameter</th>
+              <th className="has-text-weight-semibold has-text-right">Radius of Curvature</th>
+              <th>Actions</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {surfaces.map((surface, index) => (
+              <tr key={index}>
+                {renderSurfaceTypeCell(surface, index)}
+
+                <td>{renderMaterialCell(surface.n, index, "n")}</td>
+
+                <td>{renderEditableCell(surface.thickness, index, "thickness")}</td>
+                <td>{renderEditableCell(surface.semiDiam, index, "semiDiam")}</td>
+                <td>{renderEditableCell(surface.roc, index, "roc")}</td>
+
+                {renderActionButtons(index)}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     );
   };
   

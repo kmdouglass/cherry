@@ -1,4 +1,4 @@
-import { convertUIStateToEngineFormat, getOpticalSystem } from "./modules/opticalSystem";
+import { convertUIStateToLibFormat, getOpticalSystem } from "./modules/opticalSystem";
 import { useMaterialsService } from "./services/materialsDataService";
 
 import { useMemo, useState } from "react";
@@ -16,6 +16,7 @@ function App({ wasmModule }) {
     // GUI state
     const [activeExplorersTab, setExplorersActiveTab] = useState('specs');
     const [invalidSpecsFields, setInvalidSpecsFields] = useState({});
+    const [appModes, setAppModes] = useState({ refractiveIndex: true });
 
     // Application state and initial values.
     const [surfaces, setSurfaces] = useState([
@@ -33,36 +34,29 @@ function App({ wasmModule }) {
     const [description, setDescription] = useState(null);
     const [rawRayPaths, setRawRayPaths] = useState(null);
 
-    const opticalSystem = getOpticalSystem(wasmModule);
-
     // Update the optical system during each render
     const systemData = useMemo(() => {
         if (wasmModule) {
             try {
-                //console.debug("Raw surfaces:", surfaces);
+                const opticalSystem = getOpticalSystem(wasmModule);
 
-                const { surfaceSpecs, gapSpecs, fieldSpecs, apertureSpec, wavelengthSpecs } = convertUIStateToEngineFormat(
+                const { surfaceSpecs, gapSpecs, fieldSpecs, apertureSpec, wavelengthSpecs } = convertUIStateToLibFormat(
                     surfaces,
                     fields,
                     aperture,
-                    wavelengths
+                    wavelengths,
+                    appModes,
+                    materialsService,
                 );
+                const gapMode = appModes.refractiveIndex ? wasmModule.GapMode.RefractiveIndex : wasmModule.GapMode.Material;
 
                 //Build the optical system
                 opticalSystem.setSurfaces(surfaceSpecs);
-                opticalSystem.setGaps(gapSpecs);
+                opticalSystem.setGaps(gapSpecs, gapMode);
                 opticalSystem.setFields(fieldSpecs);
                 opticalSystem.setAperture(apertureSpec);
                 opticalSystem.setWavelengths(wavelengthSpecs);
                 opticalSystem.build();
-
-                //console.log("Surface specs:", surfaceSpecs);
-                //console.log("Gap specs:", gapSpecs);
-                //console.log("Field specs:", fieldSpecs);
-                //console.log("Aperture:", aperture);
-                //console.log("Wavelengths:", wavelengths);
-
-                //console.log("Fields:", fields);
 
                 // Render the optical system
                 const newDescription = opticalSystem.describe();
@@ -83,7 +77,7 @@ function App({ wasmModule }) {
                 }
             }
         }
-    }, [wasmModule, surfaces, fields, aperture, wavelengths]);
+    }, [wasmModule, surfaces, fields, aperture, wavelengths, appModes]);
 
     const handleExplorersTabClick = (tab) => {
         // Don't allow switching tabs if SpecsExplorer cell is invalid
@@ -106,6 +100,8 @@ function App({ wasmModule }) {
                     aperture={aperture} setAperture={setAperture}
                     wavelengths={wavelengths} setWavelengths={setWavelengths}
                     invalidFields={invalidSpecsFields} setInvalidFields={setInvalidSpecsFields}
+                    appModes={appModes} setAppModes={setAppModes}
+                    materialsService={materialsService}
                 />;
             case 'materials':
                 return <MaterialsExplorer materialsService={materialsService} isLoadingFullData={isLoadingFullData} />;
@@ -133,6 +129,8 @@ function App({ wasmModule }) {
                 aperture={aperture} setAperture={setAperture}
                 wavelengths={wavelengths} setWavelengths={setWavelengths}
                 description={systemData.description}
+                appModes={appModes} setAppModes={setAppModes}
+                materialsService={materialsService}
             />
             <div className="container">
                 <CutawayView description={description} rawRayPaths={rawRayPaths} />

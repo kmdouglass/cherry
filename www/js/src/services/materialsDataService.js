@@ -26,16 +26,52 @@ export class MaterialsDataService {
       console.debug('Received message from the worker:', event.data);
     }
 
-    this.#selectedMaterials = [];
+    this.#selectedMaterials = new Map();
+  }
+
+  /*
+   * Get a material from the database.
+   */
+  async getMaterialFromDB(key) {
+    return this.openDBConnection()
+      .then(db => {
+        return new Promise((resolve, reject) => {
+          const transaction = db.transaction(OBJECT_STORE_NAME, "readonly");
+          const store = transaction.objectStore(OBJECT_STORE_NAME);
+          const request = store.get(key);
+
+          request.onsuccess = () => {
+            resolve(request.result);
+          };
+
+          request.onerror = () => reject(request.error);
+        });
+      }
+    );
+  }
+
+  async addMaterialToSelectedMaterials(key) {
+      const material = await this.getMaterialFromDB(key);
+
+      if (material) {
+        const newMaterials = new Map(this.selectedMaterials);
+        newMaterials.set(key, material);
+        this.selectedMaterials = newMaterials
+      }
+  }
+
+  clearSelectedMaterials() {
+    this.selectedMaterials = new Map();
   }
 
   /*
    * Get the selected materials.
    *
+   * These are the materials that the user has selected to use in the system. It does not
+   * return a specific material from the database.
+   *
    * Returns:
-   *    selectedMaterials: array of objects, each object has the following properties:
-   *     key: string, the key of the material in the database.
-   *     name: string, the display name of the material.
+   *    selectedMaterials: Map of materials
    */ 
   get selectedMaterials() {
     return this.#selectedMaterials;
@@ -45,9 +81,7 @@ export class MaterialsDataService {
    * Set the selected materials.
    *
    * Parameters:
-   *    materials: array of objects, each object has the following properties:
-   *     key: string, the key of the material in the database.
-   *     name: string, the display name of the material.
+   *    materials: Map of materials
    */ 
   set selectedMaterials(materials) {
     this.#selectedMaterials = materials;

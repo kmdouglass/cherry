@@ -10,7 +10,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 anyhow = "*"
-cherry-rs = { path = "../cherry-rs" }
+cherry-rs = { path = "../cherry-rs", features = ["ri-info"] }
 serde = "*"
 serde-wasm-bindgen = "*"
 wasm-bindgen = "0.2"
