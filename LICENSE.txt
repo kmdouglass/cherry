@@ -1,4 +1,4 @@
-Copyright (c) 2024, ECOLE POLYTECHNIQUE FEDERALE DE LAUSANNE, Switzerland
+Copyright (c) 2024-2025, ECOLE POLYTECHNIQUE FEDERALE DE LAUSANNE, Switzerland
 Laboratory of Experimental Biophysics (LEB)
 
 All rights reserved.
