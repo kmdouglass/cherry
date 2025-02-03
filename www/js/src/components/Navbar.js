@@ -63,6 +63,31 @@ const Navbar = ( {
         setIsMobileMenuOpen(!isMobileMenuOpen);
     };
 
+    const loadDataset = async (newSurfaces, newFields, newAperture, newWavelengths, newAppModes) => {
+        // Clear materials first
+        materialsService.clearSelectedMaterials();
+
+        for (const surface of newSurfaces) {
+            // Add any material key to the materials service's selected materials
+            if (surface.material) {
+                await materialsService.addMaterialToSelectedMaterials(surface.material);
+            }
+
+            // Set a default refractive index so that users are not locked out of the RI cell when
+            // switching to refractive index mode
+            if (!surface.n) {
+                surface.n = 1.5;
+            }
+        }
+
+        setAppModes(newAppModes);
+
+        setSurfaces(newSurfaces);
+        setFields(newFields);
+        setAperture(newAperture);
+        setWavelengths(newWavelengths);
+    };
+
     const showAlert = (message) => {
         // Create alert container if it doesn't exist
         let alertContainer = document.getElementById('alert-container');
@@ -194,21 +219,11 @@ const Navbar = ( {
             if (jsonData.specs && jsonData.appModes) {
                 const { surfaces: newSurfaces, fields: newFields, aperture: newAperture, wavelengths: newWavelengths } = jsonData.specs;
 
-                // Clear materials first
-                materialsService.clearSelectedMaterials();
-                // Use newSurfaces to add materials
-                for (const surface of newSurfaces) {
-                    if (surface.material) {
-                        await materialsService.addMaterialToSelectedMaterials(surface.material);
-                    }
+                if (newSurfaces && newFields && newAperture && newWavelengths) {
+                    await loadDataset(newSurfaces, newFields, newAperture, newWavelengths, jsonData.appModes);
+                } else {
+                    throw new Error("Invalid file format: missing specific specs data");
                 }
-
-                setAppModes(jsonData.appModes);
-
-                if (newSurfaces) setSurfaces(newSurfaces);
-                if (newFields) setFields(newFields);
-                if (newAperture) setAperture(newAperture);
-                if (newWavelengths) setWavelengths(newWavelengths);
             } else {
                 throw new Error("Invalid file format: missing specs data and/or appModes");
             }
@@ -231,39 +246,34 @@ const Navbar = ( {
     };
 
     // Examples handlers
-    const handleConvexplanoLens = () => {
-        materialsService.clearSelectedMaterials();
-
-        setSurfaces(cpLensData.surfaces);
-        setFields(cpLensData.fields);
-        setAperture(cpLensData.aperture);
-        setWavelengths(cpLensData.wavelengths);
-        setAppModes(cpLensData.appModes);
+    const handleConvexplanoLens = async () => {
+        await loadDataset(
+            cpLensData.surfaces,
+            cpLensData.fields,
+            cpLensData.aperture,
+            cpLensData.wavelengths,
+            cpLensData.appModes
+        );
     };
 
     const handleConvexplanoLensWithMaterials = async () => {
-        materialsService.clearSelectedMaterials();
-        for (const surface of cpmLensData.surfaces) {
-            if (surface.material) {
-                await materialsService.addMaterialToSelectedMaterials(surface.material);
-            }
-        }
-
-        setSurfaces(cpmLensData.surfaces);
-        setFields(cpmLensData.fields);
-        setAperture(cpmLensData.aperture);
-        setWavelengths(cpmLensData.wavelengths);
-        setAppModes(cpmLensData.appModes);
+        await loadDataset(
+            cpmLensData.surfaces,
+            cpmLensData.fields,
+            cpmLensData.aperture,
+            cpmLensData.wavelengths,
+            cpmLensData.appModes
+        );
     };
 
-    const handlePetzvalLens = () => {
-        materialsService.clearSelectedMaterials();
-
-        setSurfaces(petzvalLensData.surfaces);
-        setFields(petzvalLensData.fields);
-        setAperture(petzvalLensData.aperture);
-        setWavelengths(petzvalLensData.wavelengths);
-        setAppModes(petzvalLensData.appModes);
+    const handlePetzvalLens = async () => {
+        await loadDataset(
+            petzvalLensData.surfaces,
+            petzvalLensData.fields,
+            petzvalLensData.aperture,
+            petzvalLensData.wavelengths,
+            petzvalLensData.appModes
+        );
     };
 
     return (
