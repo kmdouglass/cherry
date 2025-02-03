@@ -66,10 +66,17 @@ const Navbar = ( {
     const loadDataset = async (newSurfaces, newFields, newAperture, newWavelengths, newAppModes) => {
         // Clear materials first
         materialsService.clearSelectedMaterials();
-        // Use surfaces to add materials
+
         for (const surface of newSurfaces) {
+            // Add any material key to the materials service's selected materials
             if (surface.material) {
                 await materialsService.addMaterialToSelectedMaterials(surface.material);
+            }
+
+            // Set a default refractive index so that users are not locked out of the RI cell when
+            // switching to refractive index mode
+            if (!surface.n) {
+                surface.n = 1.5;
             }
         }
 
