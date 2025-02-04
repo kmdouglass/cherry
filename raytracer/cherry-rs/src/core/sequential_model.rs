@@ -4,7 +4,7 @@ use std::fmt::{Display, Formatter};
 use std::ops::Range;
 
 use anyhow::{anyhow, Result};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, Serializer};
 
 use crate::core::{
     math::{mat3::Mat3, vec3::Vec3},
@@ -149,7 +149,7 @@ pub struct SequentialSubModelSlice<'a> {
 /// The first element is the index of the wavelength in the system's list of
 /// wavelengths. The second element is the transverse axis along which the model
 /// is computed.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct SubModelID(pub usize, pub Axis);
 
 /// An iterator over the surfaces and gaps in a submodel.
@@ -486,6 +486,22 @@ impl<'a> SequentialSubModel for SequentialSubModelSlice<'a> {
 
     fn try_iter<'b>(&'b self, surfaces: &'b [Surface]) -> Result<SequentialSubModelIter<'b>> {
         SequentialSubModelIter::new(surfaces, self.gaps)
+    }
+}
+
+impl Serialize for SubModelID {
+    // Serialize as a string like "0:Y" because tuples as map keys are difficult to work with in
+    // languages like Javascript.
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        // Serialize as a string like "0:Y"
+        let key = format!("{}:{}", self.0, match self.1 {
+            Axis::X => "X",
+            Axis::Y => "Y",
+        });
+        serializer.serialize_str(&key)
     }
 }
 
