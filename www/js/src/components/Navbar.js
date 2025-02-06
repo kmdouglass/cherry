@@ -362,6 +362,8 @@ const Navbar = ( {
             <SummaryWindow 
                 description={description}
                 isOpen={isSummaryOpen}
+                wavelengths={wavelengths}
+                appModes={appModes}
                 onClose={() => {
                     setIsSummaryOpen(false);
                 }}
