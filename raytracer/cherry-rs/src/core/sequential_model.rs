@@ -43,6 +43,7 @@ pub struct Gap {
 pub struct SequentialModel {
     surfaces: Vec<Surface>,
     submodels: HashMap<SubModelID, SequentialSubModelBase>,
+    wavelengths: Vec<Float>,
 }
 
 /// A submodel of a sequential optical system.
@@ -327,6 +328,7 @@ impl SequentialModel {
         Ok(Self {
             surfaces,
             submodels: models,
+            wavelengths: wavelengths.to_vec(),
         })
     }
 
@@ -354,6 +356,11 @@ impl SequentialModel {
                 _ => None,
             })
             .fold(0.0, |acc, x| acc.max(x))
+    }
+
+    /// Returns the wavelengths at which the system is modeled.
+    pub fn wavelengths(&self) -> &[Float] {
+        &self.wavelengths
     }
 
     /// Computes the unique IDs for each paraxial model.

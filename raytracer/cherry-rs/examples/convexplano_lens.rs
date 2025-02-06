@@ -342,7 +342,7 @@ mod test_ri_info {
             ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
 
         let expected = axial_primary_color();
-        let results = view.axial_primary_color(&WAVELENGTHS).unwrap();
+        let results = view.axial_primary_color();
 
         assert_eq!(expected.len(), results.len());
         for (axis, expected_value) in expected.iter() {
