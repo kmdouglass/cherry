@@ -1,6 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { renderToString } from 'react-dom/server';
 
+const formatValue = (value) => {
+  if (typeof value === 'number') {
+    // Check if it's scientific notation
+    if (Math.abs(value) < 1e-6) {
+      return value.toExponential(6);
+    }
+    return Number(value.toFixed(6));
+  }
+  return value;
+};
+
+
 // Reusable table component that can be used in both modal and popup
 const SummaryTable = ({ data, wavelengths, sorted_indexes, appModes }) => (
   <table className="summary-table">
@@ -27,10 +39,10 @@ const SummaryTable = ({ data, wavelengths, sorted_indexes, appModes }) => (
         <tr key={key}>
           <td>{key}</td>
           {appModes.refractiveIndex ? (
-            <td>{values[0]}</td>
+            <td>{formatValue(values[0])}</td>
           ) : (
             sorted_indexes.map((i) => (
-              <td key={i}>{values[i]}</td>
+              <td key={i}>{formatValue(values[i])}</td>
             ))
           )}
         </tr>
