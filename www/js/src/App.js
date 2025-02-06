@@ -4,6 +4,7 @@ import { useMaterialsService } from "./services/materialsDataService";
 import { useMemo, useState } from "react";
 
 import "./css/cherry.css";
+import showAlert from "./modules/alerts";
 import CutawayView from "./components/CutawayView";
 import Navbar from "./components/Navbar";
 import SpecsExplorer from "./components/explorers/SpecsExplorer";
@@ -69,8 +70,8 @@ function App({ wasmModule }) {
                     "description": newDescription,
                     "newRayPaths": newRayPaths
                 }
-            } catch (e) {
-                console.error(e);
+            } catch (error) {
+                showAlert(error instanceof Error ? error.message : "Error creating optical system");
                 return {
                     "description": null,
                     "newRayPaths": null

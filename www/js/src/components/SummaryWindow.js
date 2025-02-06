@@ -135,8 +135,6 @@ const SummaryWindow = ({ description, isOpen, wavelengths, appModes, onClose }) 
   useEffect(() => {
     if (!description) return;
 
-    console.log(description.paraxial_view);
-
     // For now we only deal with the Y axis as we don't support toric surfaces
     const newSummary = {
       "Primary Axial Color": description.paraxial_view.primary_axial_color.get("Y") || 0,
