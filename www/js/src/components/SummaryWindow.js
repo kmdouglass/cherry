@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { renderToString } from 'react-dom/server';
 
 // Reusable table component that can be used in both modal and popup
-const SummaryTable = ({ data, wavelengths, appModes }) => (
+const SummaryTable = ({ data, wavelengths, sorted_indexes, appModes }) => (
   <table className="summary-table">
     <colgroup>
       <col />
@@ -15,18 +15,24 @@ const SummaryTable = ({ data, wavelengths, appModes }) => (
       </tr>
       {!appModes.refractiveIndex && (
         <tr>
-          <th scope="col">Wavelengths</th>
-          {wavelengths.map((wavelength, i) => (
-            <th scope="col" key={i}>{wavelength}</th>
+          <th scope="col">Wavelength, μm</th>
+          {sorted_indexes.map((i) => (
+            <th scope="col" key={i}>{wavelengths[i]}</th>
           ))}
         </tr>
       )}
     </thead>
     <tbody>
-      {Object.entries(data).map(([key, value]) => (
+      {Object.entries(data).map(([key, values]) => (
         <tr key={key}>
           <td>{key}</td>
-          <td>{value}</td>
+          {appModes.refractiveIndex ? (
+            <td>{values[0]}</td>
+          ) : (
+            sorted_indexes.map((i) => (
+              <td key={i}>{values[i]}</td>
+            ))
+          )}
         </tr>
       ))}
     </tbody>
@@ -97,30 +103,54 @@ const SummaryWindow = ({ description, isOpen, wavelengths, appModes, onClose }) 
   // Update summary whenever description changes
   useEffect(() => {
     if (!description) return;
+    
+    const newSummary = {
+        "Aperture Stop (surface index)": {},
+        "Effective Focal Length": {},
+        "Back Focal Distance": {},
+        "Front Focal Distance": {},
+        "Paraxial Image Plane Location": {},
+        "Paraxial Image Plane Semi-Diameter": {},
+        "Entrance Pupil Location": {},
+        "Entrance Pupil Semi-Diameter": {},
+        "Exit Pupil Location": {},
+        "Exit Pupil Semi-Diameter": {},
+        "Back Principal Plane": {},
+        "Front Principal Plane": {},
+    };
 
     const subviews = description.paraxial_view.subviews;
-    const targetKey = [...subviews.keys()].find(key => 
-        Array.isArray(key) && 
-        key.length === 2 && 
-        key[0] === 0 && 
-        key[1] === "Y"
-    );
+    for (const [key, subview] of subviews) {
+        let wavelength_index;
+        let axis = key.split(':')[1];  // Keys are of the form "wavelength_index:axis"
 
-    const view = subviews.get(targetKey);
-    const newSummary = {
-        "Aperture Stop (surface index)": view.aperture_stop,
-        "Effective Focal Length": view.effective_focal_length,
-        "Back Focal Distance": view.back_focal_distance,
-        "Front Focal Distance": view.front_focal_distance,
-        "Paraxial Image Plane Location": view.paraxial_image_plane.location,
-        "Paraxial Image Plane Semi-Diameter": view.paraxial_image_plane.semi_diameter,
-        "Entrance Pupil Location": view.entrance_pupil.location,
-        "Entrance Pupil Semi-Diameter": view.entrance_pupil.semi_diameter,
-        "Exit Pupil Location": view.exit_pupil.location,
-        "Exit Pupil Semi-Diameter": view.exit_pupil.semi_diameter,
-        "Back Principal Plane": view.back_principal_plane,
-        "Front Principal Plane": view.front_principal_plane
-    };
+        // If appModes is set to refractive index, we only extract the first wavelength because the
+        // results are the same for all wavelengths.
+        if (appModes.refractiveIndex) {
+            wavelength_index = 0;
+        } else {
+            wavelength_index = key.split(':')[0];
+        }
+        
+        // For now we only deal with the Y axis as we don't support toric surfaces
+        if (axis !== "Y") continue;
+
+        newSummary["Aperture Stop (surface index)"][wavelength_index] = subview.aperture_stop;
+        newSummary["Effective Focal Length"][wavelength_index] = subview.effective_focal_length;
+        newSummary["Back Focal Distance"][wavelength_index] = subview.back_focal_distance;
+        newSummary["Front Focal Distance"][wavelength_index] = subview.front_focal_distance;
+        newSummary["Paraxial Image Plane Location"][wavelength_index] = subview.paraxial_image_plane.location;
+        newSummary["Paraxial Image Plane Semi-Diameter"][wavelength_index] = subview.paraxial_image_plane.semi_diameter;
+        newSummary["Entrance Pupil Location"][wavelength_index] = subview.entrance_pupil.location;
+        newSummary["Entrance Pupil Semi-Diameter"][wavelength_index] = subview.entrance_pupil.semi_diameter;
+        newSummary["Exit Pupil Location"][wavelength_index] = subview.exit_pupil.location;
+        newSummary["Exit Pupil Semi-Diameter"][wavelength_index] = subview.exit_pupil.semi_diameter;
+        newSummary["Back Principal Plane"][wavelength_index] = subview.back_principal_plane;
+        newSummary["Front Principal Plane"][wavelength_index] = subview.front_principal_plane;
+
+        // Only extract these values once if appModes is set to refractive index
+        if (appModes.refractiveIndex) break;
+    }
     
     setSummary(newSummary);
   }, [description]);
@@ -203,11 +233,14 @@ const SummaryWindow = ({ description, isOpen, wavelengths, appModes, onClose }) 
     }
   }, [isOpen]);
 
+  // Used to sort indexes of the wavelengths array in ascending order by wavelength value
+  const sorted_indexes = wavelengths.map((_, i) => i).sort((a, b) => wavelengths[a] - wavelengths[b]);
+
   // Update popup content when summary changes
   useEffect(() => {
     if (popupWindow && !popupWindow.closed && summary) {
       const tableHTML = renderToString(
-        <SummaryTable data={summary} wavelengths={wavelengths} appModes={appModes} />
+        <SummaryTable data={summary} wavelengths={wavelengths} sorted_indexes={sorted_indexes} appModes={appModes} />
       );
       popupWindow.document.getElementById('root').innerHTML = tableHTML;
     }
@@ -219,7 +252,7 @@ const SummaryWindow = ({ description, isOpen, wavelengths, appModes, onClose }) 
         System Summary
       </h2>
       <p>Distances are relative to the first surface.</p>
-      <SummaryTable data={summary || {}} wavelengths={wavelengths} appModes={appModes} />
+      <SummaryTable data={summary || {}} wavelengths={wavelengths} sorted_indexes={sorted_indexes} appModes={appModes} />
       <style jsx="true">{`
         .summary-table {
           width: 100%;
