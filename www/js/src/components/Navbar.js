@@ -107,7 +107,6 @@ const Navbar = ( {
             }
         };
 
-
         // Convert to JSON string
         const jsonString = deepStringify(dataToSave);
 
