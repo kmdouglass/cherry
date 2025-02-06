@@ -5,9 +5,9 @@ const formatValue = (value) => {
   if (typeof value === 'number') {
     // Check if it's scientific notation
     if (Math.abs(value) < 1e-6) {
-      return value.toExponential(6);
+      return value.toExponential(4);
     }
-    return Number(value.toFixed(6));
+    return Number(value.toFixed(4));
   }
   return value;
 };
