@@ -43,6 +43,7 @@ pub struct Gap {
 pub struct SequentialModel {
     surfaces: Vec<Surface>,
     submodels: HashMap<SubModelID, SequentialSubModelBase>,
+    wavelengths: Vec<Float>,
 }
 
 /// A submodel of a sequential optical system.
@@ -327,6 +328,7 @@ impl SequentialModel {
         Ok(Self {
             surfaces,
             submodels: models,
+            wavelengths: wavelengths.to_vec(),
         })
     }
 
@@ -354,6 +356,11 @@ impl SequentialModel {
                 _ => None,
             })
             .fold(0.0, |acc, x| acc.max(x))
+    }
+
+    /// Returns the wavelengths at which the system is modeled.
+    pub fn wavelengths(&self) -> &[Float] {
+        &self.wavelengths
     }
 
     /// Computes the unique IDs for each paraxial model.
@@ -490,17 +497,21 @@ impl<'a> SequentialSubModel for SequentialSubModelSlice<'a> {
 }
 
 impl Serialize for SubModelID {
-    // Serialize as a string like "0:Y" because tuples as map keys are difficult to work with in
-    // languages like Javascript.
+    // Serialize as a string like "0:Y" because tuples as map keys are difficult to
+    // work with in languages like Javascript.
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
         // Serialize as a string like "0:Y"
-        let key = format!("{}:{}", self.0, match self.1 {
-            Axis::X => "X",
-            Axis::Y => "Y",
-        });
+        let key = format!(
+            "{}:{}",
+            self.0,
+            match self.1 {
+                Axis::X => "X",
+                Axis::Y => "Y",
+            }
+        );
         serializer.serialize_str(&key)
     }
 }

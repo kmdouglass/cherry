@@ -150,4 +150,5 @@ pub use views::{
 };
 
 // Re-exports from dependencies
+#[cfg(feature = "ri-info")]
 pub use lib_ria::Material;

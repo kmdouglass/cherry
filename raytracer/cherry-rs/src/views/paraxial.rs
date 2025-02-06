@@ -59,6 +59,7 @@ type RayTransferMatrix = Array2<Float>;
 #[derive(Debug)]
 pub struct ParaxialView {
     subviews: HashMap<SubModelID, ParaxialSubView>,
+    wavelengths: Vec<Float>,
 }
 
 /// A description of a paraxial optical system.
@@ -67,6 +68,7 @@ pub struct ParaxialView {
 #[derive(Debug, Serialize)]
 pub struct ParaxialViewDescription {
     subviews: HashMap<SubModelID, ParaxialSubViewDescription>,
+    primary_axial_color: HashMap<Axis, Float>,
 }
 
 /// A paraxial subview of an optical system.
@@ -238,6 +240,7 @@ impl ParaxialView {
 
         Ok(Self {
             subviews: subviews?,
+            wavelengths: sequential_model.wavelengths().to_vec(),
         })
     }
 
@@ -254,6 +257,7 @@ impl ParaxialView {
                 .iter()
                 .map(|(id, subview)| (*id, subview.describe()))
                 .collect(),
+            primary_axial_color: self.axial_primary_color(),
         }
     }
 
@@ -275,34 +279,20 @@ impl ParaxialView {
     /// enter the wavelengths for the Fraunhofer F and C lines as minimum and
     /// maximum wavelengths to the underlying sequential model.
     ///
-    /// # Arguments
-    /// * `wavelengths` - The wavelengths to compute the axial primary color.
-    ///   These must match the wavelengths used in the underlying sequential
-    ///   model.
-    ///
     /// # Returns
     /// A HashMap containing the axial primary color for each axis.
-    ///
-    /// # Errors
-    /// An error is returned if the number of wavelengths does not match the
-    /// number of unique wavelengths in the paraxial view.
-    pub fn axial_primary_color(&self, wavelengths: &[Float]) -> Result<HashMap<Axis, Float>> {
-        let unique_wavelengths = self.subviews.keys().map(|id| id.0).collect::<Vec<usize>>();
-        if unique_wavelengths.len() != wavelengths.len() {
-            return Err(anyhow!(
-                "The number of wavelengths must match the number of unique wavelengths in the system."
-            ));
-        }
-
+    pub fn axial_primary_color(&self) -> HashMap<Axis, Float> {
         // Find the indexes of the minimum and maximum wavelengths. Return with the
         // empty axial primary color if there are no wavelengths.
-        let min_wav_index = wavelengths
+        let min_wav_index = self
+            .wavelengths
             .iter()
             .enumerate()
             .min_by(|(_, a), (_, b)| a.total_cmp(b))
             .map(|(index, _)| index)
             .unwrap_or_default();
-        let max_wav_index = wavelengths
+        let max_wav_index = self
+            .wavelengths
             .iter()
             .enumerate()
             .max_by(|(_, a), (_, b)| a.total_cmp(b))
@@ -333,7 +323,7 @@ impl ParaxialView {
             }
         }
 
-        Ok(axial_primary_color)
+        axial_primary_color
     }
 }
 

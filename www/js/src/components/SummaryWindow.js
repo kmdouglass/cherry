@@ -15,40 +15,59 @@ const formatValue = (value) => {
 
 // Reusable table component that can be used in both modal and popup
 const SummaryTable = ({ data, wavelengths, sorted_indexes, appModes }) => (
-  <table className="summary-table">
-    <colgroup>
-      <col />
-      <col span={appModes.refractiveIndex ? 1 : wavelengths.length} />
-    </colgroup>
-    <thead>
-      <tr>
-        <th scope="col">Parameter</th>
-        <th colSpan={appModes.refractiveIndex ? 1 : wavelengths.length} scope="colgroup">Value</th>
-      </tr>
-      {!appModes.refractiveIndex && (
+  <div>
+    <h3>Paraxial Data</h3>
+    <table className="summary-table">
+      <thead>
         <tr>
-          <th scope="col">Wavelength, μm</th>
-          {sorted_indexes.map((i) => (
-            <th scope="col" key={i}>{wavelengths[i]}</th>
-          ))}
+          <th>Parameter</th>
+          <th>Value</th>
         </tr>
-      )}
-    </thead>
-    <tbody>
-      {Object.entries(data).map(([key, values]) => (
-        <tr key={key}>
-          <td>{key}</td>
-          {appModes.refractiveIndex ? (
-            <td>{formatValue(values[0])}</td>
-          ) : (
-            sorted_indexes.map((i) => (
-              <td key={i}>{formatValue(values[i])}</td>
-            ))
-          )}
+      </thead>
+      <tbody>
+        <tr>
+          <td>Primary Axial Color</td>
+          <td>{formatValue(data["Primary Axial Color"])}</td>
         </tr>
-      ))}
-    </tbody>
-  </table>
+      </tbody>
+    </table>
+
+    <h3>Paraxial Data (wavelength-dependent)</h3>
+    <table className="summary-table">
+      <colgroup>
+        <col />
+        <col span={appModes.refractiveIndex ? 1 : wavelengths.length} />
+      </colgroup>
+      <thead>
+        <tr>
+          <th scope="col">Parameter</th>
+          <th colSpan={appModes.refractiveIndex ? 1 : wavelengths.length} scope="colgroup">Value</th>
+        </tr>
+        {!appModes.refractiveIndex && (
+          <tr>
+            <th scope="col">Wavelength, μm</th>
+            {sorted_indexes.map((i) => (
+              <th scope="col" key={i}>{wavelengths[i]}</th>
+            ))}
+          </tr>
+        )}
+      </thead>
+      <tbody>
+        {Object.entries(data.subviews).map(([key, values]) => (
+          <tr key={key}>
+            <td>{key}</td>
+            {appModes.refractiveIndex ? (
+              <td>{formatValue(values[0])}</td>
+            ) : (
+              sorted_indexes.map((i) => (
+                <td key={i}>{formatValue(values[i])}</td>
+              ))
+            )}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
 );
 
 const Modal = ({ isOpen, onClose, children }) => {
@@ -115,8 +134,16 @@ const SummaryWindow = ({ description, isOpen, wavelengths, appModes, onClose }) 
   // Update summary whenever description changes
   useEffect(() => {
     if (!description) return;
-    
+
+    console.log(description.paraxial_view);
+
+    // For now we only deal with the Y axis as we don't support toric surfaces
     const newSummary = {
+      "Primary Axial Color": description.paraxial_view.primary_axial_color.get("Y") || 0,
+      subviews: {}
+    };
+    
+    const newSubviewSummaries = {
         "Aperture Stop (surface index)": {},
         "Effective Focal Length": {},
         "Back Focal Distance": {},
@@ -147,23 +174,24 @@ const SummaryWindow = ({ description, isOpen, wavelengths, appModes, onClose }) 
         // For now we only deal with the Y axis as we don't support toric surfaces
         if (axis !== "Y") continue;
 
-        newSummary["Aperture Stop (surface index)"][wavelength_index] = subview.aperture_stop;
-        newSummary["Effective Focal Length"][wavelength_index] = subview.effective_focal_length;
-        newSummary["Back Focal Distance"][wavelength_index] = subview.back_focal_distance;
-        newSummary["Front Focal Distance"][wavelength_index] = subview.front_focal_distance;
-        newSummary["Paraxial Image Plane Location"][wavelength_index] = subview.paraxial_image_plane.location;
-        newSummary["Paraxial Image Plane Semi-Diameter"][wavelength_index] = subview.paraxial_image_plane.semi_diameter;
-        newSummary["Entrance Pupil Location"][wavelength_index] = subview.entrance_pupil.location;
-        newSummary["Entrance Pupil Semi-Diameter"][wavelength_index] = subview.entrance_pupil.semi_diameter;
-        newSummary["Exit Pupil Location"][wavelength_index] = subview.exit_pupil.location;
-        newSummary["Exit Pupil Semi-Diameter"][wavelength_index] = subview.exit_pupil.semi_diameter;
-        newSummary["Back Principal Plane"][wavelength_index] = subview.back_principal_plane;
-        newSummary["Front Principal Plane"][wavelength_index] = subview.front_principal_plane;
+        newSubviewSummaries["Aperture Stop (surface index)"][wavelength_index] = subview.aperture_stop;
+        newSubviewSummaries["Effective Focal Length"][wavelength_index] = subview.effective_focal_length;
+        newSubviewSummaries["Back Focal Distance"][wavelength_index] = subview.back_focal_distance;
+        newSubviewSummaries["Front Focal Distance"][wavelength_index] = subview.front_focal_distance;
+        newSubviewSummaries["Paraxial Image Plane Location"][wavelength_index] = subview.paraxial_image_plane.location;
+        newSubviewSummaries["Paraxial Image Plane Semi-Diameter"][wavelength_index] = subview.paraxial_image_plane.semi_diameter;
+        newSubviewSummaries["Entrance Pupil Location"][wavelength_index] = subview.entrance_pupil.location;
+        newSubviewSummaries["Entrance Pupil Semi-Diameter"][wavelength_index] = subview.entrance_pupil.semi_diameter;
+        newSubviewSummaries["Exit Pupil Location"][wavelength_index] = subview.exit_pupil.location;
+        newSubviewSummaries["Exit Pupil Semi-Diameter"][wavelength_index] = subview.exit_pupil.semi_diameter;
+        newSubviewSummaries["Back Principal Plane"][wavelength_index] = subview.back_principal_plane;
+        newSubviewSummaries["Front Principal Plane"][wavelength_index] = subview.front_principal_plane;
 
         // Only extract these values once if appModes is set to refractive index
         if (appModes.refractiveIndex) break;
     }
-    
+    newSummary.subviews = newSubviewSummaries;
+
     setSummary(newSummary);
   }, [description]);
 
