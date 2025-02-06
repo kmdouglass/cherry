@@ -68,7 +68,7 @@ pub struct ParaxialView {
 #[derive(Debug, Serialize)]
 pub struct ParaxialViewDescription {
     subviews: HashMap<SubModelID, ParaxialSubViewDescription>,
-    axial_primary_color: HashMap<Axis, Float>,
+    primary_axial_color: HashMap<Axis, Float>,
 }
 
 /// A paraxial subview of an optical system.
@@ -257,7 +257,7 @@ impl ParaxialView {
                 .iter()
                 .map(|(id, subview)| (*id, subview.describe()))
                 .collect(),
-            axial_primary_color: self.axial_primary_color()
+            primary_axial_color: self.axial_primary_color(),
         }
     }
 
@@ -284,13 +284,15 @@ impl ParaxialView {
     pub fn axial_primary_color(&self) -> HashMap<Axis, Float> {
         // Find the indexes of the minimum and maximum wavelengths. Return with the
         // empty axial primary color if there are no wavelengths.
-        let min_wav_index = self.wavelengths
+        let min_wav_index = self
+            .wavelengths
             .iter()
             .enumerate()
             .min_by(|(_, a), (_, b)| a.total_cmp(b))
             .map(|(index, _)| index)
             .unwrap_or_default();
-        let max_wav_index = self.wavelengths
+        let max_wav_index = self
+            .wavelengths
             .iter()
             .enumerate()
             .max_by(|(_, a), (_, b)| a.total_cmp(b))

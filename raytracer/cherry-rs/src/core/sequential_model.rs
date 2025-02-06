@@ -497,17 +497,21 @@ impl<'a> SequentialSubModel for SequentialSubModelSlice<'a> {
 }
 
 impl Serialize for SubModelID {
-    // Serialize as a string like "0:Y" because tuples as map keys are difficult to work with in
-    // languages like Javascript.
+    // Serialize as a string like "0:Y" because tuples as map keys are difficult to
+    // work with in languages like Javascript.
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
         // Serialize as a string like "0:Y"
-        let key = format!("{}:{}", self.0, match self.1 {
-            Axis::X => "X",
-            Axis::Y => "Y",
-        });
+        let key = format!(
+            "{}:{}",
+            self.0,
+            match self.1 {
+                Axis::X => "X",
+                Axis::Y => "Y",
+            }
+        );
         serializer.serialize_str(&key)
     }
 }
