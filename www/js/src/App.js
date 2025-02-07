@@ -72,6 +72,7 @@ function App({ wasmModule }) {
                 }
             } catch (error) {
                 showAlert(error instanceof Error ? error.message : "Error creating optical system");
+                console.error(error);
                 return {
                     "description": null,
                     "newRayPaths": null

@@ -23,7 +23,7 @@ jobs:
     - name: Install Rust
       uses: dtolnay/rust-toolchain@master
       with:
-        toolchain: nightly-2024-01-12
+        toolchain: nightly-2025-02-06
         components: rust-src
 
     - name: Install wasm-pack
@@ -32,7 +32,7 @@ jobs:
     - name: Build WASM module
       run: |
         RUSTFLAGS='-C target-feature=+atomics,+bulk-memory,+mutable-globals' \
-        rustup run nightly-2024-01-12 \
+        rustup run nightly-2025-02-06 \
         wasm-pack build --release --target web --out-dir ../../www/js/pkg raytracer/cherry-js -- -Z build-std=panic_abort,std
 
     - name: Upload WASM artifacts
@@ -44,7 +44,7 @@ jobs:
     - name: Set up Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: '20'
+        node-version: '22'
 
     - name: Install npm dependencies
       working-directory: ./www/js
