@@ -11,13 +11,7 @@ const MaterialsExplorer = ( {materialsService, isLoadingFullData } ) => {
 
   const selectedMaterials = useSyncExternalStore(
     // Subscribe callback - must return an unsubscribe function
-    (onStoreChange) => {
-      const observer = new MutationObserver(onStoreChange);
-      
-      // Return unsubscribe function
-      return () => observer.disconnect();
-    },
-    // GetSnapshot callback - return current value
+    (onStoreChange) => materialsService.subscribe(onStoreChange),
     () => materialsService.selectedMaterials
   );
 
@@ -118,9 +112,6 @@ const MaterialsExplorer = ( {materialsService, isLoadingFullData } ) => {
     if (selectedMaterials.has(key)) return;
     
     await materialsService.addMaterialToSelectedMaterials(key);
-
-    const newMaterials = new Map(materialsService.selectedMaterials);
-    setSelectedMaterials(newMaterials);
   }
 
   const handleRemoveMaterial = () => {
@@ -129,7 +120,6 @@ const MaterialsExplorer = ( {materialsService, isLoadingFullData } ) => {
     const newMaterials = new Map(selectedMaterials);
     selectedListItems.forEach(key => newMaterials.delete(key));
     
-    setSelectedMaterials(newMaterials);
     materialsService.selectedMaterials = newMaterials;
 
     setSelectedListItems([]);
