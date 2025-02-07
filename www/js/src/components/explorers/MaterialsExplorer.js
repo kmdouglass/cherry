@@ -1,16 +1,17 @@
 import { useEffect, useState } from 'react';
 
 const MaterialsExplorer = ( {materialsService, isLoadingFullData } ) => {
-  const [shelves, setShelves] = useState(new Map());
-  const [books, setBooks] = useState(new Map());
-  const [pages, setPages] = useState(new Map());
+  const [shelves, setShelves] = useState(new Map()); // For the dropdown selectors, key: shelfId, value: shelfName
+  const [books, setBooks] = useState(new Map());     // For the dropdown selectors, key: bookId, value: bookName
+  const [pages, setPages] = useState(new Map());     // For the dropdown selectors; key: pageId, value: pageName
   
   const [selectedShelf, setSelectedShelf] = useState(null);  // Array, 0: key, 1: value
   const [selectedBook, setSelectedBook] = useState(null);    // Array, 0: key, 1: value
   const [selectedPage, setSelectedPage] = useState(null);    // Array, 0: key, 1: value
 
-  const [selectedMaterials, setSelectedMaterials] = useState(new Map());  // Materials service
-  const [selectedListItems, setSelectedListItems] = useState([]);  // Listbox
+  const [selectedMaterials, setSelectedMaterials] = useState(new Map());  // Materials service; key: shelfId:bookId:pageId, value: material data
+  const [viewingMaterial, setViewingMaterial] = useState(null);           // Materials service to investigate material data; object with material data
+  const [selectedListItems, setSelectedListItems] = useState([]);         // Listbox; Array of keys of selected materials
 
  // Fetch shelf names when the component mounts and all data is loaded
  useEffect(() => {
@@ -54,6 +55,19 @@ const MaterialsExplorer = ( {materialsService, isLoadingFullData } ) => {
         // Set initial page
           const firstPage = Array.from(pages || [])[0];
           setSelectedPage(firstPage);
+
+          return new Promise((resolve, reject) => {
+            resolve(firstPage);
+          })
+      })
+      .then(firstPage => {
+        // Fetch the material data for the first page
+        const key = `${selectedShelf[0]}:${selectedBook[0]}:${firstPage[0]}`;
+        return materialsService.getMaterialFromDB(key);
+      })
+      .then(material => {
+        // Update the material data viewer
+        setViewingMaterial(material);
       })
       .catch(error => console.error("Failed to fetch page names", error));
   }, [selectedBook, selectedShelf, materialsService]);
@@ -79,10 +93,15 @@ const MaterialsExplorer = ( {materialsService, isLoadingFullData } ) => {
     setSelectedBook([bookKey, bookName]);
   }
   
-  const handlePageChange = (event) => {
+  const handlePageChange = async (event) => {
     const pageKey = event.target.value;
     const pageName = pages.get(pageKey);
     setSelectedPage([pageKey, pageName]);
+
+    // Update the material data viewer
+    const key = `${selectedShelf[0]}:${selectedBook[0]}:${pageKey}`;
+    const material = await materialsService.getMaterialFromDB(key);
+    setViewingMaterial(material);
   }
 
   const handleAddMaterial = async () => {
@@ -109,6 +128,35 @@ const MaterialsExplorer = ( {materialsService, isLoadingFullData } ) => {
     materialsService.selectedMaterials = newMaterials;
 
     setSelectedListItems([]);
+  }
+
+  const renderMaterialDetails = () => {
+    if (!selectedShelf || !selectedBook || !selectedPage) return;
+
+    if (!viewingMaterial) return;
+
+    const materialData = viewingMaterial.data["0"];
+    let wavelengthRange = "Not available";
+
+    if (Object.keys(materialData)[0] === "TabulatedNK") {
+      const tabulatedData = materialData.TabulatedNK.data;
+      wavelengthRange = `${tabulatedData[0][0]} - ${tabulatedData[tabulatedData.length -1][0]} µm`;
+    } else if (Object.keys(materialData)[0] === "TabulatedN") {
+      const tabulatedData = materialData.TabulatedN.data;
+      wavelengthRange = `${tabulatedData[0][0]} - ${tabulatedData[tabulatedData.length -1][0]} µm`; 
+    } else {
+      // We don't know what this is ahead of time; could be Formula2, Formula3, etc.
+      const dataKey = Object.keys(materialData)[0];
+      wavelengthRange = `${materialData[dataKey].wavelength_range[0]} - ${materialData[dataKey].wavelength_range[1]} µm`;
+    }
+
+    return (
+      <div>
+        <h4 className="title is-4">Material Details</h4>
+        <p><strong>Name:</strong> {viewingMaterial.page}</p>
+        <p><strong>Wavelength range:</strong> {wavelengthRange}</p>
+      </div>
+    );
   }
 
   return (
@@ -163,7 +211,7 @@ const MaterialsExplorer = ( {materialsService, isLoadingFullData } ) => {
               }}
             >
               {Array.from(selectedMaterials).map(([key, material ]) => (
-                <option key={key} value={key}>{material.page}</option>
+                <option key={key} value={key}>{material.shelf} | {material.book} | {material.page}</option>
               ))}
             </select>
             
@@ -186,6 +234,12 @@ const MaterialsExplorer = ( {materialsService, isLoadingFullData } ) => {
           </div>
         </div>
       </div>
+
+      {/* Material Details */}
+      <div className="box">
+        {renderMaterialDetails()}
+      </div>
+
     </div>
   );
 };

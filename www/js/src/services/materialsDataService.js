@@ -18,7 +18,7 @@ const FULL_DATA_URL = `${__webpack_public_path__}data/full-materials-data.json`;
 
 export class MaterialsDataService {
   #worker;
-  #selectedMaterials;
+  #selectedMaterials; // To be used in the lens design
 
   constructor() {
     this.worker = new Worker(new URL("./materialsDataWorker.js", import.meta.url));
