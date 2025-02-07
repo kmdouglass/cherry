@@ -323,14 +323,14 @@ mod test_ri_info {
     ];
 
     // Paraxial property values
-    fn axial_primary_color() -> HashMap<Axis, f64> {
-        let mut axial_primary_color = HashMap::new();
-        axial_primary_color.insert(Axis::Y, 0.7743);
-        axial_primary_color
+    fn primary_axial_color() -> HashMap<Axis, f64> {
+        let mut primary_axial_color = HashMap::new();
+        primary_axial_color.insert(Axis::Y, 0.7743);
+        primary_axial_color
     }
 
     #[test]
-    fn test_paraxial_view_axial_primary_color() {
+    fn test_paraxial_view_primary_axial_color() {
         let mut store = load_store().unwrap();
 
         // Remove the item so that we can pass ownership to a Rc.
@@ -341,8 +341,8 @@ mod test_ri_info {
         let view =
             ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
 
-        let expected = axial_primary_color();
-        let results = view.axial_primary_color();
+        let expected = primary_axial_color();
+        let results = view.primary_axial_color();
 
         assert_eq!(expected.len(), results.len());
         for (axis, expected_value) in expected.iter() {
