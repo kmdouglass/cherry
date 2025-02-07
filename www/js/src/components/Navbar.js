@@ -64,9 +64,15 @@ const Navbar = ( {
         setIsMobileMenuOpen(!isMobileMenuOpen);
     };
 
-    const loadDataset = async (newSurfaces, newFields, newAperture, newWavelengths, newAppModes) => {
+    const loadDataset = async (inputSurfaces, inputFields, inputAperture, inputWavelengths, inputAppModes) => {
         // Clear materials first
         materialsService.clearSelectedMaterials();
+
+        const newSurfaces = structuredClone(inputSurfaces);
+        const newFields = structuredClone(inputFields);
+        const newAperture = structuredClone(inputAperture);
+        const newWavelengths = structuredClone(inputWavelengths);
+        const newAppModes = structuredClone(inputAppModes);
 
         for (const surface of newSurfaces) {
             // Add any material key to the materials service's selected materials
