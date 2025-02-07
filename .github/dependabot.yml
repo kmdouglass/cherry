@@ -7,6 +7,6 @@ updates:
       interval: "weekly"
 
   - package-ecosystem: "npm"
-    directory: "/"
+    directory: "/www/js"
     schedule:
       interval: "weekly"
