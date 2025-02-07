@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 
 const MaterialsExplorer = ( {materialsService, isLoadingFullData } ) => {
   const [shelves, setShelves] = useState(new Map()); // For the dropdown selectors, key: shelfId, value: shelfName
@@ -9,9 +9,20 @@ const MaterialsExplorer = ( {materialsService, isLoadingFullData } ) => {
   const [selectedBook, setSelectedBook] = useState(null);    // Array, 0: key, 1: value
   const [selectedPage, setSelectedPage] = useState(null);    // Array, 0: key, 1: value
 
-  const [selectedMaterials, setSelectedMaterials] = useState(new Map());  // Materials service; key: shelfId:bookId:pageId, value: material data
+  const selectedMaterials = useSyncExternalStore(
+    // Subscribe callback - must return an unsubscribe function
+    (onStoreChange) => {
+      const observer = new MutationObserver(onStoreChange);
+      
+      // Return unsubscribe function
+      return () => observer.disconnect();
+    },
+    // GetSnapshot callback - return current value
+    () => materialsService.selectedMaterials
+  );
+
   const [viewingMaterial, setViewingMaterial] = useState(null);           // Materials service to investigate material data; object with material data
-  const [selectedListItems, setSelectedListItems] = useState([]);         // Listbox; Array of keys of selected materials
+  const [selectedListItems, setSelectedListItems] = useState([]);         // Listbox; Array of keys of selected listbox items
 
  // Fetch shelf names when the component mounts and all data is loaded
  useEffect(() => {
@@ -71,12 +82,6 @@ const MaterialsExplorer = ( {materialsService, isLoadingFullData } ) => {
       })
       .catch(error => console.error("Failed to fetch page names", error));
   }, [selectedBook, selectedShelf, materialsService]);
-
-  // Populate listbox with selected materials
-  useEffect(() => {
-      setSelectedMaterials(materialsService.selectedMaterials || []);
-    }, [materialsService]
-  );
 
   const handleShelfChange = (event) => {
     const shelfKey = event.target.value;

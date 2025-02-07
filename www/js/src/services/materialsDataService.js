@@ -18,15 +18,52 @@ const FULL_DATA_URL = `${__webpack_public_path__}data/full-materials-data.json`;
 
 export class MaterialsDataService {
   #worker;
-  #selectedMaterials; // To be used in the lens design
+  #selectedMaterials;
+  #subscribers;
 
   constructor() {
-    this.worker = new Worker(new URL("./materialsDataWorker.js", import.meta.url));
-    this.worker.onmessage = (event) => {
+    this.#worker = new Worker(new URL("./materialsDataWorker.js", import.meta.url));
+    this.#worker.onmessage = (event) => {
       console.debug('Received message from the worker:', event.data);
     }
 
     this.#selectedMaterials = new Map();
+    this.#subscribers = new Set();
+  }
+
+  // So React can subscribe to state changes
+  subscribe(callback) {
+    this.#subscribers.add(callback);
+    return () => {
+      this.#subscribers.delete(callback);
+    };
+  }
+
+  notifySubscribers() {
+    this.#subscribers.forEach(callback => callback());
+  }
+
+  get selectedMaterials() {
+    return this.#selectedMaterials;
+  }
+
+  set selectedMaterials(materials) {
+    this.#selectedMaterials = materials;
+    this.notifySubscribers();
+  }
+
+  async addMaterialToSelectedMaterials(key) {
+    const material = await this.getMaterialFromDB(key);
+
+    if (material) {
+      const newMaterials = new Map(this.selectedMaterials);
+      newMaterials.set(key, material);
+      this.selectedMaterials = newMaterials;
+    }
+  }
+
+  clearSelectedMaterials() {
+    this.selectedMaterials = new Map();
   }
 
   /*
@@ -49,44 +86,7 @@ export class MaterialsDataService {
       }
     );
   }
-
-  async addMaterialToSelectedMaterials(key) {
-      const material = await this.getMaterialFromDB(key);
-
-      if (material) {
-        const newMaterials = new Map(this.selectedMaterials);
-        newMaterials.set(key, material);
-        this.selectedMaterials = newMaterials
-      }
-  }
-
-  clearSelectedMaterials() {
-    this.selectedMaterials = new Map();
-  }
-
-  /*
-   * Get the selected materials.
-   *
-   * These are the materials that the user has selected to use in the system. It does not
-   * return a specific material from the database.
-   *
-   * Returns:
-   *    selectedMaterials: Map of materials
-   */ 
-  get selectedMaterials() {
-    return this.#selectedMaterials;
-  }
-
-  /*
-   * Set the selected materials.
-   *
-   * Parameters:
-   *    materials: Map of materials
-   */ 
-  set selectedMaterials(materials) {
-    this.#selectedMaterials = materials;
-  }
-
+  
   /*
    * Open a connection to the database and create the materials object store if it doesn't exist.
    */
@@ -224,11 +224,11 @@ export class MaterialsDataService {
   }
 
   async workerInitStorage() {
-    this.worker.postMessage([MSG_FETCH_INITIAL_DATA, INITIAL_DATA_URL]);
+    this.#worker.postMessage([MSG_FETCH_INITIAL_DATA, INITIAL_DATA_URL]);
 
     // Wait for the worker to finish
     return new Promise((resolve, reject) => {
-      this.worker.onmessage = (event) => {
+      this.#worker.onmessage = (event) => {
         if (event.data === MSG_INITIALIZED) {
           resolve();
         } else {
@@ -239,11 +239,11 @@ export class MaterialsDataService {
 }
 
   async workerFetchFullData() {
-    this.worker.postMessage([MSG_FETCH_FULL_DATA, FULL_DATA_URL]);
+    this.#worker.postMessage([MSG_FETCH_FULL_DATA, FULL_DATA_URL]);
   
     // Wait for the worker to finish
     return new Promise((resolve, reject) => {
-      this.worker.onmessage = (event) => {
+      this.#worker.onmessage = (event) => {
         if (event.data === MSG_FULL_DATA_FETCHED) {
           resolve();
         } else {
@@ -255,11 +255,11 @@ export class MaterialsDataService {
   }
 
   async workerCloseDBConnection() {
-    this.worker.postMessage([MSG_CLOSE_DB_CONNECTION]);
+    this.#worker.postMessage([MSG_CLOSE_DB_CONNECTION]);
 
     // Wait for the worker to finish
     return new Promise((resolve, reject) => {
-      this.worker.onmessage = (event) => {
+      this.#worker.onmessage = (event) => {
         if (event.data === MSG_DB_CLOSED) {
           resolve();
         } else {
@@ -267,6 +267,10 @@ export class MaterialsDataService {
         }
       }
     });
+  }
+
+  terminateWorker() {
+    this.#worker.terminate();
   }
 }
 
@@ -301,7 +305,7 @@ export function useMaterialsService() {
     init();
 
     return () => {
-      this.worker.terminate();
+      materialsService.terminateWorker();
     }
   }, []);
 
