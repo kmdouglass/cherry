@@ -257,7 +257,7 @@ impl ParaxialView {
                 .iter()
                 .map(|(id, subview)| (*id, subview.describe()))
                 .collect(),
-            primary_axial_color: self.axial_primary_color(),
+            primary_axial_color: self.primary_axial_color(),
         }
     }
 
@@ -271,9 +271,9 @@ impl ParaxialView {
         &self.subviews
     }
 
-    /// Computes the axial primary color aberration of the optical system.
+    /// Computes the primary axial color aberration of the optical system.
     ///
-    /// Here, axial primary color is the difference in focal length
+    /// Here, primary axial color is the difference in focal length
     /// between the maximum and minimum wavelengths. If the traditional
     /// defintion of axial primary color is desired, then the user must
     /// enter the wavelengths for the Fraunhofer F and C lines as minimum and
@@ -281,7 +281,7 @@ impl ParaxialView {
     ///
     /// # Returns
     /// A HashMap containing the axial primary color for each axis.
-    pub fn axial_primary_color(&self) -> HashMap<Axis, Float> {
+    pub fn primary_axial_color(&self) -> HashMap<Axis, Float> {
         // Find the indexes of the minimum and maximum wavelengths. Return with the
         // empty axial primary color if there are no wavelengths.
         let min_wav_index = self
@@ -299,7 +299,7 @@ impl ParaxialView {
             .map(|(index, _)| index)
             .unwrap_or_default();
 
-        let mut axial_primary_color: HashMap<Axis, Float> = HashMap::new();
+        let mut primary_axial_color: HashMap<Axis, Float> = HashMap::new();
         let mut efls_min_wav: HashMap<SubModelID, Float> = HashMap::new();
         let mut efls_max_wav: HashMap<SubModelID, Float> = HashMap::new();
 
@@ -318,12 +318,12 @@ impl ParaxialView {
             for (id_max, efl_max) in efls_max_wav.iter() {
                 if id_min.1 == id_max.1 {
                     let apc = (efl_max - efl_min).abs();
-                    axial_primary_color.insert(id_min.1, apc);
+                    primary_axial_color.insert(id_min.1, apc);
                 }
             }
         }
 
-        axial_primary_color
+        primary_axial_color
     }
 }
 
