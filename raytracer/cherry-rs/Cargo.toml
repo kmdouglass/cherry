@@ -18,7 +18,7 @@ anyhow = "1.0"
 ndarray = { version = "0.15", features = [ "serde" ] }
 serde = { version = "1", features = [ "derive" ] }
 
-ria = { version = "0.2", optional = true }
+ria = { version = "0.3", optional = true }
 
 [dev-dependencies]
 approx = { version = "0.5" }
