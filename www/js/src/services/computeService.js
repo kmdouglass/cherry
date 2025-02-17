@@ -1,4 +1,6 @@
-import { useState, useEffect, use } from 'react';
+import { useState, useEffect } from 'react';
+
+import { MSG_IN_INIT } from './computeContants';
 
 export class ComputeService {
     #worker;
@@ -10,8 +12,12 @@ export class ComputeService {
         }
     }
 
+    async initWorker() {
+        this.#worker.postMessage([MSG_IN_INIT, null]);
+    }
+
     test() {
-        this.#worker.postMessage("Hello from the main thread!");
+        this.#worker.postMessage(["Hello from the main thread!", null]);
     }
 
     terminateWorker() {
@@ -22,13 +28,24 @@ export class ComputeService {
 // React hook
 export function useComputeService() {
     const [computeService] = useState(() => new ComputeService());
+    const [isInitializing, setIsInitializing] = useState(true);
 
     useEffect(() => {
+        async function init() {
+            try{
+                await computeService.initWorker();
+                setIsInitializing(false);
+            } catch (error) {
+                console.error("Failed to initialize the worker:", error);
+            }
+        }
+        init();
+
         return () => {
-            console.debug("Terminating worker");
+            console.debug("Terminating compute service worker");
             computeService.terminateWorker();
         };
     }, []);
 
-    return computeService;
+    return { computeService, isInitializing };
 }
