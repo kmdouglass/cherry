@@ -16,7 +16,7 @@ function App({ wasmModule }) {
     const { materialsService, isLoadingInitialData, isLoadingFullData, error } = useMaterialsService();
 
     // Start the compute service
-    const computeService = useComputeService();
+    const { computeService, isComputeServiceInitializing } = useComputeService();
 
     // GUI state
     const [activeExplorersTab, setExplorersActiveTab] = useState('specs');
@@ -43,7 +43,6 @@ function App({ wasmModule }) {
     const systemData = useMemo(() => {
         if (wasmModule) {
             try {
-                computeService.test();
                 const opticalSystem = getOpticalSystem(wasmModule);
 
                 const { surfaceSpecs, gapSpecs, fieldSpecs, apertureSpec, wavelengthSpecs } = convertUIStateToLibFormat(
@@ -119,8 +118,8 @@ function App({ wasmModule }) {
 
     // --------------------------------------------------------------------------------
     // Rendering
-    if (isLoadingInitialData) {
-        return <div>Loading initial materials data...</div>;
+    if (isLoadingInitialData || isComputeServiceInitializing) {
+        return <div>Loading...</div>;
     }
 
     // TODO Handle error
