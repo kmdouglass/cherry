@@ -1,4 +1,5 @@
 import { convertUIStateToLibFormat, getOpticalSystem } from "./modules/opticalSystem";
+import { useComputeService } from "./services/computeService";
 import { useMaterialsService } from "./services/materialsDataService";
 
 import { useMemo, useState } from "react";
@@ -13,6 +14,9 @@ import MaterialsExplorer from "./components/explorers/MaterialsExplorer";
 function App({ wasmModule }) {
     // Load the material data
     const { materialsService, isLoadingInitialData, isLoadingFullData, error } = useMaterialsService();
+
+    // Start the compute service
+    const computeService = useComputeService();
 
     // GUI state
     const [activeExplorersTab, setExplorersActiveTab] = useState('specs');
@@ -39,6 +43,7 @@ function App({ wasmModule }) {
     const systemData = useMemo(() => {
         if (wasmModule) {
             try {
+                computeService.test();
                 const opticalSystem = getOpticalSystem(wasmModule);
 
                 const { surfaceSpecs, gapSpecs, fieldSpecs, apertureSpec, wavelengthSpecs } = convertUIStateToLibFormat(

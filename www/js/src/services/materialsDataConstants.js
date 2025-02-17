@@ -1,4 +1,3 @@
-export const DATABASE_NAME = "materials";
 export const OBJECT_STORE_NAME = "materials";
 export const INDEX_SHELF_NAME = "shelf";
 export const INDEX_SHELF_BOOK_NAME = "shelfAndBook";
