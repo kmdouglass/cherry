@@ -3,6 +3,7 @@ import { MSG_IN_COMPUTE, MSG_IN_INIT, MSG_OUT_INIT } from "./computeContants";
 import { initializeWasm } from "../wasmLoader";
 
 let wasmModule;
+let opticalSystem;
 
 onmessage = function (event) {
     console.debug("Received message from the main thread:", event.data);
@@ -15,6 +16,8 @@ onmessage = function (event) {
             initializeWasm(true)
                 .then((module) => {
                     wasmModule = module;
+                    opticalSystem = new wasmModule.OpticalSystem();
+
                     postMessage(MSG_OUT_INIT);
                 })
                 .catch((error) => {
@@ -23,7 +26,20 @@ onmessage = function (event) {
 
             break;
         case MSG_IN_COMPUTE:
-            console.debug("Computing the optical system: ", arg);
+            console.debug("Computing full 3D ray trace: ", arg);
+
+            const { surfaces, gaps, fields, aperture, wavelengths, gapMode } = arg;
+            opticalSystem.setSurfaces(surfaces);
+            opticalSystem.setGaps(gaps, gapMode);
+            opticalSystem.setFields(fields);
+            opticalSystem.setAperture(aperture);
+            opticalSystem.setWavelengths(wavelengths);
+            opticalSystem.build();
+
+            const rays = opticalSystem.trace();
+                
+            console.debug("3D ray trace complete: ", rays);
+
             break;
         default:
             console.error("Unknown message from the main thread:", event.data);
