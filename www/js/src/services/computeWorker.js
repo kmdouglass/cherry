@@ -1,4 +1,4 @@
-import { MSG_IN_INIT, MSG_OUT_INIT } from "./computeContants";
+import { MSG_IN_COMPUTE, MSG_IN_INIT, MSG_OUT_INIT } from "./computeContants";
 
 import { initializeWasm } from "../wasmLoader";
 
@@ -12,16 +12,18 @@ onmessage = function (event) {
 
     switch (message) {
         case MSG_IN_INIT:
-            console.debug("Initializing the worker");
             initializeWasm(true)
                 .then((module) => {
                     wasmModule = module;
-                    postMessage([MSG_OUT_INIT, null]);
+                    postMessage(MSG_OUT_INIT);
                 })
                 .catch((error) => {
                     console.error("Failed to initialize the worker:", error);
                 });
 
+            break;
+        case MSG_IN_COMPUTE:
+            console.debug("Computing the optical system: ", arg);
             break;
         default:
             console.error("Unknown message from the main thread:", event.data);

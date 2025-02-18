@@ -2,7 +2,7 @@ import { convertUIStateToLibFormat, getOpticalSystem } from "./modules/opticalSy
 import { useComputeService } from "./services/computeService";
 import { useMaterialsService } from "./services/materialsDataService";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import "./css/cherry.css";
 import showAlert from "./modules/alerts";
@@ -36,6 +36,7 @@ function App({ wasmModule }) {
     ]);
     const [aperture, setAperture] = useState({"EntrancePupil": { "semi_diameter": 5.0 }});
     const [wavelengths, setWavelengths] = useState([0.5876]);
+    const [convertedSpecs, setConvertedSpecs] = useState({});
     const [description, setDescription] = useState(null);
     const [rawRayPaths, setRawRayPaths] = useState(null);
 
@@ -63,6 +64,17 @@ function App({ wasmModule }) {
                 opticalSystem.setWavelengths(wavelengthSpecs);
                 opticalSystem.build();
 
+                const newConvertedSpecs = {
+                    "surfaces": surfaceSpecs,
+                    "gaps": gapSpecs,
+                    "fields": fieldSpecs,
+                    "aperture": apertureSpec,
+                    "wavelengths": wavelengthSpecs,
+                    "gapMode": gapMode,
+                    ...convertedSpecs
+                }
+                setConvertedSpecs(newConvertedSpecs);
+
                 // Render the optical system
                 const newDescription = opticalSystem.describe();
                 const newRayPaths = opticalSystem.traceChiefAndMarginalRays();
@@ -84,6 +96,15 @@ function App({ wasmModule }) {
             }
         }
     }, [wasmModule, surfaces, fields, aperture, wavelengths, appModes]);
+
+    // Send the optical system to the compute service
+    useEffect(() => {
+        if (isComputeServiceInitializing) return;
+
+        // Compute full results for the optical system
+        computeService.compute(convertedSpecs);
+    }, [convertedSpecs, isComputeServiceInitializing]);
+
 
     const handleExplorersTabClick = (tab) => {
         // Don't allow switching tabs if SpecsExplorer cell is invalid
