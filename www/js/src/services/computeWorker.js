@@ -1,4 +1,4 @@
-import { MSG_IN_COMPUTE, MSG_IN_INIT, MSG_OUT_INIT } from "./computeContants";
+import { MSG_IN_COMPUTE, MSG_OUT_COMPUTE, MSG_IN_INIT, MSG_OUT_INIT } from "./computeContants";
 
 import { initializeWasm } from "../wasmLoader";
 
@@ -18,7 +18,7 @@ onmessage = function (event) {
                     wasmModule = module;
                     opticalSystem = new wasmModule.OpticalSystem();
 
-                    postMessage(MSG_OUT_INIT);
+                    this.postMessage(MSG_OUT_INIT);
                 })
                 .catch((error) => {
                     console.error("Failed to initialize the worker:", error);
@@ -37,6 +37,7 @@ onmessage = function (event) {
             opticalSystem.build();
 
             const rays = opticalSystem.trace();
+            this.postMessage([MSG_OUT_COMPUTE, rays]);
                 
             console.debug("3D ray trace complete: ", rays);
 

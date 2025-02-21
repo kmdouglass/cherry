@@ -1,15 +1,18 @@
 import { useState, useEffect } from 'react';
 
-import { MSG_IN_COMPUTE, MSG_IN_INIT, MSG_OUT_INIT } from './computeContants';
+import { MSG_IN_COMPUTE, MSG_OUT_COMPUTE, MSG_IN_INIT, MSG_OUT_INIT } from './computeContants';
 
 export class ComputeService {
     #worker;
+    #results;
 
     constructor() {
         this.#worker = new Worker(new URL("./computeWorker.js", import.meta.url));
         this.#worker.onmessage = (event) => {
             console.debug('Received message from the worker:', event.data);
         }
+
+        this.#results = {};
     }
 
     test() {
@@ -42,6 +45,14 @@ export class ComputeService {
     compute(specs) {
         this.#worker.postMessage([MSG_IN_COMPUTE, specs]);
     }
+
+    getResults() {
+        return this.#results;
+    }
+
+    setResults(results) {
+        this.#results = results;
+    }
 }
 
 // React hook
@@ -57,6 +68,17 @@ export function useComputeService() {
                 // Set up the message handler for the worker to replace the one for initialization
                 computeService.setWorkerMessageHandler(event => {
                     console.debug('Received message from the worker:', event.data);
+
+                    const msg = event.data[0];
+                    const arg = event.data[1];
+
+                    switch (msg) {
+                        case MSG_OUT_COMPUTE:
+                            console.debug("Received computed results from the worker:", arg);
+                            break;
+                        default:
+                            console.error("Unknown message from the worker:", event.data);
+                    }
                 });
                 setIsInitializing(false);
             } catch (error) {
