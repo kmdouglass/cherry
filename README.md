@@ -13,7 +13,6 @@ Optical system design in the browser
 
 - Rust compiler (see [raytracer/rust-toolchain.toml](raytracer/rust-toolchain.toml) for the version)
 - Node 22.13.1 (for the frontend)
-- [Git LFS](https://git-lfs.com/) (to fetch materials data)
 
 ## Build
 
