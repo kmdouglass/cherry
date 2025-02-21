@@ -25,6 +25,7 @@ onmessage = function (event) {
                 });
 
             break;
+
         case MSG_IN_COMPUTE:
             console.debug("Computing full 3D ray trace: ", arg);
 

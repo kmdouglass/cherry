@@ -5,6 +5,7 @@ import { MSG_IN_COMPUTE, MSG_OUT_COMPUTE, MSG_IN_INIT, MSG_OUT_INIT } from './co
 export class ComputeService {
     #worker;
     #results;
+    #subscribers;
 
     constructor() {
         this.#worker = new Worker(new URL("./computeWorker.js", import.meta.url));
@@ -13,6 +14,7 @@ export class ComputeService {
         }
 
         this.#results = {};
+        this.#subscribers = new Set();
     }
 
     test() {
@@ -42,16 +44,29 @@ export class ComputeService {
         this.#worker.terminate();
     }
 
+    // Allows React to subscribe to state changes
+    subscribe(callback) {
+        this.#subscribers.add(callback);
+        return () => {
+            this.#subscribers.delete(callback);
+        };
+    }
+
+    #notifySubscribers() {
+        this.#subscribers.forEach(callback => callback());
+    }
+
     compute(specs) {
         this.#worker.postMessage([MSG_IN_COMPUTE, specs]);
     }
 
-    getResults() {
+    get results() {
         return this.#results;
     }
 
-    setResults(results) {
+    set results(results) {
         this.#results = results;
+        this.#notifySubscribers();
     }
 }
 
@@ -75,6 +90,7 @@ export function useComputeService() {
                     switch (msg) {
                         case MSG_OUT_COMPUTE:
                             console.debug("Received computed results from the worker:", arg);
+                            computeService.results = arg;
                             break;
                         default:
                             console.error("Unknown message from the worker:", event.data);

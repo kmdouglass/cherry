@@ -31,7 +31,7 @@ export class MaterialsDataService {
     this.#subscribers = new Set();
   }
 
-  // So React can subscribe to state changes
+  // Allows React to subscribe to state changes
   subscribe(callback) {
     this.#subscribers.add(callback);
     return () => {
