@@ -8,7 +8,7 @@
     "start": "webpack-dev-server --config webpack.config.js --mode=development"
   },
   "devDependencies": {
-    "@babel/core": "^7.25.2",
+    "@babel/core": "^7.26.9",
     "@babel/preset-env": "^7.25.3",
     "@babel/preset-react": "^7.24.7",
     "@webpack-cli/serve": "*",
