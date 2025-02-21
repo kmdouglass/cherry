@@ -8,10 +8,10 @@ let opticalSystem;
 onmessage = function (event) {
     console.debug("Received message from the main thread:", event.data);
     
-    const message = event.data[0];
+    const msg = event.data[0];
     const arg = event.data[1];
 
-    switch (message) {
+    switch (msg) {
         case MSG_IN_INIT:
             initializeWasm(true)
                 .then((module) => {
@@ -27,9 +27,9 @@ onmessage = function (event) {
             break;
 
         case MSG_IN_COMPUTE:
-            console.debug("Computing full 3D ray trace: ", arg);
+            const { surfaces, gaps, fields, aperture, wavelengths, gapMode, requestID } = arg;
+            console.debug("Computing full 3D ray trace: ", requestID);
 
-            const { surfaces, gaps, fields, aperture, wavelengths, gapMode } = arg;
             opticalSystem.setSurfaces(surfaces);
             opticalSystem.setGaps(gaps, gapMode);
             opticalSystem.setFields(fields);
@@ -38,6 +38,7 @@ onmessage = function (event) {
             opticalSystem.build();
 
             const rays = opticalSystem.trace();
+
             this.postMessage([MSG_OUT_COMPUTE, rays]);
                 
             console.debug("3D ray trace complete: ", rays);

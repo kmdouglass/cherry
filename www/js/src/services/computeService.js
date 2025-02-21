@@ -6,6 +6,7 @@ export class ComputeService {
     #worker;
     #results;
     #subscribers;
+    #requestID;
 
     constructor() {
         this.#worker = new Worker(new URL("./computeWorker.js", import.meta.url));
@@ -15,6 +16,7 @@ export class ComputeService {
 
         this.#results = {};
         this.#subscribers = new Set();
+        this.#requestID = 0;
     }
 
     test() {
@@ -57,7 +59,10 @@ export class ComputeService {
     }
 
     compute(specs) {
+        // Append the request ID to the specs
+        specs.requestID = this.#requestID;
         this.#worker.postMessage([MSG_IN_COMPUTE, specs]);
+        this.#requestID++;
     }
 
     get results() {
