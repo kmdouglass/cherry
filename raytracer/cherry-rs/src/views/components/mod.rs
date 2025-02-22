@@ -117,6 +117,7 @@ fn same_medium(eta_1: RefractiveIndex, eta_2: RefractiveIndex) -> bool {
 mod tests {
     use std::rc::Rc;
 
+    use crate::examples::convexplano_lens;
     use crate::{core::Float, n, GapSpec, SequentialModel, SurfaceSpec};
 
     use super::*;
@@ -353,8 +354,10 @@ mod tests {
 
     #[test]
     fn test_planoconvex_lens() {
-        let sequential_model = crate::examples::convexplano_lens::sequential_model();
-
+        let air = n!(1.0);
+        let nbk7 = n!(1.515);
+        let wavelengths: [Float; 1] = [0.5876];
+        let sequential_model = convexplano_lens::sequential_model(air, nbk7, &wavelengths);
         let components = components_view(&sequential_model, n!(1.0)).unwrap();
 
         assert_eq!(components.len(), 1);

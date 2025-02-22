@@ -91,11 +91,16 @@ impl Surface {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::Float;
     use crate::examples::convexplano_lens::sequential_model;
+    use crate::n;
 
     #[test]
     fn test_cutaway_view() {
-        let sequential_model = sequential_model();
+        let air = n!(1.0);
+        let nbk7 = n!(1.515);
+        let wavelengths: [Float; 1] = [0.5876];
+        let sequential_model = sequential_model(air, nbk7, &wavelengths);
         let cutaways = CutawayView::new(&sequential_model, 10);
 
         assert_eq!(cutaways.path_samples.len(), 4);

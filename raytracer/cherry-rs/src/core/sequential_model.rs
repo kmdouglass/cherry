@@ -775,7 +775,11 @@ impl Display for Surface {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{core::math::mat3::Mat3, examples::convexplano_lens::sequential_model};
+    use crate::{
+        core::{math::mat3::Mat3, Float},
+        examples::convexplano_lens::sequential_model,
+        n,
+    };
 
     #[test]
     fn is_rotationally_symmetric() {
@@ -823,7 +827,10 @@ mod tests {
 
     #[test]
     fn test_calc_model_ids() {
-        let sequential_model = sequential_model();
+        let air = n!(1.0);
+        let nbk7 = n!(1.515);
+        let wavelengths: [Float; 1] = [0.5876];
+        let sequential_model = sequential_model(air, nbk7, &wavelengths);
         let surfaces = sequential_model.surfaces();
         let wavelengths = vec![0.4, 0.6];
 

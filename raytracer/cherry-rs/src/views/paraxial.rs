@@ -897,8 +897,11 @@ mod test {
     use approx::assert_abs_diff_eq;
     use ndarray::{arr1, arr3};
 
-    use crate::core::sequential_model::SubModelID;
     use crate::examples::convexplano_lens;
+    use crate::{
+        core::{sequential_model::SubModelID, Float},
+        n,
+    };
 
     use super::*;
 
@@ -940,7 +943,10 @@ mod test {
     }
 
     fn setup() -> (ParaxialSubView, SequentialModel) {
-        let sequential_model = convexplano_lens::sequential_model();
+        let air = n!(1.0);
+        let nbk7 = n!(1.515);
+        let wavelengths: [Float; 1] = [0.5876];
+        let sequential_model = convexplano_lens::sequential_model(air, nbk7, &wavelengths);
         let seq_sub_model = sequential_model
             .submodels()
             .get(&SubModelID(0usize, Axis::Y))
@@ -1014,7 +1020,10 @@ mod test {
 
     #[test]
     fn test_pseudo_marginal_ray() {
-        let sequential_model = convexplano_lens::sequential_model();
+        let air = n!(1.0);
+        let nbk7 = n!(1.515);
+        let wavelengths: [Float; 1] = [0.5876];
+        let sequential_model = convexplano_lens::sequential_model(air, nbk7, &wavelengths);
         let seq_sub_model = sequential_model
             .submodels()
             .get(&SubModelID(0usize, Axis::Y))
@@ -1038,7 +1047,10 @@ mod test {
 
     #[test]
     fn test_reverse_parallel_ray() {
-        let sequential_model = convexplano_lens::sequential_model();
+        let air = n!(1.0);
+        let nbk7 = n!(1.515);
+        let wavelengths: [Float; 1] = [0.5876];
+        let sequential_model = convexplano_lens::sequential_model(air, nbk7, &wavelengths);
         let seq_sub_model = sequential_model
             .submodels()
             .get(&SubModelID(0usize, Axis::Y))
