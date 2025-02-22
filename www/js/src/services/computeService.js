@@ -10,9 +10,7 @@ export class ComputeService {
 
     constructor() {
         this.#worker = new Worker(new URL("./computeWorker.js", import.meta.url));
-        this.#worker.onmessage = (event) => {
-            console.debug('Received message from the worker:', event.data);
-        }
+        this.#worker.onmessage = (_) => { }
 
         this.#results = {};
         this.#subscribers = new Set();
@@ -87,14 +85,11 @@ export function useComputeService() {
 
                 // Set up the message handler for the worker to replace the one for initialization
                 computeService.setWorkerMessageHandler(event => {
-                    console.debug('Received message from the worker:', event.data);
-
                     const msg = event.data[0];
                     const arg = event.data[1];
 
                     switch (msg) {
                         case MSG_OUT_COMPUTE:
-                            console.debug("Received computed results from the worker:", arg);
                             computeService.results = arg;
                             break;
                         default:
@@ -109,7 +104,6 @@ export function useComputeService() {
         init();
 
         return () => {
-            console.debug("Terminating compute service worker");
             computeService.terminateWorker();
         };
     }, []);

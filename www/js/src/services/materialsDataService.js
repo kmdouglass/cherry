@@ -23,9 +23,7 @@ export class MaterialsDataService {
 
   constructor() {
     this.#worker = new Worker(new URL("./materialsDataWorker.js", import.meta.url));
-    this.#worker.onmessage = (event) => {
-      console.debug('Received message from the worker:', event.data);
-    }
+    this.#worker.onmessage = (_) => { }
 
     this.#selectedMaterials = new Map();
     this.#subscribers = new Set();

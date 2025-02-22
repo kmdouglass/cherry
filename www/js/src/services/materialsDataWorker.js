@@ -94,7 +94,6 @@ onmessage = function (event) {
             fetch(arg)
                 .then(response => {
                     if (!response.ok) {
-                        console.debug(response);
                         throw new Error(`HTTP error! status: ${response.status}`);
                     }
                     return response.json()

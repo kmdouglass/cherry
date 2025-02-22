@@ -141,8 +141,6 @@ function App({ wasmModule }) {
         }
     }
 
-    console.debug("Results:", results);
-
     // --------------------------------------------------------------------------------
     // Rendering
     if (isLoadingInitialData || isComputeServiceInitializing) {

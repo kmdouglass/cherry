@@ -6,8 +6,6 @@ let wasmModule;
 let opticalSystem;
 
 onmessage = function (event) {
-    console.debug("Received message from the main thread:", event.data);
-    
     const msg = event.data[0];
     const arg = event.data[1];
 
@@ -28,7 +26,6 @@ onmessage = function (event) {
 
         case MSG_IN_COMPUTE:
             const { surfaces, gaps, fields, aperture, wavelengths, gapMode, requestID } = arg;
-            console.debug("Computing full 3D ray trace: ", requestID);
 
             opticalSystem.setSurfaces(surfaces);
             opticalSystem.setGaps(gaps, gapMode);
@@ -40,8 +37,6 @@ onmessage = function (event) {
             const rays = opticalSystem.trace();
 
             this.postMessage([MSG_OUT_COMPUTE, rays]);
-                
-            console.debug("3D ray trace complete: ", rays);
 
             break;
         default:
