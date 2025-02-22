@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 
 import {
-  DATABASE_NAME,
   INDEX_SHELF_NAME,
   INDEX_SHELF_BOOK_NAME,
   KEY_SEPARATOR,
@@ -12,6 +11,7 @@ import {
   MSG_FULL_DATA_FETCHED,
   MSG_INITIALIZED,
   OBJECT_STORE_NAME } from './materialsDataConstants';
+import { DATABASE_NAME } from "./sharedConstants";
 
 const INITIAL_DATA_URL = `${__webpack_public_path__}data/initial-materials-data.json`;
 const FULL_DATA_URL = `${__webpack_public_path__}data/full-materials-data.json`;
@@ -23,15 +23,13 @@ export class MaterialsDataService {
 
   constructor() {
     this.#worker = new Worker(new URL("./materialsDataWorker.js", import.meta.url));
-    this.#worker.onmessage = (event) => {
-      console.debug('Received message from the worker:', event.data);
-    }
+    this.#worker.onmessage = (_) => { }
 
     this.#selectedMaterials = new Map();
     this.#subscribers = new Set();
   }
 
-  // So React can subscribe to state changes
+  // Allows React to subscribe to state changes
   subscribe(callback) {
     this.#subscribers.add(callback);
     return () => {

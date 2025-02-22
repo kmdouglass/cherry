@@ -1,5 +1,4 @@
 import {
-    DATABASE_NAME,
     INDEX_SHELF_NAME,
     INDEX_SHELF_BOOK_NAME,
     MSG_ERR,
@@ -11,6 +10,7 @@ import {
     MSG_INITIALIZED,
     OBJECT_STORE_NAME
 } from './materialsDataConstants';
+import { DATABASE_NAME } from "./sharedConstants";
 
 let db;
 
@@ -64,7 +64,7 @@ onmessage = function (event) {
                 })
                 .then(([db, data]) => {
                     let store = db
-                        .transaction(DATABASE_NAME, "readwrite")
+                        .transaction(OBJECT_STORE_NAME, "readwrite")
                         .objectStore(OBJECT_STORE_NAME);
 
                     for (const [key, value] of Object.entries(data.inner)) {
@@ -94,7 +94,6 @@ onmessage = function (event) {
             fetch(arg)
                 .then(response => {
                     if (!response.ok) {
-                        console.debug(response);
                         throw new Error(`HTTP error! status: ${response.status}`);
                     }
                     return response.json()
@@ -102,7 +101,7 @@ onmessage = function (event) {
                 .then(data => {
                     // Put full data into indexedDB
                     let store = db
-                        .transaction(DATABASE_NAME, "readwrite")
+                        .transaction(OBJECT_STORE_NAME, "readwrite")
                         .objectStore(OBJECT_STORE_NAME);
 
                     for (const [key, value] of Object.entries(data.inner)) {
