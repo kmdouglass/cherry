@@ -34,8 +34,7 @@ use super::paraxial::{ParaxialSubView, ParaxialView};
 /// * `paraxial_view` - A paraxial view. This is required for finding a system's
 ///   entrance pupil.
 /// * `pupil_sampling` - The pupil sampling method. This will override the
-///   sampling
-///  method specified in the field specs for every field if provided.
+///   sampling method specified in the field specs for every field if provided.
 pub fn ray_trace_3d_view(
     aperture_spec: &ApertureSpec,
     field_specs: &[FieldSpec],
@@ -91,8 +90,7 @@ fn ray_trace_sub_model(
 /// # Arguments
 ///
 /// * `sampling` - The pupil sampling method. This will override the sampling
-///   method specified
-///  in the field specs for every field if provided.
+///   method specified in the field specs for every field if provided.
 fn rays(
     surfaces: &[Surface],
     aperture_spec: &ApertureSpec,

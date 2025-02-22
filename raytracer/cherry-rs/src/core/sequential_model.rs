@@ -478,7 +478,7 @@ impl SequentialSubModel for SequentialSubModelBase {
     }
 }
 
-impl<'a> SequentialSubModel for SequentialSubModelSlice<'a> {
+impl SequentialSubModel for SequentialSubModelSlice<'_> {
     fn gaps(&self) -> &[Gap] {
         self.gaps
     }
@@ -559,7 +559,7 @@ impl<'a> Iterator for SequentialSubModelIter<'a> {
     }
 }
 
-impl<'a> ExactSizeIterator for SequentialSubModelIter<'a> {
+impl ExactSizeIterator for SequentialSubModelIter<'_> {
     fn len(&self) -> usize {
         self.gaps.len()
     }
