@@ -21,10 +21,10 @@ Test data for the feature must be generated using [refractiveindex.info-adapters
 
 ### Testing
 
-Run all tests, including the examples. See [the Features section](#features) for obtaining test data.
+Run all tests, including all features. See [the Features section](#features) for obtaining test data.
 
 ```console
-cargo test --all-targets --all-features
+cargo test --all-features
 ```
 
 Run tests for the core library only. No test data is necessary.
