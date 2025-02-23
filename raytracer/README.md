@@ -32,3 +32,11 @@ Run tests for the core library only. No test data is necessary.
 ```console
 cargo test
 ```
+
+### Benchmarks
+
+These should be run under the same "conditions" for meaningful comparisons, i.e. the same hardware, CPU load, etc.
+
+```console
+cargo bench
+```

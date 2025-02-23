@@ -22,5 +22,10 @@ ria = { version = "0.3", optional = true }
 
 [dev-dependencies]
 approx = "0.5"
-bitcode = { version = "0.6", features = ["serde"] }
+bitcode = { version = "0.6", features = [ "serde" ] }
+criterion = { version = "0.5", features = [ "html_reports" ] }
 ndarray = { version = "0.16", features = [ "approx", "serde" ] }
+
+[[bench]]
+name = "convexplano_lens"
+harness = false
