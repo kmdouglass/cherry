@@ -147,6 +147,7 @@ pub use views::{
         ParaxialViewDescription, Pupil,
     },
     ray_trace_3d::{ray_trace_3d_view, Ray, TraceResults},
+    ray_trace_3d_v2::{ray_trace_3d_view_v2, RayV2, TraceResultsV2},
 };
 
 // Re-exports from dependencies

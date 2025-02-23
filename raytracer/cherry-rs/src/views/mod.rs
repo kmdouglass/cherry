@@ -10,3 +10,4 @@ pub mod components;
 pub mod cutaway;
 pub mod paraxial;
 pub mod ray_trace_3d;
+pub mod ray_trace_3d_v2;
