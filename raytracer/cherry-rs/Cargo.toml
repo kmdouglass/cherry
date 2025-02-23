@@ -21,10 +21,11 @@ serde = { version = "1", features = [ "derive" ] }
 ria = { version = "0.3", optional = true }
 
 [dev-dependencies]
-approx = { version = "0.5" }
-bitcode = { version = "0.6", features = ["serde"] }
+approx = "0.5"
+bitcode = { version = "0.6", features = [ "serde" ] }
+criterion = { version = "0.5", features = [ "html_reports" ] }
 ndarray = { version = "0.16", features = [ "approx", "serde" ] }
 
-[[example]]
+[[bench]]
 name = "convexplano_lens"
-crate-type = ["staticlib"]
+harness = false

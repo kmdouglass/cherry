@@ -34,8 +34,7 @@ use super::paraxial::{ParaxialSubView, ParaxialView};
 /// * `paraxial_view` - A paraxial view. This is required for finding a system's
 ///   entrance pupil.
 /// * `pupil_sampling` - The pupil sampling method. This will override the
-///   sampling
-///  method specified in the field specs for every field if provided.
+///   sampling method specified in the field specs for every field if provided.
 pub fn ray_trace_3d_view(
     aperture_spec: &ApertureSpec,
     field_specs: &[FieldSpec],
@@ -91,8 +90,7 @@ fn ray_trace_sub_model(
 /// # Arguments
 ///
 /// * `sampling` - The pupil sampling method. This will override the sampling
-///   method specified
-///  in the field specs for every field if provided.
+///   method specified in the field specs for every field if provided.
 fn rays(
     surfaces: &[Surface],
     aperture_spec: &ApertureSpec,
@@ -276,13 +274,18 @@ fn axial_launch_point(obj_z: Float, sur_z: Float, enp_z: Float) -> Float {
 
 #[cfg(test)]
 mod tests {
+    use crate::core::Float;
     use crate::examples::convexplano_lens::sequential_model;
+    use crate::n;
 
     use super::*;
 
     #[test]
     fn test_ray_trace_3d_view() {
-        let sequential_model = sequential_model();
+        let air = n!(1.0);
+        let nbk7 = n!(1.515);
+        let wavelengths: [Float; 1] = [0.5876];
+        let sequential_model = sequential_model(air, nbk7, &wavelengths);
 
         let aperture_spec = ApertureSpec::EntrancePupil { semi_diameter: 5.0 };
         let field_specs = vec![
