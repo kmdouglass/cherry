@@ -9,7 +9,7 @@ use crate::core::sequential_model::SequentialSubModelIter;
 /// corresponds to the ray number. The value is a Result, where the Ok variant
 /// contains the ray at the intersection point and the Err variant contains an
 /// error.
-pub type TraceResults = Vec<Vec<Result<Ray>>>;
+pub type TraceSubResults = Vec<Vec<Result<Ray>>>;
 
 /// Trace a set of rays through a system using the technique of Spencer and
 /// Murty, JOSA (1962).

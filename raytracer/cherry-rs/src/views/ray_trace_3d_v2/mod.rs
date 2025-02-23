@@ -15,15 +15,47 @@ use crate::{
         aperture::ApertureSpec,
         fields::{FieldSpec, PupilSampling},
     },
-    Pupil,
+    Axis, Pupil,
 };
 
 use trace::trace;
 
 pub use rays::Ray as RayV2;
-pub use trace::TraceResults as TraceResultsV2;
+pub use trace::TraceSubResults;
 
 use super::paraxial::{ParaxialSubView, ParaxialView};
+
+/// The default capacity for the results collection.
+///
+/// Increase this to avoid reallocations if you expect to have more results. The
+/// tradeoff is larger memory usage.
+///
+/// Its current value was derived from: 3 wavelengths x 3 fields x 2 axes = 18.
+const RESULTS_CAPACITY: usize = 20;
+
+/// The collection of all trace results for a 3D ray trace.
+///
+/// We expect to have on the order of 10 different sets of results, each
+/// having on the order of 1000 to 100,000 or more rays. The
+/// results are stored internally as a Vec and not a HashMap because the O(1)
+/// lookup time is not likely to outweigth the overhead of the HashMap in these
+/// conditions.
+pub struct TraceResultsCollection {
+    results: Vec<TraceResultsV2>,
+}
+
+/// The results of a 3D ray trace.
+///
+/// This represents the results of a 3D ray trace for a single set of values of
+/// 1. wavelength ID,
+/// 2. field ID, and
+/// 3. axis.
+pub struct TraceResultsV2 {
+    wavelength_id: usize,
+    field_id: usize,
+    axis: Axis,
+    data: TraceSubResults,
+}
 
 /// Perform a 3D ray trace on a sequential model.
 ///
@@ -41,7 +73,7 @@ pub fn ray_trace_3d_view_v2(
     sequential_model: &SequentialModel,
     paraxial_view: &ParaxialView,
     pupil_sampling: Option<PupilSampling>,
-) -> Result<HashMap<SubModelID, TraceResultsV2>> {
+) -> Result<HashMap<SubModelID, TraceSubResults>> {
     let results = sequential_model
         .submodels()
         .iter()
@@ -65,6 +97,47 @@ pub fn ray_trace_3d_view_v2(
     results
 }
 
+impl TraceResultsCollection {
+    fn new() -> Self {
+        Self {
+            results: Vec::with_capacity(RESULTS_CAPACITY),
+        }
+    }
+
+    /// Get all results for a given axis.
+    pub fn get_by_axis(&self, axis: Axis) -> Vec<&TraceResultsV2> {
+        self.results.iter().filter(|r| r.axis == axis).collect()
+    }
+
+    /// Get all results for a given wavelength.
+    pub fn get_by_wavelength(&self, wavelength: usize) -> Vec<&TraceResultsV2> {
+        self.results
+            .iter()
+            .filter(|r| r.wavelength_id == wavelength)
+            .collect()
+    }
+
+    /// Get all results for a given field.
+    pub fn get_by_field_id(&self, field_id: usize) -> Vec<&TraceResultsV2> {
+        self.results
+            .iter()
+            .filter(|r| r.field_id == field_id)
+            .collect()
+    }
+
+    /// Get results for a specific field, wavelength, and axis.
+    pub fn get(
+        &self,
+        field_id: usize,
+        wavelength_id: usize,
+        axis: Axis,
+    ) -> Option<&TraceResultsV2> {
+        self.results
+            .iter()
+            .find(|r| r.field_id == field_id && r.wavelength_id == wavelength_id && r.axis == axis)
+    }
+}
+
 fn ray_trace_sub_model(
     field_specs: &[FieldSpec],
     sequential_sub_model: &impl SequentialSubModel,
@@ -72,7 +145,7 @@ fn ray_trace_sub_model(
     aperture_spec: &ApertureSpec,
     paraxial_sub_view: &ParaxialSubView,
     pupil_sampling: Option<PupilSampling>,
-) -> Result<TraceResultsV2> {
+) -> Result<TraceSubResults> {
     let rays = rays(
         surfaces,
         aperture_spec,
