@@ -21,11 +21,10 @@ pub struct Ray {
     pos: Vec3,
     dir: Vec3,
     terminated: bool,
-    field_id: usize,
 }
 
 impl Ray {
-    pub fn new(pos: Vec3, dir: Vec3, field_id: usize) -> Result<Self> {
+    pub fn new(pos: Vec3, dir: Vec3) -> Result<Self> {
         if !dir.is_unit() {
             bail!("Ray direction must be a unit vector");
         }
@@ -33,7 +32,6 @@ impl Ray {
             pos,
             dir,
             terminated: false,
-            field_id,
         })
     }
 
@@ -172,7 +170,6 @@ impl Ray {
         phi: Float,
         radial_offset_x: Float,
         radial_offset_y: Float,
-        field_id: usize,
     ) -> Vec<Ray> {
         let pos = Vec3::fan(n, r, theta, z, radial_offset_x, radial_offset_y);
         let dir: Vec<Vec3> = pos
@@ -187,7 +184,7 @@ impl Ray {
 
         pos.iter()
             .zip(dir.iter())
-            .map(|(p, d)| Ray::new(*p, *d, field_id).unwrap())
+            .map(|(p, d)| Ray::new(*p, *d).unwrap())
             .collect()
     }
 
@@ -203,7 +200,6 @@ impl Ray {
     ///   amount in x
     /// - radial_offset_y: Offset the radial position of the vectors by this
     ///   amount in y
-    /// - `field_id`: Field ID of the rays.
     pub(crate) fn sq_grid_in_circ(
         radius: Float,
         spacing: Float,
@@ -211,7 +207,6 @@ impl Ray {
         phi: Float,
         radial_offset_x: Float,
         radial_offset_y: Float,
-        field_id: usize,
     ) -> Vec<Ray> {
         let theta = PI / 2.0; // TODO: For now rays are rotated about x only
 
@@ -229,7 +224,7 @@ impl Ray {
 
         pos.iter()
             .zip(dir.iter())
-            .map(|(p, d)| Ray::new(*p, *d, field_id).unwrap())
+            .map(|(p, d)| Ray::new(*p, *d).unwrap())
             .collect()
     }
 }
@@ -244,9 +239,8 @@ mod test {
     fn test_rays_new() {
         let pos = Vec3::new(0.0, 0.0, 0.0);
         let dir = Vec3::new(0.0, 0.0, 1.0);
-        let field_id = 0;
 
-        let rays = Ray::new(pos, dir, field_id);
+        let rays = Ray::new(pos, dir);
 
         assert!(rays.is_ok());
     }
@@ -256,9 +250,8 @@ mod test {
     fn test_rays_new_non_unit_dir() {
         let pos = Vec3::new(0.0, 0.0, 0.0);
         let dir = Vec3::new(0.0, 0.0, 2.0);
-        let field_id = 0;
 
-        let rays = Ray::new(pos, dir, field_id);
+        let rays = Ray::new(pos, dir);
 
         assert!(rays.is_err());
     }
@@ -266,14 +259,8 @@ mod test {
     // Test the intersection of a ray with a flat surface
     #[test]
     fn test_ray_intersection_flat_surface() {
-        let field_id = 0;
         let pos = Vec3::new(0.0, 0.0, 0.0);
-        let ray = Ray::new(
-            Vec3::new(0.0, 0.0, -1.0),
-            Vec3::new(0.0, 0.0, 1.0),
-            field_id,
-        )
-        .unwrap();
+        let ray = Ray::new(Vec3::new(0.0, 0.0, -1.0), Vec3::new(0.0, 0.0, 1.0)).unwrap();
         let surf_spec = SurfaceSpec::Conic {
             semi_diameter: 4.0,
             radius_of_curvature: Float::INFINITY,
@@ -291,13 +278,12 @@ mod test {
     // Test the intersection of a ray with a circular surface
     #[test]
     fn test_ray_intersection_conic() {
-        let field_id = 0;
         let pos = Vec3::new(0.0, 0.0, 0.0);
 
         // Ray starts at z = -1.0 and travels at 45 degrees to the optics axis
         let l = 0.7071;
         let m = ((1.0 as Float) - 0.7071 * 0.7071).sqrt();
-        let ray = Ray::new(Vec3::new(0.0, 0.0, -1.0), Vec3::new(0.0, l, m), field_id).unwrap();
+        let ray = Ray::new(Vec3::new(0.0, 0.0, -1.0), Vec3::new(0.0, l, m)).unwrap();
 
         // Surface has radius of curvature -1.0 and conic constant 0.0, i.e. a circle
         let surf_spec = SurfaceSpec::Conic {
