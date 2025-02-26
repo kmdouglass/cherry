@@ -149,9 +149,36 @@ impl TraceResultsCollection {
             .collect()
     }
 
+    /// Returns whether the collection is empty.
+    pub fn is_empty(&self) -> bool {
+        self.results.is_empty()
+    }
+
     /// Returns the number of ray bundles traced through the system.
     pub fn len(&self) -> usize {
         self.results.len()
+    }
+}
+
+impl TraceResultsV2 {
+    // Returns the axis of the ray bundle.
+    pub fn axis(&self) -> Axis {
+        self.axis
+    }
+
+    // Returns the field ID of the ray bundle.
+    pub fn field_id(&self) -> usize {
+        self.field_id
+    }
+
+    // Returns the ray bundle.
+    pub fn ray_bundle(&self) -> &RayBundle {
+        &self.ray_bundle
+    }
+
+    // Returns the wavelength ID of the ray bundle.
+    pub fn wavelength_id(&self) -> usize {
+        self.wavelength_id
     }
 }
 
