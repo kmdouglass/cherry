@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - A `ri-info` feature for loading materials data from the RefractiveIndex.info database.
 - A `primary_axial_color` method to `ParaxialView` for computing the axial primary color aberration of a lens.
+- An `axes` method on `SequentialModel` to return the set of axes that the system is modeled over.
 
 ### Changed
 

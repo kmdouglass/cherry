@@ -332,14 +332,20 @@ impl SequentialModel {
         })
     }
 
-    /// Returns the surfaces in the system.
-    pub fn surfaces(&self) -> &[Surface] {
-        &self.surfaces
-    }
+    /// Returns the axes along which the system is modeled.
+    pub fn axes(&self) -> Vec<Axis> {
+        // Loop over submodel IDs and extract all axes
+        let mut axes = Vec::new();
+        for id in self.submodels.keys() {
+            // Avoid duplicates just in case
+            if axes.contains(&id.1) {
+                continue;
+            }
 
-    /// Returns the submodels in the system.
-    pub fn submodels(&self) -> &HashMap<SubModelID, impl SequentialSubModel> {
-        &self.submodels
+            axes.push(id.1);
+        }
+
+        axes
     }
 
     /// Returns the largest semi-diameter of any surface in the system.
@@ -356,6 +362,16 @@ impl SequentialModel {
                 _ => None,
             })
             .fold(0.0, |acc, x| acc.max(x))
+    }
+
+    /// Returns the surfaces in the system.
+    pub fn surfaces(&self) -> &[Surface] {
+        &self.surfaces
+    }
+
+    /// Returns the submodels in the system.
+    pub fn submodels(&self) -> &HashMap<SubModelID, impl SequentialSubModel> {
+        &self.submodels
     }
 
     /// Returns the wavelengths at which the system is modeled.
@@ -829,15 +845,26 @@ mod tests {
     fn test_calc_model_ids() {
         let air = n!(1.0);
         let nbk7 = n!(1.515);
-        let wavelengths: [Float; 1] = [0.5876];
+        let wavelengths: [Float; 2] = [0.4, 0.6];
         let sequential_model = sequential_model(air, nbk7, &wavelengths);
         let surfaces = sequential_model.surfaces();
-        let wavelengths = vec![0.4, 0.6];
 
         let model_ids = SequentialModel::calc_model_ids(surfaces, &wavelengths);
 
         assert_eq!(model_ids.len(), 2); // Two wavelengths, rotationally
                                         // symmetric
+    }
+
+    #[test]
+    fn test_axes() {
+        let air = n!(1.0);
+        let nbk7 = n!(1.515);
+        let wavelengths: [Float; 1] = [0.5876];
+        let sequential_model = sequential_model(air, nbk7, &wavelengths);
+        let axes = sequential_model.axes();
+
+        assert_eq!(axes.len(), 1); // Rotationally symmetric
+        assert_eq!(axes[0], Axis::Y);
     }
 
     #[test]

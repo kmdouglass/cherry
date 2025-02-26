@@ -74,6 +74,12 @@ pub fn ray_trace_3d_view_v2(
     paraxial_view: &ParaxialView,
     pupil_sampling: Option<PupilSampling>,
 ) -> Result<HashMap<SubModelID, TraceSubResults>> {
+    let combinations = all_combinations(
+        field_specs,
+        sequential_model.wavelengths(),
+        &sequential_model.axes(),
+    );
+
     let results = sequential_model
         .submodels()
         .iter()
@@ -345,6 +351,25 @@ fn axial_launch_point(obj_z: Float, sur_z: Float, enp_z: Float) -> Float {
     }
 }
 
+/// Determine every combination of field ID, wavelength ID, and axis.
+fn all_combinations(
+    field_specs: &[FieldSpec],
+    wavelengths: &[Float],
+    axes: &[Axis],
+) -> Vec<(usize, usize, Axis)> {
+    let mut combinations = Vec::new();
+
+    for (field_id, _field) in field_specs.iter().enumerate() {
+        for (wavelength_id, _) in wavelengths.iter().enumerate() {
+            for axis in axes {
+                combinations.push((field_id, wavelength_id, *axis));
+            }
+        }
+    }
+
+    combinations
+}
+
 #[cfg(test)]
 mod tests {
     use crate::core::Float;
@@ -384,5 +409,38 @@ mod tests {
         .unwrap();
 
         assert_eq!(results.len(), 1);
+    }
+
+    #[test]
+    fn test_all_combinations() {
+        let field_specs = vec![
+            FieldSpec::Angle {
+                angle: 0.0,
+                pupil_sampling: PupilSampling::ChiefAndMarginalRays,
+            },
+            FieldSpec::Angle {
+                angle: 5.0,
+                pupil_sampling: PupilSampling::ChiefAndMarginalRays,
+            },
+        ];
+
+        let wavelengths = vec![0.4861, 0.5876, 0.6563];
+        let axes = vec![Axis::X, Axis::Y];
+
+        let combinations = all_combinations(&field_specs, &wavelengths, &axes);
+
+        assert_eq!(combinations.len(), 12); // 2 fields x 3 wavelengths x 2 axes
+        assert!(combinations.contains(&(0, 0, Axis::X)));
+        assert!(combinations.contains(&(0, 0, Axis::Y)));
+        assert!(combinations.contains(&(0, 1, Axis::X)));
+        assert!(combinations.contains(&(0, 1, Axis::Y)));
+        assert!(combinations.contains(&(0, 2, Axis::X)));
+        assert!(combinations.contains(&(0, 2, Axis::Y)));
+        assert!(combinations.contains(&(1, 0, Axis::X)));
+        assert!(combinations.contains(&(1, 0, Axis::Y)));
+        assert!(combinations.contains(&(1, 1, Axis::X)));
+        assert!(combinations.contains(&(1, 1, Axis::Y)));
+        assert!(combinations.contains(&(1, 2, Axis::X)));
+        assert!(combinations.contains(&(1, 2, Axis::Y)));
     }
 }
