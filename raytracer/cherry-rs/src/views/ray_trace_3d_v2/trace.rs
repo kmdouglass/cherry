@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 
+use serde::Serialize;
+
 use super::rays::Ray;
 use crate::core::sequential_model::SequentialSubModelIter;
 
@@ -12,7 +14,7 @@ use crate::core::sequential_model::SequentialSubModelIter;
 ///   any rays have terminated. `0` means the ray has not terminated.
 /// - *reason_for_termination*: A hashmap containing the reason for termination.
 /// - *num_surfaces*: The number of surfaces in the optical system.
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct RayBundle {
     rays: Vec<Ray>,
     terminated: Vec<usize>,

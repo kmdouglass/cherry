@@ -3,6 +3,7 @@ mod rays;
 mod trace;
 
 use anyhow::{anyhow, Result};
+use serde::Serialize;
 
 use crate::{
     core::{
@@ -38,7 +39,7 @@ const RESULTS_CAPACITY: usize = 20;
 /// results are stored internally as a Vec and not a HashMap because the O(1)
 /// lookup time is not likely to outweigth the overhead of the HashMap in these
 /// conditions.
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct TraceResultsCollection {
     results: Vec<TraceResultsV2>,
 }
@@ -49,7 +50,7 @@ pub struct TraceResultsCollection {
 /// 1. wavelength ID,
 /// 2. field ID, and
 /// 3. axis.
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct TraceResultsV2 {
     wavelength_id: usize,
     field_id: usize,
