@@ -12,11 +12,11 @@ const WAVELENGTHS: [f64; 1] = [0.5876]; // He d line
 const FIELD_SPECS: [FieldSpec; 2] = [
     FieldSpec::Angle {
         angle: 0.0,
-        pupil_sampling: PupilSampling::ChiefAndMarginalRays,
+        pupil_sampling: PupilSampling::SquareGrid { spacing: 0.1 },
     },
     FieldSpec::Angle {
         angle: 5.0,
-        pupil_sampling: PupilSampling::ChiefAndMarginalRays,
+        pupil_sampling: PupilSampling::SquareGrid { spacing: 0.1 },
     },
 ];
 const APERTURE_SPEC: ApertureSpec = ApertureSpec::EntrancePupil { semi_diameter: 5.0 };

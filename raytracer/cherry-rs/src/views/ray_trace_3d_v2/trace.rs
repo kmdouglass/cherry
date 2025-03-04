@@ -38,11 +38,6 @@ pub fn trace(sequential_submodel: &mut SequentialSubModelIter, mut rays: Vec<Ray
         let rays_at_surface = rays_at_surface_mut(&mut ray_bundle, surface_id, num_surfaces);
 
         for (ray_id, ray) in rays.iter_mut().enumerate() {
-            // Skip rays that have already terminated
-            if is_terminated(ray_id, &terminated) {
-                continue;
-            }
-
             // Transform into coordinate system of the surface
             ray.transform(surf);
 
@@ -51,17 +46,18 @@ pub fn trace(sequential_submodel: &mut SequentialSubModelIter, mut rays: Vec<Ray
             let (pos, norm) = match ray.intersect(surf, 1000) {
                 Ok((pos, norm)) => (pos, norm),
                 Err(e) => {
-                    terminated[ray_id] = surface_id;
-                    reason_for_termination.insert(ray_id, e.to_string());
+                    if ray_is_not_terminated(ray_id, &terminated) {
+                        terminated[ray_id] = surface_id;
+                        reason_for_termination.insert(ray_id, e.to_string());
+                    }
                     continue;
                 }
             };
 
             // Terminate ray if intersection is outside the clear aperture of surface
-            if surf.outside_clear_aperture(pos) {
+            if surf.outside_clear_aperture(pos) && ray_is_not_terminated(ray_id, &terminated) {
                 terminated[ray_id] = surface_id;
                 reason_for_termination.insert(ray_id, "Ray outside clear aperture".to_string());
-                continue;
             }
 
             // Displace the ray to the intersection point
@@ -125,8 +121,8 @@ fn initialize_bundle(initial_rays: &[Ray], num_surfaces: usize) -> Vec<Ray> {
     bundle
 }
 
-fn is_terminated(ray_id: usize, terminated: &[usize]) -> bool {
-    terminated[ray_id] != 0
+fn ray_is_not_terminated(ray_id: usize, terminated: &[usize]) -> bool {
+    terminated[ray_id] == 0
 }
 
 /// Returns the set of rays at a given surface index.
@@ -154,12 +150,12 @@ mod test {
     }
 
     #[test]
-    fn test_is_terminated() {
+    fn test_ray_is_not_terminated() {
         let terminated = vec![0, 1, 0, 2];
-        assert_eq!(is_terminated(0, &terminated), false);
-        assert_eq!(is_terminated(1, &terminated), true);
-        assert_eq!(is_terminated(2, &terminated), false);
-        assert_eq!(is_terminated(3, &terminated), true);
+        assert_eq!(ray_is_not_terminated(0, &terminated), true);
+        assert_eq!(ray_is_not_terminated(1, &terminated), false);
+        assert_eq!(ray_is_not_terminated(2, &terminated), true);
+        assert_eq!(ray_is_not_terminated(3, &terminated), false);
     }
 
     #[test]
