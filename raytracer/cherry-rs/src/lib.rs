@@ -119,7 +119,7 @@
 //!     &paraxial_view,
 //!     None,
 //! ).unwrap();
-//! 
+//!
 //! // Get all results for the second (5 degree) field point.
 //! let results = results_collection.get_by_field_id(1);
 //! println!("Results for 5 degree field point: {:?}", results);

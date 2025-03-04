@@ -3,8 +3,8 @@ use std::hint::black_box;
 use std::rc::Rc;
 
 use cherry_rs::{
-    examples::convexplano_lens::sequential_model, n, ray_trace_3d_view, ray_trace_3d_view_v2, ApertureSpec, FieldSpec,
-    ParaxialView, PupilSampling, RefractiveIndexSpec,
+    examples::convexplano_lens::sequential_model, n, ray_trace_3d_view, ray_trace_3d_view_v2,
+    ApertureSpec, FieldSpec, ParaxialView, PupilSampling, RefractiveIndexSpec,
 };
 
 // Inputs
@@ -21,15 +21,15 @@ const FIELD_SPECS: [FieldSpec; 2] = [
 ];
 const APERTURE_SPEC: ApertureSpec = ApertureSpec::EntrancePupil { semi_diameter: 5.0 };
 
-// Create a benchmark group to compare ray_trace_3d_view with ray_trace_3d_view_v2
-// Use c.benchmark_group
+// Create a benchmark group to compare ray_trace_3d_view with
+// ray_trace_3d_view_v2 Use c.benchmark_group
 fn benchmark(c: &mut Criterion) {
     let n_air: Rc<dyn RefractiveIndexSpec> = n!(1.0);
     let n_nbk7: Rc<dyn RefractiveIndexSpec> = n!(1.515);
     let model = sequential_model(n_air, n_nbk7, &WAVELENGTHS);
     let paraxial_view = ParaxialView::new(&model, &FIELD_SPECS, false).unwrap();
     let mut group = c.benchmark_group("3D ray trace, convexplano lens");
-    
+
     group.bench_function("ray_trace_3d_view", |b| {
         b.iter(|| {
             ray_trace_3d_view(

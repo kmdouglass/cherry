@@ -12,11 +12,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A `ri-info` feature for loading materials data from the RefractiveIndex.info database.
 - A `primary_axial_color` method to `ParaxialView` for computing the axial primary color aberration of a lens.
 - An `axes` method on `SequentialModel` to return the set of axes that the system is modeled over.
+- `RayBundle`, `TraceResultsCollection` were added as part of refactoring the `ray_trace_3d_view`.
 
 ### Changed
 
 - `RefractiveIndexSpec` is now a trait which supports getting refractive index data from any generic materials database.
 - The examples, including the associated tests, were moved into a Cargo-specific `examples` folder.
+- `ray_trace_3d_view` now returns a `TraceResultsCollection` of modified `TraceResults` structs. This allows for better access to a given set of values for (field_id, wavelength_id, Axis). `Ray` was also modified and now contains only position and direction information.
 
 ### Fixed
 

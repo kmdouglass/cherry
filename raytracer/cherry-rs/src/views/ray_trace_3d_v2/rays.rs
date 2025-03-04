@@ -20,7 +20,6 @@ const TOL: Float = Float::EPSILON;
 pub struct Ray {
     pos: Vec3,
     dir: Vec3,
-    terminated: bool,
 }
 
 impl Ray {
@@ -28,11 +27,18 @@ impl Ray {
         if !dir.is_unit() {
             bail!("Ray direction must be a unit vector");
         }
-        Ok(Self {
-            pos,
-            dir,
-            terminated: false,
-        })
+        Ok(Self { pos, dir })
+    }
+
+    /// Create a bundle of rays with default values.
+    pub fn new_bundle(num: usize) -> Vec<Self> {
+        vec![
+            Self {
+                pos: Vec3::new(0.0, 0.0, 0.0),
+                dir: Vec3::new(0.0, 0.0, 1.0),
+            };
+            num
+        ]
     }
 
     /// Finds the intersection point of a ray with a surface and the surface
@@ -135,13 +141,34 @@ impl Ray {
         self.dir = surf.rot_mat().transpose() * self.dir;
     }
 
-    pub fn terminate(&mut self) {
-        self.terminated = true;
+    // Return the x-coordinate of the ray position
+    pub fn x(&self) -> Float {
+        self.pos.x()
     }
 
-    #[inline]
-    pub fn is_terminated(&self) -> bool {
-        self.terminated
+    // Return the y-coordinate of the ray position
+    pub fn y(&self) -> Float {
+        self.pos.y()
+    }
+
+    // Return the z-coordinate of the ray position
+    pub fn z(&self) -> Float {
+        self.pos.z()
+    }
+
+    // Return the direction cosine k of the ray
+    pub fn k(&self) -> Float {
+        self.dir.k()
+    }
+
+    // Return the direction cosine l of the ray
+    pub fn l(&self) -> Float {
+        self.dir.l()
+    }
+
+    // Return the direction cosine m of the ray
+    pub fn m(&self) -> Float {
+        self.dir.m()
     }
 
     /// Create a fan of uniformly spaced rays in a given z-plane at an angle phi
