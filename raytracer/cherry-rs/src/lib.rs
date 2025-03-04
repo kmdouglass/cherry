@@ -37,7 +37,7 @@
 //! # Quick Start
 //! ```rust
 //! use cherry_rs::{
-//!     n, ray_trace_3d_view, ApertureSpec, FieldSpec, GapSpec, ImagePlane, ParaxialView, Pupil, PupilSampling, RefractiveIndexSpec,
+//!     n, ray_trace_3d_view_v2, ApertureSpec, FieldSpec, GapSpec, ImagePlane, ParaxialView, Pupil, PupilSampling, RefractiveIndexSpec,
 //!     SequentialModel, SurfaceSpec, SurfaceType,
 //! };
 //!
@@ -113,12 +113,16 @@
 //! }
 //!
 //! // Compute a 3D ray trace of the system.
-//! let rays = ray_trace_3d_view(
+//! let results_collection = ray_trace_3d_view_v2(
 //!     &aperture_spec, &field_specs,
 //!     &sequential_model,
 //!     &paraxial_view,
 //!     None,
 //! ).unwrap();
+//!
+//! // Get all results for the second (5 degree) field point.
+//! let results = results_collection.get_by_field_id(1);
+//! println!("Results for 5 degree field point: {:?}", results);
 //! ```
 
 mod core;
@@ -147,6 +151,9 @@ pub use views::{
         ParaxialViewDescription, Pupil,
     },
     ray_trace_3d::{ray_trace_3d_view, Ray, TraceResults},
+    ray_trace_3d_v2::{
+        ray_trace_3d_view_v2, RayBundle, RayV2, TraceResultsCollection, TraceResultsV2,
+    },
 };
 
 // Re-exports from dependencies
