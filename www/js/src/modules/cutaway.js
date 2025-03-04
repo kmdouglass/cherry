@@ -1,9 +1,86 @@
-/*
-    * Renders a system of surfaces.
-    * description: an optical system description
-    * elementId: the id of the DOM element to render to
-*/
-export function renderCutaway(description, rawRayPaths, svgElement) {
+/**
+ * Renders a cutaway view of an optical system.
+ * @module cutaway
+ */
+
+/**
+ * Whether to show terminated paths past their cutoff points. Used for debugging.
+ * @type {boolean}
+ * @constant
+ */
+const HIDE_TERMINATED_RAYS = true;
+
+/**
+ * An array of coordinate component values, e.g. all x's, all y's, or all z's.
+ * @typedef {Array<number>} Coordinates
+ */
+
+/**
+ * An ordered list of coordinates to be drawn.
+ * @typedef Path
+ * @type {object}
+ * @property {Array<Coordinates>} x - The x-coordinates of the path.
+ * @property {Array<Coordinates>} y - The y-coordinates of the path.
+ * @property {Array<Coordinates>} z - The z-coordinates of the path.
+ * @property {number} [cutoff] - The index at which to stop drawing the path. Useful for rays that terminate early.
+ */
+
+/**
+ * A collection of individual paths.
+ * @typedef {Array<Path>} Paths
+ */
+
+/**
+ * The description of an optical system returned by the ray tracer.
+ * @typedef Description
+ * @type {object}
+ * @property {object} components_view - The components of the optical system.
+ * @property {object} cutaway_view - The cutaway view of the optical system.
+ * @property {object} paraxial_view - The paraxial view of the optical system.
+ */
+
+/**
+ * A ray.
+ * @typedef Ray
+ * @type {object}
+ * @property {[number, number, number]} pos - The position of the ray.
+ * @property {[number, number, number]} dir - The direction of the ray.
+ */
+
+/**
+ * A bundle of rays traced through an optical system.
+ * @typedef RayBundle
+ * @type {object}
+ * @property {Array<Ray>} rays - The rays in the bundle.
+ * @property {Array<number>} terminated - The surfaces indices where the corresponding ray terminated.
+ * @property {Map<number, string>} reason_for_termination - The reason for termination of a given ray.
+ * @property {number} num_surfaces - The number of surfaces in the optical system.
+ */
+
+/**
+ * The results of tracing rays through an optical system for a single wavelength, field, and axis.
+ * @typedef TraceResults
+ * @type {object}
+ * @property {number} wavelength_id - The wavelength ID of the ray.
+ * @property {number} field_id - The field ID of the ray.
+ * @property {String} axis - The axis used to compute the entrance pupil.
+ * @property {object} ray_bundle - The ray bundle traced through the optical system.
+ */
+
+/**
+ * A collection of trace results for multiple wavelengths, fields, and axes.
+ * @typedef TraceResultsCollection
+ * @type {object}
+ * @property {Array<TraceResults>} results - The results of tracing rays through the optical system.
+ */
+
+/**
+ * Renders a cutaway view of an optical system.
+ * @param {Description} description 
+ * @param {TraceResultsCollection} traceResultsCollection 
+ * @param {object} svgElement 
+ */
+export function renderCutaway(description, traceResultsCollection, svgElement) {
     svgElement.innerHTML = "";
 
     // Compute the SVG width in pixels
@@ -14,7 +91,7 @@ export function renderCutaway(description, rawRayPaths, svgElement) {
     const centerSystem = center(description);
     const centerSVG = [width / 2, svgElement.getAttribute("height") / 2];
 
-    const rayPaths = resultsToRayPaths(rawRayPaths);
+    const rayPaths = resultsToRayPaths(traceResultsCollection);
 
     // Create the rendering commands
     const cmds = commands(description, rayPaths, centerSystem, centerSVG, sfSVG);
@@ -23,6 +100,7 @@ export function renderCutaway(description, rawRayPaths, svgElement) {
 
 function commands(descr, rayPaths, centerSystem, centerSVG, sf) {
     let commands = [];
+    let path;
     let paths;
 
     // Create paths that connect lenses (these go in the background)
@@ -44,7 +122,6 @@ function commands(descr, rayPaths, centerSystem, centerSVG, sf) {
             paths = stopPath(surfSamples, descr);
             paths = toSVGCoordinates(paths, centerSystem, centerSVG, sf);
 
-            // A command is just an object containing data for the renderer
             commands.push({
                 "type": surfType,
                 "paths": paths,
@@ -52,7 +129,8 @@ function commands(descr, rayPaths, centerSystem, centerSVG, sf) {
                 "stroke-width": 1.0,
           });
         } else if (surfType === "Object" || surfType === "Image" || surfType === "Probe") {
-            paths = toSVGCoordinates([surfSamples], centerSystem, centerSVG, sf);
+            path = coordsToPath(surfSamples);
+            paths = toSVGCoordinates([path], centerSystem, centerSVG, sf);
             commands.push({
                 "type": surfType,
                 "paths": paths,
@@ -63,7 +141,8 @@ function commands(descr, rayPaths, centerSystem, centerSVG, sf) {
             continue;
         } else if (surfType === "Conic") {
             // These are the surface clear apertures and are needed for unpaired surfaces
-            paths = toSVGCoordinates([surfSamples], centerSystem, centerSVG, sf);
+            path = coordsToPath(surfSamples);
+            paths = toSVGCoordinates([path], centerSystem, centerSVG, sf);
             commands.push({
                 "type": surfType,
                 "paths": paths,
@@ -75,32 +154,35 @@ function commands(descr, rayPaths, centerSystem, centerSVG, sf) {
         }
     }
 
-    // Create ray paths
+    //Create ray paths
     // Loop over rayPaths map and convert the underlying array of paths to SVG coordinates
-    for (let [submodel, submodelRayPaths] of rayPaths) {
-        paths = toSVGCoordinates(submodelRayPaths, centerSystem, centerSVG, sf);
-        commands.push({
-            "type": "Rays",
-            "paths": paths,
-            "color": "red",
-            "stroke-width": 0.5,
-        });
-    }
+    paths = toSVGCoordinates(rayPaths, centerSystem, centerSVG, sf);
+    commands.push({
+        "type": "Rays",
+        "paths": paths,
+        "color": "red",
+        "stroke-width": 0.5,
+    });
     return commands;
 }
 
 function drawCommands(commands, svgElement) {
     for (let command of commands) {
         command.paths.forEach(function(path, i) {
-            if (path.length == 0) {
+            if (path.x.length == 0) {
                 // Nothing to draw
             } else {
-
                 let pathElement = document.createElementNS("http://www.w3.org/2000/svg", "path");
-                let d = `M ${path[0][0]} ${path[0][1]}`;
-                for (let point of path) {
-                    d += ` L ${point[0]} ${point[1]}`;
+                let d = `M ${path.x[0]} ${path.y[0]}`;
+                
+                // Draw the points of the path
+                for (let i = 1; i < path.x.length; i++) {
+                    if (HIDE_TERMINATED_RAYS && path.cutoff !== undefined && i > path.cutoff) {
+                        break;
+                    }
+                    d += ` L ${path.x[i]} ${path.y[i]}`;
                 }
+                
                 if (command["close-path"]) {
                     d += " Z";
                 }
@@ -115,6 +197,11 @@ function drawCommands(commands, svgElement) {
     }
 }
 
+/**
+ * Creates the paths corresponding to the individual lenses in the optical system.
+ * @param {Description} descr - The description of the optical system.
+ * @returns {Paths}
+ */
 function surfacesIntoLenses(descr) {
     const surfaceSamples = descr.cutaway_view.path_samples;
 
@@ -123,7 +210,7 @@ function surfacesIntoLenses(descr) {
     let bottomPath;
     for (let component of descr.components_view) {
         if (component["Element"]) {
-            let path = new Array();
+            let path = {x: [], y: [], z: []};
             topPath = new Array();
             bottomPath = new Array();
 
@@ -156,12 +243,34 @@ function surfacesIntoLenses(descr) {
             bottomPath.push([bottomEndpoints[smallerSurfIdx][0], -yExtent, bottomEndpoints[biggerSurfIdx][2]]);
 
             // Build the path from the bottom of the smaller surface
-            path.push(bottomPath[0]);
-            path = path.concat(surfSamples[smallerSurfIdx]);
-            path = path.concat(topPath);
-            path = path.concat(surfSamples[biggerSurfIdx].toReversed());
-            path.push(bottomPath[1]);
-            path.push(bottomPath[0]);
+            path.x.push(bottomPath[0][0]);
+            path.y.push(bottomPath[0][1]);
+            path.z.push(bottomPath[0][2]);
+
+            // Add the lens surface points
+            path.x = path.x.concat(surfSamples[smallerSurfIdx].map(sample => sample[0]));
+            path.y = path.y.concat(surfSamples[smallerSurfIdx].map(sample => sample[1]));
+            path.z = path.z.concat(surfSamples[smallerSurfIdx].map(sample => sample[2]));
+
+            // Add the top of the lens
+            path.x.push(topPath[0][0]);
+            path.y.push(topPath[0][1]);
+            path.z.push(topPath[0][2]);
+
+            // Add the opposite side of the lens
+            path.x = path.x.concat(surfSamples[biggerSurfIdx].toReversed().map(sample => sample[0]));
+            path.y = path.y.concat(surfSamples[biggerSurfIdx].toReversed().map(sample => sample[1]));
+            path.z = path.z.concat(surfSamples[biggerSurfIdx].toReversed().map(sample => sample[2]));
+
+            // Add the bottom of the lens
+            path.x.push(bottomPath[1][0]);
+            path.y.push(bottomPath[1][1]);
+            path.z.push(bottomPath[1][2]);
+
+            // Close the path
+            path.x.push(bottomPath[0][0]);
+            path.y.push(bottomPath[0][1]);
+            path.z.push(bottomPath[0][2]);
             
             paths.push(path);
         }
@@ -170,11 +279,11 @@ function surfacesIntoLenses(descr) {
     return paths
 }            
 
-/*
-    * Creates the path for a surface of type Stop.
-    * surfaceSamples: a map of surface samples for the stop surface
-    * descr: a description of the optical system
-    * returns: an array of paths for the stop surface
+/** 
+ * Creates the path for a surface of type Stop.
+ * @param {Array<[number, number, number>]} surfaceSamples: a map of surface samples for the stop surface
+ * @param {Description} descr: a description of the optical system
+ * @returns {Paths} The paths for the stop surface
 */
 function stopPath(surfaceSamples, descr) {
     const bbox = boundingBox(descr.cutaway_view.path_samples);
@@ -187,9 +296,9 @@ function stopPath(surfaceSamples, descr) {
     const z = surfaceSamples[0][2];
 
     let paths = [
-        [[x, yMin, z], [x, surfYMin, z]],
-        [[x, surfYMax, z], [x, yMax, z]]
-    ];
+        {x: [x, x], y: [yMin, surfYMin], z: [z, z]},
+        {x: [x, x], y: [surfYMax, yMax], z: [z, z]}
+    ]
 
     return paths;
 }
@@ -275,64 +384,123 @@ function scaleFactor(descr, width, height, fillFactor = 0.9) {
     return scaleFactor;
 }
 
+/**
+ * Converts paths from system coordinates to SVG coordinates.
+ * @param {Paths} paths - The paths to convert to SVG coordinates.
+ * @param {[number, number]} systemCenter - The center of the system in system coordinates.
+ * @param {[number, number]} svgCenter - The center of the SVG in SVG coordinates.
+ * @param {number} scaleFactor - The scaling factor to apply to the paths to fit them in the SVG.
+ * @returns {Paths} The paths in SVG coordinates.
+ */
 function toSVGCoordinates(paths, systemCenter, svgCenter, scaleFactor = 6) {
     let transformedPaths = new Array();
     for (let [_pathId, pathSamples] of paths.entries()) {
-        let transformedPathSamples = [];
-        for (let sample of pathSamples) {
+        let transformedPathSamples = {x: [], y: [], z: []};
+        for (let i = 0; i < pathSamples.x.length; i++) {
             // Transpose the y and z coordinates because the SVG y-axis points down.
             // Take the negative of the y-coordinate because it points down the screen.
             // Shift the center of mass of the samples to that of the SVG.
-            transformedPathSamples.push([
-                svgCenter[0] + scaleFactor * (sample[2] - systemCenter[2]),
-                svgCenter[1] - scaleFactor * (sample[1] - systemCenter[1])
-            ]);
+            transformedPathSamples.x.push(svgCenter[0] + scaleFactor * (pathSamples.z[i] - systemCenter[2]));
+            transformedPathSamples.y.push(svgCenter[1] - scaleFactor * (pathSamples.y[i] - systemCenter[1]));
+            transformedPathSamples.z.push(0);
+        }
+
+        if (pathSamples.cutoff !== undefined) {
+            transformedPathSamples.cutoff = pathSamples.cutoff;
         }
         transformedPaths.push(transformedPathSamples);
     }
-
     return transformedPaths;
 }
 
-export function resultsToRayPaths(rayTraceResults) {
-    let rayPathsBySubmodel = new Map();
-
-    // loop over each key value pair of the Map rayTraceResults
-    for (let [submodel, rays] of rayTraceResults) {
-        let rayPaths = submodelResultsToRayPaths(rays);
-
-        rayPathsBySubmodel.set(submodel, rayPaths);
+/**
+ * Converts an ordered set of coordinates to a path to draw on the SVG.
+ * @param {Array<[number, number, number]>} coords
+ * @returns {Path}
+ */
+function coordsToPath(coords) {
+    let path = {x: [], y: [], z: []};
+    for (let coord of coords) {
+        path.x.push(coord[0]);
+        path.y.push(coord[1]);
+        path.z.push(coord[2]);
     }
-
-    return rayPathsBySubmodel;
+    return path;
 }
 
-/*
-    * Converts rays trace results to a series of points (ray paths) to draw on the SVG.
-    * rays: an array of an array of ray objects at each surface
-    * returns: an array of an array of points to draw on the SVG
-*/
-function submodelResultsToRayPaths(rayTraceResults) {
-    let numRays = rayTraceResults[0].length;
+/**
+ * Converts ray trace results to ray paths for drawing.
+ * @param {TraceResultsCollection} traceResultsCollection - The results of tracing rays through the optical system.
+ * @returns {Paths} The ray paths.
+ */
+function resultsToRayPaths(traceResultsCollection) {
+    let paths = new Array();
 
-    let rayPaths = new Map();
-    for (let surface of rayTraceResults) {
-        for (let ray_id = 0; ray_id < numRays; ray_id++) {
-            if (ray_id < surface.length) {
-                let ray = surface[ray_id];
+    for (let result of traceResultsCollection.results) {
+        for (let i = 0; i < numRays(result.ray_bundle); i++) {
+            let path = {x: [], y: [], z: []};
+            let rayIntersections = getRayIntersections(result.ray_bundle, i);
+            for (let j = 0; j < rayIntersections.length; j++) {
+                path.x.push(rayIntersections[j].pos[0]);
+                path.y.push(rayIntersections[j].pos[1]);
+                path.z.push(rayIntersections[j].pos[2]);
 
-                // check if ray is null or undefined
-                if (ray == null) {
-                    continue;
+                // If the ray terminated at this surface, stop drawing the path
+                if (rayTerminatedAt(result.ray_bundle, i) === j + 1) {
+                    path.cutoff = j;
                 }
-
-                rayPaths.set(ray_id, rayPaths.get(ray_id) || []);
-                rayPaths.get(ray_id).push(ray.pos);
             }
+            paths.push(path);
         }
     }
 
-    return rayPaths;
+    return paths;
+}
+
+/**
+ * Returns the number of rays in a ray bundle.
+ * @param {RayBundle} rayBundle - The ray bundle.
+ * @returns {number} The number of rays.
+ */
+function numRays(rayBundle) {
+    return rayBundle.rays.length / rayBundle.num_surfaces;
+}
+
+/**
+ * Returns the surface ID where a ray terminated. Returns 0 if the ray did not terminate or is out of bounds.
+ * @param {RayBundle} rayBundle - The ray bundle.
+ * @param {number} rayIndex - The index of the ray.
+ * @returns {number} The surface ID where the ray terminated.
+ */
+function rayTerminatedAt(rayBundle, rayIndex) {
+    const nRays = numRays(rayBundle);
+    if (rayIndex >= nRays) {
+        return 0;
+    }
+
+    return rayBundle.terminated[rayIndex];
+}
+
+/**
+ * Returns the ray/surface intersections for a unique ray.
+ * @param {RayBundle} rayBundle - The ray bundle for a given wavelength and field.
+ * @param {number} rayIndex - The index of the ray.
+ * @returns {Array<Ray>} The ray through all the surfaces, or an empty array if the ray index is out of bounds.
+ */
+function getRayIntersections(rayBundle, rayIndex) {
+    const numSurfaces = rayBundle.num_surfaces;
+    const nRays = numRays(rayBundle);
+    let rays = new Array();
+
+    if (rayIndex >= nRays) {
+        return rays;
+    }
+
+    for (let i=rayIndex; i < numSurfaces * nRays; i = i + nRays) {
+        rays.push(rayBundle.rays[i]);
+    }
+
+    return rays;
 }
 
 function getSvgWidthInPixels(svgElement) {
