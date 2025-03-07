@@ -5,7 +5,7 @@ use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 
 use cherry_rs::{
-    components_view, n, ray_trace_3d_view_v2, ApertureSpec, Component, CutawayView, FieldSpec,
+    components_view, n, ray_trace_3d_view, ApertureSpec, Component, CutawayView, FieldSpec,
     GapSpec, Material, ParaxialView, ParaxialViewDescription, PupilSampling, RefractiveIndexSpec,
     SequentialModel, SurfaceSpec, TraceResultsCollection,
 };
@@ -113,7 +113,7 @@ impl System {
     }
 
     pub fn trace(&self) -> Result<TraceResultsCollection> {
-        ray_trace_3d_view_v2(
+        ray_trace_3d_view(
             &self.aperture_spec,
             &self.field_specs,
             &self.sequential_model,
@@ -123,7 +123,7 @@ impl System {
     }
 
     pub fn trace_chief_and_marginal_rays(&self) -> Result<TraceResultsCollection> {
-        ray_trace_3d_view_v2(
+        ray_trace_3d_view(
             &self.aperture_spec,
             &self.field_specs,
             &self.sequential_model,
