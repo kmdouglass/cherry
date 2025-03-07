@@ -37,7 +37,7 @@
 //! # Quick Start
 //! ```rust
 //! use cherry_rs::{
-//!     n, ray_trace_3d_view_v2, ApertureSpec, FieldSpec, GapSpec, ImagePlane, ParaxialView, Pupil, PupilSampling, RefractiveIndexSpec,
+//!     n, ray_trace_3d_view, ApertureSpec, FieldSpec, GapSpec, ImagePlane, ParaxialView, Pupil, PupilSampling, RefractiveIndexSpec,
 //!     SequentialModel, SurfaceSpec, SurfaceType,
 //! };
 //!
@@ -113,7 +113,7 @@
 //! }
 //!
 //! // Compute a 3D ray trace of the system.
-//! let results_collection = ray_trace_3d_view_v2(
+//! let results_collection = ray_trace_3d_view(
 //!     &aperture_spec, &field_specs,
 //!     &sequential_model,
 //!     &paraxial_view,
@@ -150,10 +150,7 @@ pub use views::{
         ImagePlane, ParaxialSubView, ParaxialSubViewDescription, ParaxialView,
         ParaxialViewDescription, Pupil,
     },
-    ray_trace_3d::{ray_trace_3d_view, Ray, TraceResults},
-    ray_trace_3d_v2::{
-        ray_trace_3d_view_v2, RayBundle, RayV2, TraceResultsCollection, TraceResultsV2,
-    },
+    ray_trace_3d::{ray_trace_3d_view, Ray, RayBundle, TraceResults, TraceResultsCollection},
 };
 
 // Re-exports from dependencies

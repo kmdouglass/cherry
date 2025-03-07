@@ -18,6 +18,6 @@ impl RefractiveIndexSpec for Material {
         //    Some(k) => Ok(k),
         //    None => Ok(0.0),
         //}
-        return Ok(0.0);
+        Ok(0.0)
     }
 }

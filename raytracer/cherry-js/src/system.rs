@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::rc::Rc;
 
 use anyhow::{anyhow, Result};
@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use cherry_rs::{
     components_view, n, ray_trace_3d_view, ApertureSpec, Component, CutawayView, FieldSpec,
     GapSpec, Material, ParaxialView, ParaxialViewDescription, PupilSampling, RefractiveIndexSpec,
-    SequentialModel, SubModelID, SurfaceSpec, TraceResults,
+    SequentialModel, SurfaceSpec, TraceResultsCollection,
 };
 
 const BACKGROUND_REFRACTIVE_INDEX: f64 = 1.0;
@@ -99,7 +99,7 @@ impl System {
             components_view,
             cutaway_view,
             paraxial_view,
-            aperture_spec: aperture_spec.clone(),
+            aperture_spec: *aperture_spec,
             field_specs: field_specs.to_vec(),
         })
     }
@@ -112,7 +112,7 @@ impl System {
         }
     }
 
-    pub fn trace(&self) -> Result<HashMap<SubModelID, TraceResults>> {
+    pub fn trace(&self) -> Result<TraceResultsCollection> {
         ray_trace_3d_view(
             &self.aperture_spec,
             &self.field_specs,
@@ -122,7 +122,7 @@ impl System {
         )
     }
 
-    pub fn trace_chief_and_marginal_rays(&self) -> Result<HashMap<SubModelID, TraceResults>> {
+    pub fn trace_chief_and_marginal_rays(&self) -> Result<TraceResultsCollection> {
         ray_trace_3d_view(
             &self.aperture_spec,
             &self.field_specs,
