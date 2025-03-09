@@ -85,7 +85,7 @@ describe('ComputeService', () => {
     expect(testSetup.mockSubscriber.onWorkerIdle).toHaveBeenCalledTimes(1);
   });
 
-  it('should terminate the worker when asked'), async () => {
+  it('should terminate the worker when asked', async () => {
     // Initialize the service first
     await testSetup.initializeService();
     
@@ -94,5 +94,5 @@ describe('ComputeService', () => {
     
     // Verify worker was terminated
     expect(mockWorker.terminate).toHaveBeenCalledTimes(1);
-  }
+  });
 });

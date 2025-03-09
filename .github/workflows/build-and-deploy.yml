@@ -48,6 +48,10 @@ jobs:
       working-directory: ./www/js
       run: npm ci
 
+    - name: Run JS tests
+      working-directory: ./www/js
+      run: npm run test
+
     - name: Build JS bundle
       working-directory: ./www/js
       run: npm run build:prod
