@@ -1,4 +1,6 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+
+import { EVENT_WORKER_IDLE, EVENT_WORKER_BUSY } from "../services/computeContants";
 import SummaryWindow from "./SummaryWindow";
 import showAlert from "../modules/alerts";
 
@@ -50,11 +52,25 @@ const Navbar = ( {
     description,
     appModes, setAppModes,
     materialsService,
+    computeService,
 } ) => {
     const [activeDropdown, setActiveDropdown] = useState(null);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [isSummaryOpen, setIsSummaryOpen] = useState(false);
+    const [workerIdle, setWorkerIdle] = useState(true);
     const fileInputRef = useRef(null);
+
+    // Register the workerIdle state with the compute service
+    useEffect(() => {
+        const unsubscribe = computeService.subscribe(EVENT_WORKER_IDLE, () => setWorkerIdle(true));
+        return () => unsubscribe();
+    }, []);
+
+    // Register the workerBusy state with the compute service
+    useEffect(() => {
+        const unsubscribe = computeService.subscribe(EVENT_WORKER_BUSY, () => setWorkerIdle(false));
+        return () => unsubscribe();
+    }, []);
 
     const toggleDropdown = (dropdown) => {
         setActiveDropdown(activeDropdown === dropdown ? null : dropdown);
@@ -64,7 +80,7 @@ const Navbar = ( {
         setIsMobileMenuOpen(!isMobileMenuOpen);
     };
 
-    const loadDataset = async (inputSurfaces, inputFields, inputAperture, inputWavelengths, inputAppModes) => {
+    const openDataset = async (inputSurfaces, inputFields, inputAperture, inputWavelengths, inputAppModes) => {
         // Clear materials first
         materialsService.clearSelectedMaterials();
 
@@ -95,15 +111,34 @@ const Navbar = ( {
         setWavelengths(newWavelengths);
     };
 
-    const handleSave = () => {
-        if (!description) {
-            console.warn("No data to save");
-            return;
-        }
+    /**
+     * Saves the current dataset to a file.
+     * @param {object} data - The dataset to save
+     * @param {string} filename - The filename to save the dataset as
+     */
+    const saveFile = (data, filename) =>{
+        // Convert to JSON string
+        const jsonString = deepStringify(data);
 
+        // Create a blob and download link
+        const blob = new Blob([jsonString], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = filename;
+
+        // Trigger download
+        document.body.appendChild(link);
+        link.click();
+
+        // Cleanup
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    }
+
+    const handleSave = () => {
         // Combine data for saving
         const dataToSave = {
-            ...description,  // Preserve any existing description data
             appModes,
             specs: {
                 surfaces,
@@ -113,28 +148,32 @@ const Navbar = ( {
             }
         };
 
-        // Convert to JSON string
-        const jsonString = deepStringify(dataToSave);
-
-        // Create a blob and download link
-        const blob = new Blob([jsonString], { type: "application/json" });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = "cherry.json";
-
-        // Trigger download
-        document.body.appendChild(link);
-        link.click();
-
-        // Cleanup
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
+        saveFile(dataToSave, "cherry-specs.json");
     };
 
-    const handleLoad = () => {
+    const handleOpen = () => {
         fileInputRef.current?.click();
     }
+
+    const handleExportResults = () => {
+        if (!workerIdle) {
+            console.debug("Worker is busy, cannot export results");
+            return;
+        }
+        if (!description) {
+            console.warn("No results to export");
+            return;
+        }
+
+        // Combine data for saving
+        const dataToSave = {
+            paraxialView: description.paraxial_view,
+            rayTraceView: computeService.results
+        };
+
+        console.log("Saving results", dataToSave);
+        saveFile(dataToSave, "cherry-results.json");
+    };
 
     const handleFileChange = async (event) => {
         const file = event.target.files?.[0];
@@ -156,7 +195,7 @@ const Navbar = ( {
                 const { surfaces: newSurfaces, fields: newFields, aperture: newAperture, wavelengths: newWavelengths } = jsonData.specs;
 
                 if (newSurfaces && newFields && newAperture && newWavelengths) {
-                    await loadDataset(newSurfaces, newFields, newAperture, newWavelengths, jsonData.appModes);
+                    await openDataset(newSurfaces, newFields, newAperture, newWavelengths, jsonData.appModes);
                 } else {
                     throw new Error("Invalid file format: missing specific specs data");
                 }
@@ -165,7 +204,7 @@ const Navbar = ( {
             }
             
         } catch (error) {
-            showAlert(error instanceof Error ? error.message : "Failed to load file");
+            showAlert(error instanceof Error ? error.message : "Failed to open file");
         } finally {
             // Reset the file input so the same file can be selected again
             event.target.value = "";
@@ -183,7 +222,7 @@ const Navbar = ( {
 
     // Examples handlers
     const handleConvexplanoLens = async () => {
-        await loadDataset(
+        await openDataset(
             cpLensData.surfaces,
             cpLensData.fields,
             cpLensData.aperture,
@@ -193,7 +232,7 @@ const Navbar = ( {
     };
 
     const handleConvexplanoLensWithMaterials = async () => {
-        await loadDataset(
+        await openDataset(
             cpmLensData.surfaces,
             cpmLensData.fields,
             cpmLensData.aperture,
@@ -203,7 +242,7 @@ const Navbar = ( {
     };
 
     const handlePetzvalLens = async () => {
-        await loadDataset(
+        await openDataset(
             petzvalLensData.surfaces,
             petzvalLensData.fields,
             petzvalLensData.aperture,
@@ -246,8 +285,16 @@ const Navbar = ( {
                             <a className="navbar-item" id="file-save" onClick={handleSave}>
                                 Save
                             </a>
-                            <a className="navbar-item" id="file-load" onClick={handleLoad}>
-                                Load...
+                            <a className="navbar-item" id="file-open" onClick={handleOpen}>
+                                Open...
+                            </a>
+                            <a
+                                className="navbar-item"
+                                id="file-export-results"
+                                onClick={handleExportResults}
+                                style={!workerIdle ? {color: '#999', cursor: 'not-allowed'} : {}}
+                            >
+                                Export results
                             </a>
                         </div>
                     </div>

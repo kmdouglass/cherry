@@ -5,7 +5,7 @@
 
 import { useState, useEffect } from 'react';
 
-import { EVENT_COMPUTE_STARTED, EVENT_COMPUTE_FINISHED, EVENT_WORKER_IDLE, MSG_IN_COMPUTE, MSG_OUT_COMPUTE, MSG_IN_INIT, MSG_OUT_INIT } from './computeContants';
+import { EVENT_COMPUTE_REQUESTED, EVENT_COMPUTE_FINISHED, EVENT_WORKER_BUSY, EVENT_WORKER_IDLE, MSG_IN_COMPUTE, MSG_OUT_COMPUTE, MSG_IN_INIT, MSG_OUT_INIT } from './computeContants';
 
 /**
  * A message from the worker.
@@ -111,8 +111,12 @@ export class ComputeService {
      */
     compute(specs) {
         this.#requestID++;
-        this.#workerIdle = false;
-        this.#notifySubscribers(EVENT_COMPUTE_STARTED, { requestID: this.#requestID });
+
+        if (this.#workerIdle) {
+            this.#workerIdle = false;
+            this.#notifySubscribers(EVENT_WORKER_BUSY);
+        }
+        this.#notifySubscribers(EVENT_COMPUTE_REQUESTED, { requestID: this.#requestID });
         this.#worker.postMessage({msg: MSG_IN_COMPUTE, specs, requestID: this.#requestID});
     }
 

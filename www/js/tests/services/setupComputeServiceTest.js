@@ -50,8 +50,9 @@ export function createMockWorker() {
  */
 export function createMockSubscriber() {
     return {
-        onComputeStarted: vi.fn(),
+        onComputeRequested: vi.fn(),
         onComputeFinished: vi.fn(),
+        onWorkerBusy: vi.fn(),
         onWorkerIdle: vi.fn()
     }
 }

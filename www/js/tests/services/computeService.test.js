@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { setupComputeServiceTest } from './setupComputeServiceTest';
-import { EVENT_COMPUTE_FINISHED, EVENT_COMPUTE_STARTED, EVENT_WORKER_IDLE, MSG_IN_COMPUTE, MSG_IN_INIT } from '../../src/services/computeContants';
+import { EVENT_COMPUTE_FINISHED, EVENT_COMPUTE_REQUESTED, EVENT_WORKER_BUSY, EVENT_WORKER_IDLE, MSG_IN_COMPUTE, MSG_IN_INIT } from '../../src/services/computeContants';
 
 describe('ComputeService', () => {
   let testSetup;
@@ -43,12 +43,12 @@ describe('ComputeService', () => {
     expect(mockWorker.lastMessageToWorker.requestID).toBe(0);
   });
 
-  it('should notify subscribers when compute starts and finishes', async () => {
+  it('should notify subscribers when compute is requested and finishes', async () => {
     // Initialize the service first
     await testSetup.initializeService();
     
     // Subscribe to compute events
-    computeService.subscribe(EVENT_COMPUTE_STARTED, mockSubscriber.onComputeStarted);
+    computeService.subscribe(EVENT_COMPUTE_REQUESTED, mockSubscriber.onComputeRequested);
     computeService.subscribe(EVENT_COMPUTE_FINISHED, mockSubscriber.onComputeFinished);
     
     // Create test data
@@ -61,15 +61,16 @@ describe('ComputeService', () => {
     mockWorker.simulateComputeFinished(computeService);
     
     // Verify subscriber was notified
-    expect(testSetup.mockSubscriber.onComputeStarted).toHaveBeenCalledTimes(1);
+    expect(testSetup.mockSubscriber.onComputeRequested).toHaveBeenCalledTimes(1);
     expect(testSetup.mockSubscriber.onComputeFinished).toHaveBeenCalledTimes(1);
   });
 
-  it('should notify subscribers when worker is idle', async () => {
+  it('should notify subscribers when worker is busy or idle', async () => {
     // Initialize the service first
     await testSetup.initializeService();
     
     // Subscribe to compute events
+    computeService.subscribe(EVENT_WORKER_BUSY, mockSubscriber.onWorkerBusy);
     computeService.subscribe(EVENT_WORKER_IDLE, mockSubscriber.onWorkerIdle);
     
     // Create test data
@@ -82,6 +83,7 @@ describe('ComputeService', () => {
     mockWorker.simulateComputeFinished(computeService);
 
     // Verify subscriber was notified
+    expect(testSetup.mockSubscriber.onWorkerBusy).toHaveBeenCalledTimes(1);
     expect(testSetup.mockSubscriber.onWorkerIdle).toHaveBeenCalledTimes(1);
   });
 

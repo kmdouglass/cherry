@@ -158,6 +158,7 @@ function App({ wasmModule }) {
                 description={systemData.description}
                 appModes={appModes} setAppModes={setAppModes}
                 materialsService={materialsService}
+                computeService={computeService}
             />
             <div className="container">
                 <CutawayView description={description} rawRayPaths={rawRayPaths} />
