@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import SummaryWindow from "./SummaryWindow";
 import showAlert from "../modules/alerts";
 
@@ -50,10 +50,12 @@ const Navbar = ( {
     description,
     appModes, setAppModes,
     materialsService,
+    computeService,
 } ) => {
     const [activeDropdown, setActiveDropdown] = useState(null);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [isSummaryOpen, setIsSummaryOpen] = useState(false);
+    const [workerIdle, setWorkerIdle] = useState(true);
     const fileInputRef = useRef(null);
 
     const toggleDropdown = (dropdown) => {
@@ -64,7 +66,7 @@ const Navbar = ( {
         setIsMobileMenuOpen(!isMobileMenuOpen);
     };
 
-    const loadDataset = async (inputSurfaces, inputFields, inputAperture, inputWavelengths, inputAppModes) => {
+    const openDataset = async (inputSurfaces, inputFields, inputAperture, inputWavelengths, inputAppModes) => {
         // Clear materials first
         materialsService.clearSelectedMaterials();
 
@@ -132,9 +134,22 @@ const Navbar = ( {
         URL.revokeObjectURL(url);
     };
 
-    const handleLoad = () => {
+    const handleOpen = () => {
         fileInputRef.current?.click();
     }
+
+    const handleExportResults = () => {
+        if (!workerIdle) {
+            console.debug("Worker is busy, cannot export results");
+            return;
+        }
+        // Combine data for saving
+        const dataToSave = {
+            paraxialView: description.paraxial_view,
+            rayTraceView: computeService.results
+        };
+        console.log("Saving results", dataToSave);
+    };
 
     const handleFileChange = async (event) => {
         const file = event.target.files?.[0];
@@ -156,7 +171,7 @@ const Navbar = ( {
                 const { surfaces: newSurfaces, fields: newFields, aperture: newAperture, wavelengths: newWavelengths } = jsonData.specs;
 
                 if (newSurfaces && newFields && newAperture && newWavelengths) {
-                    await loadDataset(newSurfaces, newFields, newAperture, newWavelengths, jsonData.appModes);
+                    await openDataset(newSurfaces, newFields, newAperture, newWavelengths, jsonData.appModes);
                 } else {
                     throw new Error("Invalid file format: missing specific specs data");
                 }
@@ -165,7 +180,7 @@ const Navbar = ( {
             }
             
         } catch (error) {
-            showAlert(error instanceof Error ? error.message : "Failed to load file");
+            showAlert(error instanceof Error ? error.message : "Failed to open file");
         } finally {
             // Reset the file input so the same file can be selected again
             event.target.value = "";
@@ -183,7 +198,7 @@ const Navbar = ( {
 
     // Examples handlers
     const handleConvexplanoLens = async () => {
-        await loadDataset(
+        await openDataset(
             cpLensData.surfaces,
             cpLensData.fields,
             cpLensData.aperture,
@@ -193,7 +208,7 @@ const Navbar = ( {
     };
 
     const handleConvexplanoLensWithMaterials = async () => {
-        await loadDataset(
+        await openDataset(
             cpmLensData.surfaces,
             cpmLensData.fields,
             cpmLensData.aperture,
@@ -203,7 +218,7 @@ const Navbar = ( {
     };
 
     const handlePetzvalLens = async () => {
-        await loadDataset(
+        await openDataset(
             petzvalLensData.surfaces,
             petzvalLensData.fields,
             petzvalLensData.aperture,
@@ -246,8 +261,16 @@ const Navbar = ( {
                             <a className="navbar-item" id="file-save" onClick={handleSave}>
                                 Save
                             </a>
-                            <a className="navbar-item" id="file-load" onClick={handleLoad}>
-                                Load...
+                            <a className="navbar-item" id="file-open" onClick={handleOpen}>
+                                Open...
+                            </a>
+                            <a
+                                className="navbar-item"
+                                id="file-export-results"
+                                onClick={handleExportResults}
+                                style={!workerIdle ? {color: '#999', cursor: 'not-allowed'} : {}}
+                            >
+                                Export results...
                             </a>
                         </div>
                     </div>
