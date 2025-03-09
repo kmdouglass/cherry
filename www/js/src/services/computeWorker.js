@@ -6,8 +6,7 @@ let wasmModule;
 let opticalSystem;
 
 onmessage = function (event) {
-    const msg = event.data[0];
-    const arg = event.data[1];
+    const msg = event.data.msg;
 
     switch (msg) {
         case MSG_IN_INIT:
@@ -16,7 +15,7 @@ onmessage = function (event) {
                     wasmModule = module;
                     opticalSystem = new wasmModule.OpticalSystem();
 
-                    this.postMessage(MSG_OUT_INIT);
+                    this.postMessage({msg: MSG_OUT_INIT});
                 })
                 .catch((error) => {
                     console.error("Failed to initialize the worker:", error);
@@ -25,7 +24,9 @@ onmessage = function (event) {
             break;
 
         case MSG_IN_COMPUTE:
-            const { surfaces, gaps, fields, aperture, wavelengths, gapMode, requestID } = arg;
+            const specs = event.data.specs;
+            const requestID = event.data.requestID;
+            const { surfaces, gaps, fields, aperture, wavelengths, gapMode } = specs;
 
             opticalSystem.setSurfaces(surfaces);
             opticalSystem.setGaps(gaps, gapMode);
@@ -36,7 +37,13 @@ onmessage = function (event) {
 
             const rays = opticalSystem.trace();
 
-            this.postMessage([MSG_OUT_COMPUTE, rays]);
+            const message = {
+                msg: MSG_OUT_COMPUTE,
+                requestID,
+                rays,
+            }
+
+            this.postMessage(message);
 
             break;
         default:
