@@ -2,7 +2,7 @@ import { convertUIStateToLibFormat, getOpticalSystem } from "./modules/opticalSy
 import { useComputeService } from "./services/computeService";
 import { useMaterialsService } from "./services/materialsDataService";
 
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import "./css/cherry.css";
 import showAlert from "./modules/alerts";
@@ -17,10 +17,6 @@ function App({ wasmModule }) {
 
     // Start the compute service and results listener
     const { computeService, isComputeServiceInitializing } = useComputeService();
-    const results = useSyncExternalStore(
-        (onStoreChange) => computeService.subscribe(onStoreChange),
-        () => computeService.results
-    )
 
     // GUI state
     const [activeExplorersTab, setExplorersActiveTab] = useState('specs');
@@ -162,6 +158,7 @@ function App({ wasmModule }) {
                 description={systemData.description}
                 appModes={appModes} setAppModes={setAppModes}
                 materialsService={materialsService}
+                computeService={computeService}
             />
             <div className="container">
                 <CutawayView description={description} rawRayPaths={rawRayPaths} />

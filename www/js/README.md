@@ -1,6 +1,6 @@
-# Cherry Raytracer
+# Cherry Web App
 
-The contents of this folder are used to prototype changes to the Cherry Raytracer web app.
+This is the web interface to the Cherry Ray Tracer.
 
 ## Build
 
@@ -16,6 +16,14 @@ npm run build:prod
 
 ## Develop
 
+Start the development server:
+
 ```console
 npm run start
+```
+
+Run the tests:
+
+```console
+npm run test
 ```
