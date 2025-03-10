@@ -1,0 +1,24 @@
+[data-tooltip] {
+position: relative;
+}
+
+[data-tooltip]:hover::after {
+content: attr(data-tooltip);
+position: absolute;
+top: 100%;
+left: 50%;
+transform: translateX(-50%);
+background-color: rgba(0, 0, 0, 0.8);
+color: white;
+padding: 5px 10px;
+border-radius: 4px;
+font-size: 14px;
+white-space: nowrap;
+z-index: 100;
+pointer-events: none;
+}
+
+/* Only show the tooltip when there's actual content */
+[data-tooltip=""]:hover::after {
+display: none;
+}

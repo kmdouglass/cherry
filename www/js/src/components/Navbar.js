@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
+import "../css/Navbar.css";
+
 import { EVENT_WORKER_IDLE, EVENT_WORKER_BUSY } from "../services/computeContants";
 import SummaryWindow from "./SummaryWindow";
 import showAlert from "../modules/alerts";
@@ -293,6 +295,7 @@ const Navbar = ( {
                                 id="file-export-results"
                                 onClick={handleExportResults}
                                 style={!workerIdle ? {color: '#999', cursor: 'not-allowed'} : {}}
+                                data-tooltip={!workerIdle ? "Cannot export results while computing ray trace." : ""}
                             >
                                 Export results
                             </a>
