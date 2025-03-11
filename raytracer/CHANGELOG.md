@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A `primary_axial_color` method to `ParaxialView` for computing the axial primary color aberration of a lens.
 - An `axes` method on `SequentialModel` to return the set of axes that the system is modeled over.
 - `RayBundle`, `TraceResultsCollection` were added as part of refactoring the `ray_trace_3d_view`.
+- A f = +100 mm biconvex lens example with an object at a finite distance.
 
 ### Changed
 
