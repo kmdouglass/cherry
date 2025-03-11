@@ -163,13 +163,13 @@ fn z_intercepts(rays: ParaxialRaysView) -> Result<Array1<Float>> {
 /// The maximum field angle is the maximum absolute value of the paraxial angle.
 ///
 /// # Arguments
-/// * `obj_pupil_sepration` - The separation between the object and the entrance
-///   pupil.
+/// * `obj_pupil_separation` - The separation between the object and the
+///   entrance pupil.
 /// * `field_specs` - The field specs.
 ///
 /// # Returns
 /// A tuple containing the maximum field angle and the height of the field.
-fn max_field(obj_pupil_sepration: Float, field_specs: &[FieldSpec]) -> (Float, Float) {
+fn max_field(obj_pupil_separation: Float, field_specs: &[FieldSpec]) -> (Float, Float) {
     let mut max_angle = 0.0;
     let mut max_height = 0.0;
 
@@ -180,20 +180,22 @@ fn max_field(obj_pupil_sepration: Float, field_specs: &[FieldSpec]) -> (Float, F
                 pupil_sampling: _,
             } => {
                 let paraxial_angle = angle.to_radians().tan();
-                let height = -obj_pupil_sepration * paraxial_angle;
+                let height = -obj_pupil_separation * paraxial_angle;
                 (height, paraxial_angle)
             }
-            FieldSpec::ObjectHeight {
-                height,
+            FieldSpec::PointSource {
+                x,
+                y,
                 pupil_sampling: _,
             } => {
-                let paraxial_angle = -height / obj_pupil_sepration;
-                (*height, paraxial_angle)
+                let height = (x.powi(2) + y.powi(2)).sqrt();
+                let paraxial_angle = -height / obj_pupil_separation;
+                (height, paraxial_angle)
             }
         };
 
         if paraxial_angle.abs() > max_angle {
-            max_angle = paraxial_angle.abs();
+            max_angle = paraxial_angle;
             max_height = height;
         }
     }

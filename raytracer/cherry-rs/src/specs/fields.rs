@@ -14,8 +14,8 @@ pub enum PupilSampling {
     /// pupil edge (marginal rays).
     SquareGrid { spacing: Float },
 
-    /// The chief and marginal rays.
-    ChiefAndMarginalRays,
+    /// A tangential ray fan.
+    TangentialRayFan,
 }
 
 /// Specifies an object field.
@@ -27,9 +27,12 @@ pub enum FieldSpec {
         pupil_sampling: PupilSampling,
     },
 
-    /// The height of the field above the optical axis.
-    ObjectHeight {
-        height: Float,
+    /// The x, y position of the object field point.
+    ///
+    /// (0, 0) corresponds to the optical axis.
+    PointSource {
+        x: Float,
+        y: Float,
         pupil_sampling: PupilSampling,
     },
 }
@@ -46,7 +49,7 @@ impl PupilSampling {
                     anyhow::bail!("Pupil grid spacing must be in the range [0, 1]");
                 }
             }
-            PupilSampling::ChiefAndMarginalRays => {}
+            PupilSampling::TangentialRayFan => {}
         }
         Ok(())
     }
@@ -74,12 +77,17 @@ impl FieldSpec {
                 }
                 pupil_sampling.validate()?;
             }
-            FieldSpec::ObjectHeight {
-                height,
+            FieldSpec::PointSource {
+                x,
+                y,
                 pupil_sampling,
             } => {
-                if height.is_nan() {
-                    anyhow::bail!("Field height must be a number");
+                if x.is_nan() || y.is_nan() {
+                    anyhow::bail!("Point source field locations must be numbers");
+                }
+
+                if x.is_infinite() || y.is_infinite() {
+                    anyhow::bail!("Point source field locations must be finite");
                 }
                 pupil_sampling.validate()?;
             }
@@ -149,15 +157,52 @@ mod test {
         };
         assert!(angle.validate().is_err());
 
-        let height = FieldSpec::ObjectHeight {
-            height: 0.1,
+        let height = FieldSpec::PointSource {
+            x: 0.0,
+            y: 0.1,
             pupil_sampling: PupilSampling::SquareGrid { spacing: 0.1 },
         };
         assert!(height.validate().is_ok());
 
-        let height = FieldSpec::ObjectHeight {
-            height: 0.1,
+        let height = FieldSpec::PointSource {
+            x: 0.0,
+            y: 0.1,
             pupil_sampling: PupilSampling::SquareGrid { spacing: 1.1 },
+        };
+        assert!(height.validate().is_err());
+
+        let height = FieldSpec::PointSource {
+            x: 0.0,
+            y: 0.1,
+            pupil_sampling: PupilSampling::SquareGrid { spacing: -0.1 },
+        };
+        assert!(height.validate().is_err());
+
+        let height = FieldSpec::PointSource {
+            x: Float::NAN,
+            y: 0.1,
+            pupil_sampling: PupilSampling::SquareGrid { spacing: 1.0 },
+        };
+        assert!(height.validate().is_err());
+
+        let height = FieldSpec::PointSource {
+            x: 0.0,
+            y: Float::NAN,
+            pupil_sampling: PupilSampling::SquareGrid { spacing: 1.0 },
+        };
+        assert!(height.validate().is_err());
+
+        let height = FieldSpec::PointSource {
+            x: Float::INFINITY,
+            y: 0.1,
+            pupil_sampling: PupilSampling::SquareGrid { spacing: 1.0 },
+        };
+        assert!(height.validate().is_err());
+
+        let height = FieldSpec::PointSource {
+            x: 0.0,
+            y: Float::INFINITY,
+            pupil_sampling: PupilSampling::SquareGrid { spacing: 1.0 },
         };
         assert!(height.validate().is_err());
     }

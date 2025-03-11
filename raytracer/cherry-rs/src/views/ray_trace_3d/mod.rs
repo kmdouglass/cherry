@@ -7,6 +7,7 @@ use serde::Serialize;
 
 use crate::{
     core::{
+        math::vec3::Vec3,
         sequential_model::{SequentialModel, SequentialSubModel, SubModelID, Surface},
         Float, PI,
     },
@@ -75,6 +76,8 @@ pub fn ray_trace_3d_view(
     paraxial_view: &ParaxialView,
     pupil_sampling: Option<PupilSampling>,
 ) -> Result<TraceResultsCollection> {
+    validate_field_specs(sequential_model, field_specs)?;
+
     let combinations = all_combinations(
         field_specs,
         sequential_model.wavelengths(),
@@ -202,18 +205,21 @@ fn ray_trace_submodel(
 ///
 /// # Arguments
 ///
+/// * `surfaces` - The surfaces of the system.
+/// * `aperture_spec` - The aperture specification.
+/// * `paraxial_subview` - The paraxial subview. This is used to obtain the
+///   pupil.
+/// * `field_spec` - The field specification.
 /// * `sampling` - The pupil sampling method. This will override the sampling
 ///   method specified in the field specs for every field if provided.
 fn rays(
     surfaces: &[Surface],
     aperture_spec: &ApertureSpec,
-    paraxial_sub_view: &ParaxialSubView,
+    paraxial_subview: &ParaxialSubView,
     field_spec: &FieldSpec,
     sampling: Option<PupilSampling>,
 ) -> Result<Vec<Ray>> {
-    let mut rays = Vec::new();
-
-    match field_spec {
+    let rays: Vec<Ray> = match field_spec {
         FieldSpec::Angle {
             angle,
             pupil_sampling,
@@ -225,42 +231,83 @@ fn rays(
                 None => *pupil_sampling,
             };
 
-            let rays_field = match pupil_sampling {
-                PupilSampling::SquareGrid { spacing } => {
-                    pupil_ray_sq_grid(surfaces, aperture_spec, paraxial_sub_view, spacing, angle)?
-                }
-                PupilSampling::ChiefAndMarginalRays => {
+            match pupil_sampling {
+                PupilSampling::SquareGrid { spacing } => parallel_ray_bundle_on_sq_grid(
+                    surfaces,
+                    aperture_spec,
+                    paraxial_subview,
+                    spacing,
+                    angle,
+                )?,
+                PupilSampling::TangentialRayFan => {
                     // 3 rays -> two diametrically-opposed marginal rays at the pupil edge
                     // and a chief ray in the center
-                    pupil_ray_fan(
+                    parallel_ray_fan(
                         surfaces,
                         aperture_spec,
-                        paraxial_sub_view,
+                        paraxial_subview,
                         3,
-                        PI / 2.0,
+                        PI / 2.0, // Currently, the ray fan is always in the y-z plane
                         angle,
                     )?
                 }
+            }
+        }
+
+        FieldSpec::PointSource {
+            x,
+            y,
+            pupil_sampling,
+        } => {
+            let obj_z = surfaces
+                .first()
+                .expect("There should always be at least two surfaces")
+                .pos()
+                .z();
+            if obj_z.is_infinite() {
+                return Err(anyhow!(
+                    "Cannot have a point source field with an infinite object distance"
+                ));
+            }
+
+            let pupil_sampling = match sampling {
+                Some(sampling) => sampling,
+                None => *pupil_sampling,
             };
 
-            rays.extend(rays_field);
+            let origin = Vec3::new(*x, *y, obj_z);
+            match pupil_sampling {
+                PupilSampling::SquareGrid { spacing } => point_source_ray_bundle_on_sq_grid(
+                    aperture_spec,
+                    paraxial_subview,
+                    spacing,
+                    &origin,
+                )?,
+                PupilSampling::TangentialRayFan => {
+                    let theta = y.atan2(*x);
+                    point_source_ray_fan(aperture_spec, paraxial_subview, 3, theta, &origin)?
+                }
+            }
         }
-        _ => return Err(anyhow!("Unsupported field spec")),
-    }
+    };
 
     Ok(rays)
 }
 
-/// Create a linear ray fan that passes through the entrance pupil.
+/// Creates a fan of parallel rays that passes through the entrance pupil.
+///
+/// This is used to model field angles.
 ///
 /// # Arguments
 ///
+/// * `surfaces` - The surfaces of the system.
+/// * `aperture_spec` - The aperture specification.
+/// * `paraxial_sub_view` - The paraxial subview.
 /// * `num_rays` - The number of rays in the fan.
 /// * `theta` - The polar angle of the ray fan in the x-y plane.
 /// * `phi` - The angle of the ray w.r.t. the z-axis.
-/// * `field_id` - The ID of the field.
 #[allow(clippy::too_many_arguments)]
-fn pupil_ray_fan(
+fn parallel_ray_fan(
     surfaces: &[Surface],
     aperture_spec: &ApertureSpec,
     paraxial_sub_view: &ParaxialSubView,
@@ -268,10 +315,10 @@ fn pupil_ray_fan(
     theta: Float,
     phi: Float,
 ) -> Result<Vec<Ray>> {
-    let ep = entrance_pupil(aperture_spec, paraxial_sub_view)?;
+    let enp = entrance_pupil(aperture_spec, paraxial_sub_view)?;
     let obj_z = surfaces[0].pos().z();
     let sur_z = surfaces[1].pos().z();
-    let enp_z = ep.pos().z();
+    let enp_z = enp.pos().z();
 
     let launch_point_z = axial_launch_point(obj_z, sur_z, enp_z);
 
@@ -280,11 +327,11 @@ fn pupil_ray_fan(
     let dz = enp_z - launch_point_z;
     let dy = -dz * phi.tan();
 
-    let rays = Ray::fan(
+    let rays = Ray::parallel_ray_fan(
         num_rays,
-        ep.semi_diameter,
-        theta,
+        enp.semi_diameter,
         launch_point_z,
+        theta,
         phi,
         0.0,
         dy,
@@ -293,41 +340,154 @@ fn pupil_ray_fan(
     Ok(rays)
 }
 
-/// Create a square grid of rays that passes through the entrance pupil.
+/// Creates a bundle of parallel rays on a square grid in the entrance pupil.
+///
+/// This is used to model field angles.
 ///
 /// # Arguments
 ///
+/// * `surfaces` - The surfaces of the system.
+/// * `aperture_spec` - The aperture specification.
+/// * `paraxial_subview` - The paraxial subview.
 /// * `spacing` - The spacing between rays in the grid in normalized pupil
 ///   distances, i.e. [0, 1]. A spacing of 1.0 means that one ray will lie at
 ///   the pupil center (the chief ray) and the others will lie at the pupil edge
 ///   (marginal rays).
-/// * `phi` - The angle of the ray w.r.t. the z-axis in radians.
-/// * `field_id` - The field ID.
-fn pupil_ray_sq_grid(
+/// * `phi` - The angle of the ray bundle w.r.t. the z-axis in radians.
+fn parallel_ray_bundle_on_sq_grid(
     surfaces: &[Surface],
     aperture_spec: &ApertureSpec,
-    paraxial_sub_view: &ParaxialSubView,
+    paraxial_subview: &ParaxialSubView,
     spacing: Float,
     phi: Float,
 ) -> Result<Vec<Ray>> {
-    let ep = entrance_pupil(aperture_spec, paraxial_sub_view)?;
+    let enp = entrance_pupil(aperture_spec, paraxial_subview)?;
     let obj_z = surfaces[0].pos().z();
     let sur_z = surfaces[1].pos().z();
-    let enp_z = ep.pos().z();
+    let enp_z = enp.pos().z();
 
     let launch_point_z = axial_launch_point(obj_z, sur_z, enp_z);
 
-    let enp_diam = ep.semi_diameter;
-    let abs_spacing = enp_diam / 2.0 * spacing;
+    let enp_radius = enp.semi_diameter;
+    let abs_spacing = enp_radius * spacing;
 
     // Determine the radial distance from the axis at the launch point for the
-    // center of the ray fan.
+    // center of the ray bundle.
     let dz = enp_z - launch_point_z;
     let dy = -dz * phi.tan();
 
-    let rays = Ray::sq_grid_in_circ(enp_diam / 2.0, abs_spacing, launch_point_z, phi, 0.0, dy);
+    let rays =
+        Ray::parallel_ray_bundle_on_sq_grid(enp_radius, abs_spacing, launch_point_z, phi, 0.0, dy);
 
     Ok(rays)
+}
+
+/// Creates a fan of rays from a single point source that passes through the
+/// center of the pupil.
+///
+/// This is used to model point source fields.
+///
+/// # Arguments
+///
+/// * `aperture_spec` : The aperture specification.
+/// * `paraxial_subview` : The paraxial subview.
+/// * `theta` - The polar angle of the ray fan in the x-y plane.
+/// * `origin` : The origin of the rays, i.e. the field point in the object
+///   plane.
+fn point_source_ray_fan(
+    aperture_spec: &ApertureSpec,
+    paraxial_subview: &ParaxialSubView,
+    num_rays: usize,
+    theta: Float,
+    origin: &Vec3,
+) -> Result<Vec<Ray>> {
+    let enp = entrance_pupil(aperture_spec, paraxial_subview)?;
+    let enp_radius = enp.semi_diameter;
+    let enp_z = enp.pos().z();
+
+    let pupil_ray_positions = Vec3::fan(num_rays, enp_radius, enp_z, theta, 0.0, 0.0);
+
+    let directions = pupil_ray_positions
+        .iter()
+        .map(|pos| (*pos - *origin).normalize())
+        .collect::<Vec<Vec3>>();
+
+    directions
+        .iter()
+        .map(|dir| Ray::new(*origin, *dir))
+        .collect::<Result<Vec<Ray>>>()
+}
+
+/// Creates a bundle of rays from a single point on a square grid in the
+/// entrance pupil.
+///
+/// This is used to model point source fields.
+///
+/// # Arguments
+///
+/// * `surfaces` : The surfaces of the system.
+/// * `aperture_spec` : The aperture specification.
+/// * `paraxial_subview` : The paraxial subview.
+/// * `spacing` : The spacing between rays in the grid in normalized pupil
+///   distances, i.e. [0, 1]. A spacing of 1.0 means that one ray will lie at
+///   the pupil center (the chief ray) and the others will lie at the pupil
+///   edge.
+/// * `origin` : The origin of the rays, i.e. the field point in the object
+///   plane.
+fn point_source_ray_bundle_on_sq_grid(
+    aperture_spec: &ApertureSpec,
+    paraxial_subview: &ParaxialSubView,
+    spacing: Float,
+    origin: &Vec3,
+) -> Result<Vec<Ray>> {
+    let enp = entrance_pupil(aperture_spec, paraxial_subview)?;
+    let enp_radius = enp.semi_diameter;
+    let abs_spacing = enp_radius * spacing;
+
+    let pupil_ray_positions =
+        Vec3::sq_grid_in_circ(enp_radius, abs_spacing, enp.pos().z(), 0.0, 0.0);
+
+    let directions = pupil_ray_positions
+        .iter()
+        .map(|pos| (*pos - *origin).normalize())
+        .collect::<Vec<Vec3>>();
+
+    directions
+        .iter()
+        .map(|dir| Ray::new(*origin, *dir))
+        .collect::<Result<Vec<Ray>>>()
+}
+
+/// Validate the field specifications.
+///
+/// This function checks that the field specifications are valid.
+///
+/// For example, you cannot have an infinite object distance and a point source
+/// field.
+fn validate_field_specs(
+    sequential_model: &SequentialModel,
+    field_specs: &[FieldSpec],
+) -> Result<()> {
+    for field_spec in field_specs {
+        match field_spec {
+            FieldSpec::Angle { angle, .. } => {
+                if !angle.is_finite() {
+                    return Err(anyhow!("Field angle must be finite"));
+                }
+            }
+            FieldSpec::PointSource { .. } => {
+                for submodel in sequential_model.submodels().values() {
+                    if submodel.is_obj_at_inf() {
+                        return Err(anyhow!(
+                            "Cannot have a point source field with an infinite object distance"
+                        ));
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(())
 }
 
 /// Determines the entrance pupil of the subview.
@@ -387,38 +547,60 @@ fn all_combinations(
 
 #[cfg(test)]
 mod tests {
+    use approx::assert_abs_diff_eq;
+
     use crate::core::Float;
     use crate::examples::convexplano_lens::sequential_model;
     use crate::n;
 
     use super::*;
 
-    #[test]
-    fn test_ray_trace_3d_view() {
+    struct Setup {
+        sequential_model: SequentialModel,
+        aperture_spec: ApertureSpec,
+        field_specs: Vec<FieldSpec>,
+        paraxial_view: ParaxialView,
+    }
+
+    fn setup() -> Setup {
         let air = n!(1.0);
         let nbk7 = n!(1.515);
         let wavelengths: [Float; 1] = [0.5876];
         let sequential_model = sequential_model(air, nbk7, &wavelengths);
 
-        let aperture_spec = ApertureSpec::EntrancePupil { semi_diameter: 5.0 };
+        let aperture_spec = ApertureSpec::EntrancePupil {
+            semi_diameter: 12.5,
+        };
         let field_specs = vec![
             FieldSpec::Angle {
                 angle: 0.0,
-                pupil_sampling: PupilSampling::ChiefAndMarginalRays,
+                pupil_sampling: PupilSampling::TangentialRayFan,
             },
             FieldSpec::Angle {
                 angle: 5.0,
-                pupil_sampling: PupilSampling::ChiefAndMarginalRays,
+                pupil_sampling: PupilSampling::TangentialRayFan,
             },
         ];
 
         let paraxial_view = ParaxialView::new(&sequential_model, &field_specs, false).unwrap();
 
+        Setup {
+            sequential_model,
+            aperture_spec,
+            field_specs,
+            paraxial_view,
+        }
+    }
+
+    #[test]
+    fn test_ray_trace_3d_view() {
+        let s = setup();
+
         let results = ray_trace_3d_view(
-            &aperture_spec,
-            &field_specs,
-            &sequential_model,
-            &paraxial_view,
+            &s.aperture_spec,
+            &s.field_specs,
+            &s.sequential_model,
+            &s.paraxial_view,
             None,
         )
         .unwrap();
@@ -428,15 +610,158 @@ mod tests {
     }
 
     #[test]
+    fn test_rays() {
+        let s = setup();
+
+        let rays = rays(
+            &s.sequential_model.surfaces(),
+            &s.aperture_spec,
+            &s.paraxial_view.subviews()[&SubModelID(0, Axis::Y)],
+            &s.field_specs[0],
+            None,
+        )
+        .unwrap();
+
+        assert_eq!(rays.len(), 3); // 3 rays for chief and marginal rays
+    }
+
+    #[test]
+    fn test_rays_point_source_incompatible_with_finite_object() {
+        let s = setup();
+
+        let field_spec = FieldSpec::PointSource {
+            x: 0.0,
+            y: 0.0,
+            pupil_sampling: PupilSampling::TangentialRayFan,
+        };
+
+        let result = rays(
+            &s.sequential_model.surfaces(),
+            &s.aperture_spec,
+            &s.paraxial_view.subviews()[&SubModelID(0, Axis::Y)],
+            &field_spec,
+            None,
+        );
+
+        assert!(result.is_err(), "Expected Err result because FieldSpec::PointSource is incompatible with objects at infinity. Result: {:?}", result);
+    }
+
+    #[test]
+    fn test_parallel_ray_bundle_on_sq_grid() {
+        let s = setup();
+
+        let rays = parallel_ray_bundle_on_sq_grid(
+            &s.sequential_model.surfaces(),
+            &s.aperture_spec,
+            &s.paraxial_view.subviews()[&SubModelID(0, Axis::Y)],
+            1.0,
+            0.0,
+        );
+
+        // The grid should have 5 points: one in the center and four at the points where
+        // the inscribed circle touches the square.
+        assert_eq!(rays.unwrap().len(), 5);
+
+        let rays = parallel_ray_bundle_on_sq_grid(
+            &s.sequential_model.surfaces(),
+            &s.aperture_spec,
+            &s.paraxial_view.subviews()[&SubModelID(0, Axis::Y)],
+            0.5,
+            0.0,
+        );
+
+        // Halving the spacing results in 13 out of 25 points in the grid.
+        assert_eq!(rays.unwrap().len(), 13);
+    }
+
+    #[test]
+    fn test_point_source_ray_fan() {
+        let s = setup();
+        let enp_radius = &s.paraxial_view.subviews()[&SubModelID(0, Axis::Y)]
+            .entrance_pupil()
+            .semi_diameter;
+        let expected_z_dir_cosines: [Float; 3] = [
+            (-enp_radius.atan2(1.0)).cos(),
+            1.0,
+            enp_radius.atan2(1.0).cos(),
+        ];
+
+        let rays = point_source_ray_fan(
+            &s.aperture_spec,
+            &s.paraxial_view.subviews()[&SubModelID(0, Axis::Y)],
+            3,
+            PI / 2.0,
+            &Vec3::new(0.0, 0.0, -1.0), // Point source located at z = -1.0
+        )
+        .unwrap();
+
+        // The fan should have 3 rays: one in the center and two at the pupil edge.
+        assert_eq!(rays.len(), 3);
+
+        // Check the directions of the rays.
+        for (dir, ray) in expected_z_dir_cosines.iter().zip(rays.iter()) {
+            assert_abs_diff_eq!(*dir, ray.m(), epsilon = 1e-4);
+        }
+    }
+
+    #[test]
+    fn test_point_source_ray_bundle_on_sq_grid() {
+        let s = setup();
+
+        let rays = point_source_ray_bundle_on_sq_grid(
+            &s.aperture_spec,
+            &s.paraxial_view.subviews()[&SubModelID(0, Axis::Y)],
+            1.0,
+            &Vec3::new(0.0, 0.0, -1.0), // Point source located at z = -1.0
+        );
+
+        // The grid should have 5 points: one in the center and four at the points where
+        // the inscribed circle touches the square.
+        assert_eq!(rays.unwrap().len(), 5);
+
+        let rays = point_source_ray_bundle_on_sq_grid(
+            &s.aperture_spec,
+            &s.paraxial_view.subviews()[&SubModelID(0, Axis::Y)],
+            0.5,
+            &Vec3::new(0.0, 0.0, -1.0), // Point source located at z = -1.0
+        );
+
+        // Halving the spacing results in 13 out of 25 points in the grid.
+        assert_eq!(rays.unwrap().len(), 13);
+    }
+
+    #[test]
+    fn test_validate_field_specs() {
+        let s = setup();
+
+        let field_specs = vec![FieldSpec::Angle {
+            angle: 0.0,
+            pupil_sampling: PupilSampling::TangentialRayFan,
+        }];
+
+        let result = validate_field_specs(&s.sequential_model, &field_specs);
+        assert!(result.is_ok(), "Expected Ok result because FieldSpec::Angle is compatible with objects at infinity. Result: {:?}", result);
+
+        let field_specs = vec![FieldSpec::PointSource {
+            x: 0.0,
+            y: 0.0,
+            pupil_sampling: PupilSampling::TangentialRayFan,
+        }];
+
+        let result = validate_field_specs(&s.sequential_model, &field_specs);
+        assert!(result.is_err(), "Expected Err result because FieldSpec::PointSource is incompatible with objects at infinity. Result: {:?}", result);
+    }
+
+    #[test]
     fn test_all_combinations() {
         let field_specs = vec![
             FieldSpec::Angle {
                 angle: 0.0,
-                pupil_sampling: PupilSampling::ChiefAndMarginalRays,
+                pupil_sampling: PupilSampling::TangentialRayFan,
             },
             FieldSpec::Angle {
                 angle: 5.0,
-                pupil_sampling: PupilSampling::ChiefAndMarginalRays,
+                pupil_sampling: PupilSampling::TangentialRayFan,
             },
         ];
 

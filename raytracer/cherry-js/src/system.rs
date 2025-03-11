@@ -128,7 +128,7 @@ impl System {
             &self.field_specs,
             &self.sequential_model,
             &self.paraxial_view,
-            Some(PupilSampling::ChiefAndMarginalRays),
+            Some(PupilSampling::TangentialRayFan),
         )
     }
 }
