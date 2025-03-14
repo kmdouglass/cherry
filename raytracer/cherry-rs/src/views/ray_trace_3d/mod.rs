@@ -7,6 +7,7 @@ use serde::Serialize;
 
 use crate::{
     core::{
+        math::vec3::Vec3,
         sequential_model::{SequentialModel, SequentialSubModel, SubModelID, Surface},
         Float, PI,
     },
@@ -253,6 +254,33 @@ fn rays(
     }
 
     Ok(rays)
+}
+
+/// Creates a bundle of rays from a single point on a square grid in the entrance pupil.
+/// 
+/// This is most useful for modeling field object heights.
+/// 
+/// # Arguments
+/// 
+/// * `surfaces` : The surfaces of the system.
+/// * `aperture_spec` : The aperture specification.
+/// * `paraxial_sub_view` : The paraxial subview.
+/// * `spacing` : The spacing between rays in the grid in normalized pupil
+///   distances, i.e. [0, 1]. A spacing of 1.0 means that one ray will lie at
+///   the pupil center (the chief ray) and the others will lie at the pupil edge.
+/// * `origin` : The origin of the rays in the entrance pupil.
+fn point_source_ray_bundle_on_sq_grid(
+    surfaces: &[Surface],
+    aperture_spec: &ApertureSpec,
+    paraxial_sub_view: &ParaxialSubView,
+    spacing: Float,
+    origin: Vec3,
+) -> Result<Vec<Ray>> {
+    let ep = entrance_pupil(aperture_spec, paraxial_sub_view)?;
+
+    // In the ray method, probably call Vec3::sq_grid_in_circ with no offsets and a z value of ep.pos().z().
+    todo!("Finish this function by implementing the equivalent Ray method.");
+    
 }
 
 /// Creates a fan of parallel rays that passes through the entrance pupil.
