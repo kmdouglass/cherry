@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `RefractiveIndexSpec` is now a trait which supports getting refractive index data from any generic materials database.
 - `ray_trace_3d_view` now returns a `TraceResultsCollection` of modified `TraceResults` structs. This allows for better access to a given set of values for (field_id, wavelength_id, Axis). `Ray` was also modified and now contains only position and direction information.
+- `Ray::fan` was removed from the public API and is now public only from within the crate.
 
 ### Fixed
 

@@ -226,13 +226,17 @@ fn rays(
             };
 
             let rays_field = match pupil_sampling {
-                PupilSampling::SquareGrid { spacing } => {
-                    pupil_ray_sq_grid(surfaces, aperture_spec, paraxial_sub_view, spacing, angle)?
-                }
+                PupilSampling::SquareGrid { spacing } => parallel_ray_bundle_on_sq_grid(
+                    surfaces,
+                    aperture_spec,
+                    paraxial_sub_view,
+                    spacing,
+                    angle,
+                )?,
                 PupilSampling::ChiefAndMarginalRays => {
                     // 3 rays -> two diametrically-opposed marginal rays at the pupil edge
                     // and a chief ray in the center
-                    pupil_ray_fan(
+                    parallel_ray_fan(
                         surfaces,
                         aperture_spec,
                         paraxial_sub_view,
@@ -251,16 +255,18 @@ fn rays(
     Ok(rays)
 }
 
-/// Create a linear ray fan that passes through the entrance pupil.
+/// Creates a fan of parallel rays that passes through the entrance pupil.
 ///
 /// # Arguments
 ///
+/// * `surfaces` - The surfaces of the system.
+/// * `aperture_spec` - The aperture specification.
+/// * `paraxial_sub_view` - The paraxial subview.
 /// * `num_rays` - The number of rays in the fan.
 /// * `theta` - The polar angle of the ray fan in the x-y plane.
 /// * `phi` - The angle of the ray w.r.t. the z-axis.
-/// * `field_id` - The ID of the field.
 #[allow(clippy::too_many_arguments)]
-fn pupil_ray_fan(
+fn parallel_ray_fan(
     surfaces: &[Surface],
     aperture_spec: &ApertureSpec,
     paraxial_sub_view: &ParaxialSubView,
@@ -280,11 +286,11 @@ fn pupil_ray_fan(
     let dz = enp_z - launch_point_z;
     let dy = -dz * phi.tan();
 
-    let rays = Ray::fan(
+    let rays = Ray::parallel_ray_fan(
         num_rays,
         ep.semi_diameter,
-        theta,
         launch_point_z,
+        theta,
         phi,
         0.0,
         dy,
@@ -293,17 +299,21 @@ fn pupil_ray_fan(
     Ok(rays)
 }
 
-/// Create a square grid of rays that passes through the entrance pupil.
+/// Creates a bundle of parallel rays on a square grid in the entrance pupil.
+///
+/// This is most useful for modeling field angles.
 ///
 /// # Arguments
 ///
+/// * `surfaces` - The surfaces of the system.
+/// * `aperture_spec` - The aperture specification.
+/// * `paraxial_sub_view` - The paraxial subview.
 /// * `spacing` - The spacing between rays in the grid in normalized pupil
 ///   distances, i.e. [0, 1]. A spacing of 1.0 means that one ray will lie at
 ///   the pupil center (the chief ray) and the others will lie at the pupil edge
 ///   (marginal rays).
-/// * `phi` - The angle of the ray w.r.t. the z-axis in radians.
-/// * `field_id` - The field ID.
-fn pupil_ray_sq_grid(
+/// * `phi` - The angle of the ray bundle w.r.t. the z-axis in radians.
+fn parallel_ray_bundle_on_sq_grid(
     surfaces: &[Surface],
     aperture_spec: &ApertureSpec,
     paraxial_sub_view: &ParaxialSubView,
@@ -321,11 +331,18 @@ fn pupil_ray_sq_grid(
     let abs_spacing = enp_diam / 2.0 * spacing;
 
     // Determine the radial distance from the axis at the launch point for the
-    // center of the ray fan.
+    // center of the ray bundle.
     let dz = enp_z - launch_point_z;
     let dy = -dz * phi.tan();
 
-    let rays = Ray::sq_grid_in_circ(enp_diam / 2.0, abs_spacing, launch_point_z, phi, 0.0, dy);
+    let rays = Ray::parallel_ray_bundle_on_sq_grid(
+        enp_diam / 2.0,
+        abs_spacing,
+        launch_point_z,
+        phi,
+        0.0,
+        dy,
+    );
 
     Ok(rays)
 }

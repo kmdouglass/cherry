@@ -131,8 +131,8 @@ impl Vec3 {
     /// # Arguments
     /// - n: Number of vectors to create
     /// - r: Radial span of vector endpoints from [-r, r]
-    /// - theta: Angle of vectors with respect to x
     /// - z: z-coordinate of endpoints
+    /// - theta: Angle of vectors with respect to x
     /// - radial_offset_x: Offset the radial position of the vectors by this
     ///   amount in x
     /// - radial_offset_y: Offset the radial position of the vectors by this
@@ -140,8 +140,8 @@ impl Vec3 {
     pub fn fan(
         n: usize,
         r: Float,
-        theta: Float,
         z: Float,
+        theta: Float,
         radial_offset_x: Float,
         radial_offset_y: Float,
     ) -> Vec<Self> {

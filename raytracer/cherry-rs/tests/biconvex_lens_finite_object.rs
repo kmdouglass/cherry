@@ -222,3 +222,19 @@ fn test_paraxial_view_marginal_ray() {
         assert_abs_diff_eq!(marginal_ray, result, epsilon = 1e-4);
     }
 }
+
+#[test]
+fn test_paraxial_view_chief_ray() {
+    let model = sequential_model(n!(1.0), n!(1.517), &WAVELENGTHS);
+    let sub_models = model.submodels();
+    let view =
+        ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
+    let chief_ray = chief_ray();
+
+    for sub_model_id in sub_models.keys() {
+        let sub_view = view.subviews().get(sub_model_id).unwrap();
+        let result = sub_view.chief_ray();
+
+        assert_abs_diff_eq!(chief_ray, result, epsilon = 1e-4);
+    }
+}
