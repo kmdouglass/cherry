@@ -19,7 +19,7 @@
     "copy-webpack-plugin": "*",
     "css-loader": "^7.1.2",
     "style-loader": "^4.0.0",
-    "vitest": "^3.0.8",
+    "vitest": "^3.0.9",
     "webpack": "*",
     "webpack-cli": "*",
     "webpack-dev-server": "*"
