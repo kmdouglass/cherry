@@ -143,8 +143,8 @@ mod test {
     #[test]
     fn test_initialize_bundle() {
         let rays = vec![
-            Ray::new(Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0)).unwrap(),
-            Ray::new(Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0)).unwrap(),
+            Ray::new(Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0)),
+            Ray::new(Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0)),
         ];
         let num_surfaces = 3;
         let bundle = initialize_bundle(&rays, num_surfaces);
@@ -163,12 +163,12 @@ mod test {
     #[test]
     fn test_rays_at_surface_mut() {
         let mut bundle = vec![
-            Ray::new(Vec3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0)).unwrap(),
-            Ray::new(Vec3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0)).unwrap(),
-            Ray::new(Vec3::new(1.0, 1.0, 1.0), Vec3::new(0.0, 1.0, 0.0)).unwrap(),
-            Ray::new(Vec3::new(1.0, 1.0, 1.0), Vec3::new(0.0, 1.0, 0.0)).unwrap(),
-            Ray::new(Vec3::new(2.0, 2.0, 2.0), Vec3::new(0.0, 0.0, 1.0)).unwrap(),
-            Ray::new(Vec3::new(2.0, 2.0, 2.0), Vec3::new(0.0, 0.0, 1.0)).unwrap(),
+            Ray::new(Vec3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0)),
+            Ray::new(Vec3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0)),
+            Ray::new(Vec3::new(1.0, 1.0, 1.0), Vec3::new(0.0, 1.0, 0.0)),
+            Ray::new(Vec3::new(1.0, 1.0, 1.0), Vec3::new(0.0, 1.0, 0.0)),
+            Ray::new(Vec3::new(2.0, 2.0, 2.0), Vec3::new(0.0, 0.0, 1.0)),
+            Ray::new(Vec3::new(2.0, 2.0, 2.0), Vec3::new(0.0, 0.0, 1.0)),
         ];
         let rays_per_surface = 2;
         let num_surfaces = bundle.len() / rays_per_surface;

@@ -1,0 +1,41 @@
+.radio-toggle-container {
+    display: flex;
+}
+
+/* Spacing variants */
+.radio-toggle-spacing-compact {
+  gap: 1rem;
+}
+
+.radio-toggle-spacing-normal {
+  gap: 2rem;
+}
+
+.radio-toggle-spacing-wide {
+  gap: 3rem;
+}
+
+.radio-toggle-label {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  margin-right: 2rem; /* Add margin to the right of each label */
+}
+
+/* Remove margin from the last label */
+.radio-toggle-label:last-child {
+  margin-right: 0;
+}
+
+.radio-toggle-input {
+  margin-right: 0.5rem;
+}
+
+.radio-toggle-text {
+  font-size: 1rem;
+}
+
+/* Additional styles for the selected radio */
+.radio-toggle-input:checked + .radio-toggle-text {
+  font-weight: bold;
+}

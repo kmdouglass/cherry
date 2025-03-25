@@ -6,6 +6,7 @@ import { EVENT_WORKER_IDLE, EVENT_WORKER_BUSY } from "../services/computeContant
 import SummaryWindow from "./SummaryWindow";
 import showAlert from "../modules/alerts";
 
+import bcLensData from "../examples/biconvexLens";
 import cpLensData from "../examples/convexplanoLens";
 import cpmLensData from "../examples/convexplanoLensWithMaterials";
 import petzvalLensData from "../examples/petzvalLens";
@@ -223,6 +224,16 @@ const Navbar = ( {
     };
 
     // Examples handlers
+    const handleBiconvexLens = async () => {
+        await openDataset(
+            bcLensData.surfaces,
+            bcLensData.fields,
+            bcLensData.aperture,
+            bcLensData.wavelengths,
+            bcLensData.appModes
+        );
+    };
+
     const handleConvexplanoLens = async () => {
         await openDataset(
             cpLensData.surfaces,
@@ -319,10 +330,13 @@ const Navbar = ( {
                         </a>
                         <div className="navbar-dropdown">
                             <a className="navbar-item" id="preset-planoconvex" onClick={handleConvexplanoLens}>
-                                Convexplano lens (refractive indexes)
+                                Convexplano lens / refractive index
                             </a>
                             <a className="navbar-item" id="preset-planoconvex-materials" onClick={handleConvexplanoLensWithMaterials}>
-                                Convexplano lens (materials)
+                                Convexplano lens / materials
+                            </a>
+                            <a className="navbar-item" id="preset-biconvex" onClick={handleBiconvexLens}>
+                                Biconvex lens
                             </a>
                             <a className="navbar-item" id="preset-petzval" onClick={handlePetzvalLens}>
                                 Petzval objective

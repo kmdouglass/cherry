@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Ray::fan` was removed from the public API and is now public only from within the crate.
 - Renamed the `ObjectHeight` field spec to `PointSource` to reflect that it is a point source of light. Its inputs are now the (x, y) position of the point source within the object plane.
 - Renamed the `ChiefAndMarginalRays` `PupilSampling` variant to `TangentialRayFan`.
+- It is now no longer necessary to specify a ray's direction as a unit vector. This was done because numerical round-off errors were resulting in rays that were very often not valid for `PointSource` fields.
 
 ### Fixed
 

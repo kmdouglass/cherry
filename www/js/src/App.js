@@ -21,7 +21,7 @@ function App({ wasmModule }) {
     // GUI state
     const [activeExplorersTab, setExplorersActiveTab] = useState('specs');
     const [invalidSpecsFields, setInvalidSpecsFields] = useState({});
-    const [appModes, setAppModes] = useState({ refractiveIndex: true });
+    const [appModes, setAppModes] = useState({ fieldType: "Angle", refractiveIndex: true });
 
     // Application state and initial values.
     const [surfaces, setSurfaces] = useState([
@@ -77,7 +77,7 @@ function App({ wasmModule }) {
 
                 // Render the optical system
                 const newDescription = opticalSystem.describe();
-                const newRayPaths = opticalSystem.traceChiefAndMarginalRays();
+                const newRayPaths = opticalSystem.traceTangentialRayFan();
 
                 setDescription(newDescription);
                 setRawRayPaths(newRayPaths);

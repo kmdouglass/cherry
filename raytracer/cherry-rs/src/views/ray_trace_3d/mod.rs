@@ -284,7 +284,12 @@ fn rays(
                     &origin,
                 )?,
                 PupilSampling::TangentialRayFan => {
-                    let theta = y.atan2(*x);
+                    // If on-axis, put the rays in the y-z plane by default.
+                    let theta = if *y == 0.0 && *x == 0.0 {
+                        PI / 2.0
+                    } else {
+                        y.atan2(*x)
+                    };
                     point_source_ray_fan(aperture_spec, paraxial_subview, 3, theta, &origin)?
                 }
             }
@@ -412,10 +417,12 @@ fn point_source_ray_fan(
         .map(|pos| (*pos - *origin).normalize())
         .collect::<Vec<Vec3>>();
 
-    directions
+    let rays = directions
         .iter()
         .map(|dir| Ray::new(*origin, *dir))
-        .collect::<Result<Vec<Ray>>>()
+        .collect::<Vec<Ray>>();
+
+    Ok(rays)
 }
 
 /// Creates a bundle of rays from a single point on a square grid in the
@@ -452,10 +459,12 @@ fn point_source_ray_bundle_on_sq_grid(
         .map(|pos| (*pos - *origin).normalize())
         .collect::<Vec<Vec3>>();
 
-    directions
+    let rays = directions
         .iter()
         .map(|dir| Ray::new(*origin, *dir))
-        .collect::<Result<Vec<Ray>>>()
+        .collect::<Vec<Ray>>();
+
+    Ok(rays)
 }
 
 /// Validate the field specifications.

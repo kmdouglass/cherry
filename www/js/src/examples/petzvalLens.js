@@ -21,7 +21,7 @@ const aperture = {"EntrancePupil": { "semi_diameter": 10.0 }};
 
 const wavelengths = [0.5876];
 
-const appModes = { "refractiveIndex": true };
+const appModes = { fieldType: "Angle", "refractiveIndex": true };
 
 const exampleData = {
     "surfaces": surfaces,

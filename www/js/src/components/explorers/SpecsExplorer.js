@@ -3,7 +3,7 @@ import { useState } from "react";
 import "../../css/DataEntry.css";
 import ApertureTable from "./tables/ApertureTable";
 import FieldsTable from "./tables/FieldsTable";
-import SurfacesTable from "./tables/SurfacesTable";
+import SurfacesTable from "./tables/SurfacesTable.jsx";
 import WavelengthsTable from "./tables/WavelengthsTable";
 
 
@@ -40,7 +40,11 @@ const SpecsExplorer = ({
           materialsService={materialsService}
         />;
       case 'fields':
-        return <FieldsTable fields={fields} setFields={setFields} invalidFields={invalidFields} setInvalidFields={setInvalidFields} />;
+        return <FieldsTable
+          fields={fields} setFields={setFields}
+          invalidFields={invalidFields} setInvalidFields={setInvalidFields}
+          appModes={appModes} setAppModes={setAppModes}
+        />;
       case 'aperture':
         return <ApertureTable aperture={aperture} setAperture={setAperture} invalidFields={invalidFields} setInvalidFields={setInvalidFields} />;
       case 'wavelengths':

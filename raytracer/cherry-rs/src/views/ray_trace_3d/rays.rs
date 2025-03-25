@@ -23,11 +23,10 @@ pub struct Ray {
 }
 
 impl Ray {
-    pub fn new(pos: Vec3, dir: Vec3) -> Result<Self> {
-        if !dir.is_unit() {
-            bail!("Ray direction must be a unit vector");
-        }
-        Ok(Self { pos, dir })
+    pub fn new(pos: Vec3, dir: Vec3) -> Self {
+        // We no longer require the direction vector to be normalized since this led to
+        // difficulties due to floating point errors
+        Self { pos, dir }
     }
 
     /// Create a bundle of rays with default values.
@@ -211,7 +210,7 @@ impl Ray {
 
         pos.iter()
             .zip(dir.iter())
-            .map(|(p, d)| Ray::new(*p, *d).unwrap())
+            .map(|(p, d)| Ray::new(*p, *d))
             .collect()
     }
 
@@ -252,7 +251,7 @@ impl Ray {
 
         pos.iter()
             .zip(dir.iter())
-            .map(|(p, d)| Ray::new(*p, *d).unwrap())
+            .map(|(p, d)| Ray::new(*p, *d))
             .collect()
     }
 }
@@ -262,33 +261,11 @@ mod test {
     use crate::specs::surfaces::{SurfaceSpec, SurfaceType};
 
     use super::*;
-    // Test the constructor of Ray
-    #[test]
-    fn test_rays_new() {
-        let pos = Vec3::new(0.0, 0.0, 0.0);
-        let dir = Vec3::new(0.0, 0.0, 1.0);
-
-        let rays = Ray::new(pos, dir);
-
-        assert!(rays.is_ok());
-    }
-
-    // Test the constructor of Ray with a non-unit direction vector
-    #[test]
-    fn test_rays_new_non_unit_dir() {
-        let pos = Vec3::new(0.0, 0.0, 0.0);
-        let dir = Vec3::new(0.0, 0.0, 2.0);
-
-        let rays = Ray::new(pos, dir);
-
-        assert!(rays.is_err());
-    }
-
     // Test the intersection of a ray with a flat surface
     #[test]
     fn test_ray_intersection_flat_surface() {
         let pos = Vec3::new(0.0, 0.0, 0.0);
-        let ray = Ray::new(Vec3::new(0.0, 0.0, -1.0), Vec3::new(0.0, 0.0, 1.0)).unwrap();
+        let ray = Ray::new(Vec3::new(0.0, 0.0, -1.0), Vec3::new(0.0, 0.0, 1.0));
         let surf_spec = SurfaceSpec::Conic {
             semi_diameter: 4.0,
             radius_of_curvature: Float::INFINITY,
@@ -311,7 +288,7 @@ mod test {
         // Ray starts at z = -1.0 and travels at 45 degrees to the optics axis
         let l = 0.7071;
         let m = ((1.0 as Float) - 0.7071 * 0.7071).sqrt();
-        let ray = Ray::new(Vec3::new(0.0, 0.0, -1.0), Vec3::new(0.0, l, m)).unwrap();
+        let ray = Ray::new(Vec3::new(0.0, 0.0, -1.0), Vec3::new(0.0, l, m));
 
         // Surface has radius of curvature -1.0 and conic constant 0.0, i.e. a circle
         let surf_spec = SurfaceSpec::Conic {
