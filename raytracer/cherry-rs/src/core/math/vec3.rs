@@ -67,8 +67,19 @@ impl Vec3 {
         self.e.iter().map(|e| e * e).sum()
     }
 
+    /// Create a vector with a length of 1.0 in the same direction as the
+    /// original vector.
+    ///
+    /// If the vector has a length of 0.0, the original vector is returned
+    /// instead of a Result type. This is to avoid the overhead of unwrapping
+    /// the Result type in the calling code.
     pub fn normalize(&self) -> Self {
         let length = self.length();
+
+        if length == 0.0 {
+            return *self;
+        }
+
         Self::new(self.e[0] / length, self.e[1] / length, self.e[2] / length)
     }
 
@@ -131,8 +142,8 @@ impl Vec3 {
     /// # Arguments
     /// - n: Number of vectors to create
     /// - r: Radial span of vector endpoints from [-r, r]
-    /// - theta: Angle of vectors with respect to x
     /// - z: z-coordinate of endpoints
+    /// - theta: Angle of vectors with respect to x
     /// - radial_offset_x: Offset the radial position of the vectors by this
     ///   amount in x
     /// - radial_offset_y: Offset the radial position of the vectors by this
@@ -140,8 +151,8 @@ impl Vec3 {
     pub fn fan(
         n: usize,
         r: Float,
-        theta: Float,
         z: Float,
+        theta: Float,
         radial_offset_x: Float,
         radial_offset_y: Float,
     ) -> Vec<Self> {
@@ -216,6 +227,23 @@ impl std::ops::Mul<Float> for Vec3 {
 #[cfg(test)]
 mod test {
     use super::*;
+
+    #[test]
+    fn test_normalize() {
+        let v = Vec3::new(1.0, 1.0, 1.0);
+        let norm = v.normalize();
+
+        assert_ne!(v.length(), 1.0);
+        assert_eq!(norm.length(), 1.0);
+    }
+
+    #[test]
+    fn test_normalize_zero_length() {
+        let v = Vec3::new(0.0, 0.0, 0.0);
+        let norm = v.normalize();
+
+        assert_eq!(norm.length(), 0.0);
+    }
 
     #[test]
     fn test_sample_circle_sq_grid_unit_circle() {

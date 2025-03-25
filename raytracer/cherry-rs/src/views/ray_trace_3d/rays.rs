@@ -179,26 +179,26 @@ impl Ray {
     /// are at an angle phi from the z-axis.
     ///
     /// # Arguments
-    /// - n: Number of vectors to create
-    /// - r: Radial span of vector endpoints from [-r, r]
-    /// - theta: Angle of vectors with respect to x, radians
-    /// - z: z-coordinate of endpoints
-    /// - phi: Angle of vectors with respect to z, the optics axis, radians
-    /// - radial_offset_x: Offset the radial position of the vectors by this
+    /// * `n`: Number of vectors to create
+    /// * `r`: Radial span of vector endpoints from [-r, r]
+    /// * `z`: z-coordinate of endpoints
+    /// * `theta` : The polar angle of the ray fan in the x-y plane.
+    /// * `phi``: Angle of vectors with respect to z, the optics axis, radians
+    /// * `radial_offset_x`: Offset the radial position of the vectors by this
     ///   amount in x
-    /// - radial_offset_y: Offset the radial position of the vectors by this
+    /// * `radial_offset_y`: Offset the radial position of the vectors by this
     ///   amount in y
     #[allow(clippy::too_many_arguments)]
-    pub fn fan(
+    pub(crate) fn parallel_ray_fan(
         n: usize,
         r: Float,
-        theta: Float,
         z: Float,
+        theta: Float,
         phi: Float,
         radial_offset_x: Float,
         radial_offset_y: Float,
     ) -> Vec<Ray> {
-        let pos = Vec3::fan(n, r, theta, z, radial_offset_x, radial_offset_y);
+        let pos = Vec3::fan(n, r, z, theta, radial_offset_x, radial_offset_y);
         let dir: Vec<Vec3> = pos
             .iter()
             .map(|_| {
@@ -215,19 +215,20 @@ impl Ray {
             .collect()
     }
 
-    /// Create a square grid of uniformly spaced rays within a circle in a given
-    /// z-plane.
+    /// Creates a bundle of parallel rays on a square grid.
+    ///
+    /// The rays are uniformly spaced within a circle in a given z-plane.
     ///
     /// # Arguments
-    /// - `radius`: Radius of the circle
-    /// - `spacing`: Spacing between rays
-    /// - `z`: z-coordinate of endpoints
-    /// - `phi`: Angle of vectors with respect to z, the optics axis, radians
-    /// - radial_offset_x: Offset the radial position of the vectors by this
+    /// * `radius`: Radius of the circle
+    /// * `spacing`: Spacing between rays
+    /// * `z`: z-coordinate of endpoints
+    /// * `phi`: Angle of vectors with respect to z, the optics axis, radians
+    /// * `radial_offset_x`: Offset the radial position of the vectors by this
     ///   amount in x
-    /// - radial_offset_y: Offset the radial position of the vectors by this
+    /// * `radial_offset_y`: Offset the radial position of the vectors by this
     ///   amount in y
-    pub(crate) fn sq_grid_in_circ(
+    pub(crate) fn parallel_ray_bundle_on_sq_grid(
         radius: Float,
         spacing: Float,
         z: Float,

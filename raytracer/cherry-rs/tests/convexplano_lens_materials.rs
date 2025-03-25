@@ -28,11 +28,11 @@ mod test_ri_info {
     const FIELD_SPECS: [FieldSpec; 2] = [
         FieldSpec::Angle {
             angle: 0.0,
-            pupil_sampling: PupilSampling::ChiefAndMarginalRays,
+            pupil_sampling: PupilSampling::TangentialRayFan,
         },
         FieldSpec::Angle {
             angle: 5.0,
-            pupil_sampling: PupilSampling::ChiefAndMarginalRays,
+            pupil_sampling: PupilSampling::TangentialRayFan,
         },
     ];
 

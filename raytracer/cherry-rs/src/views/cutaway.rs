@@ -69,7 +69,7 @@ impl Surface {
 
         // Sample the surface in in the y,z plane by creating uniformally spaced (0,y,z)
         // coordinates
-        let sample_points = Vec3::fan(num_samples, semi_diameter, PI / 2.0, 0.0, 0.0, 0.0);
+        let sample_points = Vec3::fan(num_samples, semi_diameter, 0.0, PI / 2.0, 0.0, 0.0);
 
         let mut sample: Vec3;
         let mut rot_sample: Vec3;
