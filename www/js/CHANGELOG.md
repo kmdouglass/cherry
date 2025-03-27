@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Users may now specify materials data to use in a lens design, and this data will be used to automatically compute refractive indexes at each wavelength.
 - The results summary window now contains paraxial data computed at multiple wavelengths and pximary axial color information.
 - An `Export results` file menu option to export 3D ray trace results to a file.
+- A biconvex lens example.
+- The ability to specify either `Angle` or `Point source` field types.
 
 ## [0.2.0] 2024-12-09
 

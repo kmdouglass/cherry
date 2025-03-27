@@ -2,7 +2,7 @@ import { useState } from "react";
 
 import "../../../css/Table.css";
 
-import ModeToggles from "./SurfacesModeToggles";
+import RadioToggle from "./RadioToggle.jsx";
 
 const SurfacesTable = ({ surfaces, setSurfaces, invalidFields, setInvalidFields, appModes, setAppModes, materialsService }) => {
     const [editingCell, setEditingCell] = useState(null);
@@ -18,7 +18,26 @@ const SurfacesTable = ({ surfaces, setSurfaces, invalidFields, setInvalidFields,
           default:
             return {};
         }
-      };
+    };
+    
+    const modeOptions = [
+        { label: 'Refractive Index', value: 'refractiveIndex' },
+        { label: 'Material', value: 'material' }
+    ];
+
+    const handleModeChange = (value) => {
+      switch (value) {
+        case 'refractiveIndex':
+          setAppModes(prev => ({ ...prev, refractiveIndex: true }));
+          break;
+        case 'material':
+          setAppModes(prev => ({ ...prev, refractiveIndex: false }));
+          break;
+        default:
+          console.error(`Unknown mode: ${value}`);
+          break;
+      }
+    };
 
     const handleSurfaceTypeChange = (index, newType) => {
         const newSurfaces = [...surfaces];
@@ -227,7 +246,21 @@ const SurfacesTable = ({ surfaces, setSurfaces, invalidFields, setInvalidFields,
 
     return (
       <div className="surfaces-table">
-        <ModeToggles appModes={appModes} setAppModes={setAppModes} />
+
+        <div className="has-background-light py-2">
+          <div className="container">
+            <div className="is-flex is-justify-content-center">
+              <RadioToggle
+                options={modeOptions}
+                selectedValue={appModes.refractiveIndex ? 'refractiveIndex' : 'material'}
+                onChange={handleModeChange}
+                name="refactiveIndexOrMaterial"
+                className="is-flex-direction-row"
+              />
+            </div>
+          </div>
+        </div>
+
         <table className="table is-fullwidth">
           <thead>
             <tr>

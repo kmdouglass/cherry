@@ -57,21 +57,42 @@ export function convertUIStateToLibFormat(surfaces, fields, aperture, wavelength
     }
 
     function createFieldSpec(field) {
-        const angle = parseFloat(field.Angle.angle);
-        const pupil_sampling = field.Angle.pupil_sampling;
-        const pupil_sampling_type = Object.keys(pupil_sampling)[0];
-        const spacing = parseFloat(pupil_sampling[pupil_sampling_type].spacing);
+        if (appModes.fieldType === "Angle") {
+            const angle = parseFloat(field.Angle.angle);
+            const pupil_sampling = field.Angle.pupil_sampling;
+            const pupil_sampling_type = Object.keys(pupil_sampling)[0];
+            const spacing = parseFloat(pupil_sampling[pupil_sampling_type].spacing);
 
-        return {
-            "Angle": {
-                "angle": angle,
-                "pupil_sampling": {
-                    [pupil_sampling_type]: {
-                        "spacing": spacing
+            return {
+                "Angle": {
+                    "angle": angle,
+                    "pupil_sampling": {
+                        [pupil_sampling_type]: {
+                            "spacing": spacing
+                        }
                     }
                 }
-            }
-        };
+            };
+        }
+
+        if (appModes.fieldType === "PointSource") {
+            const y = parseFloat(field.PointSource.y);
+            const pupil_sampling = field.PointSource.pupil_sampling;
+            const pupil_sampling_type = Object.keys(pupil_sampling)[0];
+            const spacing = parseFloat(pupil_sampling[pupil_sampling_type].spacing);
+
+            return {
+                "PointSource": {
+                    "x": 0,
+                    "y": y,
+                    "pupil_sampling": {
+                        [pupil_sampling_type]: {
+                            "spacing": spacing
+                        }
+                    }
+                }
+            };
+        }
     }
 
     function createApertureSpec(aperture) {
