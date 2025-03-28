@@ -65,13 +65,13 @@ function App({ wasmModule }) {
                 opticalSystem.build();
 
                 const newConvertedSpecs = {
+                    ...convertedSpecs,
                     "surfaces": surfaceSpecs,
                     "gaps": gapSpecs,
                     "fields": fieldSpecs,
                     "aperture": apertureSpec,
                     "wavelengths": wavelengthSpecs,
-                    "gapMode": gapMode,
-                    ...convertedSpecs
+                    "gapMode": gapMode
                 }
                 setConvertedSpecs(newConvertedSpecs);
 
