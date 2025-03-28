@@ -29,18 +29,6 @@ const FieldsTable = ({ fields, setFields, invalidFields, setInvalidFields, appMo
     }
   };
 
-  const getSamplingType = (field) => {
-    switch (appModes.fieldType) {
-      case 'Angle':
-        return Object.keys(field.Angle.pupil_sampling)[0];
-      case 'PointSource':
-        return Object.keys(field.PointSource.pupil_sampling)[0];
-      default:
-        console.error(`Unknown mode: ${appModes.fieldType}`);
-        return '';
-    }
-  };
-
   const handleModeChange = (value) => {
     const newFields = [...fields];
 
@@ -118,8 +106,10 @@ const FieldsTable = ({ fields, setFields, invalidFields, setInvalidFields, appMo
       newFields[index].Angle.angle = newValue;
     } else if (property === 'y') {
       newFields[index].PointSource.y = newValue;
-    } else if (property === 'spacing') {
+    } else if (property === 'spacing' && appModes.fieldType === 'Angle') {
       newFields[index].Angle.pupil_sampling.SquareGrid.spacing = newValue;
+    } else if (property === 'spacing' && appModes.fieldType === 'PointSource') {
+      newFields[index].PointSource.pupil_sampling.SquareGrid.spacing = newValue;
     }
   
     setFields(newFields);

@@ -2,7 +2,7 @@ import { useState } from "react";
 
 import "../../css/DataEntry.css";
 import ApertureTable from "./tables/ApertureTable";
-import FieldsTable from "./tables/FieldsTable";
+import FieldsTable from "./tables/FieldsTable.jsx";
 import SurfacesTable from "./tables/SurfacesTable.jsx";
 import WavelengthsTable from "./tables/WavelengthsTable";
 
