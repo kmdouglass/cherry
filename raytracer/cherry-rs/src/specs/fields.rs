@@ -6,6 +6,9 @@ use crate::core::Float;
 /// Specifies a pupil sampling method.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum PupilSampling {
+    /// A pupil consisting of only a chief ray that pierces the pupil center.
+    ChiefRay,
+
     /// A square grid of rays in the the entrance pupil.
     ///
     /// Spacing is the spacing between rays in the grid in normalized pupil
@@ -41,6 +44,7 @@ impl PupilSampling {
     /// Validate the pupil sampling method.
     pub fn validate(&self) -> Result<()> {
         match self {
+            PupilSampling::ChiefRay => {}
             PupilSampling::SquareGrid { spacing } => {
                 if spacing.is_nan() {
                     anyhow::bail!("Pupil grid spacing must be a number");

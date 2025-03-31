@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - An `axes` method on `SequentialModel` to return the set of axes that the system is modeled over.
 - `RayBundle`, `TraceResultsCollection` were added as part of refactoring the `ray_trace_3d_view`.
 - A f = +100 mm biconvex lens example with an object at a finite distance.
+- A `PupilSampling::ChiefRay` pupil sampling variant to always trace a single chief ray for a given field point.
 
 ### Changed
 
