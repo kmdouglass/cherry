@@ -56,7 +56,12 @@ pub struct TraceResults {
     wavelength_id: usize,
     field_id: usize,
     axis: Axis,
+
+    /// A num_surfaces x num_rays matrix of rays traced through the system.
     ray_bundle: RayBundle,
+
+    /// A num_surfaces x 1 chief ray trace through the system.
+    chief_ray: RayBundle,
 }
 
 /// Perform a 3D ray trace on a sequential model.
@@ -104,11 +109,20 @@ pub fn ray_trace_3d_view(
             paraxial_subview,
             pupil_sampling,
         )?;
+        let chief_ray = ray_trace_submodel(
+            sequential_submodel,
+            sequential_model.surfaces(),
+            aperture_spec,
+            &field_specs[field_id],
+            paraxial_subview,
+            Some(PupilSampling::ChiefRay),
+        )?;
         results.push(TraceResults {
             wavelength_id,
             field_id,
             axis,
             ray_bundle,
+            chief_ray,
         });
     }
 
@@ -182,7 +196,7 @@ impl TraceResults {
 }
 
 fn ray_trace_submodel(
-    sequential_sub_model: &impl SequentialSubModel,
+    sequential_submodel: &impl SequentialSubModel,
     surfaces: &[Surface],
     aperture_spec: &ApertureSpec,
     field_spec: &FieldSpec,
@@ -197,7 +211,7 @@ fn ray_trace_submodel(
         pupil_sampling,
     )?;
 
-    let mut sequential_sub_model_iter = sequential_sub_model.try_iter(surfaces)?;
+    let mut sequential_sub_model_iter = sequential_submodel.try_iter(surfaces)?;
     Ok(trace(&mut sequential_sub_model_iter, rays))
 }
 
@@ -232,6 +246,13 @@ fn rays(
             };
 
             match pupil_sampling {
+                PupilSampling::ChiefRay => chief_ray_from_angle(
+                    surfaces,
+                    aperture_spec,
+                    paraxial_subview,
+                    PI / 2.0,
+                    angle,
+                )?,
                 PupilSampling::SquareGrid { spacing } => parallel_ray_bundle_on_sq_grid(
                     surfaces,
                     aperture_spec,
@@ -240,7 +261,7 @@ fn rays(
                     angle,
                 )?,
                 PupilSampling::TangentialRayFan => {
-                    // 3 rays -> two diametrically-opposed marginal rays at the pupil edge
+                    // 3 rays -> two diametrically-opposed rays at the pupil edge
                     // and a chief ray in the center
                     parallel_ray_fan(
                         surfaces,
@@ -277,6 +298,9 @@ fn rays(
 
             let origin = Vec3::new(*x, *y, obj_z);
             match pupil_sampling {
+                PupilSampling::ChiefRay => {
+                    chief_ray_from_pos(aperture_spec, paraxial_subview, &origin)?
+                }
                 PupilSampling::SquareGrid { spacing } => point_source_ray_bundle_on_sq_grid(
                     aperture_spec,
                     paraxial_subview,
@@ -299,6 +323,46 @@ fn rays(
     Ok(rays)
 }
 
+/// Creates the chief ray for a given field angle.
+///
+/// # Arguments
+///
+/// * `surfaces` - The surfaces of the system.
+/// * `aperture_spec` - The aperture specification.
+/// * `paraxial_subview` - The paraxial subview.
+/// * `theta` - The polar angle of the ray in the x-y plane.
+/// * `phi` - The angle of the ray w.r.t. the z-axis.
+fn chief_ray_from_angle(
+    surfaces: &[Surface],
+    aperture_spec: &ApertureSpec,
+    paraxial_subview: &ParaxialSubView,
+    theta: Float,
+    phi: Float,
+) -> Result<Vec<Ray>> {
+    let origin = parallel_ray_bundle_origin(surfaces, aperture_spec, paraxial_subview, theta, phi)?;
+    let dir = Vec3::new(theta.cos() * phi.sin(), theta.sin() * phi.sin(), phi.cos()).normalize();
+
+    Ok(vec![Ray::new(origin, dir)])
+}
+
+/// Creates the chief ray for a given field position.
+///
+/// # Arguments
+///
+/// * `aperture_spec` - The aperture specification.
+/// * `paraxial_subview` - The paraxial subview.
+/// * `origin` - The origin of the rays, i.e. the field point in the object.
+fn chief_ray_from_pos(
+    aperture_spec: &ApertureSpec,
+    paraxial_subview: &ParaxialSubView,
+    origin: &Vec3,
+) -> Result<Vec<Ray>> {
+    let enp = entrance_pupil(aperture_spec, paraxial_subview)?;
+    let dir = (enp.pos() - *origin).normalize();
+
+    Ok(vec![Ray::new(*origin, dir)])
+}
+
 /// Creates a fan of parallel rays that passes through the entrance pupil.
 ///
 /// This is used to model field angles.
@@ -307,7 +371,7 @@ fn rays(
 ///
 /// * `surfaces` - The surfaces of the system.
 /// * `aperture_spec` - The aperture specification.
-/// * `paraxial_sub_view` - The paraxial subview.
+/// * `paraxial_subview` - The paraxial subview.
 /// * `num_rays` - The number of rays in the fan.
 /// * `theta` - The polar angle of the ray fan in the x-y plane.
 /// * `phi` - The angle of the ray w.r.t. the z-axis.
@@ -315,31 +379,22 @@ fn rays(
 fn parallel_ray_fan(
     surfaces: &[Surface],
     aperture_spec: &ApertureSpec,
-    paraxial_sub_view: &ParaxialSubView,
+    paraxial_subview: &ParaxialSubView,
     num_rays: usize,
     theta: Float,
     phi: Float,
 ) -> Result<Vec<Ray>> {
-    let enp = entrance_pupil(aperture_spec, paraxial_sub_view)?;
-    let obj_z = surfaces[0].pos().z();
-    let sur_z = surfaces[1].pos().z();
-    let enp_z = enp.pos().z();
-
-    let launch_point_z = axial_launch_point(obj_z, sur_z, enp_z);
-
-    // Determine the radial distance from the axis at the launch point for the
-    // center of the ray fan.
-    let dz = enp_z - launch_point_z;
-    let dy = -dz * phi.tan();
+    let enp = entrance_pupil(aperture_spec, paraxial_subview)?;
+    let origin = parallel_ray_bundle_origin(surfaces, aperture_spec, paraxial_subview, theta, phi)?;
 
     let rays = Ray::parallel_ray_fan(
         num_rays,
         enp.semi_diameter,
-        launch_point_z,
+        origin.z(),
         theta,
         phi,
-        0.0,
-        dy,
+        origin.x(),
+        origin.y(),
     );
 
     Ok(rays)
@@ -367,22 +422,18 @@ fn parallel_ray_bundle_on_sq_grid(
     phi: Float,
 ) -> Result<Vec<Ray>> {
     let enp = entrance_pupil(aperture_spec, paraxial_subview)?;
-    let obj_z = surfaces[0].pos().z();
-    let sur_z = surfaces[1].pos().z();
-    let enp_z = enp.pos().z();
+    let abs_spacing = enp.semi_diameter * spacing;
+    let origin =
+        parallel_ray_bundle_origin(surfaces, aperture_spec, paraxial_subview, PI / 2.0, phi)?;
 
-    let launch_point_z = axial_launch_point(obj_z, sur_z, enp_z);
-
-    let enp_radius = enp.semi_diameter;
-    let abs_spacing = enp_radius * spacing;
-
-    // Determine the radial distance from the axis at the launch point for the
-    // center of the ray bundle.
-    let dz = enp_z - launch_point_z;
-    let dy = -dz * phi.tan();
-
-    let rays =
-        Ray::parallel_ray_bundle_on_sq_grid(enp_radius, abs_spacing, launch_point_z, phi, 0.0, dy);
+    let rays = Ray::parallel_ray_bundle_on_sq_grid(
+        enp.semi_diameter,
+        abs_spacing,
+        origin.z(),
+        phi,
+        origin.x(),
+        origin.y(),
+    );
 
     Ok(rays)
 }
@@ -535,6 +586,43 @@ fn axial_launch_point(obj_z: Float, sur_z: Float, enp_z: Float) -> Float {
     }
 }
 
+/// Determine the origin of the center of a parallel ray bundle.
+///
+/// This will be the origin of the ray that pierces the center of the entrance
+/// pupil, a.k.a. the chief ray.
+///
+/// # Arguments
+///
+/// * `surfaces` - The surfaces of the system.
+/// * `aperture_spec` - The aperture specification.
+/// * `paraxial_subview` - The paraxial subview.
+/// * `theta` - The polar angle of the ray fan in the x-y plane.
+/// * `phi` - The angle of the ray w.r.t. the z-axis.
+fn parallel_ray_bundle_origin(
+    surfaces: &[Surface],
+    aperture_spec: &ApertureSpec,
+    paraxial_subview: &ParaxialSubView,
+    theta: Float,
+    phi: Float,
+) -> Result<Vec3> {
+    let enp = entrance_pupil(aperture_spec, paraxial_subview)?;
+    let obj_z = surfaces[0].pos().z();
+    let sur_z = surfaces[1].pos().z();
+    let enp_z = enp.pos().z();
+
+    let launch_point_z = axial_launch_point(obj_z, sur_z, enp_z);
+
+    // Determine the radial distance from the axis at the launch point for the
+    // center of the ray fan.
+    let dz = enp_z - launch_point_z;
+
+    let r = -dz * phi.tan();
+    let x = r * theta.cos();
+    let y = r * theta.sin();
+
+    Ok(Vec3::new(x, y, launch_point_z))
+}
+
 /// Determine every combination of field ID, wavelength ID, and axis.
 fn all_combinations(
     field_specs: &[FieldSpec],
@@ -631,7 +719,7 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(rays.len(), 3); // 3 rays for chief and marginal rays
+        assert_eq!(rays.len(), 3); // 3 rays for tangential ray fan
     }
 
     #[test]
@@ -653,6 +741,90 @@ mod tests {
         );
 
         assert!(result.is_err(), "Expected Err result because FieldSpec::PointSource is incompatible with objects at infinity. Result: {:?}", result);
+    }
+
+    #[test]
+    fn test_chief_ray_from_on_axis_field_angle() {
+        let s = setup();
+
+        let rays = chief_ray_from_angle(
+            &s.sequential_model.surfaces(),
+            &s.aperture_spec,
+            &s.paraxial_view.subviews()[&SubModelID(0, Axis::Y)],
+            0.0,
+            0.0,
+        )
+        .unwrap();
+
+        assert_eq!(rays.len(), 1);
+        assert_abs_diff_eq!(rays[0].x(), 0.0, epsilon = 1e-4);
+        assert_abs_diff_eq!(rays[0].y(), 0.0, epsilon = 1e-4);
+        assert_abs_diff_eq!(rays[0].z(), -1.0, epsilon = 1e-4);
+        assert_abs_diff_eq!(rays[0].k(), 0.0, epsilon = 1e-4);
+        assert_abs_diff_eq!(rays[0].l(), 0.0, epsilon = 1e-4);
+        assert_abs_diff_eq!(rays[0].m(), 1.0, epsilon = 1e-4);
+    }
+
+    #[test]
+    fn test_chief_ray_from_off_axis_field_angle() {
+        let s = setup();
+
+        let rays = chief_ray_from_angle(
+            &s.sequential_model.surfaces(),
+            &s.aperture_spec,
+            &s.paraxial_view.subviews()[&SubModelID(0, Axis::Y)],
+            PI / 2.0,
+            0.08727, // 5 degrees
+        )
+        .unwrap();
+
+        assert_eq!(rays.len(), 1);
+        assert_abs_diff_eq!(rays[0].x(), 0.0, epsilon = 1e-4);
+        assert_abs_diff_eq!(rays[0].y(), -0.08749, epsilon = 1e-4);
+        assert_abs_diff_eq!(rays[0].z(), -1.0, epsilon = 1e-4);
+        assert_abs_diff_eq!(rays[0].k(), 0.0, epsilon = 1e-4);
+        assert_abs_diff_eq!(rays[0].l(), 0.08716, epsilon = 1e-4);
+        assert_abs_diff_eq!(rays[0].m(), 0.9962, epsilon = 1e-4);
+    }
+
+    #[test]
+    fn test_chief_ray_from_on_axis_pos() {
+        let s = setup();
+
+        let rays = chief_ray_from_pos(
+            &s.aperture_spec,
+            &s.paraxial_view.subviews()[&SubModelID(0, Axis::Y)],
+            &Vec3::new(0.0, 0.0, -1.0),
+        )
+        .unwrap();
+
+        assert_eq!(rays.len(), 1);
+        assert_abs_diff_eq!(rays[0].x(), 0.0, epsilon = 1e-4);
+        assert_abs_diff_eq!(rays[0].y(), 0.0, epsilon = 1e-4);
+        assert_abs_diff_eq!(rays[0].z(), -1.0, epsilon = 1e-4);
+        assert_abs_diff_eq!(rays[0].k(), 0.0, epsilon = 1e-4);
+        assert_abs_diff_eq!(rays[0].l(), 0.0, epsilon = 1e-4);
+        assert_abs_diff_eq!(rays[0].m(), 1.0, epsilon = 1e-4);
+    }
+
+    #[test]
+    fn test_chief_ray_from_off_axis_pos() {
+        let s = setup();
+
+        let rays = chief_ray_from_pos(
+            &s.aperture_spec,
+            &s.paraxial_view.subviews()[&SubModelID(0, Axis::Y)],
+            &Vec3::new(0.0, -0.08749, -1.0),
+        )
+        .unwrap();
+
+        assert_eq!(rays.len(), 1);
+        assert_abs_diff_eq!(rays[0].x(), 0.0, epsilon = 1e-4);
+        assert_abs_diff_eq!(rays[0].y(), -0.08749, epsilon = 1e-4);
+        assert_abs_diff_eq!(rays[0].z(), -1.0, epsilon = 1e-4);
+        assert_abs_diff_eq!(rays[0].k(), 0.0, epsilon = 1e-4);
+        assert_abs_diff_eq!(rays[0].l(), 0.08716, epsilon = 1e-4);
+        assert_abs_diff_eq!(rays[0].m(), 0.9962, epsilon = 1e-4);
     }
 
     #[test]
