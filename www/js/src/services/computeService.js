@@ -12,7 +12,7 @@ import { EVENT_COMPUTE_REQUESTED, EVENT_COMPUTE_FINISHED, EVENT_WORKER_BUSY, EVE
  * @typedef {object} MessageFromWorker
  * @property {string} msg - The message type.
  * @property {number} requestID - The request ID.
- * @property {object} rays - The computed rays.
+ * @property {object} data - The computed rays.
  */
 
 /**
@@ -120,6 +120,10 @@ export class ComputeService {
         this.#worker.postMessage({msg: MSG_IN_COMPUTE, specs, requestID: this.#requestID});
     }
 
+    get requestID() {
+        return this.#requestID;
+    }
+
     get results() {
         return this.#results;
     }
@@ -128,7 +132,7 @@ export class ComputeService {
      * @param {MessageFromWorker} msg - The message from the worker.
      */
     set results(msg) {
-        this.#results = msg.rays;
+        this.#results = msg;
         this.#notifySubscribers(EVENT_COMPUTE_FINISHED, { requestID: msg.requestID });
         
         this.#workerIdle = msg.requestID === this.#requestID;

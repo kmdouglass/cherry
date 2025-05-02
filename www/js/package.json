@@ -1,4 +1,5 @@
 {
+  "name": "cherry",
   "private": true,
   "scripts": {
     "build:wasm:dev": "RUSTFLAGS='-C target-feature=+atomics,+bulk-memory,+mutable-globals' rustup run nightly-2025-02-06 wasm-pack build --target web --out-dir ../../www/js/pkg ../../raytracer/cherry-js -- -Z build-std=panic_abort,std",
@@ -31,6 +32,7 @@
   },
   "dependencies": {
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "react-optics-diagrams": "^2.0.0"
   }
 }
