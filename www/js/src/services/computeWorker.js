@@ -35,12 +35,12 @@ onmessage = function (event) {
             opticalSystem.setWavelengths(wavelengths);
             opticalSystem.build();
 
-            const rays = opticalSystem.trace();
+            const results = opticalSystem.trace();
 
             const message = {
                 msg: MSG_OUT_COMPUTE,
                 requestID,
-                rays,
+                data: results.results,
             }
 
             this.postMessage(message);

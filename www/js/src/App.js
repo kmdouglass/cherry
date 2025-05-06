@@ -9,6 +9,7 @@ import showAlert from "./modules/alerts";
 import CutawayView from "./components/CutawayView";
 import Navbar from "./components/Navbar";
 import SpecsExplorer from "./components/explorers/SpecsExplorer";
+import SpotDiagram from "./components/SpotDiagram";
 import MaterialsExplorer from "./components/explorers/MaterialsExplorer";
 
 function App({ wasmModule }) {
@@ -19,6 +20,7 @@ function App({ wasmModule }) {
     const { computeService, isComputeServiceInitializing } = useComputeService();
 
     // GUI state
+    const [activeAnalysisTab, setAnalysisActiveTab] = useState('cutaway');
     const [activeExplorersTab, setExplorersActiveTab] = useState('specs');
     const [invalidSpecsFields, setInvalidSpecsFields] = useState({});
     const [appModes, setAppModes] = useState({ fieldType: "Angle", refractiveIndex: true });
@@ -105,6 +107,9 @@ function App({ wasmModule }) {
         computeService.compute(convertedSpecs);
     }, [convertedSpecs, isComputeServiceInitializing]);
 
+    const handleAnalysisTabClick = (tab) => {
+        setAnalysisActiveTab(tab);
+    }
 
     const handleExplorersTabClick = (tab) => {
         // Don't allow switching tabs if SpecsExplorer cell is invalid
@@ -116,6 +121,17 @@ function App({ wasmModule }) {
         // Check that the fields object is not empty.
         // Javascript makes me so sad
         return !(Object.keys(invalidFieldsObj).length === 0) && invalidFieldsObj.constructor === Object;
+    }
+
+    const renderAnalysisTabContent = () => {
+        switch(activeAnalysisTab) {
+            case 'cutaway':
+                return <CutawayView description={description} rawRayPaths={rawRayPaths} />
+            case 'spot-diagram':
+                return <SpotDiagram fields={fields} wavelengths={wavelengths} computeService={computeService} />
+            default:
+                return null;
+        }
     }
 
     const renderSpecsExplorerTabContent = () => {
@@ -160,24 +176,35 @@ function App({ wasmModule }) {
                 materialsService={materialsService}
                 computeService={computeService}
             />
-            <div className="container">
-                <CutawayView description={description} rawRayPaths={rawRayPaths} />
-                
-                <div className="tabs is-centered is-small is-toggle is-toggle-rounded">
-                    <ul>
-                        <li className={activeExplorersTab === 'specs' ? 'is-active' : ''}>
-                            <a onClick={() => handleExplorersTabClick('specs')}>Specs</a>
-                        </li>
-                        <li className={activeExplorersTab === 'materials' ? 'is-active' : ''}>
-                            <a onClick={() => handleExplorersTabClick('materials')}>Materials</a>
-                        </li>
-                    </ul>
-                </div>
+            <div className="explorers">
+                <div className="section">
 
-                <div className="box">
+                    <div className="tabs is-centered is-small is-toggle is-toggle-rounded">
+                        <ul>
+                            <li className={activeExplorersTab === 'specs' ? 'is-active' : ''}>
+                                <a onClick={() => handleExplorersTabClick('specs')}>Specs</a>
+                            </li>
+                            <li className={activeExplorersTab === 'materials' ? 'is-active' : ''}>
+                                <a onClick={() => handleExplorersTabClick('materials')}>Materials</a>
+                            </li>
+                        </ul>
+                    </div>
+
                     {renderSpecsExplorerTabContent()}
                 </div>
-
+                <div className="section">
+                    <div className="tabs is-centered is-small is-toggle is-toggle-rounded">
+                        <ul>
+                            <li className={activeAnalysisTab === 'cutaway' ? 'is-active' : ''}>
+                                <a onClick={() => handleAnalysisTabClick('cutaway')}>Cutaway</a>
+                            </li>
+                            <li className={activeAnalysisTab === 'spot-diagram' ? 'is-active' : ''}>
+                                <a onClick={() => handleAnalysisTabClick('spot-diagram')}>Spot Diagram</a>
+                            </li>
+                        </ul>
+                    </div>
+                    {renderAnalysisTabContent()}
+                </div>
             </div>
         </div>
     );

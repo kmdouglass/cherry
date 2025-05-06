@@ -31,53 +31,9 @@ const HIDE_TERMINATED_RAYS = true;
  */
 
 /**
- * The description of an optical system returned by the ray tracer.
- * @typedef Description
- * @type {object}
- * @property {object} components_view - The components of the optical system.
- * @property {object} cutaway_view - The cutaway view of the optical system.
- * @property {object} paraxial_view - The paraxial view of the optical system.
- */
-
-/**
- * A ray.
- * @typedef Ray
- * @type {object}
- * @property {[number, number, number]} pos - The position of the ray.
- * @property {[number, number, number]} dir - The direction of the ray.
- */
-
-/**
- * A bundle of rays traced through an optical system.
- * @typedef RayBundle
- * @type {object}
- * @property {Array<Ray>} rays - The rays in the bundle.
- * @property {Array<number>} terminated - The surfaces indices where the corresponding ray terminated.
- * @property {Map<number, string>} reason_for_termination - The reason for termination of a given ray.
- * @property {number} num_surfaces - The number of surfaces in the optical system.
- */
-
-/**
- * The results of tracing rays through an optical system for a single wavelength, field, and axis.
- * @typedef TraceResults
- * @type {object}
- * @property {number} wavelength_id - The wavelength ID of the ray.
- * @property {number} field_id - The field ID of the ray.
- * @property {String} axis - The axis used to compute the entrance pupil.
- * @property {object} ray_bundle - The ray bundle traced through the optical system.
- */
-
-/**
- * A collection of trace results for multiple wavelengths, fields, and axes.
- * @typedef TraceResultsCollection
- * @type {object}
- * @property {Array<TraceResults>} results - The results of tracing rays through the optical system.
- */
-
-/**
  * Renders a cutaway view of an optical system.
- * @param {Description} description 
- * @param {TraceResultsCollection} traceResultsCollection 
+ * @param { import("./rayTracerTypes/rays").Description } description 
+ * @param { import("./rayTracerTypes/rays").TraceResultsCollection } traceResultsCollection 
  * @param {object} svgElement 
  */
 export function renderCutaway(description, traceResultsCollection, svgElement) {
@@ -199,7 +155,7 @@ function drawCommands(commands, svgElement) {
 
 /**
  * Creates the paths corresponding to the individual lenses in the optical system.
- * @param {Description} descr - The description of the optical system.
+ * @param { import("./rayTracerTypes/rays").Description} descr - The description of the optical system.
  * @returns {Paths}
  */
 function surfacesIntoLenses(descr) {
@@ -282,7 +238,7 @@ function surfacesIntoLenses(descr) {
 /** 
  * Creates the path for a surface of type Stop.
  * @param {Array<[number, number, number>]} surfaceSamples: a map of surface samples for the stop surface
- * @param {Description} descr: a description of the optical system
+ * @param { import("./rayTracerTypes/rays.js").Description } descr: a description of the optical system
  * @returns {Paths} The paths for the stop surface
 */
 function stopPath(surfaceSamples, descr) {
@@ -430,7 +386,7 @@ function coordsToPath(coords) {
 
 /**
  * Converts ray trace results to ray paths for drawing.
- * @param {TraceResultsCollection} traceResultsCollection - The results of tracing rays through the optical system.
+ * @param { import("./rayTracerTypes/rays").TraceResultsCollection } traceResultsCollection - The results of tracing rays through the optical system.
  * @returns {Paths} The ray paths.
  */
 function resultsToRayPaths(traceResultsCollection) {
@@ -459,7 +415,7 @@ function resultsToRayPaths(traceResultsCollection) {
 
 /**
  * Returns the number of rays in a ray bundle.
- * @param {RayBundle} rayBundle - The ray bundle.
+ * @param { import("./rayTracerTypes/rays").RayBundle } rayBundle - The ray bundle.
  * @returns {number} The number of rays.
  */
 function numRays(rayBundle) {
@@ -468,7 +424,7 @@ function numRays(rayBundle) {
 
 /**
  * Returns the surface ID where a ray terminated. Returns 0 if the ray did not terminate or is out of bounds.
- * @param {RayBundle} rayBundle - The ray bundle.
+ * @param { import("./rayTracerTypes/rays").RayBundle } rayBundle - The ray bundle.
  * @param {number} rayIndex - The index of the ray.
  * @returns {number} The surface ID where the ray terminated.
  */
@@ -483,9 +439,9 @@ function rayTerminatedAt(rayBundle, rayIndex) {
 
 /**
  * Returns the ray/surface intersections for a unique ray.
- * @param {RayBundle} rayBundle - The ray bundle for a given wavelength and field.
+ * @param { import("./rayTracerTypes/rays").RayBundle } rayBundle - The ray bundle for a given wavelength and field.
  * @param {number} rayIndex - The index of the ray.
- * @returns {Array<Ray>} The ray through all the surfaces, or an empty array if the ray index is out of bounds.
+ * @returns {Array< import("./rayTracerTypes/rays").Ray >} The ray through all the surfaces, or an empty array if the ray index is out of bounds.
  */
 function getRayIntersections(rayBundle, rayIndex) {
     const numSurfaces = rayBundle.num_surfaces;

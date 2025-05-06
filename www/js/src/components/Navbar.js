@@ -171,10 +171,9 @@ const Navbar = ( {
         // Combine data for saving
         const dataToSave = {
             paraxialView: description.paraxial_view,
-            rayTraceView: computeService.results
+            rayTraceView: computeService.results.data
         };
 
-        console.log("Saving results", dataToSave);
         saveFile(dataToSave, "cherry-results.json");
     };
 
