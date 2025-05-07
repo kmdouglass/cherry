@@ -262,7 +262,7 @@ const SurfacesTable = ({ surfaces, setSurfaces, invalidFields, setInvalidFields,
         </div>
 
         <div className="table-container">
-        <table className="table">
+        <table className="table is-fullwidth is-hoverable">
           <thead>
             <tr>
               <th className="has-text-weight-semibold has-text-right">Surface Type</th>

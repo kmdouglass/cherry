@@ -102,8 +102,8 @@ const ApertureTable = ({ aperture, setAperture, invalidFields, setInvalidFields 
     };
 
     return (
-        <div className="px-4" style={{ maxWidth: '800px' }}>
-            <table className="table" style={{ width: '100%' }}>
+        <div className="table-container">
+            <table className="table is-hoverable">
                 <thead>
                     <tr>
                         <th className="has-text-weight-semibold has-text-right" style={{ border: 'none', paddingLeft: 0 }}>
