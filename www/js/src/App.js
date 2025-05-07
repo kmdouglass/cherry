@@ -176,35 +176,34 @@ function App({ wasmModule }) {
                 materialsService={materialsService}
                 computeService={computeService}
             />
-            <div className="explorers">
-                <div className="section">
 
-                    <div className="tabs is-centered is-small is-toggle is-toggle-rounded">
-                        <ul>
-                            <li className={activeExplorersTab === 'specs' ? 'is-active' : ''}>
-                                <a onClick={() => handleExplorersTabClick('specs')}>Specs</a>
-                            </li>
-                            <li className={activeExplorersTab === 'materials' ? 'is-active' : ''}>
-                                <a onClick={() => handleExplorersTabClick('materials')}>Materials</a>
-                            </li>
-                        </ul>
-                    </div>
+            <div className="section">
+                <div className="tabs is-centered is-small is-toggle is-toggle-rounded">
+                    <ul>
+                        <li className={activeExplorersTab === 'specs' ? 'is-active' : ''}>
+                            <a onClick={() => handleExplorersTabClick('specs')}>Specs</a>
+                        </li>
+                        <li className={activeExplorersTab === 'materials' ? 'is-active' : ''}>
+                            <a onClick={() => handleExplorersTabClick('materials')}>Materials</a>
+                        </li>
+                    </ul>
+                </div>
 
-                    {renderSpecsExplorerTabContent()}
+                {renderSpecsExplorerTabContent()}
+            </div>
+
+            <div className="section">
+                <div className="tabs is-centered is-small is-toggle is-toggle-rounded">
+                    <ul>
+                        <li className={activeAnalysisTab === 'cutaway' ? 'is-active' : ''}>
+                            <a onClick={() => handleAnalysisTabClick('cutaway')}>Cutaway</a>
+                        </li>
+                        <li className={activeAnalysisTab === 'spot-diagram' ? 'is-active' : ''}>
+                            <a onClick={() => handleAnalysisTabClick('spot-diagram')}>Spot Diagram</a>
+                        </li>
+                    </ul>
                 </div>
-                <div className="section">
-                    <div className="tabs is-centered is-small is-toggle is-toggle-rounded">
-                        <ul>
-                            <li className={activeAnalysisTab === 'cutaway' ? 'is-active' : ''}>
-                                <a onClick={() => handleAnalysisTabClick('cutaway')}>Cutaway</a>
-                            </li>
-                            <li className={activeAnalysisTab === 'spot-diagram' ? 'is-active' : ''}>
-                                <a onClick={() => handleAnalysisTabClick('spot-diagram')}>Spot Diagram</a>
-                            </li>
-                        </ul>
-                    </div>
-                    {renderAnalysisTabContent()}
-                </div>
+                {renderAnalysisTabContent()}
             </div>
         </div>
     );

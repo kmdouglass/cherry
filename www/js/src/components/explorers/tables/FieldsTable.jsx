@@ -309,26 +309,28 @@ const renderEditableCell = (value, index, property) => {
             </div>
         </div>
   
-        <table className="table is-fullwidth">
-          <thead>
-            <tr>
-              <th className="has-text-weight-semibold has-text-right">{fieldTypeHeader}</th>
-              <th className="has-text-weight-semibold has-text-right">Pupil Sampling</th>
-              <th className="has-text-weight-semibold has-text-right">Spacing</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {fields.map((field, index) => (
-              <tr key={index}>
-                <td>{renderEditableCell(data(field), index, propertyName)}</td>
-                {renderSamplingTypeCell(pupilSampling(field), index)}
-                <td>{renderEditableCell(spacing(field), index, 'spacing')}</td>
-                {renderActionButtons(index)}
+        <div className="table-container">
+          <table className="table is-hoverable">
+            <thead>
+              <tr>
+                <th className="has-text-weight-semibold has-text-right">{fieldTypeHeader}</th>
+                <th className="has-text-weight-semibold has-text-right">Pupil Sampling</th>
+                <th className="has-text-weight-semibold has-text-right">Spacing</th>
+                <th>Actions</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {fields.map((field, index) => (
+                <tr key={index}>
+                  <td>{renderEditableCell(data(field), index, propertyName)}</td>
+                  {renderSamplingTypeCell(pupilSampling(field), index)}
+                  <td>{renderEditableCell(spacing(field), index, 'spacing')}</td>
+                  {renderActionButtons(index)}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     );
   };
