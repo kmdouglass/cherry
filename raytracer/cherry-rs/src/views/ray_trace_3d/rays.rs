@@ -1,10 +1,10 @@
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use serde::{Deserialize, Serialize};
 
 use crate::core::{
+    Float, PI,
     math::vec3::Vec3,
     sequential_model::{Step, Surface},
-    Float, PI,
 };
 
 /// Tolerance for convergence of the Newton-Raphson method in integer mutliples

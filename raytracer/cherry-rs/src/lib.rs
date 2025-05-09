@@ -144,13 +144,13 @@ pub use specs::{
     surfaces::SurfaceType,
 };
 pub use views::{
-    components::{components_view, Component},
+    components::{Component, components_view},
     cutaway::CutawayView,
     paraxial::{
         ImagePlane, ParaxialSubView, ParaxialSubViewDescription, ParaxialView,
         ParaxialViewDescription, Pupil,
     },
-    ray_trace_3d::{ray_trace_3d_view, Ray, RayBundle, TraceResults, TraceResultsCollection},
+    ray_trace_3d::{Ray, RayBundle, TraceResults, TraceResultsCollection, ray_trace_3d_view},
 };
 
 // Re-exports from dependencies

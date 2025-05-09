@@ -1,13 +1,13 @@
 use std::collections::HashSet;
 use std::rc::Rc;
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use serde::{Deserialize, Serialize};
 
 use cherry_rs::{
-    components_view, n, ray_trace_3d_view, ApertureSpec, Component, CutawayView, FieldSpec,
-    GapSpec, Material, ParaxialView, ParaxialViewDescription, PupilSampling, RefractiveIndexSpec,
-    SequentialModel, SurfaceSpec, TraceResultsCollection,
+    ApertureSpec, Component, CutawayView, FieldSpec, GapSpec, Material, ParaxialView,
+    ParaxialViewDescription, PupilSampling, RefractiveIndexSpec, SequentialModel, SurfaceSpec,
+    TraceResultsCollection, components_view, n, ray_trace_3d_view,
 };
 
 const BACKGROUND_REFRACTIVE_INDEX: f64 = 1.0;

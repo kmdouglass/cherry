@@ -1,10 +1,10 @@
-use criterion::{criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, criterion_group, criterion_main};
 use std::hint::black_box;
 use std::rc::Rc;
 
 use cherry_rs::{
-    examples::convexplano_lens::sequential_model, n, ray_trace_3d_view, ApertureSpec, FieldSpec,
-    ParaxialView, PupilSampling, RefractiveIndexSpec,
+    ApertureSpec, FieldSpec, ParaxialView, PupilSampling, RefractiveIndexSpec,
+    examples::convexplano_lens::sequential_model, n, ray_trace_3d_view,
 };
 
 // Inputs

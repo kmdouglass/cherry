@@ -3,7 +3,7 @@ name = "cherry-rs"
 version = "1.0.0"
 authors = ["Kyle M. Douglass <kyle.m.douglass@gmail.com>"]
 repository = "https://github.com/kmdouglass/cherry"
-edition = "2021"
+edition = "2024"
 description = "Tools for designing sequential optical systems"
 license-file = "../../LICENSE.txt"
 

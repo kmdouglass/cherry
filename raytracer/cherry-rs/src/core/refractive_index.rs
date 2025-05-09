@@ -1,7 +1,7 @@
 //! A material's refractive index.
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 
-use crate::core::{math::Complex, Float};
+use crate::core::{Float, math::Complex};
 use crate::specs::gaps::RefractiveIndexSpec;
 
 #[derive(Debug, Clone, Copy)]

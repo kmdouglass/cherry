@@ -9,22 +9,21 @@
 /// distances, and the effective focal length.
 use std::{borrow::Borrow, collections::HashMap};
 
-use anyhow::{anyhow, Result};
-use ndarray::{arr2, s, Array, Array1, Array2, Array3, ArrayView2};
+use anyhow::{Result, anyhow};
+use ndarray::{Array, Array1, Array2, Array3, ArrayView2, arr2, s};
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    FieldSpec,
     core::{
-        argmin,
+        Float, argmin,
         math::vec3::Vec3,
         sequential_model::{
-            first_physical_surface, last_physical_surface, reversed_surface_id, Axis,
-            SequentialModel, SequentialSubModel, Step, SubModelID, Surface,
+            Axis, SequentialModel, SequentialSubModel, Step, SubModelID, Surface,
+            first_physical_surface, last_physical_surface, reversed_surface_id,
         },
-        Float,
     },
     specs::surfaces::SurfaceType,
-    FieldSpec,
 };
 
 const DEFAULT_THICKNESS: Float = 0.0;
@@ -901,7 +900,7 @@ mod test {
 
     use crate::examples::convexplano_lens;
     use crate::{
-        core::{sequential_model::SubModelID, Float},
+        core::{Float, sequential_model::SubModelID},
         n,
     };
 

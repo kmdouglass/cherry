@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use serde::Serialize;
 
 use crate::{
-    core::{math::vec3::Vec3, sequential_model::Surface, Float, PI},
     SequentialModel,
+    core::{Float, PI, math::vec3::Vec3, sequential_model::Surface},
 };
 
 /// A cutaway view through a center transverse plane of a sequential model.
