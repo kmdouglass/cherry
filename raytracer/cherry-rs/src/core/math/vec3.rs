@@ -1,7 +1,7 @@
 /// A 3D vector
 use serde::{Deserialize, Serialize};
 
-use crate::core::{Float, EPSILON, PI};
+use crate::core::{EPSILON, Float, PI};
 
 const TOL: Float = (1 as Float) * EPSILON;
 

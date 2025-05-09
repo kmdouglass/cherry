@@ -3,7 +3,7 @@ name = "cherry-js"
 version = "0.1.0"
 authors = ["Kyle M. Douglass <kyle.m.douglass@gmail.com>"]
 repository = "https://github.com/kmdouglass/cherry"
-edition = "2021"
+edition = "2024"
 
 [lib]
 crate-type = ["cdylib"]

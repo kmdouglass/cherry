@@ -112,9 +112,9 @@ impl OpticalSystem {
             None => return Err(JsError::new("System model is not built")),
         };
 
-        let results = system_model.trace_chief_and_marginal_rays().map_err(|e| {
-            JsError::new(&format!("Failed to trace tangential ray fan: {}", e))
-        })?;
+        let results = system_model
+            .trace_chief_and_marginal_rays()
+            .map_err(|e| JsError::new(&format!("Failed to trace tangential ray fan: {}", e)))?;
 
         Ok(serde_wasm_bindgen::to_value(&results)?)
     }

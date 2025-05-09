@@ -1,5 +1,5 @@
 /// A 3 x 3 matrix
-use crate::core::{math::vec3::Vec3, Float};
+use crate::core::{Float, math::vec3::Vec3};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Mat3 {

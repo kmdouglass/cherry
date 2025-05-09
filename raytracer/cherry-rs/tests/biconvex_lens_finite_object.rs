@@ -1,8 +1,8 @@
 use approx::assert_abs_diff_eq;
-use ndarray::{arr3, Array3};
+use ndarray::{Array3, arr3};
 
 use cherry_rs::examples::biconvex_lens_finite_object::sequential_model;
-use cherry_rs::{n, FieldSpec, ImagePlane, ParaxialView, Pupil, PupilSampling};
+use cherry_rs::{FieldSpec, ImagePlane, ParaxialView, Pupil, PupilSampling, n};
 
 // Inputs
 const WAVELENGTHS: [f64; 1] = [0.5876]; // He d line

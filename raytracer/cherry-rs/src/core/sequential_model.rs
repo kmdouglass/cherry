@@ -3,13 +3,13 @@ use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 use std::ops::Range;
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use serde::{Deserialize, Serialize, Serializer};
 
 use crate::core::{
+    Cursor, Float,
     math::{mat3::Mat3, vec3::Vec3},
     refractive_index::RefractiveIndex,
-    Cursor, Float,
 };
 use crate::specs::{
     gaps::GapSpec,
@@ -370,7 +370,7 @@ impl SequentialModel {
     }
 
     /// Returns the submodels in the system.
-    pub fn submodels(&self) -> &HashMap<SubModelID, impl SequentialSubModel> {
+    pub fn submodels(&self) -> &HashMap<SubModelID, impl SequentialSubModel + use<>> {
         &self.submodels
     }
 
@@ -792,7 +792,7 @@ impl Display for Surface {
 mod tests {
     use super::*;
     use crate::{
-        core::{math::mat3::Mat3, Float},
+        core::{Float, math::mat3::Mat3},
         examples::convexplano_lens::sequential_model,
         n,
     };
@@ -852,7 +852,7 @@ mod tests {
         let model_ids = SequentialModel::calc_model_ids(surfaces, &wavelengths);
 
         assert_eq!(model_ids.len(), 2); // Two wavelengths, rotationally
-                                        // symmetric
+        // symmetric
     }
 
     #[test]

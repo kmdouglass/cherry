@@ -3,7 +3,7 @@
 use anyhow::Result;
 use lib_ria::Material;
 
-use crate::{core::Float, RefractiveIndexSpec};
+use crate::{RefractiveIndexSpec, core::Float};
 
 impl RefractiveIndexSpec for Material {
     fn n(&self, wavelength: Float) -> Result<Float> {

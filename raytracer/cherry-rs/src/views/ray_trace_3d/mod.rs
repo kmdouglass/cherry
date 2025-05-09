@@ -2,20 +2,20 @@
 mod rays;
 mod trace;
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use serde::Serialize;
 
 use crate::{
+    Axis, Pupil,
     core::{
+        Float, PI,
         math::vec3::Vec3,
         sequential_model::{SequentialModel, SequentialSubModel, SubModelID, Surface},
-        Float, PI,
     },
     specs::{
         aperture::ApertureSpec,
         fields::{FieldSpec, PupilSampling},
     },
-    Axis, Pupil,
 };
 
 use trace::trace;
@@ -703,7 +703,7 @@ mod tests {
         .unwrap();
 
         assert_eq!(results.len(), 2); // 2 fields x 1 wavelength x 1 axis
-                                      // (system is rotationally symmetric)
+        // (system is rotationally symmetric)
     }
 
     #[test]
@@ -740,7 +740,11 @@ mod tests {
             None,
         );
 
-        assert!(result.is_err(), "Expected Err result because FieldSpec::PointSource is incompatible with objects at infinity. Result: {:?}", result);
+        assert!(
+            result.is_err(),
+            "Expected Err result because FieldSpec::PointSource is incompatible with objects at infinity. Result: {:?}",
+            result
+        );
     }
 
     #[test]
@@ -921,7 +925,11 @@ mod tests {
         }];
 
         let result = validate_field_specs(&s.sequential_model, &field_specs);
-        assert!(result.is_ok(), "Expected Ok result because FieldSpec::Angle is compatible with objects at infinity. Result: {:?}", result);
+        assert!(
+            result.is_ok(),
+            "Expected Ok result because FieldSpec::Angle is compatible with objects at infinity. Result: {:?}",
+            result
+        );
 
         let field_specs = vec![FieldSpec::PointSource {
             x: 0.0,
@@ -930,7 +938,11 @@ mod tests {
         }];
 
         let result = validate_field_specs(&s.sequential_model, &field_specs);
-        assert!(result.is_err(), "Expected Err result because FieldSpec::PointSource is incompatible with objects at infinity. Result: {:?}", result);
+        assert!(
+            result.is_err(),
+            "Expected Err result because FieldSpec::PointSource is incompatible with objects at infinity. Result: {:?}",
+            result
+        );
     }
 
     #[test]

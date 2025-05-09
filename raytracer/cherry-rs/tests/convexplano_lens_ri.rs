@@ -1,7 +1,7 @@
 use approx::assert_abs_diff_eq;
 use cherry_rs::examples::convexplano_lens::sequential_model;
-use cherry_rs::{n, FieldSpec, ImagePlane, ParaxialView, Pupil, PupilSampling};
-use ndarray::{arr3, Array3};
+use cherry_rs::{FieldSpec, ImagePlane, ParaxialView, Pupil, PupilSampling, n};
+use ndarray::{Array3, arr3};
 
 // Inputs
 const WAVELENGTHS: [f64; 1] = [0.5876]; // He d line

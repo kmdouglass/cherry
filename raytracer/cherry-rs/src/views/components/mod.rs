@@ -1,12 +1,12 @@
 use std::collections::HashSet;
 use std::rc::Rc;
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    core::{refractive_index::RefractiveIndex, sequential_model::Surface, Float},
     RefractiveIndexSpec, SequentialModel, SequentialSubModel,
+    core::{Float, refractive_index::RefractiveIndex, sequential_model::Surface},
 };
 
 const TOL: Float = 1e-6;
@@ -118,7 +118,7 @@ mod tests {
     use std::rc::Rc;
 
     use crate::examples::convexplano_lens;
-    use crate::{core::Float, n, GapSpec, SequentialModel, SurfaceSpec};
+    use crate::{GapSpec, SequentialModel, SurfaceSpec, core::Float, n};
 
     use super::*;
 

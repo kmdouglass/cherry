@@ -8,7 +8,7 @@ use crate::core::Float;
 /// Creates a real refractive index spec.
 #[macro_export]
 macro_rules! n {
-    ($n:expr) => {
+    ($n:expr_2021) => {
         std::rc::Rc::new($crate::ConstantRefractiveIndex::new($n, 0.0))
     };
     () => {};
