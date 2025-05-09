@@ -19,6 +19,12 @@ Test data for the feature must be generated using [refractiveindex.info-adapters
 
 ## Development
 
+### Requirements
+
+1. Rust compiler - See [rust-toolchain.toml](rust-toolchain.toml) for the version
+2. [wasmtime](https://wasmtime.dev/) - For testing the Rust crate in the `wasm32-wasip1` environment
+3. [wasm-bindgen-cli](https://rustwasm.github.io/wasm-bindgen/wasm-bindgen-test/usage.html#appendix-using-wasm-bindgen-test-without-wasm-pack) - The version must match the installed version of `wasm-bindgen`
+
 ### Testing
 
 Run all tests, including all features. See [the Features section](#features) for obtaining test data.
@@ -31,6 +37,22 @@ Run tests for the core library only. No test data is necessary.
 
 ```console
 cargo test
+```
+
+#### Testing WASM Targets
+
+Make sure that you have the requirements listed above installed.
+
+Run all tests for cherry-rs including features for the wasm32-wasip1 target:
+
+```console
+cargo test -p cherry-rs --target wasm32-wasip1 --all-features
+```
+
+Run all tests for cherry-js for the wasm32-unknown-unknown target:
+
+```console
+cargo test -p cherry-js --target wasm32-unknown-unknown
 ```
 
 ### Benchmarks
