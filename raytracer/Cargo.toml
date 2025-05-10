@@ -4,3 +4,5 @@ members = [
     "cherry-rs",
     "cherry-js",
 ]
+
+resolver = "3"

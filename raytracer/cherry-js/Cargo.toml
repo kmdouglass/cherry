@@ -20,3 +20,6 @@ version = "*"
 features = [
     "console"
 ]
+
+[dev-dependencies]
+wasm-bindgen-test = "0.3.0"
