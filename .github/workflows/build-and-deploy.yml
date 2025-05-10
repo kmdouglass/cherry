@@ -22,22 +22,26 @@ jobs:
       uses: dtolnay/rust-toolchain@master
       with:
         toolchain: nightly-2025-02-06
+        targets: wasm32-wasip1, wasm32-unknown-unknown
         components: rust-src
 
-    - name: Install wasm-pack
-      run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+    - name: Install wasm-pack and wasm-bindgen-cli
+      run: | 
+        curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+        cargo install wasm-bindgen-cli
 
-    - name: Build WASM module
+    - name: Setup wasmtime
+      uses: bytecodealliance/actions/wasmtime/setup@v1
+
+    - name: Test cherry-rs Rust lib
+      working-directory: ./raytracer/
       run: |
-        RUSTFLAGS='-C target-feature=+atomics,+bulk-memory,+mutable-globals' \
-        rustup run nightly-2025-02-06 \
-        wasm-pack build --release --target web --out-dir ../../www/js/pkg raytracer/cherry-js -- -Z build-std=panic_abort,std
+        cargo test -p cherry-rs --target wasm32-wasip1
 
-    - name: Upload WASM artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: wasm-build
-        path: www/js/pkg
+    - name: Test cherry-js Rust lib
+      working-directory: ./raytracer/
+      run: |
+        cargo test -p cherry-js --target wasm32-unknown-unknown
 
     - name: Set up Node.js
       uses: actions/setup-node@v4
