@@ -27,7 +27,7 @@ Build the development package:
 
 ```console
 cd www/js
-npm build:dev
+npm run build:dev
 ```
 
 Launch the development server
