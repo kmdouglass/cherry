@@ -152,8 +152,8 @@ const SummaryWindow = ({ description, isOpen, wavelengths, appModes, onClose }) 
         "Entrance Pupil Semi-Diameter": {},
         "Exit Pupil Location": {},
         "Exit Pupil Semi-Diameter": {},
-        "Back Principal Plane": {},
-        "Front Principal Plane": {},
+        "Back Principal Plane Location": {},
+        "Front Principal Plane Location": {},
     };
 
     const subviews = description.paraxial_view.subviews;

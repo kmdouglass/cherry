@@ -1,5 +1,5 @@
 use approx::assert_abs_diff_eq;
-use cherry_rs::examples::convexplano_lens::sequential_model;
+use cherry_rs::examples::concave_mirror::sequential_model;
 use cherry_rs::{FieldSpec, ImagePlane, ParaxialView, Pupil, PupilSampling, n};
 use ndarray::{Array3, arr3};
 
@@ -18,24 +18,24 @@ const FIELD_SPECS: [FieldSpec; 2] = [
 
 // Paraxial property values
 const APERTURE_STOP: usize = 1;
-const BACK_FOCAL_DISTANCE: f64 = 46.5987;
-const BACK_PRINCIPAL_PLANE: f64 = 1.8017;
-const EFFECTIVE_FOCAL_LENGTH: f64 = 50.097;
+const BACK_FOCAL_DISTANCE: f64 = 100.0;
+const BACK_PRINCIPAL_PLANE: f64 = 0.0;
+const EFFECTIVE_FOCAL_LENGTH: f64 = 100.0;
 const ENTRANCE_PUPIL: Pupil = Pupil {
     location: 0.0,
     semi_diameter: 12.5,
 };
 const EXIT_PUPIL: Pupil = Pupil {
-    location: 1.8017,
+    location: 0.0,
     semi_diameter: 12.5,
 };
-const FRONT_FOCAL_DISTANCE: f64 = EFFECTIVE_FOCAL_LENGTH;
+const FRONT_FOCAL_DISTANCE: f64 = 100.0;
 const FRONT_PRINCIPAL_PLANE: f64 = 0.0;
 
 // For a 5 degree field angle
 const PARAXIAL_IMAGE_PLANE: ImagePlane = ImagePlane {
-    location: 51.8987,
-    semi_diameter: 4.3829,
+    location: -100.0,
+    semi_diameter: 8.7489,
 };
 
 // For a 5 degree field angle
@@ -43,24 +43,22 @@ const PARAXIAL_IMAGE_PLANE: ImagePlane = ImagePlane {
 fn chief_ray() -> Array3<f64> {
     arr3(&[
         [[0.0], [0.087489]],
-        [[0.0], [0.0577482]],
-        [[0.306067], [0.087489]],
-        [[4.382944], [0.087489]],
+        [[0.0], [-0.087489]],
+        [[8.7489], [-0.087489]],
     ])
 }
 
 fn marginal_ray() -> Array3<f64> {
     arr3(&[
         [[12.5000], [0.0]],
-        [[12.5000], [-0.1647]],
-        [[11.6271], [-0.2495]],
-        [[-0.0003], [-0.2495]],
+        [[12.5000], [0.125]],
+        [[0.0000], [0.125]],
     ])
 }
 
 #[test]
-fn test_paraxial_view_chief_ray() {
-    let model = sequential_model(n!(1.0), n!(1.515), &WAVELENGTHS);
+fn concave_mirror_paraxial_chief_ray() {
+    let model = sequential_model(n!(1.0), &WAVELENGTHS);
     let sub_models = model.submodels();
     let view =
         ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
@@ -75,8 +73,8 @@ fn test_paraxial_view_chief_ray() {
 }
 
 #[test]
-fn test_paraxial_view_aperture_stop() {
-    let model = sequential_model(n!(1.0), n!(1.515), &WAVELENGTHS);
+fn concave_mirror_paraxial_aperture_stop() {
+    let model = sequential_model(n!(1.0), &WAVELENGTHS);
     let sub_models = model.submodels();
     let view =
         ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
@@ -90,8 +88,8 @@ fn test_paraxial_view_aperture_stop() {
 }
 
 #[test]
-fn test_paraxial_view_back_focal_distance() {
-    let model = sequential_model(n!(1.0), n!(1.515), &WAVELENGTHS);
+fn concave_mirror_paraxial_back_focal_distance() {
+    let model = sequential_model(n!(1.0), &WAVELENGTHS);
     let sub_models = model.submodels();
     let view =
         ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
@@ -105,8 +103,8 @@ fn test_paraxial_view_back_focal_distance() {
 }
 
 #[test]
-fn test_paraxial_view_back_principal_plane() {
-    let model = sequential_model(n!(1.0), n!(1.515), &WAVELENGTHS);
+fn concave_mirror_paraxial_back_principal_plane() {
+    let model = sequential_model(n!(1.0), &WAVELENGTHS);
     let sub_models = model.submodels();
     let view =
         ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
@@ -120,8 +118,8 @@ fn test_paraxial_view_back_principal_plane() {
 }
 
 #[test]
-fn test_paraxial_view_entrance_pupil() {
-    let model = sequential_model(n!(1.0), n!(1.515), &WAVELENGTHS);
+fn concave_mirror_paraxial_entrance_pupil() {
+    let model = sequential_model(n!(1.0), &WAVELENGTHS);
     let sub_models = model.submodels();
     let view =
         ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
@@ -135,8 +133,8 @@ fn test_paraxial_view_entrance_pupil() {
 }
 
 #[test]
-fn test_paraxial_view_exit_pupil() {
-    let model = sequential_model(n!(1.0), n!(1.515), &WAVELENGTHS);
+fn concave_mirror_paraxial_exit_pupil() {
+    let model = sequential_model(n!(1.0), &WAVELENGTHS);
     let sub_models = model.submodels();
     let view =
         ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
@@ -155,8 +153,8 @@ fn test_paraxial_view_exit_pupil() {
 }
 
 #[test]
-fn test_paraxial_view_effective_focal_length() {
-    let model = sequential_model(n!(1.0), n!(1.515), &WAVELENGTHS);
+fn concave_mirror_paraxial_effective_focal_length() {
+    let model = sequential_model(n!(1.0), &WAVELENGTHS);
     let sub_models = model.submodels();
     let view =
         ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
@@ -170,8 +168,8 @@ fn test_paraxial_view_effective_focal_length() {
 }
 
 #[test]
-fn test_paraxial_view_front_focal_distance() {
-    let model = sequential_model(n!(1.0), n!(1.515), &WAVELENGTHS);
+fn concave_mirror_paraxial_front_focal_distance() {
+    let model = sequential_model(n!(1.0), &WAVELENGTHS);
     let sub_models = model.submodels();
     let view =
         ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
@@ -185,8 +183,8 @@ fn test_paraxial_view_front_focal_distance() {
 }
 
 #[test]
-fn test_paraxial_view_front_principal_plane() {
-    let model = sequential_model(n!(1.0), n!(1.515), &WAVELENGTHS);
+fn concave_mirror_paraxial_front_principal_plane() {
+    let model = sequential_model(n!(1.0), &WAVELENGTHS);
     let sub_models = model.submodels();
     let view =
         ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
@@ -200,8 +198,8 @@ fn test_paraxial_view_front_principal_plane() {
 }
 
 #[test]
-fn test_paraxial_view_image_plane() {
-    let model = sequential_model(n!(1.0), n!(1.515), &WAVELENGTHS);
+fn concave_mirror_paraxial_image_plane() {
+    let model = sequential_model(n!(1.0), &WAVELENGTHS);
     let sub_models = model.submodels();
     let view =
         ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
@@ -224,8 +222,8 @@ fn test_paraxial_view_image_plane() {
 }
 
 #[test]
-fn test_paraxial_view_marginal_ray() {
-    let model = sequential_model(n!(1.0), n!(1.515), &WAVELENGTHS);
+fn concave_mirror_paraxial_marginal_ray() {
+    let model = sequential_model(n!(1.0), &WAVELENGTHS);
     let sub_models = model.submodels();
     let view =
         ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");

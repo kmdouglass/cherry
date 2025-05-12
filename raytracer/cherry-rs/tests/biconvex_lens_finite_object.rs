@@ -32,7 +32,7 @@ const EXIT_PUPIL: Pupil = Pupil {
     location: 1.1981,
     semi_diameter: 12.8540,
 };
-const FRONT_FOCAL_DISTANCE: f64 = -98.4360;
+const FRONT_FOCAL_DISTANCE: f64 = 98.4360;
 const FRONT_PRINCIPAL_PLANE: f64 = 1.1937;
 
 const PARAXIAL_IMAGE_PLANE: ImagePlane = ImagePlane {
