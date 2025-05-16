@@ -81,7 +81,7 @@ describe('SurfacesTable Component', () => {
     
     // Initially should show Refractive Index in the header
     const tableHeaders = screen.getAllByRole('columnheader');
-    expect(tableHeaders[1].textContent).toBe('Refractive Index');
+    expect(tableHeaders[2].textContent).toBe('Refractive Index');
     
     // Click on Material option
     const materialOption = screen.getByLabelText('Material');
