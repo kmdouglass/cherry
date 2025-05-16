@@ -121,6 +121,16 @@ const SurfacesTable = ({ surfaces, setSurfaces, invalidFields, setInvalidFields,
             setInvalidFields({});
             setEditingCell(null);
         }
+
+        // Allow setting the value to Infinity
+        if (e.key === 'i' && e.ctrlKey) {
+            e.preventDefault();
+            const newSurfaces = [...surfaces];
+            newSurfaces[editingCell.index][editingCell.field] = "Infinity";
+            
+            setSurfaces(newSurfaces);
+            setEditingCell(null);
+        }
     };
 
     const handleInsert = (index) => {
