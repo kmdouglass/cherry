@@ -20,7 +20,7 @@ export function convertUIStateToLibFormat(surfaces, fields, aperture, wavelength
                     "semi_diameter": parseFloat(surface.semiDiam),
                     "radius_of_curvature": parseFloat(surface.roc) || Infinity,
                     "conic_constant": 0.0,
-                    "surf_type": "Refracting"
+                    "surf_type": surface.surfaceType || "Refracting"
                 }
             };
         } else if (surface.type === "Stop") {

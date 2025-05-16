@@ -7,6 +7,7 @@ import SummaryWindow from "./SummaryWindow";
 import showAlert from "../modules/alerts";
 
 import bcLensData from "../examples/biconvexLens";
+import ccMirrorData from "../examples/concaveMirror";
 import cpLensData from "../examples/convexplanoLens";
 import cpmLensData from "../examples/convexplanoLensWithMaterials";
 import petzvalLensData from "../examples/petzvalLens";
@@ -253,6 +254,16 @@ const Navbar = ( {
         );
     };
 
+    const handleConcaveMirror = async () => {
+        await openDataset(
+            ccMirrorData.surfaces,
+            ccMirrorData.fields,
+            ccMirrorData.aperture,
+            ccMirrorData.wavelengths,
+            ccMirrorData.appModes
+        );
+    };
+
     const handlePetzvalLens = async () => {
         await openDataset(
             petzvalLensData.surfaces,
@@ -337,8 +348,11 @@ const Navbar = ( {
                             <a className="navbar-item" id="preset-biconvex" onClick={handleBiconvexLens}>
                                 Biconvex lens
                             </a>
+                            <a className="navbar-item" id="preset-concave-mirror" onClick={handleConcaveMirror}>
+                                Concave mirror
+                            </a>
                             <a className="navbar-item" id="preset-petzval" onClick={handlePetzvalLens}>
-                                Petzval objective
+                                Petzval lens
                             </a>
                         </div>
                     </div>
