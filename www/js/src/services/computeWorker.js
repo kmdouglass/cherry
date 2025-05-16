@@ -28,19 +28,31 @@ onmessage = function (event) {
             const requestID = event.data.requestID;
             const { surfaces, gaps, fields, aperture, wavelengths, gapMode } = specs;
 
-            opticalSystem.setSurfaces(surfaces);
-            opticalSystem.setGaps(gaps, gapMode);
-            opticalSystem.setFields(fields);
-            opticalSystem.setAperture(aperture);
-            opticalSystem.setWavelengths(wavelengths);
-            opticalSystem.build();
 
-            const results = opticalSystem.trace();
+            let results;
+            let errorMessage = null;
+            try {
+
+                opticalSystem.setSurfaces(surfaces);
+                opticalSystem.setGaps(gaps, gapMode);
+                opticalSystem.setFields(fields);
+                opticalSystem.setAperture(aperture);
+                opticalSystem.setWavelengths(wavelengths);
+                opticalSystem.build();
+
+                results = opticalSystem.trace();
+            } catch (error) {
+                results = {
+                    "results": [],
+                }
+                errorMessage = error instanceof Error ? error.message : "Error creating optical system";
+            }
 
             const message = {
                 msg: MSG_OUT_COMPUTE,
                 requestID,
                 data: results.results,
+                errorMessage,
             }
 
             this.postMessage(message);

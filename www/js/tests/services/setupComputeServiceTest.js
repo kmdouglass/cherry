@@ -34,9 +34,21 @@ export function createMockWorker() {
         const msg = {
             msg: MSG_OUT_COMPUTE,
             requestID: 0,
-            rays: [[0,1,2], [3,4,5]]
+            rays: [[0,1,2], [3,4,5]],
+            errorMessage: null
         }
         computeService.results = msg; // Needed to trigger notifications
+        mockWorker.simulateMessageFromWorker(msg);
+    },
+
+    simulateComputeError: (computeService, errorMessage) => {
+        const msg = {
+            msg: MSG_OUT_COMPUTE,
+            requestID: 0,
+            rays: [],
+            errorMessage
+        }
+        computeService.results = []; // Needed to trigger notifications
         mockWorker.simulateMessageFromWorker(msg);
     }
   };
@@ -68,11 +80,14 @@ export function setupComputeServiceTest() {
 
   // Create a service with the mock worker
   const computeService = new ComputeService(mockWorker);
+
+  const mockServiceOnMessage = vi.fn();
   
   return {
     computeService,
     mockWorker,
     mockSubscriber,
+    mockServiceOnMessage,
     
     // Helper to complete initialization
     async initializeService() {
@@ -84,6 +99,7 @@ export function setupComputeServiceTest() {
       
       // Wait for initialization to complete
       await initPromise;
+      computeService.setWorkerMessageHandler(mockServiceOnMessage);
     }
   };
 }
