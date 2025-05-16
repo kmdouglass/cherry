@@ -12,7 +12,7 @@ pub fn sequential_model(
         refractive_index: n_air.clone(),
     };
     let gap_1 = GapSpec {
-        thickness: -100.0,
+        thickness: 100.0,
         refractive_index: n_air,
     };
     let gaps = vec![gap_0, gap_1];

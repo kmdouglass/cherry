@@ -807,6 +807,7 @@ impl ParaxialSubView {
             forward_iter = sequential_sub_model.try_iter(surfaces)?;
             &mut forward_iter
         };
+        let mut reflected: i8 = 1;
 
         for (gap_0, surface, gap_1) in steps {
             let t = if gap_0.thickness.is_infinite() {
@@ -816,13 +817,15 @@ impl ParaxialSubView {
                 // with inverses of ray transfer matrices.
                 -gap_0.thickness
             } else {
-                gap_0.thickness
+                reflected as Float * gap_0.thickness
             };
 
             let roc = surface.roc(axis);
+            if let SurfaceType::Reflecting = surface.surface_type() {
+                reflected *= -1;
+            }
 
             let n_0 = gap_0.refractive_index.n();
-
             let n_1 = if let Some(gap_1) = gap_1 {
                 gap_1.refractive_index.n()
             } else {
