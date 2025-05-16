@@ -59,7 +59,7 @@ fn marginal_ray() -> Array3<f64> {
 }
 
 #[test]
-fn test_paraxial_view_chief_ray() {
+fn convexplano_lens_ri_paraxial_chief_ray() {
     let model = sequential_model(n!(1.0), n!(1.515), &WAVELENGTHS);
     let sub_models = model.submodels();
     let view =
@@ -75,7 +75,7 @@ fn test_paraxial_view_chief_ray() {
 }
 
 #[test]
-fn test_paraxial_view_aperture_stop() {
+fn convexplano_lens_ri_paraxial_aperture_stop() {
     let model = sequential_model(n!(1.0), n!(1.515), &WAVELENGTHS);
     let sub_models = model.submodels();
     let view =
@@ -90,7 +90,7 @@ fn test_paraxial_view_aperture_stop() {
 }
 
 #[test]
-fn test_paraxial_view_back_focal_distance() {
+fn convexplano_lens_ri_paraxial_back_focal_distance() {
     let model = sequential_model(n!(1.0), n!(1.515), &WAVELENGTHS);
     let sub_models = model.submodels();
     let view =
@@ -105,7 +105,7 @@ fn test_paraxial_view_back_focal_distance() {
 }
 
 #[test]
-fn test_paraxial_view_back_principal_plane() {
+fn convexplano_lens_ri_paraxial_back_principal_plane() {
     let model = sequential_model(n!(1.0), n!(1.515), &WAVELENGTHS);
     let sub_models = model.submodels();
     let view =
@@ -120,7 +120,7 @@ fn test_paraxial_view_back_principal_plane() {
 }
 
 #[test]
-fn test_paraxial_view_entrance_pupil() {
+fn convexplano_lens_ri_paraxial_entrance_pupil() {
     let model = sequential_model(n!(1.0), n!(1.515), &WAVELENGTHS);
     let sub_models = model.submodels();
     let view =
@@ -135,7 +135,7 @@ fn test_paraxial_view_entrance_pupil() {
 }
 
 #[test]
-fn test_paraxial_view_exit_pupil() {
+fn convexplano_lens_ri_paraxial_exit_pupil() {
     let model = sequential_model(n!(1.0), n!(1.515), &WAVELENGTHS);
     let sub_models = model.submodels();
     let view =
@@ -155,7 +155,7 @@ fn test_paraxial_view_exit_pupil() {
 }
 
 #[test]
-fn test_paraxial_view_effective_focal_length() {
+fn convexplano_lens_ri_paraxial_effective_focal_length() {
     let model = sequential_model(n!(1.0), n!(1.515), &WAVELENGTHS);
     let sub_models = model.submodels();
     let view =
@@ -170,7 +170,7 @@ fn test_paraxial_view_effective_focal_length() {
 }
 
 #[test]
-fn test_paraxial_view_front_focal_distance() {
+fn convexplano_lens_ri_paraxial_front_focal_distance() {
     let model = sequential_model(n!(1.0), n!(1.515), &WAVELENGTHS);
     let sub_models = model.submodels();
     let view =
@@ -185,7 +185,7 @@ fn test_paraxial_view_front_focal_distance() {
 }
 
 #[test]
-fn test_paraxial_view_front_principal_plane() {
+fn convexplano_lens_ri_paraxial_front_principal_plane() {
     let model = sequential_model(n!(1.0), n!(1.515), &WAVELENGTHS);
     let sub_models = model.submodels();
     let view =
@@ -200,7 +200,7 @@ fn test_paraxial_view_front_principal_plane() {
 }
 
 #[test]
-fn test_paraxial_view_image_plane() {
+fn convexplano_lens_ri_paraxial_image_plane() {
     let model = sequential_model(n!(1.0), n!(1.515), &WAVELENGTHS);
     let sub_models = model.submodels();
     let view =
@@ -224,7 +224,7 @@ fn test_paraxial_view_image_plane() {
 }
 
 #[test]
-fn test_paraxial_view_marginal_ray() {
+fn convexplano_lens_ri_paraxial_marginal_ray() {
     let model = sequential_model(n!(1.0), n!(1.515), &WAVELENGTHS);
     let sub_models = model.submodels();
     let view =
