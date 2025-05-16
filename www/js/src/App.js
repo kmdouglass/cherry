@@ -101,6 +101,11 @@ function App({ wasmModule }) {
         computeService.compute(convertedSpecs);
     }, [convertedSpecs, isComputeServiceInitializing]);
 
+    // Keyboard shortcuts
+    useEffect(() => {
+        showAlert("Tip: Press 'Ctrl + i' when editing a cell to enter the value 'Infinity'.", "#00d1b2");
+    }, []);
+
     const handleAnalysisTabClick = (tab) => {
         setAnalysisActiveTab(tab);
     }

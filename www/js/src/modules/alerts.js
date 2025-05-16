@@ -1,7 +1,7 @@
 /* 
  * Display an alert message on the screen.
  */
-const showAlert = (message) => {
+const showAlert = (message, color = "#f44336") => {
     // Create alert container if it doesn't exist
     let alertContainer = document.getElementById('alert-container');
     if (!alertContainer) {
@@ -20,7 +20,7 @@ const showAlert = (message) => {
     // Create new alert element
     const alertElement = document.createElement('div');
     alertElement.style.cssText = `
-        background-color: #f44336;
+        background-color: ${color};
         color: white;
         padding: 15px 20px;
         margin-bottom: 10px;
