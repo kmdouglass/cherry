@@ -7,6 +7,7 @@ describe('ComputeService', () => {
   let computeService;
   let mockWorker;
   let mockSubscriber;
+  let mockServiceOnMessage;
 
   beforeEach(() => {
     // Setup fresh instances for each test
@@ -14,6 +15,7 @@ describe('ComputeService', () => {
     computeService = testSetup.computeService;
     mockWorker = testSetup.mockWorker;
     mockSubscriber = testSetup.mockSubscriber;
+    mockServiceOnMessage = testSetup.mockServiceOnMessage;
   });
 
   it('should initialize the worker', async () => {
@@ -85,6 +87,28 @@ describe('ComputeService', () => {
     // Verify subscriber was notified
     expect(testSetup.mockSubscriber.onWorkerBusy).toHaveBeenCalledTimes(1);
     expect(testSetup.mockSubscriber.onWorkerIdle).toHaveBeenCalledTimes(1);
+  });
+
+  it('should handle errors during compute', async () => {
+    // Initialize the service first
+    await testSetup.initializeService();
+    
+    // Subscribe to compute finished event
+    computeService.subscribe(EVENT_COMPUTE_FINISHED, mockSubscriber.onComputeFinished);
+    
+    // Create test data
+    const specs = { param1: 'test', param2: 123 };
+    
+    // Call compute
+    computeService.compute(specs);
+    
+    // Simulate worker responding with an error
+    mockWorker.simulateComputeError(computeService, 'Test error');
+    
+    // Verify subscriber was notified with error message
+    expect(testSetup.mockSubscriber.onComputeFinished).toHaveBeenCalledTimes(1);
+    expect(mockServiceOnMessage).toHaveBeenCalledTimes(1);
+    expect(mockServiceOnMessage.mock.calls[0][0].data.errorMessage).toBe('Test error');
   });
 
   it('should terminate the worker when asked', async () => {

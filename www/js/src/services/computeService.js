@@ -6,6 +6,7 @@
 import { useState, useEffect } from 'react';
 
 import { EVENT_COMPUTE_REQUESTED, EVENT_COMPUTE_FINISHED, EVENT_WORKER_BUSY, EVENT_WORKER_IDLE, MSG_IN_COMPUTE, MSG_OUT_COMPUTE, MSG_IN_INIT, MSG_OUT_INIT } from './computeContants';
+import showAlert from '../modules/alerts';
 
 /**
  * A message from the worker.
@@ -13,6 +14,7 @@ import { EVENT_COMPUTE_REQUESTED, EVENT_COMPUTE_FINISHED, EVENT_WORKER_BUSY, EVE
  * @property {string} msg - The message type.
  * @property {number} requestID - The request ID.
  * @property {object} data - The computed rays.
+ * @property {Error | null} [errorMessage] - Optional error message.
  */
 
 /**
@@ -30,6 +32,9 @@ const DEFAULT_ON_MESSAGE = (computeService) => {
 
         switch (msg.msg) {
             case MSG_OUT_COMPUTE:
+                if (msg.errorMessage) {
+                    showAlert(msg.errorMessage);
+                }
                 computeService.results = msg;
                 break;
             default:

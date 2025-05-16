@@ -365,7 +365,7 @@ impl ParaxialSubView {
         let effective_focal_length = Self::calc_effective_focal_length(&parallel_ray);
 
         let back_principal_plane =
-            Self::calc_back_prinicpal_plane(surfaces, back_focal_distance, effective_focal_length)?;
+            Self::calc_back_principal_plane(surfaces, back_focal_distance, effective_focal_length)?;
         let front_principal_plane =
             Self::calc_front_principal_plane(front_focal_distance, effective_focal_length);
 
@@ -498,10 +498,11 @@ impl ParaxialSubView {
             return Ok(Float::INFINITY);
         }
 
-        Ok(bfd)
+        // Distance is always positive
+        Ok(bfd.abs())
     }
 
-    fn calc_back_prinicpal_plane(
+    fn calc_back_principal_plane(
         surfaces: &[Surface],
         back_focal_distance: Float,
         effective_focal_length: Float,
@@ -552,14 +553,18 @@ impl ParaxialSubView {
     fn calc_effective_focal_length(parallel_ray: &ParaxialRayTraceResults) -> Float {
         let y_1 = parallel_ray.slice(s![1, 0, 0]);
         let u_final = parallel_ray.slice(s![-2, 1, 0]);
-        let efl = -y_1.into_scalar() / u_final.into_scalar();
+
+        // There should be a negative signe here for lens only systems, but we take abs
+        // later so it's not needed
+        let efl = y_1.into_scalar() / u_final.into_scalar();
 
         // Handle edge case for negatively infinite EFL
         if efl.is_infinite() {
             return Float::INFINITY;
         }
 
-        efl
+        // abs() handles edge case of apparent negative EFLs in reflecting systems
+        efl.abs()
     }
 
     fn calc_entrance_pupil(
@@ -682,7 +687,8 @@ impl ParaxialSubView {
             return Ok(Float::INFINITY);
         }
 
-        Ok(ffd)
+        // Distance is always positive
+        Ok(ffd.abs())
     }
 
     fn calc_front_principal_plane(
@@ -694,7 +700,7 @@ impl ParaxialSubView {
             return Float::NAN;
         }
 
-        front_focal_distance + effective_focal_length
+        effective_focal_length - front_focal_distance
     }
 
     fn calc_marginal_ray(
@@ -801,6 +807,7 @@ impl ParaxialSubView {
             forward_iter = sequential_sub_model.try_iter(surfaces)?;
             &mut forward_iter
         };
+        let mut reflected: i8 = 1;
 
         for (gap_0, surface, gap_1) in steps {
             let t = if gap_0.thickness.is_infinite() {
@@ -810,13 +817,15 @@ impl ParaxialSubView {
                 // with inverses of ray transfer matrices.
                 -gap_0.thickness
             } else {
-                gap_0.thickness
+                reflected as Float * gap_0.thickness
             };
 
             let roc = surface.roc(axis);
+            if let SurfaceType::Reflecting = surface.surface_type() {
+                reflected *= -1;
+            }
 
             let n_0 = gap_0.refractive_index.n();
-
             let n_1 = if let Some(gap_1) = gap_1 {
                 gap_1.refractive_index.n()
             } else {
@@ -883,7 +892,10 @@ fn surface_to_rtm(
                     t * (n_0 - n_1) / n_1 / roc + n_0 / n_1,
                 ],
             ]),
-            SurfaceType::Reflecting => arr2(&[[1.0, t], [-2.0 / roc, 1.0 - 2.0 * t / roc]]),
+
+            // -1.0 in the second row flips the angle upon reflection so that we don't have to do
+            // acrobatics flipping by the +z-direction instead
+            SurfaceType::Reflecting => arr2(&[[1.0, t], [-2.0 / roc, -1.0 - 2.0 * t / roc]]),
             SurfaceType::NoOp => panic!("Conics and torics cannot be NoOp surfaces."),
         },
         Surface::Image(_) | Surface::Probe(_) | Surface::Stop(_) => arr2(&[[1.0, t], [0.0, 1.0]]),

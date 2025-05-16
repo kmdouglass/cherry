@@ -39,8 +39,6 @@ function App({ wasmModule }) {
     const [aperture, setAperture] = useState({"EntrancePupil": { "semi_diameter": 5.0 }});
     const [wavelengths, setWavelengths] = useState([0.5876]);
     const [convertedSpecs, setConvertedSpecs] = useState({});
-    const [description, setDescription] = useState(null);
-    const [rawRayPaths, setRawRayPaths] = useState(null);
 
     // Update the optical system during each render
     const systemData = useMemo(() => {
@@ -81,16 +79,12 @@ function App({ wasmModule }) {
                 const newDescription = opticalSystem.describe();
                 const newRayPaths = opticalSystem.traceTangentialRayFan();
 
-                setDescription(newDescription);
-                setRawRayPaths(newRayPaths);
-
                 return {
                     "description": newDescription,
                     "newRayPaths": newRayPaths
                 }
             } catch (error) {
                 showAlert(error instanceof Error ? error.message : "Error creating optical system");
-                console.error(error);
                 return {
                     "description": null,
                     "newRayPaths": null
@@ -123,7 +117,7 @@ function App({ wasmModule }) {
         return !(Object.keys(invalidFieldsObj).length === 0) && invalidFieldsObj.constructor === Object;
     }
 
-    const renderAnalysisTabContent = () => {
+    const renderAnalysisTabContent = (description, rawRayPaths) => {
         switch(activeAnalysisTab) {
             case 'cutaway':
                 return <CutawayView description={description} rawRayPaths={rawRayPaths} />
@@ -203,7 +197,7 @@ function App({ wasmModule }) {
                         </li>
                     </ul>
                 </div>
-                {renderAnalysisTabContent()}
+                {renderAnalysisTabContent(systemData.description, systemData.newRayPaths)}
             </div>
         </div>
     );

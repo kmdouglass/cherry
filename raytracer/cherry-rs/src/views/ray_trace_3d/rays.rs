@@ -1,10 +1,13 @@
 use anyhow::{Result, bail};
 use serde::{Deserialize, Serialize};
 
-use crate::core::{
-    Float, PI,
-    math::vec3::Vec3,
-    sequential_model::{Step, Surface},
+use crate::{
+    SurfaceType,
+    core::{
+        Float, PI,
+        math::vec3::Vec3,
+        sequential_model::{Step, Surface},
+    },
 };
 
 /// Tolerance for convergence of the Newton-Raphson method in integer mutliples
@@ -103,15 +106,24 @@ impl Ray {
         };
 
         match surf {
-            // Refracting surfaces
             //Surface::Conic(_) | Surface::Toric(_) => {
             Surface::Conic(_) => {
-                let mu = n_0 / n_1;
-                let cos_theta_1 = self.dir.dot(norm);
-                let term_1 = norm * (1.0 - mu * mu * (1.0 - cos_theta_1 * cos_theta_1)).sqrt();
-                let term_2 = (self.dir - norm * cos_theta_1) * mu;
+                match surf.surface_type() {
+                    SurfaceType::Refracting => {
+                        let mu = n_0 / n_1;
+                        let cos_theta_1 = self.dir.dot(norm);
+                        let term_1 =
+                            norm * (1.0 - mu * mu * (1.0 - cos_theta_1 * cos_theta_1)).sqrt();
+                        let term_2 = (self.dir - norm * cos_theta_1) * mu;
 
-                self.dir = term_1 + term_2;
+                        self.dir = term_1 + term_2;
+                    }
+                    SurfaceType::Reflecting => {
+                        let cos_theta_1 = self.dir.dot(norm);
+                        self.dir = self.dir - norm * (2.0 * cos_theta_1);
+                    }
+                    SurfaceType::NoOp => {}
+                };
             }
             // No-op surfaces
             Surface::Image(_) => {}

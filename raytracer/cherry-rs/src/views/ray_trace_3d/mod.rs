@@ -33,6 +33,14 @@ use super::paraxial::{ParaxialSubView, ParaxialView};
 /// Its current value was derived from: 3 wavelengths x 3 fields x 2 axes = 18.
 const RESULTS_CAPACITY: usize = 20;
 
+/// The distance to launch the rays before the first surface when the object is
+/// at infinity.
+const LAUNCH_POINT_BEFORE_SURFACE: Float = 10.0;
+
+/// The distance to launch the rays before the entrance pupil when the object is
+/// at infinity.
+const LAUNCH_POINT_BEFORE_PUPIL: Float = 10.0;
+
 /// The collection of all trace results for a 3D ray trace.
 ///
 /// We expect to have on the order of 10 different sets of results, each
@@ -578,9 +586,9 @@ fn entrance_pupil(
 /// the object plane.
 fn axial_launch_point(obj_z: Float, sur_z: Float, enp_z: Float) -> Float {
     if obj_z == Float::NEG_INFINITY && sur_z <= enp_z {
-        sur_z - 1.0
+        sur_z - LAUNCH_POINT_BEFORE_SURFACE
     } else if obj_z == Float::NEG_INFINITY && sur_z > enp_z {
-        enp_z - 1.0
+        enp_z - LAUNCH_POINT_BEFORE_PUPIL
     } else {
         obj_z
     }
@@ -763,7 +771,7 @@ mod tests {
         assert_eq!(rays.len(), 1);
         assert_abs_diff_eq!(rays[0].x(), 0.0, epsilon = 1e-4);
         assert_abs_diff_eq!(rays[0].y(), 0.0, epsilon = 1e-4);
-        assert_abs_diff_eq!(rays[0].z(), -1.0, epsilon = 1e-4);
+        assert_abs_diff_eq!(rays[0].z(), -LAUNCH_POINT_BEFORE_SURFACE, epsilon = 1e-4);
         assert_abs_diff_eq!(rays[0].k(), 0.0, epsilon = 1e-4);
         assert_abs_diff_eq!(rays[0].l(), 0.0, epsilon = 1e-4);
         assert_abs_diff_eq!(rays[0].m(), 1.0, epsilon = 1e-4);
@@ -784,8 +792,8 @@ mod tests {
 
         assert_eq!(rays.len(), 1);
         assert_abs_diff_eq!(rays[0].x(), 0.0, epsilon = 1e-4);
-        assert_abs_diff_eq!(rays[0].y(), -0.08749, epsilon = 1e-4);
-        assert_abs_diff_eq!(rays[0].z(), -1.0, epsilon = 1e-4);
+        assert_abs_diff_eq!(rays[0].y(), -0.8749, epsilon = 1e-4);
+        assert_abs_diff_eq!(rays[0].z(), -LAUNCH_POINT_BEFORE_SURFACE, epsilon = 1e-4);
         assert_abs_diff_eq!(rays[0].k(), 0.0, epsilon = 1e-4);
         assert_abs_diff_eq!(rays[0].l(), 0.08716, epsilon = 1e-4);
         assert_abs_diff_eq!(rays[0].m(), 0.9962, epsilon = 1e-4);

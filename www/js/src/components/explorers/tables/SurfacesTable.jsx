@@ -39,7 +39,7 @@ const SurfacesTable = ({ surfaces, setSurfaces, invalidFields, setInvalidFields,
       }
     };
 
-    const handleSurfaceTypeChange = (index, newType) => {
+    const handleSurfaceVariantChange = (index, newType) => {
         const newSurfaces = [...surfaces];
         const defaultValues = getSurfaceTypeDefaultValues(newType);
         newSurfaces[index] = { 
@@ -48,7 +48,13 @@ const SurfacesTable = ({ surfaces, setSurfaces, invalidFields, setInvalidFields,
             type: newType,
         };
         setSurfaces(newSurfaces);
-    }
+    };
+
+    const handleSurfaceTypeChange = (index, newSurfaceType) => {
+        const newSurfaces = [...surfaces];
+        newSurfaces[index].surfaceType = newSurfaceType;
+        setSurfaces(newSurfaces);
+    };
 
     const handleCellClick = (value, index, field) => {
       // Don't allow editing the last row
@@ -149,7 +155,7 @@ const SurfacesTable = ({ surfaces, setSurfaces, invalidFields, setInvalidFields,
       setSurfaces(newSurfaces);
     };
   
-    const renderSurfaceTypeCell = (surface, index) => {
+    const renderSurfaceVariantCell = (surface, index) => {
         if (index === 0) {
           return <td>Object</td>;
         }
@@ -161,7 +167,7 @@ const SurfacesTable = ({ surfaces, setSurfaces, invalidFields, setInvalidFields,
             <div className="select">
               <select
                 value={surface.type}
-                onChange={(e) => handleSurfaceTypeChange(index, e.target.value)}
+                onChange={(e) => handleSurfaceVariantChange(index, e.target.value)}
               >
                 <option value="Conic">Conic</option>
                 <option value="Probe">Probe</option>
@@ -171,6 +177,28 @@ const SurfacesTable = ({ surfaces, setSurfaces, invalidFields, setInvalidFields,
           </td>
         );
     };
+
+    const renderSurfaceTypeCell = (surface, index) => {
+      if (index === 0 || index === surfaces.length - 1) {
+        return;
+      }
+
+      if (surface.type === "Conic") {
+        return (
+          <div className="select">
+            <select
+              value={surface.surfaceType || "Refracting"}
+              onChange={(e) => handleSurfaceTypeChange(index, e.target.value)}
+            >
+              <option value="Reflecting">Reflecting</option>
+              <option value="Refracting">Refracting</option>
+            </select>
+          </div>
+        );
+      }
+
+      return;
+    }
 
     const renderEditableCell = (value, index, field) => {
         const isEditing = editingCell && editingCell.index === index && editingCell.field === field;
@@ -265,6 +293,7 @@ const SurfacesTable = ({ surfaces, setSurfaces, invalidFields, setInvalidFields,
         <table className="table is-fullwidth is-hoverable">
           <thead>
             <tr>
+              <th className="has-text-weight-semibold has-text-right">Surface Variant</th>
               <th className="has-text-weight-semibold has-text-right">Surface Type</th>
               { renderMaterialHeader() }
               <th className="has-text-weight-semibold has-text-right">Thickness</th>
@@ -276,10 +305,9 @@ const SurfacesTable = ({ surfaces, setSurfaces, invalidFields, setInvalidFields,
           <tbody>
             {surfaces.map((surface, index) => (
               <tr key={index}>
-                {renderSurfaceTypeCell(surface, index)}
-
+                {renderSurfaceVariantCell(surface, index)}
+                <td>{renderSurfaceTypeCell(surface, index)}</td>
                 <td>{renderMaterialCell(surface.n, index, "n")}</td>
-
                 <td>{renderEditableCell(surface.thickness, index, "thickness")}</td>
                 <td>{renderEditableCell(surface.semiDiam, index, "semiDiam")}</td>
                 <td>{renderEditableCell(surface.roc, index, "roc")}</td>

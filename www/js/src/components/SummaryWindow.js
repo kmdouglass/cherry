@@ -152,8 +152,8 @@ const SummaryWindow = ({ description, isOpen, wavelengths, appModes, onClose }) 
         "Entrance Pupil Semi-Diameter": {},
         "Exit Pupil Location": {},
         "Exit Pupil Semi-Diameter": {},
-        "Back Principal Plane": {},
-        "Front Principal Plane": {},
+        "Back Principal Plane Location": {},
+        "Front Principal Plane Location": {},
     };
 
     const subviews = description.paraxial_view.subviews;
@@ -182,8 +182,8 @@ const SummaryWindow = ({ description, isOpen, wavelengths, appModes, onClose }) 
         newSubviewSummaries["Entrance Pupil Semi-Diameter"][wavelength_index] = subview.entrance_pupil.semi_diameter;
         newSubviewSummaries["Exit Pupil Location"][wavelength_index] = subview.exit_pupil.location;
         newSubviewSummaries["Exit Pupil Semi-Diameter"][wavelength_index] = subview.exit_pupil.semi_diameter;
-        newSubviewSummaries["Back Principal Plane"][wavelength_index] = subview.back_principal_plane;
-        newSubviewSummaries["Front Principal Plane"][wavelength_index] = subview.front_principal_plane;
+        newSubviewSummaries["Back Principal Plane Location"][wavelength_index] = subview.back_principal_plane;
+        newSubviewSummaries["Front Principal Plane Location"][wavelength_index] = subview.front_principal_plane;
 
         // Only extract these values once if appModes is set to refractive index
         if (appModes.refractiveIndex) break;
