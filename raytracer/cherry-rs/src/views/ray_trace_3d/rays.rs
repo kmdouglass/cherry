@@ -270,7 +270,10 @@ impl Ray {
 
 #[cfg(test)]
 mod test {
-    use crate::specs::surfaces::{SurfaceSpec, SurfaceType};
+    use crate::{
+        Rotation,
+        specs::surfaces::{SurfaceSpec, SurfaceType},
+    };
 
     use super::*;
     // Test the intersection of a ray with a flat surface
@@ -283,6 +286,7 @@ mod test {
             radius_of_curvature: Float::INFINITY,
             conic_constant: 0.0,
             surf_type: SurfaceType::Refracting,
+            rotation: Rotation::None,
         };
         let surf = Surface::from_spec(&surf_spec, pos);
         let max_iter = 1000;
@@ -308,6 +312,7 @@ mod test {
             radius_of_curvature: -1.0,
             conic_constant: 0.0,
             surf_type: SurfaceType::Refracting,
+            rotation: Rotation::None,
         };
         let surf = Surface::from_spec(&surf_spec, pos);
         let max_iter = 1000;
