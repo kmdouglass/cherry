@@ -639,6 +639,7 @@ impl Surface {
                 radius_of_curvature,
                 conic_constant,
                 surf_type,
+                rotation: _,
             } => Self::Conic(Conic {
                 pos,
                 rotation_matrix,
@@ -647,7 +648,7 @@ impl Surface {
                 conic_constant: *conic_constant,
                 surface_type: *surf_type,
             }),
-            SurfaceSpec::Image => Self::Image(Image {
+            SurfaceSpec::Image { rotation: _ } => Self::Image(Image {
                 pos,
                 rotation_matrix,
             }),
@@ -655,11 +656,14 @@ impl Surface {
                 pos,
                 rotation_matrix,
             }),
-            SurfaceSpec::Probe => Self::Probe(Probe {
+            SurfaceSpec::Probe { rotation: _ } => Self::Probe(Probe {
                 pos,
                 rotation_matrix,
             }),
-            SurfaceSpec::Stop { semi_diameter } => Self::Stop(Stop {
+            SurfaceSpec::Stop {
+                semi_diameter,
+                rotation: _,
+            } => Self::Stop(Stop {
                 pos,
                 rotation_matrix,
                 semi_diameter: *semi_diameter,

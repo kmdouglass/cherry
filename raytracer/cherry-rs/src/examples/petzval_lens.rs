@@ -1,4 +1,6 @@
-use crate::{FieldSpec, GapSpec, PupilSampling, SequentialModel, SurfaceSpec, SurfaceType, n};
+use crate::{
+    FieldSpec, GapSpec, PupilSampling, Rotation, SequentialModel, SurfaceSpec, SurfaceType, n,
+};
 
 pub fn sequential_model() -> SequentialModel {
     let air = n!(1.0);
@@ -53,53 +55,64 @@ pub fn sequential_model() -> SequentialModel {
         radius_of_curvature: 99.56266,
         conic_constant: 0.0,
         surf_type: SurfaceType::Refracting,
+        rotation: Rotation::None,
     };
     let surf_2 = SurfaceSpec::Conic {
         semi_diameter: 26.276,
         radius_of_curvature: -86.84002,
         conic_constant: 0.0,
         surf_type: SurfaceType::Refracting,
+        rotation: Rotation::None,
     };
     let surf_3 = SurfaceSpec::Conic {
         semi_diameter: 21.02,
         radius_of_curvature: -1187.63858,
         conic_constant: 0.0,
         surf_type: SurfaceType::Refracting,
+        rotation: Rotation::None,
     };
     let surf_4 = SurfaceSpec::Stop {
         semi_diameter: 16.631,
+        rotation: Rotation::None,
     };
     let surf_5 = SurfaceSpec::Conic {
         semi_diameter: 20.543,
         radius_of_curvature: 57.47491,
         conic_constant: 0.0,
         surf_type: SurfaceType::Refracting,
+        rotation: Rotation::None,
     };
     let surf_6 = SurfaceSpec::Conic {
         semi_diameter: 20.074,
         radius_of_curvature: -54.61685,
         conic_constant: 0.0,
         surf_type: SurfaceType::Refracting,
+        rotation: Rotation::None,
     };
     let surf_7 = SurfaceSpec::Conic {
         semi_diameter: 20.074,
         radius_of_curvature: -614.68633,
         conic_constant: 0.0,
         surf_type: SurfaceType::Refracting,
+        rotation: Rotation::None,
     };
     let surf_8 = SurfaceSpec::Conic {
         semi_diameter: 17.297,
         radius_of_curvature: -38.17110,
         conic_constant: 0.0,
         surf_type: SurfaceType::Refracting,
+        rotation: Rotation::None,
     };
     let surf_9 = SurfaceSpec::Conic {
         semi_diameter: 18.94,
         radius_of_curvature: f64::INFINITY,
         conic_constant: 0.0,
         surf_type: SurfaceType::Refracting,
+        rotation: Rotation::None,
     };
-    let surf_10 = SurfaceSpec::Image;
+    let surf_10 = SurfaceSpec::Image {
+        rotation: Rotation::None,
+    };
     let surfaces = vec![
         surf_0, surf_1, surf_2, surf_3, surf_4, surf_5, surf_6, surf_7, surf_8, surf_9, surf_10,
     ];

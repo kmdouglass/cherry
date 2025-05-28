@@ -37,7 +37,7 @@
 //! # Quick Start
 //! ```rust
 //! use cherry_rs::{
-//!     n, ray_trace_3d_view, ApertureSpec, FieldSpec, GapSpec, ImagePlane, ParaxialView, Pupil, PupilSampling, RefractiveIndexSpec,
+//!     n, ray_trace_3d_view, ApertureSpec, FieldSpec, GapSpec, ImagePlane, ParaxialView, Pupil, PupilSampling, RefractiveIndexSpec, Rotation,
 //!     SequentialModel, SurfaceSpec, SurfaceType,
 //! };
 //!
@@ -69,14 +69,16 @@
 //!         radius_of_curvature: 25.8,
 //!         conic_constant: 0.0,
 //!         surf_type: SurfaceType::Refracting,
+//!         rotation: Rotation::None,
 //!     },
 //!     SurfaceSpec::Conic {
 //!         semi_diameter: 12.5,
 //!         radius_of_curvature: f64::INFINITY,
 //!         conic_constant: 0.0,
 //!         surf_type: SurfaceType::Refracting,
+//!         rotation: Rotation::None,
 //!     },
-//!     SurfaceSpec::Image,
+//!     SurfaceSpec::Image { rotation: Rotation::None },
 //! ];
 //!
 //! // Define a set of wavelengths to model.
@@ -134,6 +136,7 @@ mod views;
 pub mod examples;
 pub use core::{
     math::vec3::Vec3,
+    rotations::{EulerAngles, Rotation},
     sequential_model::{Axis, SequentialModel, SequentialSubModel, Step, SubModelID},
 };
 pub use specs::{
