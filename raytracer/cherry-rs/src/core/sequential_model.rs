@@ -7,8 +7,9 @@ use anyhow::{Result, anyhow};
 use serde::{Deserialize, Serialize, Serializer};
 
 use crate::core::{
-    Cursor, Float,
+    Float,
     math::{mat3::Mat3, vec3::Vec3},
+    reference_frames::Cursor,
     refractive_index::RefractiveIndex,
 };
 use crate::specs::{

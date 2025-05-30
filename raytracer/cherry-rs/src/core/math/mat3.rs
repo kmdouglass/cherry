@@ -24,6 +24,25 @@ impl Mat3 {
         }
     }
 
+    /// Determines whether all elements of a matrix are approximately equal to
+    /// another.
+    pub fn approx_eq(&self, other: &Self, tol: Float) -> bool {
+        self.e
+            .iter()
+            .zip(other.e.iter())
+            .all(|(row_self, row_other)| {
+                row_self
+                    .iter()
+                    .zip(row_other.iter())
+                    .all(|(a, b)| (a - b).abs() < tol)
+            })
+    }
+
+    /// Create a 3x3 identity matrix.
+    pub fn identity() -> Self {
+        Self::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0)
+    }
+
     pub fn transpose(&self) -> Self {
         Self::new(
             self.e[0][0],
@@ -110,6 +129,12 @@ mod test {
     fn test_mat3_from_euler_angles() {
         let (k, l, m) = (0.0, 0.0, 0.0); // no rotation
         let mat = Mat3::from_euler_angles(k, l, m);
+        assert_eq!(mat, Mat3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0));
+    }
+
+    #[test]
+    fn test_mat3_identity() {
+        let mat = Mat3::identity();
         assert_eq!(mat, Mat3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0));
     }
 }
