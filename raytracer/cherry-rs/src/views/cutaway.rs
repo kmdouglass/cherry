@@ -79,7 +79,7 @@ impl Surface {
 
             // Transform the sample into the global coordinate system.
             sample = Vec3::new(point.x(), point.y(), sag);
-            rot_sample = self.rot_mat().transpose() * (sample + self.pos());
+            rot_sample = (self.inv_rot_mat() * sample) + self.pos();
 
             samples.push(rot_sample);
         }
@@ -92,15 +92,15 @@ impl Surface {
 mod tests {
     use super::*;
     use crate::core::Float;
-    use crate::examples::convexplano_lens::sequential_model;
+    use crate::examples::{convexplano_lens, mirrors_figure_z};
     use crate::n;
 
     #[test]
-    fn test_cutaway_view() {
+    fn cutaway_view_convexplano_lens() {
         let air = n!(1.0);
         let nbk7 = n!(1.515);
         let wavelengths: [Float; 1] = [0.5876];
-        let sequential_model = sequential_model(air, nbk7, &wavelengths);
+        let sequential_model = convexplano_lens::sequential_model(air, nbk7, &wavelengths);
         let cutaways = CutawayView::new(&sequential_model, 10);
 
         assert_eq!(cutaways.path_samples.len(), 4);
@@ -113,5 +113,31 @@ mod tests {
         assert_eq!(cutaways.surface_types[&1], "Conic");
         assert_eq!(cutaways.surface_types[&2], "Conic");
         assert_eq!(cutaways.surface_types[&3], "Image");
+    }
+
+    #[test]
+    fn cutaway_view_mirrors_figure_z() {
+        let n_air = n!(1.0);
+        let wavelengths: [Float; 1] = [0.5876];
+        let sequential_model = mirrors_figure_z::sequential_model(n_air, &wavelengths);
+        let cutaways = CutawayView::new(&sequential_model, 10);
+
+        assert_eq!(cutaways.path_samples.len(), 4);
+        assert_eq!(cutaways.path_samples[&0].len(), 0); // Object is at infinity
+        assert_eq!(cutaways.path_samples[&1].len(), 10);
+        assert_eq!(cutaways.path_samples[&2].len(), 10);
+        assert_eq!(cutaways.path_samples[&3].len(), 10);
+
+        assert_eq!(cutaways.surface_types[&0], "Object");
+        assert_eq!(cutaways.surface_types[&1], "Conic");
+        assert_eq!(cutaways.surface_types[&2], "Conic");
+        assert_eq!(cutaways.surface_types[&3], "Image");
+
+        // Check global position of point at bottom of second mirror
+        // See https://kylemdouglass.com/posts/3d-sequential-optical-system-layouts/
+        let second_mirror_samples = &cutaways.path_samples[&2];
+        let expected = Vec3::new(0.0, 43.65 * (3 as Float).sqrt(), -56.35);
+
+        second_mirror_samples[0].approx_eq(&expected, 1e-6);
     }
 }
