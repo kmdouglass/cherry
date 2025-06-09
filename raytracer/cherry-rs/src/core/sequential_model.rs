@@ -11,7 +11,6 @@ use crate::core::{
     math::{mat3::Mat3, vec3::Vec3},
     reference_frames::Cursor,
     refractive_index::RefractiveIndex,
-    rotations::Rotation,
 };
 use crate::specs::{
     gaps::GapSpec,
@@ -206,7 +205,6 @@ pub struct Image {
 #[derive(Debug)]
 pub struct Object {
     pos: Vec3,
-    rotation_matrix: Mat3,
 }
 
 /// A surface without any effect on rays that is used to measure intersections.
@@ -642,44 +640,53 @@ impl Surface {
     /// * `cursor` - The reference frame in which the surface is defined.
     pub(crate) fn from_spec(spec: &SurfaceSpec, cursor: &Cursor) -> Self {
         let pos = cursor.pos();
-        let rotation_matrix = cursor.rotation_matrix();
+        let rot_mat_global_to_cursor = cursor.rotation_matrix();
 
-        !todo!("Implement rotation of surfaces about the cursor frame");
         match spec {
             SurfaceSpec::Conic {
                 semi_diameter,
                 radius_of_curvature,
                 conic_constant,
                 surf_type,
-                rotation: _,
-            } => Self::Conic(Conic {
-                pos,
-                rotation_matrix,
-                semi_diameter: *semi_diameter,
-                radius_of_curvature: *radius_of_curvature,
-                conic_constant: *conic_constant,
-                surface_type: *surf_type,
-            }),
-            SurfaceSpec::Image { rotation: _ } => Self::Image(Image {
-                pos,
-                rotation_matrix,
-            }),
-            SurfaceSpec::Object => Self::Object(Object {
-                pos,
-                rotation_matrix,
-            }),
-            SurfaceSpec::Probe { rotation: _ } => Self::Probe(Probe {
-                pos,
-                rotation_matrix,
-            }),
+                rotation,
+            } => {
+                // Cursor to local rotation matrix * global to cursor rotation matrix
+                let rotation_matrix = rotation.rotation_matrix() * rot_mat_global_to_cursor;
+                Self::Conic(Conic {
+                    pos,
+                    rotation_matrix,
+                    semi_diameter: *semi_diameter,
+                    radius_of_curvature: *radius_of_curvature,
+                    conic_constant: *conic_constant,
+                    surface_type: *surf_type,
+                })
+            }
+            SurfaceSpec::Image { rotation } => {
+                let rotation_matrix = rotation.rotation_matrix() * rot_mat_global_to_cursor;
+                Self::Image(Image {
+                    pos,
+                    rotation_matrix,
+                })
+            }
+            SurfaceSpec::Object => Self::Object(Object { pos }),
+            SurfaceSpec::Probe { rotation } => {
+                let rotation_matrix = rotation.rotation_matrix() * rot_mat_global_to_cursor;
+                Self::Probe(Probe {
+                    pos,
+                    rotation_matrix,
+                })
+            }
             SurfaceSpec::Stop {
                 semi_diameter,
-                rotation: _,
-            } => Self::Stop(Stop {
-                pos,
-                rotation_matrix,
-                semi_diameter: *semi_diameter,
-            }),
+                rotation,
+            } => {
+                let rotation_matrix = rotation.rotation_matrix() * rot_mat_global_to_cursor;
+                Self::Stop(Stop {
+                    pos,
+                    rotation_matrix,
+                    semi_diameter: *semi_diameter,
+                })
+            }
             // SurfaceSpec::Toric {
             //     semi_diameter,
             //     radius_of_curvature_vert,
@@ -740,7 +747,8 @@ impl Surface {
         match self {
             Self::Conic(conic) => conic.rotation_matrix,
             Self::Image(image) => image.rotation_matrix,
-            Self::Object(object) => object.rotation_matrix,
+            Self::Object(_) => Mat3::identity(), /* Object surfaces start aligned to the global */
+            // frame
             Self::Probe(probe) => probe.rotation_matrix,
             Self::Stop(stop) => stop.rotation_matrix,
             //Self::Toric(toric) => toric.rotation_matrix,
@@ -888,7 +896,6 @@ mod tests {
         let surfaces = vec![
             Surface::Object(Object {
                 pos: Vec3::new(0.0, 0.0, 0.0),
-                rotation_matrix: Mat3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
             }),
             Surface::Probe(Probe {
                 pos: Vec3::new(0.0, 0.0, 0.0),
@@ -925,7 +932,6 @@ mod tests {
         let surfaces = vec![
             Surface::Object(Object {
                 pos: Vec3::new(0.0, 0.0, 0.0),
-                rotation_matrix: Mat3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
             }),
             Surface::Conic(Conic {
                 pos: Vec3::new(0.0, 0.0, 0.0),
@@ -962,7 +968,6 @@ mod tests {
         let surfaces = vec![
             Surface::Object(Object {
                 pos: Vec3::new(0.0, 0.0, 0.0),
-                rotation_matrix: Mat3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
             }),
             Surface::Conic(Conic {
                 pos: Vec3::new(0.0, 0.0, 0.0),

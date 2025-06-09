@@ -28,7 +28,7 @@ pub enum Rotation {
 
 impl Rotation {
     /// Returns the 3D rotation matrix corresponding to the rotation.
-    pub fn to_matrix(&self) -> Mat3 {
+    pub fn rotation_matrix(&self) -> Mat3 {
         match self {
             Rotation::None => Mat3::identity(),
             Rotation::IntrinsicPassiveRUF(euler_angles) => {
@@ -64,7 +64,7 @@ mod test {
     fn intrinsic_passive_ruf_rotation_30_deg_about_r() {
         let rotation =
             Rotation::IntrinsicPassiveRUF(EulerAngles((30.0_f64).to_radians(), 0.0, 0.0));
-        let matrix = rotation.to_matrix();
+        let matrix = rotation.rotation_matrix();
 
         let expected = Mat3::new(
             1.0,
