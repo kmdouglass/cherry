@@ -434,7 +434,9 @@ impl SequentialModel {
 
             // Flip the cursor upon reflection
             if let SurfaceType::Reflecting = surf.surface_type() {
-                cursor.invert();
+                let (_, mut norm) = surf.sag_norm(cursor.pos());
+                norm = (surf.inv_rot_mat() * norm).normalize(); // Transform normal to global coordinates
+                cursor.reflect(&norm);
             }
 
             // Add the surface to the list and advance the cursor

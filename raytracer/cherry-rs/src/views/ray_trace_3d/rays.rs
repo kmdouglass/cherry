@@ -68,7 +68,7 @@ impl Ray {
 
             // Update the distance s using the Newton-Raphson method
             (sag, norm) = surf.sag_norm(p);
-            s -= (p.z() - sag) / norm.dot(self.dir);
+            s -= (p.z() - sag) / norm.dot(&self.dir);
 
             // Check for convergence by comparing the current and previous values of s
             if (s - s_1).abs() / Float::max(s, s_1) < TOL {
@@ -111,7 +111,7 @@ impl Ray {
                 match surf.surface_type() {
                     SurfaceType::Refracting => {
                         let mu = n_0 / n_1;
-                        let cos_theta_1 = self.dir.dot(norm);
+                        let cos_theta_1 = self.dir.dot(&norm);
                         let term_1 =
                             norm * (1.0 - mu * mu * (1.0 - cos_theta_1 * cos_theta_1)).sqrt();
                         let term_2 = (self.dir - norm * cos_theta_1) * mu;
@@ -119,7 +119,7 @@ impl Ray {
                         self.dir = term_1 + term_2;
                     }
                     SurfaceType::Reflecting => {
-                        let cos_theta_1 = self.dir.dot(norm);
+                        let cos_theta_1 = self.dir.dot(&norm);
                         self.dir = self.dir - norm * (2.0 * cos_theta_1);
                     }
                     SurfaceType::NoOp => {}
@@ -148,7 +148,7 @@ impl Ray {
     /// Transform a ray from the local coordinate system of a surface into the
     /// global system.
     pub fn i_transform(&mut self, surf: &Surface) {
-        self.pos = surf.inv_rot_mat() * (self.pos + surf.pos());
+        self.pos = (surf.inv_rot_mat() * self.pos) + surf.pos();
         self.dir = surf.inv_rot_mat() * self.dir;
     }
 
