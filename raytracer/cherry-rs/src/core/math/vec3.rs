@@ -47,15 +47,15 @@ impl Vec3 {
         self.e[2] = z;
     }
 
-    pub fn k(&self) -> Float {
+    pub fn l(&self) -> Float {
         self.e[0]
     }
 
-    pub fn l(&self) -> Float {
+    pub fn m(&self) -> Float {
         self.e[1]
     }
 
-    pub fn m(&self) -> Float {
+    pub fn n(&self) -> Float {
         self.e[2]
     }
 
