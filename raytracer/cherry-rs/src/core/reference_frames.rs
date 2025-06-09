@@ -52,14 +52,21 @@ impl Cursor {
             self.pos.set_z(0.0);
             return;
         }
+
         self.pos += self.forward * distance;
     }
 
-    /// Invert the direction of the cursor.
-    pub fn invert(&mut self) {
-        self.forward = -self.forward;
+    /// Reflects the cursor's frame about a normal vector.
+    pub fn reflect(&mut self, normal: &Vec3) {
+        // Reflect the forward vector about the normal.
+        self.right = (self.right - normal * 2.0 * self.right.dot(normal)).normalize();
+        self.up = (self.up - normal * 2.0 * self.up.dot(normal)).normalize();
+        self.forward = (self.forward - normal * 2.0 * self.forward.dot(normal)).normalize();
 
-        // !todo!("Ensure right-handedness is maintained");
+        // Maintain the right-handedness of the frame. Flip r by convention.
+        if self.right.cross(&self.up).dot(&self.forward) < 0.0 {
+            self.right = -self.right;
+        }
     }
 
     pub(super) fn pos(&self) -> Vec3 {
@@ -88,29 +95,41 @@ mod test {
     use super::*;
 
     #[test]
-    fn test_cursor_advance() {
+    fn cursor_advance() {
         let mut cursor = Cursor::new(0.0);
         cursor.advance(1.0);
         assert_eq!(cursor.pos(), Vec3::new(0.0, 0.0, 1.0));
     }
 
     #[test]
-    fn test_cursor_invert() {
+    fn cursor_reflect() {
         let mut cursor = Cursor::new(0.0);
-        cursor.invert();
-        cursor.advance(1.0);
-        assert_eq!(cursor.pos(), Vec3::new(0.0, 0.0, -1.0));
+
+        cursor.reflect(&Vec3::new(0.0, 0.5, -(3 as Float).sqrt() / 2.0)); // surface rotated 30 degrees
+
+        // Cursor is now traveling at 60 degrees to the z-axis and backwards.
+        assert!(cursor.right.approx_eq(&Vec3::new(-1.0, 0.0, 0.0), 1e-6));
+        assert!(
+            cursor
+                .up
+                .approx_eq(&Vec3::new(0.0, 0.5, (3 as Float).sqrt() / 2.0), 1e-6)
+        );
+        assert!(
+            cursor
+                .forward
+                .approx_eq(&Vec3::new(0.0, (3 as Float).sqrt() / 2.0, -0.5), 1e-6)
+        );
     }
 
     #[test]
-    fn test_cursor_start_from_neg_infinity() {
+    fn cursor_start_from_neg_infinity() {
         let mut cursor = Cursor::new(Float::NEG_INFINITY);
         cursor.advance(Float::INFINITY);
         assert_eq!(cursor.pos(), Vec3::new(0.0, 0.0, 0.0));
     }
 
     #[test]
-    fn test_cursor_rotation_matrix() {
+    fn cursor_rotation_matrix() {
         let cursor = Cursor::new(0.0);
         let expected = Mat3::identity();
 
