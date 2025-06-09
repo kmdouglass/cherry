@@ -148,9 +148,8 @@ impl Ray {
     /// Transform a ray from the local coordinate system of a surface into the
     /// global system.
     pub fn i_transform(&mut self, surf: &Surface) {
-        todo!("Cache inverse rotation matrix");
-        self.pos = surf.rot_mat().transpose() * (self.pos + surf.pos());
-        self.dir = surf.rot_mat().transpose() * self.dir;
+        self.pos = surf.inv_rot_mat() * (self.pos + surf.pos());
+        self.dir = surf.inv_rot_mat() * self.dir;
     }
 
     // Return the x-coordinate of the ray position
