@@ -1,20 +1,11 @@
 /// Reference frame logic for building sequential optical systems.
-use crate::core::{Float, math::vec3::Vec3};
+use crate::core::{
+    Float,
+    math::{mat3::Mat3, vec3::Vec3},
+};
 
-/// A right, up, forward (RUF) reference frame.
-///
-/// A RUF reference frame forms a right-handed coordinate system where:
-/// - The forward vector points in the direction of the optical axis.
-/// - The right and up vectors are orthogonal to the forward vector and to each
-///   other.
-#[derive(Debug, Clone, Copy)]
-pub struct RUFReferenceFrame {
-    right: Vec3,
-    up: Vec3,
-    forward: Vec3,
-}
-
-/// Handles 3D positioning of surfaces in a sequential optical system.
+/// A reference frame for 3D positioning of surfaces in a sequential optical
+/// system.
 ///
 /// The Cursor models my way of thinking about how 3D optical systems are built.
 /// We start from a source and move sequentially from one surface to the next.
@@ -26,29 +17,20 @@ pub struct RUFReferenceFrame {
 /// from its position in the sequence of surfaces, which I find less intuitive.
 #[derive(Debug)]
 pub struct Cursor {
-    /// The position of the cursor. This changes with each surface added to
-    /// the system, and it is always in the global coordinate system.
+    /// The origin of the cursor reference frame. This changes with each surface
+    /// added to the system, and it is always in the global coordinate
+    /// system.
     pos: Vec3,
 
-    /// The local reference frame of the cursor. This changes after interaction
-    /// with a reflecting surface type.
-    frame: RUFReferenceFrame,
-}
+    /// Unit vector representing the right direction of the cursor reference
+    /// frame.
+    right: Vec3,
 
-impl RUFReferenceFrame {
-    /// Creates a new right, up, forward (FRU) reference frame.
-    ///
-    /// By convention, the right vector points along the x-axis, the
-    /// up vector points along the y-axis, and the forward vector points along
-    /// the z-axis of the global reference frame,. The optical axis is
-    /// aligned with the forward vector.
-    pub fn new() -> Self {
-        Self {
-            right: Vec3::new(1.0, 0.0, 0.0),
-            up: Vec3::new(0.0, 1.0, 0.0),
-            forward: Vec3::new(0.0, 0.0, 1.0),
-        }
-    }
+    /// Unit vector representing the up direction of the cursor reference frame.
+    up: Vec3,
+
+    /// Unit vector representing the forward direction of the cursor reference
+    forward: Vec3,
 }
 
 impl Cursor {
@@ -57,7 +39,9 @@ impl Cursor {
     pub(crate) fn new(z: Float) -> Self {
         Self {
             pos: Vec3::new(0.0, 0.0, z),
-            frame: RUFReferenceFrame::new(),
+            right: Vec3::new(1.0, 0.0, 0.0),
+            up: Vec3::new(0.0, 1.0, 0.0),
+            forward: Vec3::new(0.0, 0.0, 1.0),
         }
     }
 
@@ -68,18 +52,34 @@ impl Cursor {
             self.pos.set_z(0.0);
             return;
         }
-        self.pos += self.frame.forward * distance;
+        self.pos += self.forward * distance;
     }
 
     /// Invert the direction of the cursor.
     pub fn invert(&mut self) {
-        self.frame.forward = -self.frame.forward;
+        self.forward = -self.forward;
 
         // !todo!("Ensure right-handedness is maintained");
     }
 
     pub(super) fn pos(&self) -> Vec3 {
         self.pos
+    }
+
+    /// Returns a rotation matrix that transforms vectors from the global
+    /// coordinate system to the local reference frame of the cursor.
+    pub fn rotation_matrix(&self) -> Mat3 {
+        Mat3::new(
+            self.right.x(),
+            self.up.x(),
+            self.forward.x(),
+            self.right.y(),
+            self.up.y(),
+            self.forward.y(),
+            self.right.z(),
+            self.up.z(),
+            self.forward.z(),
+        )
     }
 }
 
@@ -107,5 +107,19 @@ mod test {
         let mut cursor = Cursor::new(Float::NEG_INFINITY);
         cursor.advance(Float::INFINITY);
         assert_eq!(cursor.pos(), Vec3::new(0.0, 0.0, 0.0));
+    }
+
+    #[test]
+    fn test_cursor_rotation_matrix() {
+        let cursor = Cursor::new(0.0);
+        let expected = Mat3::identity();
+
+        let rotation_matrix = cursor.rotation_matrix();
+
+        assert!(
+            rotation_matrix.approx_eq(&expected, 1e-6),
+            "Expected rotation matrix to be identity, got: {:?}",
+            rotation_matrix
+        );
     }
 }
