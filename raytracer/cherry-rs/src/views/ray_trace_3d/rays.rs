@@ -57,7 +57,7 @@ impl Ray {
 
         // Find the distance along the ray to the z=0 plane; use this as the initial
         // value for s
-        let mut s = -self.pos.z() / self.dir.m();
+        let mut s = -self.pos.z() / self.dir.n();
 
         let mut p: Vec3;
         let mut sag: Float;
@@ -169,17 +169,17 @@ impl Ray {
 
     // Return the direction cosine k of the ray
     pub fn k(&self) -> Float {
-        self.dir.k()
+        self.dir.l()
     }
 
     // Return the direction cosine l of the ray
     pub fn l(&self) -> Float {
-        self.dir.l()
+        self.dir.m()
     }
 
     // Return the direction cosine m of the ray
     pub fn m(&self) -> Float {
-        self.dir.m()
+        self.dir.n()
     }
 
     /// Create a fan of uniformly spaced rays in a given z-plane at an angle phi
