@@ -86,6 +86,22 @@ impl Mat3 {
     }
 }
 
+impl std::ops::Mul<Mat3> for Mat3 {
+    type Output = Mat3;
+
+    fn mul(self, rhs: Mat3) -> Mat3 {
+        let mut result = Mat3::identity();
+        for i in 0..3 {
+            for j in 0..3 {
+                result.e[i][j] = self.e[i][0] * rhs.e[0][j]
+                    + self.e[i][1] * rhs.e[1][j]
+                    + self.e[i][2] * rhs.e[2][j];
+            }
+        }
+        result
+    }
+}
+
 impl std::ops::Mul<Vec3> for Mat3 {
     type Output = Vec3;
 
@@ -101,6 +117,21 @@ impl std::ops::Mul<Vec3> for Mat3 {
 #[cfg(test)]
 mod test {
     use super::*;
+
+    #[test]
+    fn test_mat3_mul_mat3() {
+        use super::*;
+
+        let mat1 = Mat3::new(1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7., 8.0, 9.0);
+        let mat2 = Mat3::new(9.0, 8.0, 7.0, 6.0, 5.0, 4.0, 3., 2.0, 1.0);
+
+        let res = mat1 * mat2;
+
+        assert!(res.approx_eq(
+            &Mat3::new(30.0, 24.0, 18.0, 84.0, 69.0, 54.0, 138., 114.0, 90.0),
+            1e-6
+        ));
+    }
 
     #[test]
     fn test_mat3_mul_vec3() {
