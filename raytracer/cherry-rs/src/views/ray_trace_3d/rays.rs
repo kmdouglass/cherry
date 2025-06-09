@@ -148,6 +148,7 @@ impl Ray {
     /// Transform a ray from the local coordinate system of a surface into the
     /// global system.
     pub fn i_transform(&mut self, surf: &Surface) {
+        todo!("Cache inverse rotation matrix");
         self.pos = surf.rot_mat().transpose() * (self.pos + surf.pos());
         self.dir = surf.rot_mat().transpose() * self.dir;
     }
@@ -272,6 +273,7 @@ impl Ray {
 mod test {
     use crate::{
         Rotation,
+        core::reference_frames::Cursor,
         specs::surfaces::{SurfaceSpec, SurfaceType},
     };
 
@@ -279,7 +281,7 @@ mod test {
     // Test the intersection of a ray with a flat surface
     #[test]
     fn test_ray_intersection_flat_surface() {
-        let pos = Vec3::new(0.0, 0.0, 0.0);
+        let cursor = Cursor::new(0.0);
         let ray = Ray::new(Vec3::new(0.0, 0.0, -1.0), Vec3::new(0.0, 0.0, 1.0));
         let surf_spec = SurfaceSpec::Conic {
             semi_diameter: 4.0,
@@ -288,7 +290,7 @@ mod test {
             surf_type: SurfaceType::Refracting,
             rotation: Rotation::None,
         };
-        let surf = Surface::from_spec(&surf_spec, pos);
+        let surf = Surface::from_spec(&surf_spec, &cursor);
         let max_iter = 1000;
 
         let (p, _) = ray.intersect(&surf, max_iter).unwrap();
@@ -299,7 +301,7 @@ mod test {
     // Test the intersection of a ray with a circular surface
     #[test]
     fn test_ray_intersection_conic() {
-        let pos = Vec3::new(0.0, 0.0, 0.0);
+        let cursor = Cursor::new(0.0);
 
         // Ray starts at z = -1.0 and travels at 45 degrees to the optics axis
         let l = 0.7071;
@@ -314,7 +316,7 @@ mod test {
             surf_type: SurfaceType::Refracting,
             rotation: Rotation::None,
         };
-        let surf = Surface::from_spec(&surf_spec, pos);
+        let surf = Surface::from_spec(&surf_spec, &cursor);
         let max_iter = 1000;
 
         let (p, _) = ray.intersect(&surf, max_iter).unwrap();
