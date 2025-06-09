@@ -11,6 +11,7 @@ use crate::core::{
     math::{mat3::Mat3, vec3::Vec3},
     reference_frames::Cursor,
     refractive_index::RefractiveIndex,
+    rotations::Rotation,
 };
 use crate::specs::{
     gaps::GapSpec,
@@ -427,7 +428,7 @@ impl SequentialModel {
 
         // Create surfaces 0 to n-1
         for (surf_spec, gap_spec) in surf_specs.iter().zip(gap_specs.iter()) {
-            let surf = Surface::from_spec(surf_spec, cursor.pos());
+            let surf = Surface::from_spec(surf_spec, &cursor);
 
             // Flip the cursor upon reflection
             if let SurfaceType::Reflecting = surf.surface_type() {
@@ -444,7 +445,7 @@ impl SequentialModel {
             surf_specs
                 .last()
                 .expect("There should always be one last surface."),
-            cursor.pos(),
+            &cursor,
         ));
         surfaces
     }
@@ -628,12 +629,22 @@ impl Surface {
         self.pos().z()
     }
 
-    pub(crate) fn from_spec(spec: &SurfaceSpec, pos: Vec3) -> Self {
-        // No rotation for the moment
-        let euler_angles = Vec3::new(0.0, 0.0, 0.0);
-        let rotation_matrix =
-            Mat3::from_euler_angles(euler_angles.x(), euler_angles.y(), euler_angles.z());
+    /// Creates a new surface from a specification.
+    ///
+    /// The position and rotation of the surface are determined by the input
+    /// cursor, which serves as a frame of reference. The optical axis is
+    /// understood to be the forward or z-direction of the cursor's
+    /// orientation. The `rotation` argument is used to apply a rotation of
+    /// the surface about the reference frame.
+    ///
+    /// # Arguments
+    /// * `spec` - The specification of the surface.
+    /// * `cursor` - The reference frame in which the surface is defined.
+    pub(crate) fn from_spec(spec: &SurfaceSpec, cursor: &Cursor) -> Self {
+        let pos = cursor.pos();
+        let rotation_matrix = cursor.rotation_matrix();
 
+        !todo!("Implement rotation of surfaces about the cursor frame");
         match spec {
             SurfaceSpec::Conic {
                 semi_diameter,
