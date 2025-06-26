@@ -1,0 +1,8 @@
+[book]
+authors = ["Kyle Douglass"]
+language = "en"
+src = "src"
+title = "Computational Geometry and Optical Design"
+
+[output.html]
+mathjax-support = true
