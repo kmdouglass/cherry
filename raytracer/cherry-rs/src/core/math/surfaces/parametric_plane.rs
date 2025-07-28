@@ -12,6 +12,7 @@ use crate::core::math::vec3::Vec3;
 /// ```
 /// where `P0` is a point on the plane, `U` and `V` are two non-parallel vectors
 /// in the plane, and `s` and `t` are parameters that vary over the plane.
+#[derive(Debug)]
 struct ParametricPlane {
     /// A point on the plane.
     p0: Vec3,
