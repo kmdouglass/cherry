@@ -15,13 +15,13 @@ use crate::core::math::vec3::Vec3;
 #[derive(Debug)]
 struct ParametricPlane {
     /// A point on the plane.
-    p0: Vec3,
+    pub p0: Vec3,
 
     /// A vector in the plane.
-    u: Vec3,
+    pub u: Vec3,
 
     /// Another vector in the plane, not parallel to `u`.
-    v: Vec3,
+    pub v: Vec3,
 }
 
 impl ParametricPlane {
@@ -37,18 +37,6 @@ impl ParametricPlane {
         }
 
         Ok(ParametricPlane { p0, u, v })
-    }
-
-    pub fn p0(&self) -> &Vec3 {
-        &self.p0
-    }
-
-    pub fn u(&self) -> &Vec3 {
-        &self.u
-    }
-
-    pub fn v(&self) -> &Vec3 {
-        &self.v
     }
 }
 
@@ -74,8 +62,8 @@ mod test {
 
         let plane = ParametricPlane::new(p0, u, v).unwrap();
 
-        assert_eq!(plane.p0(), &p0);
-        assert_eq!(plane.u(), &u);
-        assert_eq!(plane.v(), &v);
+        assert_eq!(plane.p0, p0);
+        assert_eq!(plane.u, u);
+        assert_eq!(plane.v, v);
     }
 }

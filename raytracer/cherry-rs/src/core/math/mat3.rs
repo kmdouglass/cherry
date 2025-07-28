@@ -3,7 +3,7 @@ use crate::core::{Float, math::vec3::Vec3};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Mat3 {
-    e: [[Float; 3]; 3],
+    pub e: [[Float; 3]; 3],
 }
 
 impl Mat3 {
@@ -36,6 +36,13 @@ impl Mat3 {
                     .zip(row_other.iter())
                     .all(|(a, b)| (a - b).abs() < tol)
             })
+    }
+
+    /// Computes the determinant of the matrix.
+    pub fn determinant(&self) -> Float {
+        self.e[0][0] * (self.e[1][1] * self.e[2][2] - self.e[1][2] * self.e[2][1])
+            - self.e[0][1] * (self.e[1][0] * self.e[2][2] - self.e[1][2] * self.e[2][0])
+            + self.e[0][2] * (self.e[1][0] * self.e[2][1] - self.e[1][1] * self.e[2][0])
     }
 
     /// Create a 3x3 identity matrix.
@@ -119,7 +126,7 @@ mod test {
     use super::*;
 
     #[test]
-    fn test_mat3_mul_mat3() {
+    fn mat3_mul_mat3() {
         use super::*;
 
         let mat1 = Mat3::new(1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7., 8.0, 9.0);
@@ -134,7 +141,7 @@ mod test {
     }
 
     #[test]
-    fn test_mat3_mul_vec3() {
+    fn mat3_mul_vec3() {
         use super::*;
 
         let mat = Mat3::new(1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7., 8.0, 9.0);
@@ -146,7 +153,18 @@ mod test {
     }
 
     #[test]
-    fn test_mat3_transpose() {
+    fn mat3_determinant() {
+        use super::*;
+
+        let mat = Mat3::new(1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7., 8.0, 9.0);
+
+        let det = mat.determinant();
+
+        assert_eq!(det, 0.0);
+    }
+
+    #[test]
+    fn mat3_transpose() {
         use super::*;
 
         let mat = Mat3::new(1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7., 8.0, 9.0);
@@ -157,14 +175,14 @@ mod test {
     }
 
     #[test]
-    fn test_mat3_from_euler_angles() {
+    fn mat3_from_euler_angles() {
         let (k, l, m) = (0.0, 0.0, 0.0); // no rotation
         let mat = Mat3::from_euler_angles(k, l, m);
         assert_eq!(mat, Mat3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0));
     }
 
     #[test]
-    fn test_mat3_identity() {
+    fn mat3_identity() {
         let mat = Mat3::identity();
         assert_eq!(mat, Mat3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0));
     }
