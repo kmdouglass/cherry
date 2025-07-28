@@ -1,6 +1,8 @@
 /// A conic section.
 use crate::core::{Float, math::mat2::Mat2, math::mat3::Mat3};
 
+const TOL: Float = 1e-12;
+
 #[derive(Debug, PartialEq, Eq)]
 pub enum ConicType {
     Degenerate,
@@ -76,9 +78,9 @@ impl Conic {
         let det_quad_form = matrix_quadratic_form.determinant();
         let trace_quad_form = matrix_quadratic_form.trace();
 
-        if det_full.abs() < 1e-12 {
+        if det_full.abs() < TOL {
             return ConicType::Degenerate;
-        } else if det_quad_form.abs() < 1e-12 {
+        } else if det_quad_form.abs() < TOL {
             return ConicType::Parabola;
         } else if trace_quad_form > 0.0 {
             if det_full * trace_quad_form < 0.0 {
