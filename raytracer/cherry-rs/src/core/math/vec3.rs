@@ -99,6 +99,11 @@ impl Vec3 {
         )
     }
 
+    pub fn is_parallel(&self, rhs: &Self) -> bool {
+        let cross = self.cross(rhs);
+        cross.length_squared() < TOL * TOL
+    }
+
     /// Create a square grid of vectors that sample a circle.
     ///
     /// # Arguments
