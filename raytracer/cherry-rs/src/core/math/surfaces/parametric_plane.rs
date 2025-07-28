@@ -13,7 +13,7 @@ use crate::core::math::vec3::Vec3;
 /// where `P0` is a point on the plane, `U` and `V` are two non-parallel vectors
 /// in the plane, and `s` and `t` are parameters that vary over the plane.
 #[derive(Debug)]
-struct ParametricPlane {
+pub struct ParametricPlane {
     /// A point on the plane.
     pub p0: Vec3,
 
@@ -37,6 +37,11 @@ impl ParametricPlane {
         }
 
         Ok(ParametricPlane { p0, u, v })
+    }
+
+    /// Determines whether the plane's basis is orthonormal.
+    pub fn is_basis_orthonormal(&self) -> bool {
+        self.u.is_orthogonal(&self.v) && self.u.is_unit() && self.v.is_unit()
     }
 }
 
