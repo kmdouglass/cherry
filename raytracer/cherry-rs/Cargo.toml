@@ -26,7 +26,7 @@ bitcode = { version = "0.6", features = [ "serde" ] }
 ndarray = { version = "0.16", features = [ "approx", "serde" ] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
-criterion = { version = "0.6", features = [ "html_reports" ] }
+criterion = { version = "0.7", features = [ "html_reports" ] }
 
 [[bench]]
 name = "convexplano_lens"
