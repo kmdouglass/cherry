@@ -1,7 +1,7 @@
 /// Intersection algorithms for various geometric objects.
 use anyhow::Result;
 
-use crate::core::math::{
+use crate::core::math::geometry::{
     curves::conic::Conic,
     surfaces::{parametric_plane::ParametricPlane, quadric::Quadric},
 };
@@ -93,7 +93,7 @@ pub fn quadric_parametric_plane_intersection_curve(
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::core::math::{curves::conic::ConicType, vec3::Vec3};
+    use crate::core::math::{geometry::curves::conic::ConicType, vec3::Vec3};
 
     #[test]
     fn qppic_plane_basis_not_orthnormal() {
