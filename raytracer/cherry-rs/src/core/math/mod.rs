@@ -1,3 +1,4 @@
+pub(crate) mod algebra;
 pub(crate) mod array;
 pub(super) mod complex;
 pub(crate) mod geometry;
