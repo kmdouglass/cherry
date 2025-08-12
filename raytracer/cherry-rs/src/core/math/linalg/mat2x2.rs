@@ -5,7 +5,7 @@ use anyhow::Result;
 
 use crate::core::{Float, math::vec2::Vec2};
 
-use super::quadratic::Quadratic;
+use super::quadratic::NormalizedQuadratic;
 
 #[derive(Debug)]
 pub struct Mat2x2 {
@@ -34,11 +34,10 @@ impl Mat2x2 {
 
 impl Mat2x2 {
     pub fn eig(&self) -> Result<(Float, Float)> {
-        let characteristic_polynomial = Quadratic::new(
-            1.0,
+        let characteristic_polynomial = NormalizedQuadratic::new(
             -self.trace(),
             self.determinant(),
-        )?;
+        );
 
         let (lambda1, lambda2) = characteristic_polynomial.roots()?;
 
