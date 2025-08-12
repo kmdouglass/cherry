@@ -2,6 +2,9 @@
 
 use crate::core::Float;
 
+/// The characteristic length scale for lenses.
+pub const CHARACTERISTIC_LENS_SIZE_MM: Float = 10.0;
+
 /// The tolerance to use when comparing geometrical values to zero.
 /// 
 /// The rationale for this value is as follows:
@@ -16,7 +19,7 @@ use crate::core::Float;
 ///   they are non-iterative.
 ///
 /// So in the worst case of a system specified in millimeters with feature sizes up to
-/// about 10,000 mm, a tolerance of 1e-10 is still 4 orders of magnitude smaller than
-/// the smallest possible feature size, and affords a margin of 55 ULPs for rounding
+/// about 10,000 mm, a tolerance of 1e-10 is 7 orders of magnitude smaller than the
+/// smallest possible feature size, and affords a margin of 55 ULPs for rounding
 /// errors.
 pub const GEOM_ZERO_TOL: Float = 1e-10;
