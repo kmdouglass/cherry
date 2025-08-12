@@ -8,8 +8,7 @@ use serde::{Deserialize, Serialize, Serializer};
 
 use crate::core::{
     Float,
-    math::{linalg::mat3::Mat3, vec3::Vec3},
-    reference_frames::Cursor,
+    math::{geometry::reference_frames::Cursor, linalg::mat3::Mat3, vec3::Vec3},
     refractive_index::RefractiveIndex,
 };
 use crate::specs::{

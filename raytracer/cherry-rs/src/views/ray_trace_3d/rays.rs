@@ -272,7 +272,7 @@ impl Ray {
 mod test {
     use crate::{
         Rotation,
-        core::reference_frames::Cursor,
+        core::math::geometry::reference_frames::Cursor,
         specs::surfaces::{SurfaceSpec, SurfaceType},
     };
 
