@@ -1,7 +1,7 @@
 /// Provides data structures and logic for rotations.
 use serde::{Deserialize, Serialize};
 
-use crate::core::{Float, math::mat3::Mat3};
+use crate::core::{Float, math::linalg::mat3::Mat3};
 
 /// Euler angles in radians.
 ///
@@ -56,7 +56,7 @@ impl Rotation {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::core::{Float, math::mat3::Mat3};
+    use crate::core::Float;
 
     const TOL: Float = 1e-6;
 

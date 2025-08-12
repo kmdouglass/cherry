@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize, Serializer};
 
 use crate::core::{
     Float,
-    math::{mat3::Mat3, vec3::Vec3},
+    math::{linalg::mat3::Mat3, vec3::Vec3},
     reference_frames::Cursor,
     refractive_index::RefractiveIndex,
 };
@@ -842,11 +842,7 @@ impl Display for Surface {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        core::{Float, math::mat3::Mat3},
-        examples::convexplano_lens::sequential_model,
-        n,
-    };
+    use crate::{core::Float, examples::convexplano_lens::sequential_model, n};
 
     #[test]
     fn is_rotationally_symmetric() {
