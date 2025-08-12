@@ -1,7 +1,7 @@
 /// Provides data structures and logic for rotations.
 use serde::{Deserialize, Serialize};
 
-use crate::core::{Float, math::linalg::mat3::Mat3};
+use crate::core::{Float, math::linalg::mat3x3::Mat3x3};
 
 /// Euler angles in radians.
 ///
@@ -28,16 +28,16 @@ pub enum Rotation {
 
 impl Rotation {
     /// Returns the 3D rotation matrix corresponding to the rotation.
-    pub fn rotation_matrix(&self) -> Mat3 {
+    pub fn rotation_matrix(&self) -> Mat3x3 {
         match self {
-            Rotation::None => Mat3::identity(),
+            Rotation::None => Mat3x3::identity(),
             Rotation::IntrinsicPassiveRUF(euler_angles) => {
                 let (theta, psi, phi) = (euler_angles.0, euler_angles.1, euler_angles.2);
                 let (s_theta, c_theta) = theta.sin_cos();
                 let (s_psi, c_psi) = psi.sin_cos();
                 let (s_phi, c_phi) = phi.sin_cos();
 
-                Mat3::new(
+                Mat3x3::new(
                     c_phi * c_psi,
                     s_phi * c_psi,
                     -s_psi,
@@ -66,7 +66,7 @@ mod test {
             Rotation::IntrinsicPassiveRUF(EulerAngles((30.0_f64).to_radians(), 0.0, 0.0));
         let matrix = rotation.rotation_matrix();
 
-        let expected = Mat3::new(
+        let expected = Mat3x3::new(
             1.0,
             0.0,
             0.0,

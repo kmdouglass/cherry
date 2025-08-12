@@ -1,5 +1,5 @@
 /// A conic section.
-use crate::core::{Float, math::linalg::mat2::Mat2, math::linalg::mat3::Mat3};
+use crate::core::{Float, math::linalg::mat2x2::Mat2x2, math::linalg::mat3x3::Mat3x3};
 
 const TOL: Float = 1e-12;
 
@@ -41,7 +41,7 @@ pub enum ConicType {
 #[derive(Debug)]
 pub struct Conic {
     /// The matrix representing the conic section.
-    matrix: Mat3,
+    matrix: Mat3x3,
 }
 
 impl Conic {
@@ -56,7 +56,7 @@ impl Conic {
     /// * `e` - Coefficient for y
     /// * `f` - Constant term
     pub fn new(a: Float, b: Float, c: Float, d: Float, e: Float, f: Float) -> Self {
-        let matrix = Mat3::new(
+        let matrix = Mat3x3::new(
             a,
             b / 2.0,
             d / 2.0,
@@ -94,13 +94,13 @@ impl Conic {
     }
 
     /// Returns the matrix representing the conic section.
-    pub fn matrix(&self) -> &Mat3 {
+    pub fn matrix(&self) -> &Mat3x3 {
         &self.matrix
     }
 
     /// Returns the matrix of the quadratic form.
-    pub fn matrix_quadratic_form(&self) -> Mat2 {
-        Mat2::new(
+    pub fn matrix_quadratic_form(&self) -> Mat2x2 {
+        Mat2x2::new(
             self.matrix.e[0][0],
             self.matrix.e[0][1] * 2.0,
             self.matrix.e[1][0] * 2.0,
