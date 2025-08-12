@@ -6,15 +6,15 @@ use crate::core::{
     math::constants::{CHARACTERISTIC_LENS_SIZE_MM, GEOM_ZERO_TOL},
 };
 
-struct Quadratic {
+pub struct Quadratic {
     a: Float,
     b: Float,
     c: Float,
 }
 
 impl Quadratic {
-    fn new(a: Float, b: Float, c: Float) -> Result<Self> {
-        if a < GEOM_ZERO_TOL / CHARACTERISTIC_LENS_SIZE_MM / CHARACTERISTIC_LENS_SIZE_MM {
+    pub fn new(a: Float, b: Float, c: Float) -> Result<Self> {
+        if a < GEOM_ZERO_TOL {
             return Err(anyhow::anyhow!(
                 "Coefficient 'a' is too close to zero for a quadratic polynomial."
             ));
@@ -28,7 +28,7 @@ impl Quadratic {
     /// We do not address the following cases:
     /// - Complex roots: This implementation only handles real roots.
     /// - a == 0: This cannot be the case as we check for it in the new method.
-    fn roots(&self) -> Result<(Float, Float)> {
+    pub fn roots(&self) -> Result<(Float, Float)> {
         let discriminant = self.b * self.b - 4.0 * self.a * self.c;
         if discriminant < 0.0 {
             return Err(anyhow::anyhow!(
