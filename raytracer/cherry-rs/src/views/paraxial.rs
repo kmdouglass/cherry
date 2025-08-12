@@ -10,13 +10,13 @@
 use std::{borrow::Borrow, collections::HashMap};
 
 use anyhow::{Result, anyhow};
-use ndarray::{Array, Array1, Array2, Array3, ArrayView2, arr2, s};
+use ndarray::{Array, Array1, Array2, Array3, ArrayView1, ArrayView2, arr2, s};
 use serde::{Deserialize, Serialize};
 
 use crate::{
     FieldSpec,
     core::{
-        Float, argmin,
+        Float,
         math::vec3::Vec3,
         sequential_model::{
             Axis, SequentialModel, SequentialSubModel, Step, SubModelID, Surface,
@@ -901,6 +901,20 @@ fn surface_to_rtm(
         Surface::Image(_) | Surface::Probe(_) | Surface::Stop(_) => arr2(&[[1.0, t], [0.0, 1.0]]),
         Surface::Object(_) => arr2(&[[1.0, 0.0], [0.0, 1.0]]),
     }
+}
+
+fn argmin(ratios: &ArrayView1<Float>) -> usize {
+    ratios
+        .iter()
+        .enumerate()
+        .fold((0, Float::MAX), |(min_idx, min_val), (idx, &val)| {
+            if val < min_val {
+                (idx, val)
+            } else {
+                (min_idx, min_val)
+            }
+        })
+        .0
 }
 
 // Consider moving these to integration tests once the paraxial view and

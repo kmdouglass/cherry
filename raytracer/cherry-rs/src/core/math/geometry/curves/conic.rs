@@ -125,10 +125,10 @@ mod test {
     fn conic_matrix_quadratic_form() {
         let conic = Conic::new(1.0, 2.0, 1.0, -4.0, 5.0, -1.0);
         let q_matrix = conic.matrix_quadratic_form();
-        assert_eq!(q_matrix.e[0][0], 1.0);
-        assert_eq!(q_matrix.e[0][1], 2.0);
-        assert_eq!(q_matrix.e[1][0], 2.0);
-        assert_eq!(q_matrix.e[1][1], 1.0);
+        assert_eq!(q_matrix[0][0], 1.0);
+        assert_eq!(q_matrix[0][1], 2.0);
+        assert_eq!(q_matrix[1][0], 2.0);
+        assert_eq!(q_matrix[1][1], 1.0);
     }
 
     #[test]
