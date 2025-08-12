@@ -12,8 +12,8 @@ pub struct Vec2 {
 impl Vec2 {
     // Normalizes the vector in place.
     //
-    // This method modifies the vector to have a length of 1 if the length is greater
-    // than a small tolerance near zero. Otherwise, it is unchanged.
+    // This method modifies the vector to have a length of 1 if the length is
+    // greater than a small tolerance near zero. Otherwise, it is unchanged.
     pub fn normalize(&mut self) {
         let length = (self.x * self.x + self.y * self.y).sqrt();
         if length > ZERO_TOL {
@@ -37,8 +37,8 @@ impl Index<usize> for Vec2 {
 
 #[cfg(test)]
 mod tests {
-    use crate::core::math::constants::REL_TOL;
     use super::*;
+    use crate::core::math::constants::REL_TOL;
 
     #[test]
     fn test_normalize() {

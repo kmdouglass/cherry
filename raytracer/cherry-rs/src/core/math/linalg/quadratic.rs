@@ -1,10 +1,7 @@
 /// Quadratic (order 2) polynomials.
 use anyhow::Result;
 
-use crate::core::{
-    Float,
-    math::constants::REL_TOL,
-};
+use crate::core::{Float, math::constants::REL_TOL};
 
 /// A quadratic polynomial where the leading coefficient is 1.
 pub struct NormalizedQuadratic {
@@ -20,8 +17,8 @@ impl NormalizedQuadratic {
     /// Returns the roots of the quadratic polynomial ax^2 + bx + c = 0. The
     /// smaller root is always returned first.
     ///
-    /// The following cases are not addressed because they are not necessary for this
-    /// library:
+    /// The following cases are not addressed because they are not necessary for
+    /// this library:
     /// - Complex roots
     /// - a == 0: This cannot be the case as we check for it in the new method.
     pub fn roots(&self) -> Result<(Float, Float)> {
@@ -33,8 +30,7 @@ impl NormalizedQuadratic {
         }
 
         // Check for repeated roots
-        if discriminant.abs() < REL_TOL * self.b * self.b
-        {
+        if discriminant.abs() < REL_TOL * self.b * self.b {
             let root = -self.b / 2.0;
             return Ok((root, root));
         }
