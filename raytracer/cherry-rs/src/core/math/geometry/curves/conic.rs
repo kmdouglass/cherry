@@ -1,5 +1,5 @@
 /// A conic section.
-use crate::core::{Float, math::mat2::Mat2, math::mat3::Mat3};
+use crate::core::{Float, math::linalg::mat2::Mat2, math::linalg::mat3::Mat3};
 
 const TOL: Float = 1e-12;
 

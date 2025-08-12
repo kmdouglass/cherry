@@ -1,8 +1,10 @@
 /// Quadratic (order 2) polynomials.
-
 use anyhow::Result;
 
-use crate::core::{Float, math::constants::{CHARACTERISTIC_LENS_SIZE_MM, GEOM_ZERO_TOL}};
+use crate::core::{
+    Float,
+    math::constants::{CHARACTERISTIC_LENS_SIZE_MM, GEOM_ZERO_TOL},
+};
 
 struct Quadratic {
     a: Float,
@@ -13,32 +15,38 @@ struct Quadratic {
 impl Quadratic {
     fn new(a: Float, b: Float, c: Float) -> Result<Self> {
         if a < GEOM_ZERO_TOL / CHARACTERISTIC_LENS_SIZE_MM / CHARACTERISTIC_LENS_SIZE_MM {
-            return Err(anyhow::anyhow!("Coefficient 'a' is too close to zero for a quadratic polynomial."));
+            return Err(anyhow::anyhow!(
+                "Coefficient 'a' is too close to zero for a quadratic polynomial."
+            ));
         }
         Ok(Self { a, b, c })
     }
 
-    /// Returns the roots of the quadratic polynomial ax^2 + bx + c = 0. The smaller
-    /// root is always returned first.
-    /// 
+    /// Returns the roots of the quadratic polynomial ax^2 + bx + c = 0. The
+    /// smaller root is always returned first.
+    ///
     /// We do not address the following cases:
     /// - Complex roots: This implementation only handles real roots.
     /// - a == 0: This cannot be the case as we check for it in the new method.
     fn roots(&self) -> Result<(Float, Float)> {
         let discriminant = self.b * self.b - 4.0 * self.a * self.c;
         if discriminant < 0.0 {
-            return Err(anyhow::anyhow!("No real roots exist for the given quadratic polynomial."));
+            return Err(anyhow::anyhow!(
+                "No real roots exist for the given quadratic polynomial."
+            ));
         }
 
         // Check for repeated roots
-        if discriminant.abs() < GEOM_ZERO_TOL / CHARACTERISTIC_LENS_SIZE_MM / CHARACTERISTIC_LENS_SIZE_MM {
+        if discriminant.abs()
+            < GEOM_ZERO_TOL / CHARACTERISTIC_LENS_SIZE_MM / CHARACTERISTIC_LENS_SIZE_MM
+        {
             let root = -self.b / (2.0 * self.a);
             return Ok((root, root));
         }
 
-        // This works so long as signum never returns zero, which is the case for Rust's f32 and f64 types.
-        // https://doc.rust-lang.org/std/primitive.f32.html#method.signum
-        // https://doc.rust-lang.org/std/primitive.f64.html#method.signum 
+        // This works so long as signum never returns zero, which is the case for Rust's
+        // f32 and f64 types. https://doc.rust-lang.org/std/primitive.f32.html#method.signum
+        // https://doc.rust-lang.org/std/primitive.f64.html#method.signum
         let u = -self.b - self.b.signum() * discriminant.sqrt();
 
         let root1 = u / (2.0 * self.a);
@@ -47,7 +55,7 @@ impl Quadratic {
         if root1 > root2 {
             return Ok((root2, root1));
         }
-        
+
         Ok((root1, root2))
     }
 }
