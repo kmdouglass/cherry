@@ -135,8 +135,8 @@ mod views;
 // API
 pub mod examples;
 pub use core::{
+    math::linalg::rotations::{EulerAngles, Rotation},
     math::vec3::Vec3,
-    rotations::{EulerAngles, Rotation},
     sequential_model::{Axis, SequentialModel, SequentialSubModel, Step, SubModelID},
 };
 pub use specs::{

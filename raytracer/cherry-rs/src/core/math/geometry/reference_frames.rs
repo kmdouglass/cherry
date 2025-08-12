@@ -69,7 +69,7 @@ impl Cursor {
         }
     }
 
-    pub(super) fn pos(&self) -> Vec3 {
+    pub fn pos(&self) -> Vec3 {
         self.pos
     }
 
