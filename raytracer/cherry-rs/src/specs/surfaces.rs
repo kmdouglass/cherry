@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::core::{Float, rotations::Rotation};
+use crate::core::{Float, math::linalg::rotations::Rotation};
 
 /// Specifies the type of interaction of light with a sequential model surface.
 #[derive(Debug, Serialize, Deserialize, Clone, Copy)]
