@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize, Serializer};
 
 use crate::core::{
     Float,
-    math::{geometry::reference_frames::Cursor, linalg::mat3::Mat3, vec3::Vec3},
+    math::{geometry::reference_frames::Cursor, linalg::mat3x3::Mat3x3, vec3::Vec3},
     refractive_index::RefractiveIndex,
 };
 use crate::specs::{
@@ -188,8 +188,8 @@ pub enum Surface {
 #[derive(Debug)]
 pub struct Conic {
     pos: Vec3,
-    rotation_matrix: Mat3,
-    inv_rotation_matrix: Mat3,
+    rotation_matrix: Mat3x3,
+    inv_rotation_matrix: Mat3x3,
     semi_diameter: Float,
     radius_of_curvature: Float,
     conic_constant: Float,
@@ -199,8 +199,8 @@ pub struct Conic {
 #[derive(Debug)]
 pub struct Image {
     pos: Vec3,
-    rotation_matrix: Mat3,
-    inv_rotation_matrix: Mat3,
+    rotation_matrix: Mat3x3,
+    inv_rotation_matrix: Mat3x3,
 }
 
 #[derive(Debug)]
@@ -212,15 +212,15 @@ pub struct Object {
 #[derive(Debug)]
 pub struct Probe {
     pos: Vec3,
-    rotation_matrix: Mat3,
-    inv_rotation_matrix: Mat3,
+    rotation_matrix: Mat3x3,
+    inv_rotation_matrix: Mat3x3,
 }
 
 #[derive(Debug)]
 pub struct Stop {
     pos: Vec3,
-    rotation_matrix: Mat3,
-    inv_rotation_matrix: Mat3,
+    rotation_matrix: Mat3x3,
+    inv_rotation_matrix: Mat3x3,
     semi_diameter: Float,
 }
 
@@ -756,11 +756,12 @@ impl Surface {
 
     /// Returns the rotation matrix of the surface into the local coordinate
     /// system.
-    pub(crate) fn rot_mat(&self) -> Mat3 {
+    pub(crate) fn rot_mat(&self) -> Mat3x3 {
         match self {
             Self::Conic(conic) => conic.rotation_matrix,
             Self::Image(image) => image.rotation_matrix,
-            Self::Object(_) => Mat3::identity(), /* Object surfaces start aligned to the global */
+            Self::Object(_) => Mat3x3::identity(), /* Object surfaces start aligned to the
+                                                     * global */
             // frame
             Self::Probe(probe) => probe.rotation_matrix,
             Self::Stop(stop) => stop.rotation_matrix,
@@ -770,11 +771,11 @@ impl Surface {
 
     /// Returns the inverse rotation matrix of the surface into the global
     /// coordinate system.
-    pub(crate) fn inv_rot_mat(&self) -> Mat3 {
+    pub(crate) fn inv_rot_mat(&self) -> Mat3x3 {
         match self {
             Self::Conic(conic) => conic.inv_rotation_matrix,
             Self::Image(image) => image.inv_rotation_matrix,
-            Self::Object(_) => Mat3::identity(), // Object surfaces start aligned to the global
+            Self::Object(_) => Mat3x3::identity(), // Object surfaces start aligned to the global
             Self::Probe(probe) => probe.inv_rotation_matrix,
             Self::Stop(stop) => stop.inv_rotation_matrix,
             //Self::Toric(toric) => toric.inv_rotation_matrix,
@@ -848,8 +849,8 @@ mod tests {
         let surfaces = vec![
             Surface::Conic(Conic {
                 pos: Vec3::new(0.0, 0.0, 0.0),
-                rotation_matrix: Mat3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
-                inv_rotation_matrix: Mat3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
+                rotation_matrix: Mat3x3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
+                inv_rotation_matrix: Mat3x3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
                 semi_diameter: 1.0,
                 radius_of_curvature: 1.0,
                 conic_constant: 0.0,
@@ -857,8 +858,8 @@ mod tests {
             }),
             Surface::Conic(Conic {
                 pos: Vec3::new(0.0, 0.0, 0.0),
-                rotation_matrix: Mat3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
-                inv_rotation_matrix: Mat3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
+                rotation_matrix: Mat3x3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
+                inv_rotation_matrix: Mat3x3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
                 semi_diameter: 1.0,
                 radius_of_curvature: 1.0,
                 conic_constant: 0.0,
@@ -923,13 +924,13 @@ mod tests {
             }),
             Surface::Probe(Probe {
                 pos: Vec3::new(0.0, 0.0, 0.0),
-                rotation_matrix: Mat3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
-                inv_rotation_matrix: Mat3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
+                rotation_matrix: Mat3x3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
+                inv_rotation_matrix: Mat3x3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
             }),
             Surface::Conic(Conic {
                 pos: Vec3::new(0.0, 0.0, 0.0),
-                rotation_matrix: Mat3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
-                inv_rotation_matrix: Mat3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
+                rotation_matrix: Mat3x3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
+                inv_rotation_matrix: Mat3x3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
                 semi_diameter: 1.0,
                 radius_of_curvature: 1.0,
                 conic_constant: 0.0,
@@ -937,8 +938,8 @@ mod tests {
             }),
             Surface::Conic(Conic {
                 pos: Vec3::new(0.0, 0.0, 0.0),
-                rotation_matrix: Mat3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
-                inv_rotation_matrix: Mat3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
+                rotation_matrix: Mat3x3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
+                inv_rotation_matrix: Mat3x3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
                 semi_diameter: 1.0,
                 radius_of_curvature: 1.0,
                 conic_constant: 0.0,
@@ -946,8 +947,8 @@ mod tests {
             }),
             Surface::Image(Image {
                 pos: Vec3::new(0.0, 0.0, 0.0),
-                rotation_matrix: Mat3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
-                inv_rotation_matrix: Mat3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
+                rotation_matrix: Mat3x3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
+                inv_rotation_matrix: Mat3x3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
             }),
         ];
 
@@ -963,8 +964,8 @@ mod tests {
             }),
             Surface::Conic(Conic {
                 pos: Vec3::new(0.0, 0.0, 0.0),
-                rotation_matrix: Mat3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
-                inv_rotation_matrix: Mat3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
+                rotation_matrix: Mat3x3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
+                inv_rotation_matrix: Mat3x3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
                 semi_diameter: 1.0,
                 radius_of_curvature: 1.0,
                 conic_constant: 0.0,
@@ -972,8 +973,8 @@ mod tests {
             }),
             Surface::Conic(Conic {
                 pos: Vec3::new(0.0, 0.0, 0.0),
-                rotation_matrix: Mat3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
-                inv_rotation_matrix: Mat3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
+                rotation_matrix: Mat3x3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
+                inv_rotation_matrix: Mat3x3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
                 semi_diameter: 1.0,
                 radius_of_curvature: 1.0,
                 conic_constant: 0.0,
@@ -981,13 +982,13 @@ mod tests {
             }),
             Surface::Probe(Probe {
                 pos: Vec3::new(0.0, 0.0, 0.0),
-                rotation_matrix: Mat3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
-                inv_rotation_matrix: Mat3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
+                rotation_matrix: Mat3x3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
+                inv_rotation_matrix: Mat3x3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
             }),
             Surface::Image(Image {
                 pos: Vec3::new(0.0, 0.0, 0.0),
-                rotation_matrix: Mat3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
-                inv_rotation_matrix: Mat3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
+                rotation_matrix: Mat3x3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
+                inv_rotation_matrix: Mat3x3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
             }),
         ];
 
@@ -1003,8 +1004,8 @@ mod tests {
             }),
             Surface::Conic(Conic {
                 pos: Vec3::new(0.0, 0.0, 0.0),
-                rotation_matrix: Mat3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
-                inv_rotation_matrix: Mat3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
+                rotation_matrix: Mat3x3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
+                inv_rotation_matrix: Mat3x3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
                 semi_diameter: 1.0,
                 radius_of_curvature: 1.0,
                 conic_constant: 0.0,
@@ -1012,8 +1013,8 @@ mod tests {
             }),
             Surface::Conic(Conic {
                 pos: Vec3::new(0.0, 0.0, 0.0),
-                rotation_matrix: Mat3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
-                inv_rotation_matrix: Mat3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
+                rotation_matrix: Mat3x3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
+                inv_rotation_matrix: Mat3x3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
                 semi_diameter: 1.0,
                 radius_of_curvature: 1.0,
                 conic_constant: 0.0,
@@ -1021,13 +1022,13 @@ mod tests {
             }),
             Surface::Probe(Probe {
                 pos: Vec3::new(0.0, 0.0, 0.0),
-                rotation_matrix: Mat3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
-                inv_rotation_matrix: Mat3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
+                rotation_matrix: Mat3x3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
+                inv_rotation_matrix: Mat3x3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
             }),
             Surface::Image(Image {
                 pos: Vec3::new(0.0, 0.0, 0.0),
-                rotation_matrix: Mat3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
-                inv_rotation_matrix: Mat3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
+                rotation_matrix: Mat3x3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
+                inv_rotation_matrix: Mat3x3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
             }),
         ];
 
