@@ -5,26 +5,26 @@ use crate::core::{Float, math::vec2::Vec2};
 
 #[derive(Debug)]
 pub struct Mat2x2 {
-    col_1: Vec2,
-    col_2: Vec2,
+    row_0: Vec2,
+    row_1: Vec2,
 }
 
 impl Mat2x2 {
     pub fn new(e00: Float, e01: Float, e10: Float, e11: Float) -> Self {
         Self {
-            col_1: Vec2 { x: e00, y: e10 },
-            col_2: Vec2 { x: e01, y: e11 },
+            row_0: Vec2 { x: e00, y: e01 },
+            row_1: Vec2 { x: e10, y: e11 },
         }
     }
 
     /// Computes the determinant of the matrix.
     pub fn determinant(&self) -> Float {
-        self.col_1.x * self.col_2.y - self.col_1.y * self.col_2.x
+        self.row_0.x * self.row_1.y - self.row_0.y * self.row_1.x
     }
 
     /// Computes the trace of the matrix.
     pub fn trace(&self) -> Float {
-        self.col_1.x + self.col_2.y
+        self.row_0.x + self.row_1.y
     }
 }
 
@@ -33,8 +33,8 @@ impl Index<usize> for Mat2x2 {
 
     fn index(&self, index: usize) -> &Self::Output {
         match index {
-            0 => &self.col_1,
-            1 => &self.col_2,
+            0 => &self.row_0,
+            1 => &self.row_1,
             _ => panic!("Index out of bounds for Mat2"),
         }
     }
