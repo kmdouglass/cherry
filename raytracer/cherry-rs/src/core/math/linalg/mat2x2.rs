@@ -62,7 +62,7 @@ mod test {
     use super::*;
 
     #[test]
-    fn mat2_new() {
+    fn mat2x2_new() {
         let m = Mat2x2::new(1.0, 2.0, 3.0, 4.0);
         assert_eq!(m[0][0], 1.0);
         assert_eq!(m[0][1], 2.0);
@@ -71,8 +71,14 @@ mod test {
     }
 
     #[test]
-    fn mat2_determinant() {
+    fn mat2x2_determinant() {
         let m = Mat2x2::new(1.0, 2.0, 3.0, 4.0);
         assert_eq!(m.determinant(), -2.0);
+    }
+
+    #[test]
+    fn mat2x2_trace() {
+        let m = Mat2x2::new(1.0, 2.0, 3.0, 4.0);
+        assert_eq!(m.trace(), 5.0);
     }
 }
