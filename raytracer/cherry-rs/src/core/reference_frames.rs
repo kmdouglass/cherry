@@ -1,7 +1,7 @@
 /// Reference frame logic for building sequential optical systems.
 use crate::core::{
     Float,
-    math::{mat3::Mat3, vec3::Vec3},
+    math::{linalg::mat3::Mat3, vec3::Vec3},
 };
 
 /// A reference frame for 3D positioning of surfaces in a sequential optical
