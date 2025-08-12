@@ -1,7 +1,11 @@
 /// A 2 x 2 matrix.
 use std::ops::Index;
 
+use anyhow::Result;
+
 use crate::core::{Float, math::vec2::Vec2};
+
+use super::quadratic::Quadratic;
 
 #[derive(Debug)]
 pub struct Mat2x2 {
@@ -25,6 +29,20 @@ impl Mat2x2 {
     /// Computes the trace of the matrix.
     pub fn trace(&self) -> Float {
         self.row_0.x + self.row_1.y
+    }
+}
+
+impl Mat2x2 {
+    pub fn eig(&self) -> Result<(Float, Float)> {
+        let characteristic_polynomial = Quadratic::new(
+            1.0,
+            -self.trace(),
+            self.determinant(),
+        )?;
+
+        let (lambda1, lambda2) = characteristic_polynomial.roots()?;
+
+        Ok((lambda1, lambda2))
     }
 }
 
