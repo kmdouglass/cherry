@@ -1,6 +1,6 @@
 /// A 2D vector.
 use std::ops::Index;
- 
+
 use crate::core::Float;
 
 #[derive(Debug)]

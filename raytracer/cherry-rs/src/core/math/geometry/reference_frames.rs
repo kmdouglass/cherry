@@ -1,7 +1,7 @@
 /// Reference frame logic for building sequential optical systems.
 use crate::core::{
     Float,
-    math::{linalg::mat3::Mat3, vec3::Vec3},
+    math::{linalg::mat3x3::Mat3x3, vec3::Vec3},
 };
 
 /// A reference frame for 3D positioning of surfaces in a sequential optical
@@ -75,8 +75,8 @@ impl Cursor {
 
     /// Returns a rotation matrix that transforms vectors from the global
     /// coordinate system to the local reference frame of the cursor.
-    pub fn rotation_matrix(&self) -> Mat3 {
-        Mat3::new(
+    pub fn rotation_matrix(&self) -> Mat3x3 {
+        Mat3x3::new(
             self.right.x(),
             self.up.x(),
             self.forward.x(),
@@ -131,7 +131,7 @@ mod test {
     #[test]
     fn cursor_rotation_matrix() {
         let cursor = Cursor::new(0.0);
-        let expected = Mat3::identity();
+        let expected = Mat3x3::identity();
 
         let rotation_matrix = cursor.rotation_matrix();
 

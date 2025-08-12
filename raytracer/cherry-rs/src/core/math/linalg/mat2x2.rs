@@ -4,12 +4,12 @@ use std::ops::Index;
 use crate::core::{Float, math::vec2::Vec2};
 
 #[derive(Debug)]
-pub struct Mat2 {
+pub struct Mat2x2 {
     col_1: Vec2,
     col_2: Vec2,
 }
 
-impl Mat2 {
+impl Mat2x2 {
     pub fn new(e00: Float, e01: Float, e10: Float, e11: Float) -> Self {
         Self {
             col_1: Vec2 { x: e00, y: e10 },
@@ -28,7 +28,7 @@ impl Mat2 {
     }
 }
 
-impl Index<usize> for Mat2 {
+impl Index<usize> for Mat2x2 {
     type Output = Vec2;
 
     fn index(&self, index: usize) -> &Self::Output {
@@ -46,7 +46,7 @@ mod test {
 
     #[test]
     fn mat2_new() {
-        let m = Mat2::new(1.0, 2.0, 3.0, 4.0);
+        let m = Mat2x2::new(1.0, 2.0, 3.0, 4.0);
         assert_eq!(m[0][0], 1.0);
         assert_eq!(m[0][1], 2.0);
         assert_eq!(m[1][0], 3.0);
@@ -55,7 +55,7 @@ mod test {
 
     #[test]
     fn mat2_determinant() {
-        let m = Mat2::new(1.0, 2.0, 3.0, 4.0);
+        let m = Mat2x2::new(1.0, 2.0, 3.0, 4.0);
         assert_eq!(m.determinant(), -2.0);
     }
 }

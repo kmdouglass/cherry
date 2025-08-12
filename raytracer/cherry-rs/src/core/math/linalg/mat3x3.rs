@@ -2,11 +2,11 @@
 use crate::core::{Float, math::vec3::Vec3};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Mat3 {
+pub struct Mat3x3 {
     pub e: [[Float; 3]; 3],
 }
 
-impl Mat3 {
+impl Mat3x3 {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         e00: Float,
@@ -93,11 +93,11 @@ impl Mat3 {
     }
 }
 
-impl std::ops::Mul<Mat3> for Mat3 {
-    type Output = Mat3;
+impl std::ops::Mul<Mat3x3> for Mat3x3 {
+    type Output = Mat3x3;
 
-    fn mul(self, rhs: Mat3) -> Mat3 {
-        let mut result = Mat3::identity();
+    fn mul(self, rhs: Mat3x3) -> Mat3x3 {
+        let mut result = Mat3x3::identity();
         for i in 0..3 {
             for j in 0..3 {
                 result.e[i][j] = self.e[i][0] * rhs.e[0][j]
@@ -109,7 +109,7 @@ impl std::ops::Mul<Mat3> for Mat3 {
     }
 }
 
-impl std::ops::Mul<Vec3> for Mat3 {
+impl std::ops::Mul<Vec3> for Mat3x3 {
     type Output = Vec3;
 
     fn mul(self, rhs: Vec3) -> Vec3 {
@@ -129,13 +129,13 @@ mod test {
     fn mat3_mul_mat3() {
         use super::*;
 
-        let mat1 = Mat3::new(1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7., 8.0, 9.0);
-        let mat2 = Mat3::new(9.0, 8.0, 7.0, 6.0, 5.0, 4.0, 3., 2.0, 1.0);
+        let mat1 = Mat3x3::new(1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7., 8.0, 9.0);
+        let mat2 = Mat3x3::new(9.0, 8.0, 7.0, 6.0, 5.0, 4.0, 3., 2.0, 1.0);
 
         let res = mat1 * mat2;
 
         assert!(res.approx_eq(
-            &Mat3::new(30.0, 24.0, 18.0, 84.0, 69.0, 54.0, 138., 114.0, 90.0),
+            &Mat3x3::new(30.0, 24.0, 18.0, 84.0, 69.0, 54.0, 138., 114.0, 90.0),
             1e-6
         ));
     }
@@ -144,7 +144,7 @@ mod test {
     fn mat3_mul_vec3() {
         use super::*;
 
-        let mat = Mat3::new(1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7., 8.0, 9.0);
+        let mat = Mat3x3::new(1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7., 8.0, 9.0);
         let vec = Vec3::new(1.0, 2.0, 3.0);
 
         let res = mat * vec;
@@ -156,7 +156,7 @@ mod test {
     fn mat3_determinant() {
         use super::*;
 
-        let mat = Mat3::new(1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7., 8.0, 9.0);
+        let mat = Mat3x3::new(1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7., 8.0, 9.0);
 
         let det = mat.determinant();
 
@@ -167,23 +167,29 @@ mod test {
     fn mat3_transpose() {
         use super::*;
 
-        let mat = Mat3::new(1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7., 8.0, 9.0);
+        let mat = Mat3x3::new(1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7., 8.0, 9.0);
 
         let res = mat.transpose();
 
-        assert_eq!(res, Mat3::new(1.0, 4.0, 7.0, 2.0, 5.0, 8.0, 3., 6.0, 9.0));
+        assert_eq!(res, Mat3x3::new(1.0, 4.0, 7.0, 2.0, 5.0, 8.0, 3., 6.0, 9.0));
     }
 
     #[test]
     fn mat3_from_euler_angles() {
         let (k, l, m) = (0.0, 0.0, 0.0); // no rotation
-        let mat = Mat3::from_euler_angles(k, l, m);
-        assert_eq!(mat, Mat3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0));
+        let mat = Mat3x3::from_euler_angles(k, l, m);
+        assert_eq!(
+            mat,
+            Mat3x3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0)
+        );
     }
 
     #[test]
     fn mat3_identity() {
-        let mat = Mat3::identity();
-        assert_eq!(mat, Mat3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0));
+        let mat = Mat3x3::identity();
+        assert_eq!(
+            mat,
+            Mat3x3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0)
+        );
     }
 }
