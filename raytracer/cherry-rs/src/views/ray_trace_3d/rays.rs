@@ -271,7 +271,7 @@ impl Ray {
 #[cfg(test)]
 mod test {
     use crate::{
-        Rotation,
+        Rotation3D,
         core::math::geometry::reference_frames::Cursor,
         specs::surfaces::{SurfaceSpec, SurfaceType},
     };
@@ -287,7 +287,7 @@ mod test {
             radius_of_curvature: Float::INFINITY,
             conic_constant: 0.0,
             surf_type: SurfaceType::Refracting,
-            rotation: Rotation::None,
+            rotation: Rotation3D::None,
         };
         let surf = Surface::from_spec(&surf_spec, &cursor);
         let max_iter = 1000;
@@ -313,7 +313,7 @@ mod test {
             radius_of_curvature: -1.0,
             conic_constant: 0.0,
             surf_type: SurfaceType::Refracting,
-            rotation: Rotation::None,
+            rotation: Rotation3D::None,
         };
         let surf = Surface::from_spec(&surf_spec, &cursor);
         let max_iter = 1000;

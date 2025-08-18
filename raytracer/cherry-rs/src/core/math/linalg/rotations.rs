@@ -17,7 +17,7 @@ pub struct EulerAngles(pub Float, pub Float, pub Float);
 /// - Counterclockwise rotations are positive
 /// - Angles are in radians
 #[derive(Debug, Serialize, Deserialize)]
-pub enum Rotation {
+pub enum Rotation3D {
     /// No rotation is applied.
     None,
 
@@ -26,12 +26,12 @@ pub enum Rotation {
     IntrinsicPassiveRUF(EulerAngles),
 }
 
-impl Rotation {
+impl Rotation3D {
     /// Returns the 3D rotation matrix corresponding to the rotation.
     pub fn rotation_matrix(&self) -> Mat3x3 {
         match self {
-            Rotation::None => Mat3x3::identity(),
-            Rotation::IntrinsicPassiveRUF(euler_angles) => {
+            Rotation3D::None => Mat3x3::identity(),
+            Rotation3D::IntrinsicPassiveRUF(euler_angles) => {
                 let (theta, psi, phi) = (euler_angles.0, euler_angles.1, euler_angles.2);
                 let (s_theta, c_theta) = theta.sin_cos();
                 let (s_psi, c_psi) = psi.sin_cos();
@@ -63,7 +63,7 @@ mod test {
     #[test]
     fn intrinsic_passive_ruf_rotation_30_deg_about_r() {
         let rotation =
-            Rotation::IntrinsicPassiveRUF(EulerAngles((30.0_f64).to_radians(), 0.0, 0.0));
+            Rotation3D::IntrinsicPassiveRUF(EulerAngles((30.0_f64).to_radians(), 0.0, 0.0));
         let matrix = rotation.rotation_matrix();
 
         let expected = Mat3x3::new(
