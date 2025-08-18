@@ -93,7 +93,7 @@ pub fn quadric_parametric_plane_intersection_curve(
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::core::math::{geometry::curves::conic::ConicType, vec3::Vec3};
+    use crate::core::math::{geometry::curves::conic::ConicClass, vec3::Vec3};
 
     #[test]
     fn qppic_plane_basis_not_orthnormal() {
@@ -125,10 +125,10 @@ mod test {
 
         let result = quadric_parametric_plane_intersection_curve(&unit_sphere, &plane).unwrap();
 
-        let conic_type = result.classify();
+        let conic_type = result.class();
         assert_eq!(
             conic_type,
-            ConicType::Ellipse,
+            ConicClass::Ellipse,
             "Expected intersection to be an ellipse"
         );
 
@@ -150,10 +150,10 @@ mod test {
 
         let result = quadric_parametric_plane_intersection_curve(&unit_sphere, &plane);
 
-        let conic_type = result.unwrap().classify();
+        let conic_type = result.unwrap().class();
         assert_eq!(
             conic_type,
-            ConicType::Empty,
+            ConicClass::Empty,
             "Expected intersection to be empty"
         );
     }
