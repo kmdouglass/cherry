@@ -1,10 +1,15 @@
 /// A conic section.
-use crate::core::{Float, math::linalg::mat2x2::Mat2x2, math::linalg::mat3x3::Mat3x3};
+use crate::core::{
+    Float,
+    math::{
+        constants::ZERO_TOL,
+        linalg::{mat2x2::Mat2x2, mat3x3::Mat3x3},
+        vec2::Vec2,
+    },
+};
 
-const TOL: Float = 1e-12;
-
-#[derive(Debug, PartialEq, Eq)]
-pub enum ConicType {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConicClass {
     Degenerate,
     Ellipse,
 
@@ -42,6 +47,13 @@ pub enum ConicType {
 pub struct Conic {
     /// The matrix representing the conic section.
     matrix: Mat3x3,
+    conic_class: ConicClass,
+}
+
+impl ConicClass {
+    fn is_central_conic(&self) -> bool {
+        matches!(self, ConicClass::Ellipse | ConicClass::Hyperbola)
+    }
 }
 
 impl Conic {
@@ -67,30 +79,45 @@ impl Conic {
             e / 2.0,
             f,
         );
-        Conic { matrix }
+
+        let conic_type = Conic::classify(&matrix);
+
+        Conic {
+            matrix,
+            conic_class: conic_type,
+        }
     }
 
-    /// Determines the class of the conic section.
-    pub fn classify(&self) -> ConicType {
-        let matrix_quadratic_form = self.matrix_quadratic_form();
+    /// Returns the coordinates for the conic's center.
+    ///
+    /// If the conic is not a central conic, this method returns `None`.
+    ///
+    /// The center is calculated using the formula:
+    /// ```text
+    /// x_c = (b * e - 2 * c * d) / (4 * a * c - b^2)
+    /// y_c = (b * d - 2 * a * e) / (4 * a * c - b^2)
+    /// ```
+    pub fn center(&self) -> Option<Vec2> {
+        if self.conic_class.is_central_conic() {
+            let a = self.matrix.e[0][0];
+            let b = self.matrix.e[0][1] * 2.0;
+            let c = self.matrix.e[1][1];
+            let d = self.matrix.e[0][2] * 2.0;
+            let e = self.matrix.e[1][2] * 2.0;
+            let f = self.matrix.e[2][2];
 
-        let det_full = self.matrix.determinant();
-        let det_quad_form = matrix_quadratic_form.determinant();
-        let trace_quad_form = matrix_quadratic_form.trace();
+            let x_c = (b * e - 2.0 * c * d) / (4.0 * a * c - b * b);
+            let y_c = (b * d - 2.0 * a * e) / (4.0 * a * c - b * b);
 
-        if det_full.abs() < TOL {
-            return ConicType::Degenerate;
-        } else if det_quad_form.abs() < TOL {
-            return ConicType::Parabola;
-        } else if trace_quad_form > 0.0 {
-            if det_full * trace_quad_form < 0.0 {
-                return ConicType::Ellipse;
-            } else {
-                return ConicType::Empty;
-            }
+            Some(Vec2 { x: x_c, y: y_c })
         } else {
-            return ConicType::Hyperbola;
+            None
         }
+    }
+
+    /// Returns the type of the conic section.
+    pub fn class(&self) -> ConicClass {
+        self.conic_class
     }
 
     /// Returns the matrix representing the conic section.
@@ -98,13 +125,36 @@ impl Conic {
         &self.matrix
     }
 
+    /// Determines the class of the conic section.
+    fn classify(matrix: &Mat3x3) -> ConicClass {
+        let matrix_quadratic_form = Conic::matrix_quadratic_form(matrix);
+
+        let det_full = matrix.determinant();
+        let det_quad_form = matrix_quadratic_form.determinant();
+        let trace_quad_form = matrix_quadratic_form.trace();
+
+        if det_full.abs() < ZERO_TOL {
+            return ConicClass::Degenerate;
+        } else if det_quad_form.abs() < ZERO_TOL {
+            return ConicClass::Parabola;
+        } else if trace_quad_form > 0.0 {
+            if det_full * trace_quad_form < 0.0 {
+                return ConicClass::Ellipse;
+            } else {
+                return ConicClass::Empty;
+            }
+        } else {
+            return ConicClass::Hyperbola;
+        }
+    }
+
     /// Returns the matrix of the quadratic form.
-    pub fn matrix_quadratic_form(&self) -> Mat2x2 {
+    fn matrix_quadratic_form(matrix: &Mat3x3) -> Mat2x2 {
         Mat2x2::new(
-            self.matrix.e[0][0],
-            self.matrix.e[0][1] * 2.0,
-            self.matrix.e[1][0] * 2.0,
-            self.matrix.e[1][1],
+            matrix.e[0][0],
+            matrix.e[0][1] * 2.0,
+            matrix.e[1][0] * 2.0,
+            matrix.e[1][1],
         )
     }
 }
@@ -124,7 +174,7 @@ mod test {
     #[test]
     fn conic_matrix_quadratic_form() {
         let conic = Conic::new(1.0, 2.0, 1.0, -4.0, 5.0, -1.0);
-        let q_matrix = conic.matrix_quadratic_form();
+        let q_matrix = Conic::matrix_quadratic_form(conic.matrix());
         assert_eq!(q_matrix[0][0], 1.0);
         assert_eq!(q_matrix[0][1], 2.0);
         assert_eq!(q_matrix[1][0], 2.0);
@@ -134,18 +184,18 @@ mod test {
     #[test]
     fn conic_classify() {
         let conic = Conic::new(1.0, 0.0, 1.0, 0.0, 0.0, -1.0);
-        assert_eq!(conic.classify(), ConicType::Ellipse);
+        assert_eq!(conic.class(), ConicClass::Ellipse);
 
         let conic = Conic::new(1.0, 0.0, 1.0, 0.0, 0.0, 10.0);
-        assert_eq!(conic.classify(), ConicType::Empty);
+        assert_eq!(conic.class(), ConicClass::Empty);
 
         let conic = Conic::new(1.0, 0.0, 0.0, 0.0, 5.0, -1.0);
-        assert_eq!(conic.classify(), ConicType::Parabola);
+        assert_eq!(conic.class(), ConicClass::Parabola);
 
         let conic = Conic::new(1.0, 2.0, -1.0, 4.0, -5.0, 1.0);
-        assert_eq!(conic.classify(), ConicType::Hyperbola);
+        assert_eq!(conic.class(), ConicClass::Hyperbola);
 
         let conic = Conic::new(1.0, 0.0, -1.0, 0.0, 0.0, 0.0);
-        assert_eq!(conic.classify(), ConicType::Degenerate);
+        assert_eq!(conic.class(), ConicClass::Degenerate);
     }
 }
