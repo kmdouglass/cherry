@@ -10,6 +10,11 @@ pub struct Vec2 {
 }
 
 impl Vec2 {
+    // Determines whether two vectors are approximately equal.
+    pub fn approx_eq(&self, other: &Self, tol: Float) -> bool {
+        (self.x - other.x).abs() < tol && (self.y - other.y).abs() < tol
+    }
+
     // Normalizes the vector in place.
     //
     // This method modifies the vector to have a length of 1 if the length is

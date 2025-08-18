@@ -36,6 +36,12 @@ impl Mat2x2 {
 }
 
 impl Mat2x2 {
+    /// Determines whether all elements of a matrix are approximately equal to
+    /// another.
+    pub fn approx_eq(&self, other: &Self, tol: Float) -> bool {
+        self.row_0.approx_eq(&other.row_0, tol) && self.row_1.approx_eq(&other.row_1, tol)
+    }
+
     /// Computes the eigenvalues and eigenvectors of the matrix.
     ///
     /// The smaller eigenvalue is returned first, along with its corresponding
@@ -72,6 +78,19 @@ impl Mat2x2 {
         let mut eigenvector = Vec2 { x, y };
         eigenvector.normalize();
         Ok(eigenvector)
+    }
+
+    /// Returns the 2x2 identity matrix.
+    ///
+    /// ```text
+    /// | 1.0, 0.0 |
+    /// | 0.0, 1.0 |
+    /// ```
+    pub fn identity() -> Self {
+        Self {
+            row_0: Vec2 { x: 1.0, y: 0.0 },
+            row_1: Vec2 { x: 0.0, y: 1.0 },
+        }
     }
 }
 
