@@ -5,8 +5,8 @@
 use std::rc::Rc;
 
 use crate::{
-    EulerAngles, GapSpec, RefractiveIndexSpec, Rotation, SequentialModel, SurfaceSpec, SurfaceType,
-    core::Float,
+    EulerAngles, GapSpec, RefractiveIndexSpec, Rotation3D, SequentialModel, SurfaceSpec,
+    SurfaceType, core::Float,
 };
 
 pub fn sequential_model(
@@ -33,17 +33,25 @@ pub fn sequential_model(
         radius_of_curvature: Float::INFINITY,
         conic_constant: 0.0,
         surf_type: SurfaceType::Reflecting,
-        rotation: Rotation::IntrinsicPassiveRUF(EulerAngles((30 as Float).to_radians(), 0.0, 0.0)),
+        rotation: Rotation3D::IntrinsicPassiveRUF(EulerAngles(
+            (30 as Float).to_radians(),
+            0.0,
+            0.0,
+        )),
     };
     let surf_2 = SurfaceSpec::Conic {
         semi_diameter: 12.7,
         radius_of_curvature: f64::INFINITY,
         conic_constant: 0.0,
         surf_type: SurfaceType::Reflecting,
-        rotation: Rotation::IntrinsicPassiveRUF(EulerAngles((30 as Float).to_radians(), 0.0, 0.0)),
+        rotation: Rotation3D::IntrinsicPassiveRUF(EulerAngles(
+            (30 as Float).to_radians(),
+            0.0,
+            0.0,
+        )),
     };
     let surf_3 = SurfaceSpec::Image {
-        rotation: Rotation::None,
+        rotation: Rotation3D::None,
     };
     let surfaces = vec![surf_0, surf_1, surf_2, surf_3];
 
