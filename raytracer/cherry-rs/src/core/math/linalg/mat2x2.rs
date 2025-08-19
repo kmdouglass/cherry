@@ -10,13 +10,14 @@ use crate::core::{
 
 use super::quadratic::NormalizedQuadratic;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct Mat2x2 {
     row_0: Vec2,
     row_1: Vec2,
 }
 
 impl Mat2x2 {
+    /// Creates a new 2x2 matrix with the specified elements.
     pub fn new(e00: Float, e01: Float, e10: Float, e11: Float) -> Self {
         Self {
             row_0: Vec2 { x: e00, y: e01 },
@@ -24,22 +25,15 @@ impl Mat2x2 {
         }
     }
 
-    /// Computes the determinant of the matrix.
-    pub fn determinant(&self) -> Float {
-        self.row_0.x * self.row_1.y - self.row_0.y * self.row_1.x
-    }
-
-    /// Computes the trace of the matrix.
-    pub fn trace(&self) -> Float {
-        self.row_0.x + self.row_1.y
-    }
-}
-
-impl Mat2x2 {
     /// Determines whether all elements of a matrix are approximately equal to
     /// another.
     pub fn approx_eq(&self, other: &Self, tol: Float) -> bool {
         self.row_0.approx_eq(&other.row_0, tol) && self.row_1.approx_eq(&other.row_1, tol)
+    }
+
+    /// Computes the determinant of the matrix.
+    pub fn determinant(&self) -> Float {
+        self.row_0.x * self.row_1.y - self.row_0.y * self.row_1.x
     }
 
     /// Computes the eigenvalues and eigenvectors of the matrix.
@@ -92,6 +86,28 @@ impl Mat2x2 {
             row_1: Vec2 { x: 0.0, y: 1.0 },
         }
     }
+
+    /// Determines whether the matrix is invertible.
+    pub fn is_invertible(&self) -> bool {
+        self.determinant().abs() > ZERO_TOL
+    }
+
+    /// Determines whether the matrix is orthonormal.
+    pub fn is_orthonormal(&self) -> bool {
+        let row_0_length_squared = self.row_0.length_squared();
+        let row_1_length_squared = self.row_1.length_squared();
+
+        let is_orthogonal = self.row_0.dot(&self.row_1).abs() < ZERO_TOL;
+
+        (row_0_length_squared - 1.0).abs() < ZERO_TOL
+            && (row_1_length_squared - 1.0).abs() < ZERO_TOL
+            && is_orthogonal
+    }
+
+    /// Computes the trace of the matrix.
+    pub fn trace(&self) -> Float {
+        self.row_0.x + self.row_1.y
+    }
 }
 
 impl Index<usize> for Mat2x2 {
@@ -123,12 +139,6 @@ mod test {
     fn mat2x2_determinant() {
         let m = Mat2x2::new(1.0, 2.0, 3.0, 4.0);
         assert_eq!(m.determinant(), -2.0);
-    }
-
-    #[test]
-    fn mat2x2_trace() {
-        let m = Mat2x2::new(1.0, 2.0, 3.0, 4.0);
-        assert_eq!(m.trace(), 5.0);
     }
 
     #[test]
@@ -170,5 +180,54 @@ mod test {
 
         assert!((eigenvector.x - expected.0).abs() < TOL);
         assert!((eigenvector.y - expected.1).abs() < TOL);
+    }
+
+    #[test]
+    fn mat2x2_eigenvectors_are_normalized() {
+        const TOL: Float = 1e-8;
+        let m = Mat2x2::new(4.0, 2.0, 1.0, 3.0);
+        let (eigenpair0, eigenpair1) = m.eig().unwrap();
+
+        assert!(
+            (eigenpair0.1.x * eigenpair0.1.x + eigenpair0.1.y * eigenpair0.1.y - 1.0).abs() < TOL
+        );
+        assert!(
+            (eigenpair1.1.x * eigenpair1.1.x + eigenpair1.1.y * eigenpair1.1.y - 1.0).abs() < TOL
+        );
+    }
+
+    #[test]
+    fn mat2x2_is_invertible() {
+        let m = Mat2x2::new(1.0, 2.0, 3.0, 4.0);
+        assert!(m.is_invertible());
+
+        let m2 = Mat2x2::new(1.0, 2.0, 2.0, 4.0);
+        assert!(!m2.is_invertible());
+    }
+
+    #[test]
+    fn mat2x2_is_orthonormal() {
+        let m = Mat2x2::new(1.0, 0.0, 0.0, 1.0);
+        assert!(m.is_orthonormal());
+
+        let m2 = Mat2x2::new(0.0, 1.0, -1.0, 0.0);
+        assert!(m2.is_orthonormal());
+
+        let m3 = Mat2x2::new(1.0, 1.0, 1.0, 1.0);
+        assert!(!m3.is_orthonormal());
+
+        let m4 = Mat2x2::new(
+            2.0_f64.sqrt() / 2.0,
+            -2.0_f64.sqrt() / 2.0,
+            2.0_f64.sqrt() / 2.0,
+            2.0_f64.sqrt() / 2.0,
+        );
+        assert!(m4.is_orthonormal());
+    }
+
+    #[test]
+    fn mat2x2_trace() {
+        let m = Mat2x2::new(1.0, 2.0, 3.0, 4.0);
+        assert_eq!(m.trace(), 5.0);
     }
 }

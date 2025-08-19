@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::core::{
     Float,
+    math::constants::{REL_TOL, ZERO_TOL},
     math::linalg::{mat2x2::Mat2x2, mat3x3::Mat3x3},
 };
 
@@ -12,13 +13,16 @@ use crate::core::{
 /// - Coordinate systems are right-handed
 /// - Counterclockwise rotations are positive
 /// - Angles are in radians
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug)]
 pub enum Rotation2D {
     /// No rotation is applied.
     None,
 
     /// Passive rotation about the perpendicular axis.
     Passive(Float),
+
+    /// A rotation where the matrix is specified directly.
+    Matrix(Mat2x2),
 }
 
 /// Euler angles in radians.
@@ -52,6 +56,27 @@ impl Rotation2D {
             Rotation2D::Passive(angle) => {
                 Mat2x2::new(angle.cos(), angle.sin(), -angle.sin(), angle.cos())
             }
+            Rotation2D::Matrix(matrix) => *matrix,
+        }
+    }
+}
+
+impl TryFrom<Mat2x2> for Rotation2D {
+    type Error = String;
+
+    fn try_from(matrix: Mat2x2) -> Result<Self, Self::Error> {
+        if !matrix.is_invertible() {
+            return Err("Matrix is not invertible".to_string());
+        }
+
+        if !matrix.is_orthonormal() {
+            return Err("Matrix is not orthonormal".to_string());
+        }
+
+        if matrix.approx_eq(&Mat2x2::identity(), REL_TOL) {
+            Ok(Rotation2D::None)
+        } else {
+            Ok(Rotation2D::Matrix(matrix))
         }
     }
 }
@@ -106,6 +131,32 @@ mod test {
             matrix.approx_eq(&expected, TOL),
             "Rotation matrix does not match expected value."
         );
+    }
+
+    #[test]
+    fn rotation_2d_try_from_mat2x2() {
+        let matrix = Mat2x2::new(
+            0.8660254037844387,
+            0.49999999999999994,
+            -0.49999999999999994,
+            0.8660254037844387,
+        );
+        let rotation: Result<Rotation2D, String> = matrix.try_into();
+
+        assert!(rotation.is_ok(), "Failed to convert Mat2x2 to Rotation2D");
+        assert!(
+            matches!(rotation.unwrap(), Rotation2D::Matrix(_)),
+            "Expected Matrix variant"
+        );
+    }
+
+    #[test]
+    fn rotation_2d_try_from_mat2x2_error() {
+        // Matrix is not orthonormal
+        let matrix = Mat2x2::new(1.0, 0.0, 0.0, 0.0);
+        let rotation: Result<Rotation2D, String> = matrix.try_into();
+
+        assert!(rotation.is_err());
     }
 
     #[test]
