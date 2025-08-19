@@ -80,11 +80,11 @@ impl Conic {
             f,
         );
 
-        let conic_type = Conic::classify(&matrix);
+        let conic_class = Conic::classify(&matrix);
 
         Conic {
             matrix,
-            conic_class: conic_type,
+            conic_class,
         }
     }
 
