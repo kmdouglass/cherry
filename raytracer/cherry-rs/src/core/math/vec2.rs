@@ -3,24 +3,39 @@ use std::ops::Index;
 
 use crate::core::{Float, math::constants::ZERO_TOL};
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct Vec2 {
     pub x: Float,
     pub y: Float,
 }
 
 impl Vec2 {
-    // Determines whether two vectors are approximately equal.
+    /// Determines whether two vectors are approximately equal.
     pub fn approx_eq(&self, other: &Self, tol: Float) -> bool {
         (self.x - other.x).abs() < tol && (self.y - other.y).abs() < tol
     }
 
-    // Normalizes the vector in place.
-    //
-    // This method modifies the vector to have a length of 1 if the length is
-    // greater than a small tolerance near zero. Otherwise, it is unchanged.
+    /// Computes the dot product of the vector with another.
+    pub fn dot(&self, other: &Self) -> Float {
+        self.x * other.x + self.y * other.y
+    }
+
+    /// Computes the length of the vector.
+    pub fn length(&self) -> Float {
+        (self.x * self.x + self.y * self.y).sqrt()
+    }
+
+    /// Compute the length squared of the vector.
+    pub fn length_squared(&self) -> Float {
+        self.x * self.x + self.y * self.y
+    }
+
+    /// Normalizes the vector in place.
+    ///
+    /// This method modifies the vector to have a length of 1 if the length is
+    /// greater than a small tolerance near zero. Otherwise, it is unchanged.
     pub fn normalize(&mut self) {
-        let length = (self.x * self.x + self.y * self.y).sqrt();
+        let length = self.length();
         if length > ZERO_TOL {
             self.x /= length;
             self.y /= length;
