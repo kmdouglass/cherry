@@ -1,10 +1,13 @@
 /// Provides data structures and logic for rotations.
+use std::ops::Mul;
+
 use serde::{Deserialize, Serialize};
 
 use crate::core::{
     Float,
-    math::constants::{REL_TOL, ZERO_TOL},
+    math::constants::REL_TOL,
     math::linalg::{mat2x2::Mat2x2, mat3x3::Mat3x3},
+    math::vec2::Vec2,
 };
 
 /// 2D rotations in the plane.
@@ -57,6 +60,18 @@ impl Rotation2D {
                 Mat2x2::new(angle.cos(), angle.sin(), -angle.sin(), angle.cos())
             }
             Rotation2D::Matrix(matrix) => *matrix,
+        }
+    }
+}
+
+impl Mul<Vec2> for Rotation2D {
+    type Output = Vec2;
+
+    fn mul(self, vector: Vec2) -> Self::Output {
+        let matrix = self.rotation_matrix();
+        Vec2 {
+            x: matrix[0][0] * vector.x + matrix[0][1] * vector.y,
+            y: matrix[1][0] * vector.x + matrix[1][1] * vector.y,
         }
     }
 }
