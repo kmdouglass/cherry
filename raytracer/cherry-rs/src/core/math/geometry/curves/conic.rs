@@ -1,6 +1,9 @@
-/// A conic section.
+/// A conic section curve.
+use anyhow::Result;
+
 use crate::core::{
     Float,
+    PI,
     math::{
         constants::ZERO_TOL,
         linalg::{mat2x2::Mat2x2, mat3x3::Mat3x3},
@@ -123,6 +126,35 @@ impl Conic {
     /// Returns the matrix representing the conic section.
     pub fn matrix(&self) -> &Mat3x3 {
         &self.matrix
+    }
+
+    /// Returns samples from the conic curve.
+    /// 
+    /// The number of samples returned is at most `num_samples`.
+    pub fn sample(&self, num_samples: usize) -> Result<Vec<Vec2>> {
+        let mut samples = Vec::with_capacity(num_samples);
+        let step = 2.0 * PI / num_samples as f64;
+
+        match self.conic_class {
+            ConicClass::Ellipse => {
+                let A_Q = &self.matrix;
+                let A_33 = Conic::matrix_quadratic_form(&self.matrix);
+
+                let (eigenvalue0, eigenvalue1, eigenvectors) = A_33.eig()?;
+                let inv_rot_mat = eigenvectors;
+
+                todo!("Implement sampling for ellipse");
+                return Ok(samples)
+
+            }
+            ConicClass::Degenerate | ConicClass::Empty => {
+                // No samples for empty conic.
+                return Ok(samples);
+            }
+            _ => { panic!("Sampling not implemented for this conic class"); }
+        }
+
+        Ok(samples)
     }
 
     /// Determines the class of the conic section.
