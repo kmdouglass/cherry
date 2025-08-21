@@ -2,8 +2,7 @@
 use anyhow::Result;
 
 use crate::core::{
-    Float,
-    PI,
+    Float, PI,
     math::{
         constants::ZERO_TOL,
         linalg::{mat2x2::Mat2x2, mat3x3::Mat3x3},
@@ -129,7 +128,7 @@ impl Conic {
     }
 
     /// Returns samples from the conic curve.
-    /// 
+    ///
     /// The number of samples returned is at most `num_samples`.
     pub fn sample(&self, num_samples: usize) -> Result<Vec<Vec2>> {
         let mut samples = Vec::with_capacity(num_samples);
@@ -137,21 +136,43 @@ impl Conic {
 
         match self.conic_class {
             ConicClass::Ellipse => {
-                let A_Q = &self.matrix;
-                let A_33 = Conic::matrix_quadratic_form(&self.matrix);
+                // A ConicClass::Ellipse is real by defintition, so no need to check for
+                // degeneracy.
+                let a_33 = Conic::matrix_quadratic_form(&self.matrix);
+                let center = self
+                    .center()
+                    .ok_or_else(|| anyhow::anyhow!("Ellipse center is not defined"))?;
 
-                let (eigenvalue0, eigenvalue1, eigenvectors) = A_33.eig()?;
-                let inv_rot_mat = eigenvectors;
+                let (eigenvalue0, eigenvalue1, eigenvectors) = a_33.eig()?;
 
-                todo!("Implement sampling for ellipse");
-                return Ok(samples)
+                // Coefficients of the ellipse in its standard form, x^2/a^2 + y^2/b^2 = 1.
+                let k = -&self.matrix.determinant() / a_33.determinant();
+                let a = (k / eigenvalue0).sqrt();
+                let b = (k / eigenvalue1).sqrt();
 
+                let mut curr_sample: Vec2 = Vec2 { x: 0.0, y: 0.0 };
+                for i in 0..num_samples {
+                    let theta = i as Float * step;
+
+                    // Parametric equations for the ellipse.
+                    curr_sample.x = a * theta.cos();
+                    curr_sample.y = b * theta.sin();
+
+                    // Transform into the coordinate system of the non-standard form ellipse.
+                    // Eigenvectors are the rows of the matrix, so no need to transpose.
+                    curr_sample = eigenvectors * curr_sample + center;
+                    samples.push(curr_sample);
+                }
+
+                return Ok(samples);
             }
             ConicClass::Degenerate | ConicClass::Empty => {
                 // No samples for empty conic.
                 return Ok(samples);
             }
-            _ => { panic!("Sampling not implemented for this conic class"); }
+            _ => {
+                panic!("Sampling not implemented for this conic class");
+            }
         }
 
         Ok(samples)
