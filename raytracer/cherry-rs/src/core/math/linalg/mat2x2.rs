@@ -1,5 +1,5 @@
 /// A 2 x 2 matrix.
-use std::ops::Index;
+use std::ops::{Index, Mul};
 
 use anyhow::{Result, anyhow};
 
@@ -39,13 +39,14 @@ impl Mat2x2 {
     /// Computes the eigenvalues and eigenvectors of the matrix.
     ///
     /// The smaller eigenvalue is returned first.
-    /// 
+    ///
     /// # Returns
     /// A tuple containing:
-    /// 
+    ///
     /// - The smaller eigenvalue
     /// - The larger eigenvalue
-    /// - A 2x2 matrix with the rows being the normalized eigenvectors corresponding to the eigenvalues.
+    /// - A 2x2 matrix with the rows being the normalized eigenvectors
+    ///   corresponding to the eigenvalues.
     pub fn eig(&self) -> Result<(Float, Float, Mat2x2)> {
         let characteristic_polynomial = NormalizedQuadratic::new(-self.trace(), self.determinant());
 
@@ -53,12 +54,14 @@ impl Mat2x2 {
 
         let (eigenvector1, eigenvector2) = (self.eigenvector(lambda1)?, self.eigenvector(lambda2)?);
 
-        Ok(
-            (lambda1, lambda2, Mat2x2 {
+        Ok((
+            lambda1,
+            lambda2,
+            Mat2x2 {
                 row_0: eigenvector1,
                 row_1: eigenvector2,
-            })
-        )
+            },
+        ))
     }
 
     fn eigenvector(&self, eigenvalue: Float) -> Result<Vec2> {
@@ -156,6 +159,17 @@ impl Index<usize> for Mat2x2 {
     }
 }
 
+impl Mul<Vec2> for Mat2x2 {
+    type Output = Vec2;
+
+    fn mul(self, rhs: Vec2) -> Self::Output {
+        Vec2 {
+            x: self.row_0.x * rhs.x + self.row_0.y * rhs.y,
+            y: self.row_1.x * rhs.x + self.row_1.y * rhs.y,
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -217,9 +231,8 @@ mod test {
 
     #[test]
     fn mat2x2_eigenvectors_are_normalized() {
-        const TOL: Float = 1e-8;
         let m = Mat2x2::new(4.0, 2.0, 1.0, 3.0);
-        let (eigenvalue0, eigenvalue1, eigenvectors) = m.eig().unwrap();
+        let (_eigenvalue0, _eigenvalue1, eigenvectors) = m.eig().unwrap();
 
         assert!(eigenvectors.is_row_normalized());
     }
@@ -251,6 +264,16 @@ mod test {
             2.0_f64.sqrt() / 2.0,
         );
         assert!(m4.is_orthonormal());
+    }
+
+    #[test]
+    fn mat2x2_multiply_with_vec2() {
+        let m = Mat2x2::new(1.0, 2.0, 3.0, 4.0);
+        let v = Vec2 { x: 5.0, y: 6.0 };
+        let result = m * v;
+
+        assert_eq!(result.x, 17.0); // 1*5 + 2*6
+        assert_eq!(result.y, 39.0); // 3*5 + 4*6
     }
 
     #[test]

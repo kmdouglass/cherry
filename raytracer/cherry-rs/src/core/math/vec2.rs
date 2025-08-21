@@ -1,5 +1,5 @@
 /// A 2D vector.
-use std::ops::Index;
+use std::ops::{Add, Index};
 
 use crate::core::{Float, math::constants::ZERO_TOL};
 
@@ -43,6 +43,17 @@ impl Vec2 {
     }
 }
 
+impl Add<Vec2> for Vec2 {
+    type Output = Self;
+
+    fn add(self, other: Vec2) -> Self::Output {
+        Vec2 {
+            x: self.x + other.x,
+            y: self.y + other.y,
+        }
+    }
+}
+
 impl Index<usize> for Vec2 {
     type Output = Float;
 
@@ -61,7 +72,18 @@ mod tests {
     use crate::core::math::constants::REL_TOL;
 
     #[test]
-    fn test_normalize() {
+    fn vec2_addition() {
+        let vec1 = Vec2 { x: 1.0, y: 2.0 };
+        let vec2 = Vec2 { x: 3.0, y: 4.0 };
+        let expected = Vec2 { x: 4.0, y: 6.0 };
+
+        let result = vec1 + vec2;
+
+        assert!(result.approx_eq(&expected, REL_TOL), "Vec2 addition failed");
+    }
+
+    #[test]
+    fn vec2_normalize() {
         let mut vec = Vec2 { x: 3.0, y: 4.0 };
         vec.normalize();
         assert!((vec.x - 0.6).abs() < REL_TOL);
