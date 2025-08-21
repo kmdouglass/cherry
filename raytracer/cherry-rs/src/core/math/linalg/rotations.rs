@@ -1,32 +1,10 @@
 /// Provides data structures and logic for rotations.
-use std::ops::Mul;
-
 use serde::{Deserialize, Serialize};
 
 use crate::core::{
     Float,
-    math::constants::REL_TOL,
-    math::linalg::{mat2x2::Mat2x2, mat3x3::Mat3x3},
-    math::vec2::Vec2,
+    math::linalg::mat3x3::Mat3x3,
 };
-
-/// 2D rotations in the plane.
-///
-/// The following conventions are used:
-/// - Coordinate systems are right-handed
-/// - Counterclockwise rotations are positive
-/// - Angles are in radians
-#[derive(Debug)]
-pub enum Rotation2D {
-    /// No rotation is applied.
-    None,
-
-    /// Passive rotation about the perpendicular axis.
-    Passive(Float),
-
-    /// A rotation where the matrix is specified directly.
-    Matrix(Mat2x2),
-}
 
 /// Euler angles in radians.
 ///
@@ -49,51 +27,6 @@ pub enum Rotation3D {
     /// Intrinsic and passive rotation around the right axis, then intermediate
     /// up axis, then second intermediate forward axis.
     IntrinsicPassiveRUF(EulerAngles),
-}
-
-impl Rotation2D {
-    /// Returns the 2D rotation matrix corresponding to the rotation.
-    pub fn rotation_matrix(&self) -> Mat2x2 {
-        match self {
-            Rotation2D::None => Mat2x2::identity(),
-            Rotation2D::Passive(angle) => {
-                Mat2x2::new(angle.cos(), angle.sin(), -angle.sin(), angle.cos())
-            }
-            Rotation2D::Matrix(matrix) => *matrix,
-        }
-    }
-}
-
-impl Mul<Vec2> for Rotation2D {
-    type Output = Vec2;
-
-    fn mul(self, vector: Vec2) -> Self::Output {
-        let matrix = self.rotation_matrix();
-        Vec2 {
-            x: matrix[0][0] * vector.x + matrix[0][1] * vector.y,
-            y: matrix[1][0] * vector.x + matrix[1][1] * vector.y,
-        }
-    }
-}
-
-impl TryFrom<Mat2x2> for Rotation2D {
-    type Error = String;
-
-    fn try_from(matrix: Mat2x2) -> Result<Self, Self::Error> {
-        if !matrix.is_invertible() {
-            return Err("Matrix is not invertible".to_string());
-        }
-
-        if !matrix.is_orthonormal() {
-            return Err("Matrix is not orthonormal".to_string());
-        }
-
-        if matrix.approx_eq(&Mat2x2::identity(), REL_TOL) {
-            Ok(Rotation2D::None)
-        } else {
-            Ok(Rotation2D::Matrix(matrix))
-        }
-    }
 }
 
 impl Rotation3D {
@@ -129,50 +62,6 @@ mod test {
     use crate::core::Float;
 
     const TOL: Float = 1e-6;
-
-    #[test]
-    fn rotation_2d_passive_rotation_30_deg() {
-        let rotation = Rotation2D::Passive((30.0_f64).to_radians());
-        let matrix = rotation.rotation_matrix();
-
-        let expected = Mat2x2::new(
-            0.8660254037844387,
-            0.49999999999999994,
-            -0.49999999999999994,
-            0.8660254037844387,
-        );
-
-        assert!(
-            matrix.approx_eq(&expected, TOL),
-            "Rotation matrix does not match expected value."
-        );
-    }
-
-    #[test]
-    fn rotation_2d_try_from_mat2x2() {
-        let matrix = Mat2x2::new(
-            0.8660254037844387,
-            0.49999999999999994,
-            -0.49999999999999994,
-            0.8660254037844387,
-        );
-        let rotation: Result<Rotation2D, String> = matrix.try_into();
-
-        assert!(rotation.is_ok(), "Failed to convert Mat2x2 to Rotation2D");
-        assert!(
-            matches!(rotation.unwrap(), Rotation2D::Matrix(_)),
-            "Expected Matrix variant"
-        );
-    }
-
-    #[test]
-    fn rotation_2d_try_from_mat2x2_error() {
-        // Matrix is not orthonormal
-        let matrix = Mat2x2::new(1.0, 0.0, 0.0, 0.0);
-        let rotation: Result<Rotation2D, String> = matrix.try_into();
-
-        assert!(rotation.is_err());
-    }
 
     #[test]
     fn rotation3d_intrinsic_passive_ruf_rotation_30_deg_about_r() {
