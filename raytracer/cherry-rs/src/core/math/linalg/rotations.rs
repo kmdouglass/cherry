@@ -1,10 +1,7 @@
 /// Provides data structures and logic for rotations.
 use serde::{Deserialize, Serialize};
 
-use crate::core::{
-    Float,
-    math::linalg::mat3x3::Mat3x3,
-};
+use crate::core::{Float, math::linalg::mat3x3::Mat3x3};
 
 /// Euler angles in radians.
 ///
