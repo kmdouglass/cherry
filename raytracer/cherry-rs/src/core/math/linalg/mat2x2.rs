@@ -38,16 +38,27 @@ impl Mat2x2 {
 
     /// Computes the eigenvalues and eigenvectors of the matrix.
     ///
-    /// The smaller eigenvalue is returned first, along with its corresponding
-    /// eigenvector.
-    pub fn eig(&self) -> Result<((Float, Vec2), (Float, Vec2))> {
+    /// The smaller eigenvalue is returned first.
+    /// 
+    /// # Returns
+    /// A tuple containing:
+    /// 
+    /// - The smaller eigenvalue
+    /// - The larger eigenvalue
+    /// - A 2x2 matrix with the rows being the normalized eigenvectors corresponding to the eigenvalues.
+    pub fn eig(&self) -> Result<(Float, Float, Mat2x2)> {
         let characteristic_polynomial = NormalizedQuadratic::new(-self.trace(), self.determinant());
 
         let (lambda1, lambda2) = characteristic_polynomial.roots()?;
 
         let (eigenvector1, eigenvector2) = (self.eigenvector(lambda1)?, self.eigenvector(lambda2)?);
 
-        Ok(((lambda1, eigenvector1), (lambda2, eigenvector2)))
+        Ok(
+            (lambda1, lambda2, Mat2x2 {
+                row_0: eigenvector1,
+                row_1: eigenvector2,
+            })
+        )
     }
 
     fn eigenvector(&self, eigenvalue: Float) -> Result<Vec2> {
@@ -104,9 +115,32 @@ impl Mat2x2 {
             && is_orthogonal
     }
 
+    /// Determines whether the matrix rows are normalized.
+    pub fn is_row_normalized(&self) -> bool {
+        let row_0_length_squared = self.row_0.length_squared();
+        let row_1_length_squared = self.row_1.length_squared();
+
+        (row_0_length_squared - 1.0).abs() < ZERO_TOL
+            && (row_1_length_squared - 1.0).abs() < ZERO_TOL
+    }
+
     /// Computes the trace of the matrix.
     pub fn trace(&self) -> Float {
         self.row_0.x + self.row_1.y
+    }
+
+    /// Computes the transpose of the matrix.
+    pub fn transpose(&self) -> Self {
+        Self {
+            row_0: Vec2 {
+                x: self.row_0.x,
+                y: self.row_1.x,
+            },
+            row_1: Vec2 {
+                x: self.row_0.y,
+                y: self.row_1.y,
+            },
+        }
     }
 }
 
@@ -157,16 +191,15 @@ mod test {
             },
         );
 
-        let (eigenpair0, eigenpair1) = m.eig().unwrap();
+        let (eigenvalue0, eigenvalue1, eigenvectors) = m.eig().unwrap();
 
-        println!("Eigenvector 0: {:?}", eigenpair0.1);
-        println!("Eigenvector 1: {:?}", eigenpair1.1);
+        assert!((eigenvalue0 - expected_eigenvalues.0).abs() < TOL);
+        assert!((eigenvalue1 - expected_eigenvalues.1).abs() < TOL);
 
-        assert!((eigenpair0.0 - expected_eigenvalues.0).abs() < TOL);
-        assert!((eigenpair1.0 - expected_eigenvalues.1).abs() < TOL);
-
-        assert!((eigenpair0.1.x - expected_eigenvectors.0.x).abs() < TOL);
-        assert!((eigenpair0.1.y - expected_eigenvectors.0.y).abs() < TOL);
+        assert!((eigenvectors.row_0.x - expected_eigenvectors.0.x).abs() < TOL);
+        assert!((eigenvectors.row_0.y - expected_eigenvectors.0.y).abs() < TOL);
+        assert!((eigenvectors.row_1.x - expected_eigenvectors.1.x).abs() < TOL);
+        assert!((eigenvectors.row_1.y - expected_eigenvectors.1.y).abs() < TOL);
     }
 
     #[test]
@@ -186,14 +219,9 @@ mod test {
     fn mat2x2_eigenvectors_are_normalized() {
         const TOL: Float = 1e-8;
         let m = Mat2x2::new(4.0, 2.0, 1.0, 3.0);
-        let (eigenpair0, eigenpair1) = m.eig().unwrap();
+        let (eigenvalue0, eigenvalue1, eigenvectors) = m.eig().unwrap();
 
-        assert!(
-            (eigenpair0.1.x * eigenpair0.1.x + eigenpair0.1.y * eigenpair0.1.y - 1.0).abs() < TOL
-        );
-        assert!(
-            (eigenpair1.1.x * eigenpair1.1.x + eigenpair1.1.y * eigenpair1.1.y - 1.0).abs() < TOL
-        );
+        assert!(eigenvectors.is_row_normalized());
     }
 
     #[test]
