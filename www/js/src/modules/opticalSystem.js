@@ -10,9 +10,8 @@ export function getOpticalSystem(wasmModule) {
 
 /* Converts data from the UI state into inputs to the raytrace engine. */
 export function convertUIStateToLibFormat(surfaces, fields, aperture, wavelengths, appModes, materialsService) {
-    // QUESTION: Can float conversion be done any better?
     function createSurfaceSpec(surface) {
-        if (surface.type === 'Object' || surface.type === 'Image' || surface.type === 'Probe') {
+        if (surface.type === 'Object' || surface.type === 'Probe') {
             return surface.type;
         } else if (surface.type === 'Conic') {
             return {
@@ -20,15 +19,23 @@ export function convertUIStateToLibFormat(surfaces, fields, aperture, wavelength
                     "semi_diameter": parseFloat(surface.semiDiam),
                     "radius_of_curvature": parseFloat(surface.roc) || Infinity,
                     "conic_constant": 0.0,
-                    "surf_type": surface.surfaceType || "Refracting"
+                    "surf_type": surface.surfaceType || "Refracting",
+                    "rotation": "None"
                 }
             };
         } else if (surface.type === "Stop") {
             return {
                 "Stop": {
-                    "semi_diameter": parseFloat(surface.semiDiam)
+                    "semi_diameter": parseFloat(surface.semiDiam),
+                    "rotation": "None"
                 }
             };
+        } else if (surface.type === "Image") {
+            return {
+                "Image": {
+                    "rotation": "None"
+                }
+        }
         } else {
             // Default to a flat surface if type is unknown
             return {
@@ -36,7 +43,8 @@ export function convertUIStateToLibFormat(surfaces, fields, aperture, wavelength
                     "semi_diameter": parseFloat(surface.semiDiam),
                     "radius_of_curvature": Infinity,
                     "conic_constant": 0.0,
-                    "surf_type": "Refracting"
+                    "surf_type": "Refracting",
+                    "rotation": "None"
                 }
             };
         }
