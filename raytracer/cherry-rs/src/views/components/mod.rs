@@ -118,7 +118,7 @@ mod tests {
     use std::rc::Rc;
 
     use crate::examples::convexplano_lens;
-    use crate::{GapSpec, SequentialModel, SurfaceSpec, core::Float, n};
+    use crate::{GapSpec, Rotation3D, SequentialModel, SurfaceSpec, core::Float, n};
 
     use super::*;
 
@@ -130,7 +130,9 @@ mod tests {
             thickness: 1.0,
             refractive_index: air,
         };
-        let surf_1 = SurfaceSpec::Image;
+        let surf_1 = SurfaceSpec::Image {
+            rotation: Rotation3D::None,
+        };
 
         let surfaces = vec![surf_0, surf_1];
         let gaps = vec![gap_0];
@@ -154,6 +156,7 @@ mod tests {
             radius_of_curvature: 25.8,
             conic_constant: 0.0,
             surf_type: crate::SurfaceType::Refracting,
+            rotation: Rotation3D::None,
         };
         let gap_1 = GapSpec {
             thickness: 5.3,
@@ -164,6 +167,7 @@ mod tests {
             radius_of_curvature: Float::INFINITY,
             conic_constant: 0.0,
             surf_type: crate::SurfaceType::Refracting,
+            rotation: Rotation3D::None,
         };
         let gap_2 = GapSpec {
             thickness: 46.6,
@@ -174,12 +178,15 @@ mod tests {
             radius_of_curvature: 25.8,
             conic_constant: 0.0,
             surf_type: crate::SurfaceType::Refracting,
+            rotation: Rotation3D::None,
         }; // Surface is unpaired
         let gap_3 = GapSpec {
             thickness: 20.0,
             refractive_index: nbk7,
         };
-        let surf_4 = SurfaceSpec::Image;
+        let surf_4 = SurfaceSpec::Image {
+            rotation: Rotation3D::None,
+        };
 
         let surfaces = vec![surf_0, surf_1, surf_2, surf_3, surf_4];
         let gaps = vec![gap_0, gap_1, gap_2, gap_3];
@@ -203,6 +210,7 @@ mod tests {
             radius_of_curvature: 25.8,
             conic_constant: 0.0,
             surf_type: crate::SurfaceType::Refracting,
+            rotation: Rotation3D::None,
         };
         let gap_1 = GapSpec {
             thickness: 10.0,
@@ -210,12 +218,15 @@ mod tests {
         };
         let surf_2 = SurfaceSpec::Stop {
             semi_diameter: 12.5,
+            rotation: Rotation3D::None,
         };
         let gap_2 = GapSpec {
             thickness: 10.0,
             refractive_index: air,
         };
-        let surf_3 = SurfaceSpec::Image;
+        let surf_3 = SurfaceSpec::Image {
+            rotation: Rotation3D::None,
+        };
 
         let surfaces = vec![surf_0, surf_1, surf_2, surf_3];
         let gaps = vec![gap_0, gap_1, gap_2];
@@ -236,7 +247,10 @@ mod tests {
             thickness: Float::INFINITY,
             refractive_index: air.clone(),
         };
-        let surf_1 = SurfaceSpec::Stop { semi_diameter: 5.0 };
+        let surf_1 = SurfaceSpec::Stop {
+            semi_diameter: 5.0,
+            rotation: Rotation3D::None,
+        };
         let gap_1 = GapSpec {
             thickness: 5.0,
             refractive_index: air.clone(),
@@ -246,6 +260,7 @@ mod tests {
             radius_of_curvature: Float::INFINITY,
             conic_constant: 0.0,
             surf_type: crate::SurfaceType::Refracting,
+            rotation: Rotation3D::None,
         };
         let gap_2 = GapSpec {
             thickness: 5.0,
@@ -256,12 +271,15 @@ mod tests {
             radius_of_curvature: -25.84,
             conic_constant: 0.0,
             surf_type: crate::SurfaceType::Refracting,
+            rotation: Rotation3D::None,
         };
         let gap_3 = GapSpec {
             thickness: 47.974,
             refractive_index: air,
         };
-        let surf_4 = SurfaceSpec::Image;
+        let surf_4 = SurfaceSpec::Image {
+            rotation: Rotation3D::None,
+        };
 
         let surfaces = vec![surf_0, surf_1, surf_2, surf_3, surf_4];
         let gaps = vec![gap_0, gap_1, gap_2, gap_3];

@@ -57,7 +57,7 @@ impl Ray {
 
         // Find the distance along the ray to the z=0 plane; use this as the initial
         // value for s
-        let mut s = -self.pos.z() / self.dir.m();
+        let mut s = -self.pos.z() / self.dir.n();
 
         let mut p: Vec3;
         let mut sag: Float;
@@ -68,7 +68,7 @@ impl Ray {
 
             // Update the distance s using the Newton-Raphson method
             (sag, norm) = surf.sag_norm(p);
-            s -= (p.z() - sag) / norm.dot(self.dir);
+            s -= (p.z() - sag) / norm.dot(&self.dir);
 
             // Check for convergence by comparing the current and previous values of s
             if (s - s_1).abs() / Float::max(s, s_1) < TOL {
@@ -111,7 +111,7 @@ impl Ray {
                 match surf.surface_type() {
                     SurfaceType::Refracting => {
                         let mu = n_0 / n_1;
-                        let cos_theta_1 = self.dir.dot(norm);
+                        let cos_theta_1 = self.dir.dot(&norm);
                         let term_1 =
                             norm * (1.0 - mu * mu * (1.0 - cos_theta_1 * cos_theta_1)).sqrt();
                         let term_2 = (self.dir - norm * cos_theta_1) * mu;
@@ -119,7 +119,7 @@ impl Ray {
                         self.dir = term_1 + term_2;
                     }
                     SurfaceType::Reflecting => {
-                        let cos_theta_1 = self.dir.dot(norm);
+                        let cos_theta_1 = self.dir.dot(&norm);
                         self.dir = self.dir - norm * (2.0 * cos_theta_1);
                     }
                     SurfaceType::NoOp => {}
@@ -148,8 +148,8 @@ impl Ray {
     /// Transform a ray from the local coordinate system of a surface into the
     /// global system.
     pub fn i_transform(&mut self, surf: &Surface) {
-        self.pos = surf.rot_mat().transpose() * (self.pos + surf.pos());
-        self.dir = surf.rot_mat().transpose() * self.dir;
+        self.pos = (surf.inv_rot_mat() * self.pos) + surf.pos();
+        self.dir = surf.inv_rot_mat() * self.dir;
     }
 
     // Return the x-coordinate of the ray position
@@ -169,17 +169,17 @@ impl Ray {
 
     // Return the direction cosine k of the ray
     pub fn k(&self) -> Float {
-        self.dir.k()
+        self.dir.l()
     }
 
     // Return the direction cosine l of the ray
     pub fn l(&self) -> Float {
-        self.dir.l()
+        self.dir.m()
     }
 
     // Return the direction cosine m of the ray
     pub fn m(&self) -> Float {
-        self.dir.m()
+        self.dir.n()
     }
 
     /// Create a fan of uniformly spaced rays in a given z-plane at an angle phi
@@ -270,21 +270,26 @@ impl Ray {
 
 #[cfg(test)]
 mod test {
-    use crate::specs::surfaces::{SurfaceSpec, SurfaceType};
+    use crate::{
+        Rotation3D,
+        core::math::geometry::reference_frames::Cursor,
+        specs::surfaces::{SurfaceSpec, SurfaceType},
+    };
 
     use super::*;
     // Test the intersection of a ray with a flat surface
     #[test]
     fn test_ray_intersection_flat_surface() {
-        let pos = Vec3::new(0.0, 0.0, 0.0);
+        let cursor = Cursor::new(0.0);
         let ray = Ray::new(Vec3::new(0.0, 0.0, -1.0), Vec3::new(0.0, 0.0, 1.0));
         let surf_spec = SurfaceSpec::Conic {
             semi_diameter: 4.0,
             radius_of_curvature: Float::INFINITY,
             conic_constant: 0.0,
             surf_type: SurfaceType::Refracting,
+            rotation: Rotation3D::None,
         };
-        let surf = Surface::from_spec(&surf_spec, pos);
+        let surf = Surface::from_spec(&surf_spec, &cursor);
         let max_iter = 1000;
 
         let (p, _) = ray.intersect(&surf, max_iter).unwrap();
@@ -295,7 +300,7 @@ mod test {
     // Test the intersection of a ray with a circular surface
     #[test]
     fn test_ray_intersection_conic() {
-        let pos = Vec3::new(0.0, 0.0, 0.0);
+        let cursor = Cursor::new(0.0);
 
         // Ray starts at z = -1.0 and travels at 45 degrees to the optics axis
         let l = 0.7071;
@@ -308,8 +313,9 @@ mod test {
             radius_of_curvature: -1.0,
             conic_constant: 0.0,
             surf_type: SurfaceType::Refracting,
+            rotation: Rotation3D::None,
         };
-        let surf = Surface::from_spec(&surf_spec, pos);
+        let surf = Surface::from_spec(&surf_spec, &cursor);
         let max_iter = 1000;
 
         let (p, _) = ray.intersect(&surf, max_iter).unwrap();

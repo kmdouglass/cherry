@@ -3,7 +3,7 @@
 //! Thorlabs Part No.: LB1676-A
 use std::rc::Rc;
 
-use crate::{GapSpec, RefractiveIndexSpec, SequentialModel, SurfaceSpec, SurfaceType};
+use crate::{GapSpec, RefractiveIndexSpec, Rotation3D, SequentialModel, SurfaceSpec, SurfaceType};
 
 pub fn sequential_model(
     n_air: Rc<dyn RefractiveIndexSpec>,
@@ -30,14 +30,19 @@ pub fn sequential_model(
         radius_of_curvature: 102.4,
         conic_constant: 0.0,
         surf_type: SurfaceType::Refracting,
+        rotation: Rotation3D::None,
     };
     let surf_2 = SurfaceSpec::Conic {
         semi_diameter: 12.7,
         radius_of_curvature: -102.4,
         conic_constant: 0.0,
         surf_type: SurfaceType::Refracting,
+        rotation: Rotation3D::None,
     };
-    let surf_3 = SurfaceSpec::Image;
+    let surf_3 = SurfaceSpec::Image {
+        rotation: Rotation3D::None,
+    };
+
     let surfaces = vec![surf_0, surf_1, surf_2, surf_3];
 
     SequentialModel::new(&gaps, &surfaces, wavelengths).unwrap()

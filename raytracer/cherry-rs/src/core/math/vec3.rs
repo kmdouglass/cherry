@@ -8,7 +8,7 @@ const TOL: Float = (1 as Float) * EPSILON;
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(into = "[Float; 3]")]
 pub struct Vec3 {
-    e: [Float; 3],
+    pub e: [Float; 3],
 }
 
 /// Required to serialize Vec3 directly into an array instead of a JSON Object.
@@ -47,15 +47,15 @@ impl Vec3 {
         self.e[2] = z;
     }
 
-    pub fn k(&self) -> Float {
+    pub fn l(&self) -> Float {
         self.e[0]
     }
 
-    pub fn l(&self) -> Float {
+    pub fn m(&self) -> Float {
         self.e[1]
     }
 
-    pub fn m(&self) -> Float {
+    pub fn n(&self) -> Float {
         self.e[2]
     }
 
@@ -87,8 +87,26 @@ impl Vec3 {
         (self.length_squared() - 1.0).abs() / Float::max(1.0, self.length_squared()) < TOL
     }
 
-    pub fn dot(&self, rhs: Self) -> Float {
+    pub fn dot(&self, rhs: &Self) -> Float {
         self.e[0] * rhs.e[0] + self.e[1] * rhs.e[1] + self.e[2] * rhs.e[2]
+    }
+
+    pub fn cross(&self, rhs: &Self) -> Self {
+        Self::new(
+            self.e[1] * rhs.e[2] - self.e[2] * rhs.e[1],
+            self.e[2] * rhs.e[0] - self.e[0] * rhs.e[2],
+            self.e[0] * rhs.e[1] - self.e[1] * rhs.e[0],
+        )
+    }
+
+    pub fn is_parallel(&self, rhs: &Self) -> bool {
+        let cross = self.cross(rhs);
+        cross.length_squared() < TOL * TOL
+    }
+
+    pub fn is_orthogonal(&self, rhs: &Self) -> bool {
+        let dot = self.dot(rhs);
+        dot.abs() < TOL
     }
 
     /// Create a square grid of vectors that sample a circle.
@@ -165,6 +183,12 @@ impl Vec3 {
         }
         vecs
     }
+
+    pub fn approx_eq(&self, rhs: &Self, tol: Float) -> bool {
+        (self.e[0] - rhs.e[0]).abs() < tol
+            && (self.e[1] - rhs.e[1]).abs() < tol
+            && (self.e[2] - rhs.e[2]).abs() < tol
+    }
 }
 
 impl PartialEq for Vec3 {
@@ -224,12 +248,31 @@ impl std::ops::Mul<Float> for Vec3 {
     }
 }
 
+impl std::ops::Mul<Float> for &Vec3 {
+    type Output = Vec3;
+
+    fn mul(self, rhs: Float) -> Vec3 {
+        Vec3::new(self.e[0] * rhs, self.e[1] * rhs, self.e[2] * rhs)
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
 
     #[test]
-    fn test_normalize() {
+    fn vec3_cross() {
+        let v1 = Vec3::new(1.0, 0.0, 0.0);
+        let v2 = Vec3::new(0.0, 1.0, 0.0);
+        let cross = v1.cross(&v2);
+
+        assert_eq!(cross.x(), 0.0);
+        assert_eq!(cross.y(), 0.0);
+        assert_eq!(cross.z(), 1.0);
+    }
+
+    #[test]
+    fn vec3_normalize() {
         let v = Vec3::new(1.0, 1.0, 1.0);
         let norm = v.normalize();
 
@@ -238,7 +281,7 @@ mod test {
     }
 
     #[test]
-    fn test_normalize_zero_length() {
+    fn vec3_normalize_zero_length() {
         let v = Vec3::new(0.0, 0.0, 0.0);
         let norm = v.normalize();
 
@@ -246,20 +289,40 @@ mod test {
     }
 
     #[test]
-    fn test_sample_circle_sq_grid_unit_circle() {
+    fn vec3_sample_circle_sq_grid_unit_circle() {
         let samples = Vec3::sq_grid_in_circ(1.0, 1.0, 0.0, 0.0, 0.0);
         assert_eq!(samples.len(), 5);
     }
 
     #[test]
-    fn test_sample_circle_sq_grid_radius_2_scale_2() {
+    fn vec3_sample_circle_sq_grid_radius_2_scale_2() {
         let samples = Vec3::sq_grid_in_circ(2.0, 2.0, 0.0, 0.0, 0.0);
         assert_eq!(samples.len(), 5);
     }
 
     #[test]
-    fn test_sample_circle_sq_grid_radius_2_scale_1() {
+    fn vec3_sample_circle_sq_grid_radius_2_scale_1() {
         let samples = Vec3::sq_grid_in_circ(2.0, 1.0, 0.0, 0.0, 0.0);
         assert_eq!(samples.len(), 13);
+    }
+
+    #[test]
+    fn vec3_is_parallel() {
+        let v1 = Vec3::new(1.0, 2.0, 3.0);
+        let v2 = Vec3::new(2.0, 4.0, 6.0);
+        let v3 = Vec3::new(1.0, 1.0, 1.0);
+
+        assert!(v1.is_parallel(&v2));
+        assert!(!v1.is_parallel(&v3));
+    }
+
+    #[test]
+    fn vec3_is_orthogonal() {
+        let v1 = Vec3::new(1.0, 0.0, 0.0);
+        let v2 = Vec3::new(0.0, 1.0, 0.0);
+        let v3 = Vec3::new(1.0, 1.0, 1.0);
+
+        assert!(v1.is_orthogonal(&v2));
+        assert!(!v1.is_orthogonal(&v3));
     }
 }
