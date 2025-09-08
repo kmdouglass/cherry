@@ -101,12 +101,7 @@ impl Conic {
     /// ```
     pub fn center(&self) -> Option<Vec2> {
         if self.conic_class.is_central_conic() {
-            let a = self.matrix.e[0][0];
-            let b = self.matrix.e[0][1] * 2.0;
-            let c = self.matrix.e[1][1];
-            let d = self.matrix.e[0][2] * 2.0;
-            let e = self.matrix.e[1][2] * 2.0;
-            let f = self.matrix.e[2][2];
+            let (a, b, c, d, e, _f) = self.coefficients();
 
             let x_c = (b * e - 2.0 * c * d) / (4.0 * a * c - b * b);
             let y_c = (b * d - 2.0 * a * e) / (4.0 * a * c - b * b);
@@ -163,12 +158,34 @@ impl Conic {
                     curr_sample = eigenvectors * curr_sample + center;
                     samples.push(curr_sample);
                 }
+            }
+            ConicClass::Parabola => {
+                let (a, b, c, d, e, f) = self.coefficients();
 
-                return Ok(samples);
+                // Coefficients for the form (Ax + Cy)^2 + Dx + Ey + F = 0
+                let (root_a, mut root_c) = (a.sqrt(), c.sqrt());
+                if b.is_sign_negative() {
+                    // It doesn't matter whether root_a or root_c is negative.
+                    root_c = -root_c;
+                }
+
+                let mut curr_sample: Vec2 = Vec2 { x: 0.0, y: 0.0 };
+                for i in 0..num_samples {
+                    let t = (i as Float - num_samples as Float / 2.0) * step;
+
+                    // Hypergeometricx (https://math.stackexchange.com/users/168053/hypergeometricx),
+                    // Parametric Form for a General Parabola, URL (version: 2017-04-13)
+                    // https://math.stackexchange.com/q/2046753
+                    curr_sample.x =
+                        (-root_c * t * t - e * t + root_c * f) / (root_c * d - root_a * e);
+                    curr_sample.y =
+                        (root_a * t * t - d * t + root_a * f) / (root_c * d - root_a * e);
+
+                    samples.push(curr_sample);
+                }
             }
             ConicClass::Degenerate | ConicClass::Empty => {
                 // No samples for empty conic.
-                return Ok(samples);
             }
             _ => {
                 panic!("Sampling not implemented for this conic class");
@@ -199,6 +216,18 @@ impl Conic {
         } else {
             return ConicClass::Hyperbola;
         }
+    }
+
+    /// Returns the coefficients of the conic section.
+    fn coefficients(&self) -> (Float, Float, Float, Float, Float, Float) {
+        let a = self.matrix.e[0][0];
+        let b = self.matrix.e[0][1] * 2.0;
+        let c = self.matrix.e[1][1];
+        let d = self.matrix.e[0][2] * 2.0;
+        let e = self.matrix.e[1][2] * 2.0;
+        let f = self.matrix.e[2][2];
+
+        (a, b, c, d, e, f)
     }
 
     /// Returns the matrix of the quadratic form.
