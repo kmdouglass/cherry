@@ -133,6 +133,9 @@ mod materials;
 mod specs;
 mod views;
 
+#[cfg(feature = "gui")]
+pub mod gui;
+
 // API
 pub mod examples;
 pub use core::{
