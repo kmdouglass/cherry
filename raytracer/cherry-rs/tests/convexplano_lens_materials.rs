@@ -44,12 +44,18 @@ mod test_ri_info {
     }
 
     #[test]
+    fn test_feature_enabled() {
+        println!("Feature ri-info is enabled!");
+        assert!(cfg!(feature = "ri-info"));
+    }
+
+    #[test]
     fn test_paraxial_view_primary_axial_color() {
         let mut store = load_store().unwrap();
 
         // Remove the item so that we can pass ownership to a Rc.
         let air = Rc::new(store.remove("other:air:Ciddor").unwrap());
-        let nbk7 = Rc::new(store.remove("glass:BK7:SCHOTT").unwrap());
+        let nbk7 = Rc::new(store.remove("popular_glass:BK7:SCHOTT").unwrap());
 
         let model = sequential_model(air, nbk7, &WAVELENGTHS);
         let view =

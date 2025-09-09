@@ -1,0 +1,82 @@
+name: Build and Deploy Cherry egui WASM App
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build-egui-wasm:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v6
+
+    - name: Install Rust nightly with WASM target
+      uses: dtolnay/rust-toolchain@master
+      with:
+        # Keep in sync with raytracer/rust-toolchain.toml
+        toolchain: nightly-2026-02-20
+        targets: wasm32-unknown-unknown
+        components: rust-src
+
+    - name: Install binaryen (wasm-opt)
+      run: sudo apt-get install -y binaryen
+
+    - name: Install trunk
+      uses: jetli/trunk-action@v0.5.0
+      with:
+        version: "latest"
+
+    - name: Run cherry-rs tests (native)
+      working-directory: ./raytracer
+      run: cargo test -p cherry-rs --features gui,ri-info
+
+    - name: Download rii.db
+      # Downloads the release matching the ria crate version in Cargo.toml.
+      # Keep the ria version and this download tag in sync.
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        gh release download v2.0.0 \
+          --repo kmdouglass/refractiveindex.info-adapters \
+          --pattern "rii.db" \
+          --dir www/egui/assets/
+
+    - name: Generate rii-index.json
+      working-directory: ./raytracer
+      run: |
+        cargo run -p cherry-rs --bin gen-rii-index \
+          --features ri-info --release \
+          -- --output ../www/egui/assets/rii-index.json
+
+    - name: Build WASM app
+      working-directory: ./www/egui
+      run: trunk build --release
+
+    - name: Setup Pages
+      uses: actions/configure-pages@v5
+
+    - name: Upload artifact
+      uses: actions/upload-pages-artifact@v4
+      with:
+        path: www/egui/dist
+
+  deploy:
+    needs: build-egui-wasm
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+    - name: Deploy to GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@v4

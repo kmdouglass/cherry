@@ -1,4 +1,11 @@
 .vscode
+.private
 
 result
 node_modules
+
+# egui builds
+www/egui/dist/
+
+# Large binary asset — obtain via symlink or download (see www/egui/Trunk.toml)
+www/egui/assets/rii.db

@@ -10,19 +10,67 @@ license-file = "../../LICENSE.txt"
 [lib]
 crate-type = ["lib"]
 
+[[bin]]
+name = "cherry"
+path = "src/bin/cherry.rs"
+required-features = [ "gui" ]
+
+[[bin]]
+name = "gen-rii-index"
+path = "src/bin/gen_rii_index.rs"
+required-features = [ "ri-info" ]
+
 [features]
-ri-info = [ "dep:ria" ]
+gui = [ "dep:eframe", "dep:egui", "dep:egui_extras", "dep:env_logger", "dep:log", "dep:rfd", "dep:serde_json" ]
+ri-info = [ "dep:ria", "dep:bitcode", "dep:serde_json" ]
 
 [dependencies]
 anyhow = "1.0"
 ndarray = { version = "0.16", features = [ "serde" ] }
 serde = { version = "1", features = [ "derive" ] }
 
-ria = { version = "0.3", optional = true }
+# gui (shared: native + WASM)
+eframe = { version = "0.32", default-features = false, optional = true, features = [
+    "default_fonts", # Embed the default egui fonts.
+    "glow",          # Use the glow rendering backend. Alternative: "wgpu".
+    "persistence",   # Enable restoring app state when restarting the app.
+] }
+egui = { version = "0.32", optional = true }
+egui_extras = { version = "0.32", default-features = false, optional = true, features = [
+    "svg"
+] }
+log = { version = "0.4.28", optional = true }
+rfd = { version = "0.15", optional = true }
+serde_json = { version = "1", optional = true }
+
+# ri-info
+bitcode = { version = "0.6", features = [ "serde" ], optional = true }
+ria = { version = "2.0.0", optional = true }
+
+# native-only
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+env_logger = { version = "0.11.8", optional = true }
+eframe = { version = "0.32", default-features = false, optional = true, features = [
+    "wayland", # To support Linux (and CI)
+    "x11",     # To support older Linux distributions
+] }
+
+# WASM-only
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "0.2"
+wasm_thread = "0.3"
+gloo-net = { version = "0.6", features = ["http"] }
+wasm-bindgen-futures = "0.4"
+console_error_panic_hook = "0.1"
+console_log = { version = "1", features = ["color"] }
 
 [dev-dependencies]
 approx = "0.5"
-bitcode = { version = "0.6", features = [ "serde" ] }
+# egui-winit must have the "accesskit" feature to match the feature egui_kittest
+# enables on egui; without it, egui-winit's exhaustive PlatformOutput pattern
+# fails to compile.
+egui-winit = { version = "0.32", features = ["accesskit"] }
+egui_kittest = "0.32"
 ndarray = { version = "0.16", features = [ "approx", "serde" ] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]

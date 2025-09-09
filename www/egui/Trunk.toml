@@ -1,0 +1,25 @@
+[build]
+# Path to the index.html relative to Trunk.toml
+target = "index.html"
+# Disable content hashes for simpler URLs during development.
+# Remove this line to re-enable cache busting once stable.
+filehash = false
+
+[watch]
+# Do not watch the Rust build output or trunk's own dist output
+ignore = ["../../raytracer/target", "dist", "assets"]
+
+[serve]
+addresses = ["127.0.0.1"]
+port = 8080
+open = false
+
+[[hooks]]
+# Build the rii-index.json asset before the main WASM build.
+# Only runs when rii.db exists; skipped silently otherwise.
+stage = "pre_build"
+command = "sh"
+command_arguments = [
+    "-c",
+    "test -f assets/rii.db && cargo run --manifest-path ../../raytracer/Cargo.toml -p cherry-rs --bin gen-rii-index --features ri-info --release -- --output assets/rii-index.json || echo 'Skipping gen-rii-index: assets/rii.db not found'",
+]

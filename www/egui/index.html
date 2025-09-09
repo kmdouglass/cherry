@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+    <title>Cherry Ray Tracer</title>
+    <style>
+        html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
+        canvas { width: 100%; height: 100%; display: block; }
+    </style>
+    <!-- trunk replaces the data-trunk script tag with compiled WASM JS -->
+    <link rel="preload" as="fetch" href="assets/rii-index.json" crossorigin="anonymous" />
+</head>
+<body>
+    <!-- coi-serviceworker must load before any WASM module -->
+    <script src="coi-serviceworker.js"></script>
+    <canvas id="cherry_canvas"></canvas>
+    <link data-trunk rel="rust"
+          href="../../raytracer/cherry-rs/Cargo.toml"
+          data-bin="cherry"
+          data-cargo-features="gui,ri-info" />
+    <link data-trunk rel="copy-file" href="coi-serviceworker.js" />
+    <link data-trunk rel="copy-dir" href="assets" />
+</body>
+</html>
