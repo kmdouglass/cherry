@@ -1,12 +1,19 @@
-/// We derive Deserialize/Serialize so we can persist app state on shutdown.
 #[derive(serde::Deserialize, serde::Serialize)]
-#[serde(default)] // if we add new fields, give them default values when deserializing old state
+#[serde(default)] // Assign default values when deserializing old state
 pub struct CherryApp {
-    // Example stuff:
     label: String,
 
     #[serde(skip)] // This how you opt-out of serialization of a field
     value: f32,
+}
+
+fn generate_svg() -> String {
+    let svg_data = r#"
+    <svg width="100" height="100" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="50" cy="50" r="40" stroke="black" stroke-width="3" fill="red" />
+    </svg>
+    "#;
+    svg_data.to_string()
 }
 
 impl Default for CherryApp {
@@ -22,10 +29,10 @@ impl Default for CherryApp {
 impl CherryApp {
     /// Called once before the first frame.
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
-        // This is also where you can customize the look and feel of egui using
-        // `cc.egui_ctx.set_visuals` and `cc.egui_ctx.set_fonts`.
+        // Install SVG loader
+        egui_extras::install_image_loaders(&cc.egui_ctx);
 
-        // Load previous app state (if any).
+        // Load previous app state (if any)
         if let Some(storage) = cc.storage {
             eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default()
         } else {
@@ -35,7 +42,7 @@ impl CherryApp {
 }
 
 impl eframe::App for CherryApp {
-    /// Called by the framework to save state before shutdown.
+    /// Save state before shutdown.
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
         eframe::set_value(storage, eframe::APP_KEY, self);
     }
@@ -79,8 +86,11 @@ impl eframe::App for CherryApp {
             }
         });
 
-        egui::Window::new("About Cherry").show(ctx, |ui| {
-            ui.label("SVG goes here");
+        egui::Window::new("Cross Section").show(ctx, |ui| {
+            let svg_data = generate_svg();
+
+            ui.add(egui::Image::from_bytes("bytes://cross_section.svg", svg_data.into_bytes()));
         });
     }
 }
+

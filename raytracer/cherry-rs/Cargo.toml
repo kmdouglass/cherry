@@ -16,7 +16,7 @@ path = "src/bin/cherry.rs"
 required-features = [ "gui" ]
 
 [features]
-gui = [ "dep:eframe", "dep:egui", "dep:env_logger", "dep:log" ]
+gui = [ "dep:eframe", "dep:egui", "dep:egui_extras", "dep:env_logger", "dep:log" ]
 ri-info = [ "dep:ria" ]
 
 [dependencies]
@@ -33,6 +33,9 @@ eframe = { version = "0.32", default-features = false, optional= true, features 
     "x11",           # To support older Linux distributions (restores one of the default features)
 ] }
 egui = { version = "0.32", optional = true }
+egui_extras = { version = "0.32", default-features = false,  optional = true, features = [
+    "svg"
+]}
 log = { version = "0.4.28", optional = true }
 
 # native gui:
