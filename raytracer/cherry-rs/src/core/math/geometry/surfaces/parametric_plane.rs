@@ -1,7 +1,7 @@
 /// A parametric plane in R3.
 use anyhow::Result;
 
-use crate::core::math::vec3::Vec3;
+use crate::core::math::{geometry::curves::{GeometricCurve, line::Line}, linalg::mat3x3::Mat3x3, vec3::Vec3};
 
 /// A parameterization of a plane in R3.
 ///
@@ -42,6 +42,34 @@ impl ParametricPlane {
     /// Determines whether the plane's basis is orthonormal.
     pub fn is_basis_orthonormal(&self) -> bool {
         self.u.is_orthogonal(&self.v) && self.u.is_unit() && self.v.is_unit()
+    }
+
+    pub fn rotate(&mut self, rotation_matrix: Mat3x3) {
+        self.u = rotation_matrix * self.u;
+        self.v = rotation_matrix * self.v;
+    }
+
+    pub fn translate(&mut self, translation: Vec3) {
+        self.p0 = self.p0 + translation;
+    }
+
+    /// Finds the intersection curve of a ParametricPlane and the xy plane (z=0).
+    /// 
+    /// Don't bother with generic planes in any orientation since plane surfaces in the local
+    /// CRS are always aligned with the xy plane. 
+    pub fn xy_plane_intersection(&self) -> GeometricCurve {
+        let (p0, u, v) = (self.p0, self.u, self.v);
+
+        let m_x = v.e[0] - (v.e[2] * u.e[0]) / u.e[2];
+        let b_x = p0.e[0] - (p0.e[2] * u.e[0]) / u.e[2];
+
+        let m_y = v.e[1] - (v.e[2] * u.e[1]) / u.e[2];
+        let b_y = p0.e[1] - (p0.e[2] * u.e[1]) / u.e[2];
+
+        let point = Vec3::new(b_x, b_y, 0.0);
+        let direction = Vec3::new(m_x, m_y, 0.0).normalize();
+
+        GeometricCurve::Line(Line::new(point, direction))
     }
 }
 

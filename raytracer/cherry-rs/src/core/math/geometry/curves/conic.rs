@@ -187,7 +187,7 @@ impl Conic {
             ConicClass::Degenerate | ConicClass::Empty => {
                 // No samples for empty conic.
             }
-            _ => {
+            ConicClass::Hyperbola => {
                 panic!("Sampling not implemented for this conic class");
             }
         }
