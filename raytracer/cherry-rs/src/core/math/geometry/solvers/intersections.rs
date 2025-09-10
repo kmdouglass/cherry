@@ -1,9 +1,12 @@
 /// Intersection algorithms for various geometric objects.
 use anyhow::Result;
 
-use crate::core::math::geometry::{
-    curves::conic::Conic,
-    surfaces::{parametric_plane::ParametricPlane, quadric::Quadric},
+use crate::core::math::{
+    geometry::{
+        curves::{conic::Conic, line::Line},
+        surfaces::{parametric_plane::ParametricPlane, quadric::Quadric},
+    },
+    vec3::Vec3,
 };
 
 /// Computes the intersection curve of a Quadric and a ParametricPlane.
@@ -88,6 +91,22 @@ pub fn quadric_parametric_plane_intersection_curve(
         + j;
 
     Ok(Conic::new(ss, st, tt, s, t, c))
+}
+
+/// Finds the intersection curve of a ParametricPlane and the xy plane (z=0).
+pub fn parametric_plane_xy_plane_intersection_curve(plane: &ParametricPlane) -> Line {
+    let (p0, u, v) = (plane.p0, plane.u, plane.v);
+
+    let m_x = v.e[0] - (v.e[2] * u.e[0]) / u.e[2];
+    let b_x = p0.e[0] - (p0.e[2] * u.e[0]) / u.e[2];
+
+    let m_y = v.e[1] - (v.e[2] * u.e[1]) / u.e[2];
+    let b_y = p0.e[1] - (p0.e[2] * u.e[1]) / u.e[2];
+
+    let point = Vec3::new(b_x, b_y, 0.0);
+    let direction = Vec3::new(m_x, m_y, 0.0).normalize();
+
+    Line::new(point, direction)
 }
 
 #[cfg(test)]

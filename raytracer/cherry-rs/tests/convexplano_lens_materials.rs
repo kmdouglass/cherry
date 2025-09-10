@@ -44,6 +44,12 @@ mod test_ri_info {
     }
 
     #[test]
+    fn test_feature_enabled() {
+        println!("Feature ri-info is enabled!");
+        assert!(cfg!(feature = "ri-info"));
+    }
+
+    #[test]
     fn test_paraxial_view_primary_axial_color() {
         let mut store = load_store().unwrap();
 

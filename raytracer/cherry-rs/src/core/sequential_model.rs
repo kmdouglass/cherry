@@ -632,6 +632,13 @@ impl Surface {
         self.pos().z()
     }
 
+    pub(crate) fn conic_constant(&self) -> Option<Float> {
+        match self {
+            Self::Conic(conic) => Some(conic.conic_constant),
+            _ => None,
+        }
+    }
+
     /// Creates a new surface from a specification.
     ///
     /// The position and rotation of the surface are determined by the input
@@ -716,6 +723,17 @@ impl Surface {
             //     surface_type: *surf_type,
             // }),
         }
+    }
+
+    pub(crate) fn is_infinite(&self) -> bool {
+        if self.pos().z().is_infinite()
+            || self.pos().y().is_infinite()
+            || self.pos().x().is_infinite()
+        {
+            return true;
+        }
+
+        false
     }
 
     /// Determines whether a transverse point is outside the clear aperture of
@@ -1037,5 +1055,55 @@ mod tests {
 
         let result = reversed_surface_id(&surfaces, 1);
         assert_eq!(result, 3);
+    }
+
+    #[test]
+    fn surface_is_infinite() {
+        // z-coordinate infinite
+        let surf = Surface::Conic(Conic {
+            pos: Vec3::new(0.0, 0.0, Float::INFINITY),
+            rotation_matrix: Mat3x3::identity(),
+            inv_rotation_matrix: Mat3x3::identity(),
+            semi_diameter: 1.0,
+            radius_of_curvature: 1.0,
+            conic_constant: 0.0,
+            surface_type: SurfaceType::Refracting,
+        });
+        assert!(surf.is_infinite());
+
+        // x- or y-coordinate infinite
+        let surf = Surface::Conic(Conic {
+            pos: Vec3::new(0.0, Float::INFINITY, 0.0),
+            rotation_matrix: Mat3x3::identity(),
+            inv_rotation_matrix: Mat3x3::identity(),
+            semi_diameter: 1.0,
+            radius_of_curvature: 1.0,
+            conic_constant: 0.0,
+            surface_type: SurfaceType::Refracting,
+        });
+        assert!(surf.is_infinite());
+
+        let surf = Surface::Conic(Conic {
+            pos: Vec3::new(Float::INFINITY, 0.0, 0.0),
+            rotation_matrix: Mat3x3::identity(),
+            inv_rotation_matrix: Mat3x3::identity(),
+            semi_diameter: 1.0,
+            radius_of_curvature: 1.0,
+            conic_constant: 0.0,
+            surface_type: SurfaceType::Refracting,
+        });
+        assert!(surf.is_infinite());
+
+        // Finite coordinates
+        let surf = Surface::Conic(Conic {
+            pos: Vec3::new(0.0, 0.0, 0.0),
+            rotation_matrix: Mat3x3::identity(),
+            inv_rotation_matrix: Mat3x3::identity(),
+            semi_diameter: 1.0,
+            radius_of_curvature: 1.0,
+            conic_constant: 0.0,
+            surface_type: SurfaceType::Refracting,
+        });
+        assert!(!surf.is_infinite());
     }
 }
