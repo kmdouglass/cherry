@@ -23,7 +23,7 @@
     "compression-webpack-plugin": "^11.1.0",
     "copy-webpack-plugin": "*",
     "css-loader": "^7.1.2",
-    "jsdom": "^26.0.0",
+    "jsdom": "^27.0.1",
     "style-loader": "^4.0.0",
     "vitest": "^3.2.4",
     "webpack": "*",
