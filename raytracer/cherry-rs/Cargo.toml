@@ -15,7 +15,7 @@ ri-info = [ "dep:ria" ]
 
 [dependencies]
 anyhow = "1.0"
-ndarray = { version = "0.16", features = [ "serde" ] }
+ndarray = { version = "0.17", features = [ "serde" ] }
 serde = { version = "1", features = [ "derive" ] }
 
 ria = { version = "0.3", optional = true }
@@ -23,7 +23,7 @@ ria = { version = "0.3", optional = true }
 [dev-dependencies]
 approx = "0.5"
 bitcode = { version = "0.6", features = [ "serde" ] }
-ndarray = { version = "0.16", features = [ "approx", "serde" ] }
+ndarray = { version = "0.17", features = [ "approx", "serde" ] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 criterion = { version = "0.7", features = [ "html_reports" ] }
