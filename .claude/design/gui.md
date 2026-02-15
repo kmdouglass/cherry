@@ -6,6 +6,12 @@ The GUI is composed of
 - various panels for data entry, a.k.a. specs
 - various panels for results, i.e. paraxial quantities, cross-section views, etc.
 
+## Rust Structure
+
+The GUI is a crate feature called `gui`. Its code is located at `raytracer/cherry-rs/src/gui`.
+
+All application state is stored in `CherryApp`.
+
 ## File Menu
 
 - File

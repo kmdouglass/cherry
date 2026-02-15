@@ -10,11 +10,12 @@ pub enum GeometricCurve {
     Line(Line)
 }
 
-impl GeometricCurve {
-    fn sample(&self, num_samples: usize) -> Result<Vec<Vec3>> {
-        match self {
-            GeometricCurve::Conic(conic) => conic.sample(num_samples),
-            GeometricCurve::Line(line) => line.sample(num_samples),
-        }
-    }
-}
+// TODO: Fix this.
+// impl GeometricCurve {
+//     fn sample(&self, num_samples: usize) -> Result<Vec<Vec3>> {
+//         match self {
+//             GeometricCurve::Conic(conic) => conic.sample(num_samples),
+//             GeometricCurve::Line(line) => line.sample(num_samples),
+//         }
+//     }
+// }

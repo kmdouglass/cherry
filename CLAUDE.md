@@ -35,6 +35,9 @@ cd raytracer && cargo bench
 
 # Format
 cd raytracer/cherry-rs && cargo fmt
+
+# Run GUI prototype (requires "gui" feature)
+cd raytracer && cargo run -p cherry-rs --bin cherry --features gui
 ```
 
 ### JavaScript
@@ -60,7 +63,7 @@ npm run start       # dev server
 
 - **Sequential model**: Surfaces are traced in order along the optical axis. Each surface has a geometry (conic, sphere) and orientation (3D rotation).
 - **Specs** (`specs/`): User inputs — `SurfaceSpec`, `GapSpec`, `FieldSpec`, `ApertureSpec`.
-- **Views** (`views/`): Computed outputs — `ParaxialView` (first-order properties), `RayTrace3DView` (full trace), `CutawayView` (cross-section rendering).
+- **Views** (`views/`): Computed outputs — `ParaxialView` (first-order properties), `RayTrace3DView` (full trace), `CrossSectionView` (cross-section rendering).
 - **Materials**: Refractive index data, optionally sourced from refractiveindex.info via the `ri_info` feature flag.
 
 ## Reference Docs
