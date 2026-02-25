@@ -1,4 +1,5 @@
 .vscode
+.private
 
 result
 node_modules
