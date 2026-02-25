@@ -3,6 +3,11 @@ mod examples;
 pub mod model;
 mod panels;
 
+#[cfg(feature = "ri-info")]
+use std::collections::HashMap;
+#[cfg(feature = "ri-info")]
+use std::rc::Rc;
+
 use crate::{ParaxialView, SequentialModel, TraceResultsCollection, ray_trace_3d_view};
 use model::{SpecsTab, SystemSpecs};
 
@@ -25,6 +30,16 @@ pub struct CherryApp {
     paraxial_view: Option<ParaxialView>,
     #[serde(skip)]
     trace_results: Option<TraceResultsCollection>,
+
+    #[cfg(feature = "ri-info")]
+    #[serde(skip)]
+    materials: HashMap<String, Rc<lib_ria::Material>>,
+    #[cfg(feature = "ri-info")]
+    #[serde(skip)]
+    material_index: panels::MaterialIndex,
+    #[cfg(feature = "ri-info")]
+    #[serde(skip)]
+    material_browser: panels::MaterialBrowserState,
 }
 
 impl Default for CherryApp {
@@ -38,8 +53,32 @@ impl Default for CherryApp {
             sequential_model: None,
             paraxial_view: None,
             trace_results: None,
+            #[cfg(feature = "ri-info")]
+            materials: HashMap::new(),
+            #[cfg(feature = "ri-info")]
+            material_index: panels::MaterialIndex::default(),
+            #[cfg(feature = "ri-info")]
+            material_browser: panels::MaterialBrowserState::default(),
         }
     }
+}
+
+#[cfg(feature = "ri-info")]
+fn load_material_store() -> anyhow::Result<HashMap<String, Rc<lib_ria::Material>>> {
+    let filename = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/rii.db");
+    let data = std::fs::read(&filename)
+        .map_err(|e| anyhow::anyhow!("Cannot read {}: {e}", filename.display()))?;
+    let mut store: lib_ria::Store = bitcode::deserialize(&data)
+        .map_err(|e| anyhow::anyhow!("Cannot deserialize material database: {e}"))?;
+
+    let keys: Vec<String> = store.keys().cloned().collect();
+    let mut materials = HashMap::with_capacity(keys.len());
+    for key in keys {
+        if let Some(mat) = store.remove(&key) {
+            materials.insert(key, Rc::new(mat));
+        }
+    }
+    Ok(materials)
 }
 
 impl CherryApp {
@@ -47,17 +86,39 @@ impl CherryApp {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         egui_extras::install_image_loaders(&cc.egui_ctx);
 
-        if let Some(storage) = cc.storage {
+        let mut app: Self = if let Some(storage) = cc.storage {
             eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default()
         } else {
             Default::default()
+        };
+
+        #[cfg(feature = "ri-info")]
+        {
+            match load_material_store() {
+                Ok(materials) => {
+                    let index =
+                        panels::MaterialIndex::build_from_keys(materials.keys());
+                    app.material_index = index;
+                    app.materials = materials;
+                }
+                Err(e) => {
+                    log::error!("Failed to load material database: {e}");
+                }
+            }
         }
+
+        app
     }
 
     /// Recompute the sequential model, paraxial view, and ray trace from
     /// current specs.
     fn recompute(&mut self) {
-        let parsed = match convert::convert_specs(&self.specs) {
+        #[cfg(feature = "ri-info")]
+        let parsed = convert::convert_specs(&self.specs, &self.materials);
+        #[cfg(not(feature = "ri-info"))]
+        let parsed = convert::convert_specs(&self.specs);
+
+        let parsed = match parsed {
             Ok(p) => p,
             Err(e) => {
                 self.error_message = Some(format!("Specs error: {e}"));
@@ -227,13 +288,27 @@ impl eframe::App for CherryApp {
             .show(ctx, |ui| {
                 // Tab bar
                 ui.horizontal(|ui| {
-                    ui.selectable_value(&mut self.active_specs_tab, SpecsTab::Surfaces, "Surfaces");
+                    ui.selectable_value(
+                        &mut self.active_specs_tab,
+                        SpecsTab::Surfaces,
+                        "Surfaces",
+                    );
                     ui.selectable_value(&mut self.active_specs_tab, SpecsTab::Fields, "Fields");
-                    ui.selectable_value(&mut self.active_specs_tab, SpecsTab::Aperture, "Aperture");
+                    ui.selectable_value(
+                        &mut self.active_specs_tab,
+                        SpecsTab::Aperture,
+                        "Aperture",
+                    );
                     ui.selectable_value(
                         &mut self.active_specs_tab,
                         SpecsTab::Wavelengths,
                         "Wavelengths",
+                    );
+                    #[cfg(feature = "ri-info")]
+                    ui.selectable_value(
+                        &mut self.active_specs_tab,
+                        SpecsTab::Materials,
+                        "Materials",
                     );
                 });
                 ui.separator();
@@ -244,6 +319,13 @@ impl eframe::App for CherryApp {
                     SpecsTab::Fields => panels::fields_panel(ui, &mut self.specs),
                     SpecsTab::Aperture => panels::aperture_panel(ui, &mut self.specs),
                     SpecsTab::Wavelengths => panels::wavelengths_panel(ui, &mut self.specs),
+                    #[cfg(feature = "ri-info")]
+                    SpecsTab::Materials => panels::materials_panel(
+                        ui,
+                        &mut self.specs,
+                        &self.material_index,
+                        &mut self.material_browser,
+                    ),
                 };
 
                 if tab_changed {

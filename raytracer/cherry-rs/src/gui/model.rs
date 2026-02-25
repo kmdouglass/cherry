@@ -59,6 +59,10 @@ pub struct SurfaceRow {
     pub semi_diameter: String,
     pub radius_of_curvature: String,
     pub conic_constant: String,
+    /// Material key from rii.db (e.g. "glass:BK7:SCHOTT"). Used when
+    /// `SystemSpecs::use_materials` is true.
+    #[serde(default)]
+    pub material_key: Option<String>,
 }
 
 impl SurfaceRow {
@@ -71,6 +75,7 @@ impl SurfaceRow {
             semi_diameter: String::new(),
             radius_of_curvature: String::new(),
             conic_constant: String::new(),
+            material_key: None,
         }
     }
 
@@ -89,6 +94,7 @@ impl SurfaceRow {
             semi_diameter: semi_diameter.into(),
             radius_of_curvature: radius_of_curvature.into(),
             conic_constant: conic_constant.into(),
+            material_key: None,
         }
     }
 
@@ -101,6 +107,7 @@ impl SurfaceRow {
             semi_diameter: semi_diameter.into(),
             radius_of_curvature: String::new(),
             conic_constant: String::new(),
+            material_key: None,
         }
     }
 
@@ -113,6 +120,7 @@ impl SurfaceRow {
             semi_diameter: String::new(),
             radius_of_curvature: String::new(),
             conic_constant: String::new(),
+            material_key: None,
         }
     }
 
@@ -156,6 +164,8 @@ pub enum SpecsTab {
     Fields,
     Aperture,
     Wavelengths,
+    #[cfg(feature = "ri-info")]
+    Materials,
 }
 
 /// All user-editable input specifications.
@@ -166,6 +176,12 @@ pub struct SystemSpecs {
     pub aperture_semi_diameter: String,
     pub wavelengths: Vec<String>,
     pub field_mode: FieldMode,
+    /// When true, surfaces use material keys instead of constant n.
+    #[serde(default)]
+    pub use_materials: bool,
+    /// Material keys the user has selected for use in the surfaces table.
+    #[serde(default)]
+    pub selected_materials: Vec<String>,
 }
 
 impl Default for SystemSpecs {
@@ -186,6 +202,8 @@ impl Default for SystemSpecs {
             aperture_semi_diameter: "12.5".into(),
             wavelengths: vec!["0.567".into()],
             field_mode: FieldMode::Angle,
+            use_materials: false,
+            selected_materials: Vec::new(),
         }
     }
 }

@@ -3,8 +3,8 @@ use std::rc::Rc;
 use anyhow::{Context, Result, bail};
 
 use crate::{
-    ApertureSpec, ConstantRefractiveIndex, FieldSpec, GapSpec, PupilSampling, Rotation3D,
-    SurfaceSpec, SurfaceType,
+    ApertureSpec, ConstantRefractiveIndex, FieldSpec, GapSpec, PupilSampling, RefractiveIndexSpec,
+    Rotation3D, SurfaceSpec, SurfaceType,
 };
 
 use super::model::{FieldMode, SurfaceKind, SurfaceVariant, SystemSpecs};
@@ -31,8 +31,31 @@ fn parse_float(s: &str) -> Result<f64> {
     }
 }
 
+/// Materials map type used when the ri-info feature is enabled.
+#[cfg(feature = "ri-info")]
+pub type MaterialsMap = std::collections::HashMap<String, Rc<lib_ria::Material>>;
+
 /// Convert GUI `SystemSpecs` into core library specs.
+///
+/// When ri-info is enabled, pass the materials map so material keys can be
+/// resolved to `RefractiveIndexSpec` implementations.
+#[cfg(feature = "ri-info")]
+pub fn convert_specs(
+    specs: &SystemSpecs,
+    materials: &MaterialsMap,
+) -> Result<ParsedSpecs> {
+    convert_specs_inner(specs, Some(materials))
+}
+
+#[cfg(not(feature = "ri-info"))]
 pub fn convert_specs(specs: &SystemSpecs) -> Result<ParsedSpecs> {
+    convert_specs_inner(specs)
+}
+
+fn convert_specs_inner(
+    specs: &SystemSpecs,
+    #[cfg(feature = "ri-info")] materials: Option<&MaterialsMap>,
+) -> Result<ParsedSpecs> {
     // --- Surfaces & Gaps ---
     let num_surfaces = specs.surfaces.len();
     if num_surfaces < 2 {
@@ -85,10 +108,13 @@ pub fn convert_specs(specs: &SystemSpecs) -> Result<ParsedSpecs> {
         if i < num_surfaces - 1 {
             let thickness =
                 parse_float(&row.thickness).with_context(|| format!("surface {i}: thickness"))?;
-            let n = parse_float(&row.refractive_index)
-                .with_context(|| format!("surface {i}: refractive index"))?;
-            let ri: Rc<dyn crate::RefractiveIndexSpec> =
-                Rc::new(ConstantRefractiveIndex::new(n, 0.0));
+            let ri = resolve_refractive_index(
+                i,
+                row,
+                specs.use_materials,
+                #[cfg(feature = "ri-info")]
+                materials,
+            )?;
             gaps.push(GapSpec {
                 thickness,
                 refractive_index: ri,
@@ -152,4 +178,35 @@ pub fn convert_specs(specs: &SystemSpecs) -> Result<ParsedSpecs> {
         aperture,
         wavelengths,
     })
+}
+
+/// Resolve the refractive index for a gap, using either a material key or a
+/// constant n value.
+fn resolve_refractive_index(
+    surface_idx: usize,
+    row: &super::model::SurfaceRow,
+    use_materials: bool,
+    #[cfg(feature = "ri-info")] materials: Option<&MaterialsMap>,
+) -> Result<Rc<dyn RefractiveIndexSpec>> {
+    #[cfg(feature = "ri-info")]
+    if use_materials {
+        if let Some(key) = &row.material_key {
+            let materials =
+                materials.ok_or_else(|| anyhow::anyhow!("Material store not loaded"))?;
+            let mat = materials
+                .get(key)
+                .ok_or_else(|| anyhow::anyhow!("surface {surface_idx}: material '{key}' not found in database"))?;
+            return Ok(Rc::clone(mat) as Rc<dyn RefractiveIndexSpec>);
+        }
+    }
+
+    #[cfg(not(feature = "ri-info"))]
+    if use_materials {
+        bail!("Material mode requires the ri-info feature");
+    }
+
+    // Fall back to constant n.
+    let n = parse_float(&row.refractive_index)
+        .with_context(|| format!("surface {surface_idx}: refractive index"))?;
+    Ok(Rc::new(ConstantRefractiveIndex::new(n, 0.0)))
 }

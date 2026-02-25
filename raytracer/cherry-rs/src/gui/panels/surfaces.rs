@@ -6,6 +6,16 @@ use super::super::model::{SurfaceKind, SurfaceRow, SurfaceVariant, SystemSpecs};
 pub fn surfaces_panel(ui: &mut egui::Ui, specs: &mut SystemSpecs) -> bool {
     let mut changed = false;
 
+    // Snapshot material state before mutable table iteration.
+    let use_materials = specs.use_materials;
+    let selected_materials: Vec<String> = if use_materials {
+        specs.selected_materials.clone()
+    } else {
+        Vec::new()
+    };
+
+    let n_col_width = if use_materials { 140.0 } else { 80.0 };
+
     let table = TableBuilder::new(ui)
         .striped(true)
         .resizable(true)
@@ -17,7 +27,7 @@ pub fn surfaces_panel(ui: &mut egui::Ui, specs: &mut SystemSpecs) -> bool {
         .column(Column::initial(80.0).resizable(true)) // RoC
         .column(Column::initial(80.0).resizable(true)) // Conic
         .column(Column::initial(80.0).resizable(true)) // Thickness
-        .column(Column::initial(80.0).resizable(true)) // Refr. Index
+        .column(Column::initial(n_col_width).resizable(true)) // n / Material
         .column(Column::auto().at_least(50.0)); // Actions
 
     table
@@ -145,10 +155,51 @@ pub fn surfaces_panel(ui: &mut egui::Ui, specs: &mut SystemSpecs) -> bool {
                         }
                     });
 
-                    // Refractive Index
+                    // Refractive Index / Material
                     row.col(|ui| {
                         if !is_image {
-                            changed |= editable_cell(ui, &mut surf.refractive_index, row_idx, "n");
+                            if use_materials {
+                                let display =
+                                    surf.material_key.as_deref().unwrap_or("(none)");
+                                let id =
+                                    ui.make_persistent_id(format!("mat_{row_idx}"));
+                                egui::ComboBox::from_id_salt(id)
+                                    .selected_text(display)
+                                    .width(130.0)
+                                    .show_ui(ui, |ui| {
+                                        if ui
+                                            .selectable_label(
+                                                surf.material_key.is_none(),
+                                                "(none)",
+                                            )
+                                            .clicked()
+                                        {
+                                            surf.material_key = None;
+                                            changed = true;
+                                        }
+                                        for mat_key in &selected_materials {
+                                            let selected = surf
+                                                .material_key
+                                                .as_deref()
+                                                == Some(mat_key.as_str());
+                                            if ui
+                                                .selectable_label(selected, mat_key)
+                                                .clicked()
+                                            {
+                                                surf.material_key =
+                                                    Some(mat_key.clone());
+                                                changed = true;
+                                            }
+                                        }
+                                    });
+                            } else {
+                                changed |= editable_cell(
+                                    ui,
+                                    &mut surf.refractive_index,
+                                    row_idx,
+                                    "n",
+                                );
+                            }
                         }
                     });
 

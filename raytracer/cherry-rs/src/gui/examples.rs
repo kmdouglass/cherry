@@ -33,6 +33,8 @@ pub fn petzval_lens() -> SystemSpecs {
         aperture_semi_diameter: "16.631".into(),
         wavelengths: vec!["0.567".into()],
         field_mode: FieldMode::Angle,
+        use_materials: false,
+        selected_materials: Vec::new(),
     }
 }
 
@@ -49,6 +51,7 @@ pub fn concave_mirror() -> SystemSpecs {
                 semi_diameter: "12.5".into(),
                 radius_of_curvature: "-200.0".into(),
                 conic_constant: "0.0".into(),
+                material_key: None,
             },
             SurfaceRow::new_image(),
         ],
@@ -60,5 +63,7 @@ pub fn concave_mirror() -> SystemSpecs {
         aperture_semi_diameter: "12.5".into(),
         wavelengths: vec!["0.567".into()],
         field_mode: FieldMode::Angle,
+        use_materials: false,
+        selected_materials: Vec::new(),
     }
 }

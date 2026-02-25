@@ -17,7 +17,7 @@ required-features = [ "gui" ]
 
 [features]
 gui = [ "dep:eframe", "dep:egui", "dep:egui_extras", "dep:env_logger", "dep:log", "dep:rfd", "dep:serde_json" ]
-ri-info = [ "dep:ria" ]
+ri-info = [ "dep:ria", "dep:bitcode" ]
 
 [dependencies]
 anyhow = "1.0"
@@ -45,11 +45,11 @@ env_logger = { version = "0.11.8", optional = true }
 rfd = { version = "0.15", optional = true }
 
 # ri-info
+bitcode = { version = "0.6", features = [ "serde" ], optional = true }
 ria = { version = "0.3", optional = true }
 
 [dev-dependencies]
 approx = "0.5"
-bitcode = { version = "0.6", features = [ "serde" ] }
 ndarray = { version = "0.16", features = [ "approx", "serde" ] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
