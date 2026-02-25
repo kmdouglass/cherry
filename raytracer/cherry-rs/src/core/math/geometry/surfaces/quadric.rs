@@ -1,7 +1,13 @@
 /// A quadric surface in R3.
-use anyhow::Result; 
+use anyhow::Result;
 
-use crate::core::{Float, math::geometry::{curves::{GeometricCurve, conic::Conic}, surfaces::parametric_plane::ParametricPlane}};
+use crate::core::{
+    Float,
+    math::geometry::{
+        curves::{GeometricCurve, conic::Conic},
+        surfaces::parametric_plane::ParametricPlane,
+    },
+};
 
 /// A quadric surface in R3.
 ///
@@ -67,10 +73,7 @@ impl Quadric {
     /// ```text
     /// Q(x, y, z) = Ax^2 + By^2 + Cz^2 + Dxy + Exz + Fyz + Gx + Hy + Iz + J = 0
     /// ```
-    pub fn parametric_plane_intersection(
-        &self,
-        plane: &ParametricPlane,
-    ) -> Result<GeometricCurve> {
+    pub fn parametric_plane_intersection(&self, plane: &ParametricPlane) -> Result<GeometricCurve> {
         if !plane.is_basis_orthonormal() {
             return Err(anyhow::anyhow!(
                 "The basis of the parametric plane must be orthonormal"
@@ -79,8 +82,7 @@ impl Quadric {
 
         let (p0, u, v) = (plane.p0, plane.u, plane.v);
         let (a, b, c, d, e, f, g, h, i, j) = (
-            self.a, self.b, self.c, self.d, self.e, self.f, self.g, self.h,
-            self.i, self.j,
+            self.a, self.b, self.c, self.d, self.e, self.f, self.g, self.h, self.i, self.j,
         );
 
         // Quadratic terms

@@ -1,16 +1,10 @@
+mod convert;
+mod examples;
 pub mod model;
 mod panels;
 
+use crate::{ParaxialView, SequentialModel, TraceResultsCollection, ray_trace_3d_view};
 use model::{SpecsTab, SystemSpecs};
-
-fn generate_svg() -> String {
-    let svg_data = r#"
-    <svg width="100" height="100" xmlns="http://www.w3.org/2000/svg">
-        <circle cx="50" cy="50" r="40" stroke="black" stroke-width="3" fill="red" />
-    </svg>
-    "#;
-    svg_data.to_string()
-}
 
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)]
@@ -25,6 +19,12 @@ pub struct CherryApp {
     specs_dirty: bool,
     #[serde(skip)]
     error_message: Option<String>,
+    #[serde(skip)]
+    sequential_model: Option<SequentialModel>,
+    #[serde(skip)]
+    paraxial_view: Option<ParaxialView>,
+    #[serde(skip)]
+    trace_results: Option<TraceResultsCollection>,
 }
 
 impl Default for CherryApp {
@@ -35,6 +35,9 @@ impl Default for CherryApp {
             show_summary: false,
             specs_dirty: true,
             error_message: None,
+            sequential_model: None,
+            paraxial_view: None,
+            trace_results: None,
         }
     }
 }
@@ -50,6 +53,112 @@ impl CherryApp {
             Default::default()
         }
     }
+
+    /// Recompute the sequential model, paraxial view, and ray trace from
+    /// current specs.
+    fn recompute(&mut self) {
+        let parsed = match convert::convert_specs(&self.specs) {
+            Ok(p) => p,
+            Err(e) => {
+                self.error_message = Some(format!("Specs error: {e}"));
+                self.sequential_model = None;
+                self.paraxial_view = None;
+                self.trace_results = None;
+                return;
+            }
+        };
+
+        let seq =
+            match SequentialModel::new(&parsed.gaps, &parsed.surfaces, &parsed.wavelengths) {
+                Ok(s) => s,
+                Err(e) => {
+                    self.error_message = Some(format!("Model error: {e}"));
+                    self.sequential_model = None;
+                    self.paraxial_view = None;
+                    self.trace_results = None;
+                    return;
+                }
+            };
+
+        let pv = match ParaxialView::new(&seq, &parsed.fields, false) {
+            Ok(p) => p,
+            Err(e) => {
+                self.error_message = Some(format!("Paraxial error: {e}"));
+                self.sequential_model = Some(seq);
+                self.paraxial_view = None;
+                self.trace_results = None;
+                return;
+            }
+        };
+
+        // Ray trace (best-effort; don't block paraxial results on trace
+        // failure)
+        let trace = match ray_trace_3d_view(
+            &parsed.aperture,
+            &parsed.fields,
+            &seq,
+            &pv,
+            None,
+        ) {
+            Ok(t) => Some(t),
+            Err(e) => {
+                log::warn!("Ray trace failed: {e}");
+                None
+            }
+        };
+
+        self.error_message = None;
+        self.sequential_model = Some(seq);
+        self.paraxial_view = Some(pv);
+        self.trace_results = trace;
+    }
+
+    /// Replace the current specs with new ones and trigger recompute.
+    fn load_specs(&mut self, specs: SystemSpecs) {
+        self.specs = specs;
+        self.specs_dirty = true;
+    }
+
+    fn save_to_file(&self) {
+        if let Some(path) = rfd::FileDialog::new()
+            .set_title("Save System")
+            .add_filter("JSON", &["json"])
+            .save_file()
+        {
+            let json = match serde_json::to_string_pretty(&self.specs) {
+                Ok(j) => j,
+                Err(e) => {
+                    log::error!("Failed to serialize specs: {e}");
+                    return;
+                }
+            };
+            if let Err(e) = std::fs::write(&path, json) {
+                log::error!("Failed to write file: {e}");
+            }
+        }
+    }
+
+    fn open_from_file(&mut self) {
+        if let Some(path) = rfd::FileDialog::new()
+            .set_title("Open System")
+            .add_filter("JSON", &["json"])
+            .pick_file()
+        {
+            let contents = match std::fs::read_to_string(&path) {
+                Ok(c) => c,
+                Err(e) => {
+                    self.error_message = Some(format!("Failed to read file: {e}"));
+                    return;
+                }
+            };
+            match serde_json::from_str::<SystemSpecs>(&contents) {
+                Ok(specs) => self.load_specs(specs),
+                Err(e) => {
+                    self.error_message = Some(format!("Failed to parse file: {e}"));
+                }
+            }
+        }
+    }
 }
 
 impl eframe::App for CherryApp {
@@ -58,12 +167,43 @@ impl eframe::App for CherryApp {
     }
 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        // Recompute if specs changed
+        if self.specs_dirty {
+            self.recompute();
+            self.specs_dirty = false;
+        }
+
         // Top menu bar
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             egui::MenuBar::new().ui(ui, |ui| {
                 ui.menu_button("File", |ui| {
+                    if ui.button("Open...").clicked() {
+                        ui.close();
+                        self.open_from_file();
+                    }
+                    if ui.button("Save...").clicked() {
+                        ui.close();
+                        self.save_to_file();
+                    }
+                    ui.separator();
                     if ui.button("Quit").clicked() {
                         ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                    }
+                });
+                ui.add_space(16.0);
+
+                ui.menu_button("Examples", |ui| {
+                    if ui.button("Convexplano Lens").clicked() {
+                        self.load_specs(SystemSpecs::default());
+                        ui.close();
+                    }
+                    if ui.button("Petzval Lens").clicked() {
+                        self.load_specs(examples::petzval_lens());
+                        ui.close();
+                    }
+                    if ui.button("Concave Mirror").clicked() {
+                        self.load_specs(examples::concave_mirror());
+                        ui.close();
                     }
                 });
                 ui.add_space(16.0);
@@ -87,21 +227,9 @@ impl eframe::App for CherryApp {
             .show(ctx, |ui| {
                 // Tab bar
                 ui.horizontal(|ui| {
-                    ui.selectable_value(
-                        &mut self.active_specs_tab,
-                        SpecsTab::Surfaces,
-                        "Surfaces",
-                    );
-                    ui.selectable_value(
-                        &mut self.active_specs_tab,
-                        SpecsTab::Fields,
-                        "Fields",
-                    );
-                    ui.selectable_value(
-                        &mut self.active_specs_tab,
-                        SpecsTab::Aperture,
-                        "Aperture",
-                    );
+                    ui.selectable_value(&mut self.active_specs_tab, SpecsTab::Surfaces, "Surfaces");
+                    ui.selectable_value(&mut self.active_specs_tab, SpecsTab::Fields, "Fields");
+                    ui.selectable_value(&mut self.active_specs_tab, SpecsTab::Aperture, "Aperture");
                     ui.selectable_value(
                         &mut self.active_specs_tab,
                         SpecsTab::Wavelengths,
@@ -123,7 +251,7 @@ impl eframe::App for CherryApp {
                 }
             });
 
-        // Central panel (placeholder for future analysis views)
+        // Central panel
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("Cherry Ray Tracer");
 
@@ -134,13 +262,15 @@ impl eframe::App for CherryApp {
             ui.label("Analysis views will appear here.");
         });
 
-        // Cross Section window (placeholder SVG)
-        egui::Window::new("Cross Section").show(ctx, |ui| {
-            let svg_data = generate_svg();
-            ui.add(egui::Image::from_bytes(
-                "bytes://cross_section.svg",
-                svg_data.into_bytes(),
-            ));
-        });
+        // Paraxial summary window
+        if self.show_summary {
+            if let (Some(seq), Some(pv)) = (&self.sequential_model, &self.paraxial_view) {
+                let mut open = true;
+                panels::summary::summary_window(ctx, &mut open, seq, pv);
+                if !open {
+                    self.show_summary = false;
+                }
+            }
+        }
     }
 }

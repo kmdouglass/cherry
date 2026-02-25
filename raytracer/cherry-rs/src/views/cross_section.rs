@@ -43,14 +43,13 @@ pub fn cross_section_view(
         }
 
         let geometric_surface = surf.to_geometric_surface()?;
-        
+
         // Transform the cutting plane into the local CRS
         let mut parametric_plane = cutting_plane.to_parametric_plane()?;
         parametric_plane.rotate(surf.rot_mat());
         parametric_plane.translate(surf.pos());
 
         // Compute the intersection curve between the surface and the cutting plane
-
 
         // Sample from the curve to create a Path
         todo!("Implement cross section view generation");

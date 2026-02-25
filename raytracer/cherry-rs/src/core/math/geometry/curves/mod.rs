@@ -3,11 +3,14 @@ pub(crate) mod line;
 
 use anyhow::Result;
 
-use crate::core::math::{geometry::curves::{conic::Conic, line::Line}, vec3::Vec3};
+use crate::core::math::{
+    geometry::curves::{conic::Conic, line::Line},
+    vec3::Vec3,
+};
 
 pub enum GeometricCurve {
     Conic(Conic),
-    Line(Line)
+    Line(Line),
 }
 
 // TODO: Fix this.

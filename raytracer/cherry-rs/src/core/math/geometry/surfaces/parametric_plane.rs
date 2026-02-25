@@ -1,7 +1,11 @@
 /// A parametric plane in R3.
 use anyhow::Result;
 
-use crate::core::math::{geometry::curves::{GeometricCurve, line::Line}, linalg::mat3x3::Mat3x3, vec3::Vec3};
+use crate::core::math::{
+    geometry::curves::{GeometricCurve, line::Line},
+    linalg::mat3x3::Mat3x3,
+    vec3::Vec3,
+};
 
 /// A parameterization of a plane in R3.
 ///
@@ -53,10 +57,11 @@ impl ParametricPlane {
         self.p0 = self.p0 + translation;
     }
 
-    /// Finds the intersection curve of a ParametricPlane and the xy plane (z=0).
-    /// 
-    /// Don't bother with generic planes in any orientation since plane surfaces in the local
-    /// CRS are always aligned with the xy plane. 
+    /// Finds the intersection curve of a ParametricPlane and the xy plane
+    /// (z=0).
+    ///
+    /// Don't bother with generic planes in any orientation since plane surfaces
+    /// in the local CRS are always aligned with the xy plane.
     pub fn xy_plane_intersection(&self) -> GeometricCurve {
         let (p0, u, v) = (self.p0, self.u, self.v);
 

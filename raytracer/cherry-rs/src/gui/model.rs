@@ -11,8 +11,8 @@ pub enum SurfaceVariant {
 }
 
 impl SurfaceVariant {
-    /// Variants available for user selection (excludes Object and Image which are
-    /// fixed).
+    /// Variants available for user selection (excludes Object and Image which
+    /// are fixed).
     pub const SELECTABLE: &[SurfaceVariant] = &[
         SurfaceVariant::Conic,
         SurfaceVariant::Stop,

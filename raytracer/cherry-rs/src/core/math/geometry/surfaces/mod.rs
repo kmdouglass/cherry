@@ -3,8 +3,9 @@ pub(crate) mod quadric;
 
 use anyhow::Result;
 
-use crate::core::math::{
-    geometry::{curves::GeometricCurve, surfaces::{parametric_plane::ParametricPlane, quadric::Quadric}},
+use crate::core::math::geometry::{
+    curves::GeometricCurve,
+    surfaces::{parametric_plane::ParametricPlane, quadric::Quadric},
 };
 
 /// A surface in 3D space.
@@ -20,12 +21,8 @@ pub(crate) enum GeometricSurface {
 impl GeometricSurface {
     pub fn plane_intersection(&self, plane: ParametricPlane) -> Result<GeometricCurve> {
         match self {
-            Self::Quadric(quadric) => {
-                quadric.parametric_plane_intersection(&plane)
-            },
-            Self::ParametricPlane(parametric_plane) => {
-                Ok(parametric_plane.xy_plane_intersection())
-            }
+            Self::Quadric(quadric) => quadric.parametric_plane_intersection(&plane),
+            Self::ParametricPlane(parametric_plane) => Ok(parametric_plane.xy_plane_intersection()),
         }
     }
 }

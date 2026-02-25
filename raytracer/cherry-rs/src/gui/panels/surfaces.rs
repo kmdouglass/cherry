@@ -100,9 +100,7 @@ pub fn surfaces_panel(ui: &mut egui::Ui, specs: &mut SystemSpecs) -> bool {
                                 .selected_text(surf.surface_kind.to_string())
                                 .width(80.0)
                                 .show_ui(ui, |ui| {
-                                    for kind in
-                                        [SurfaceKind::Refracting, SurfaceKind::Reflecting]
-                                    {
+                                    for kind in [SurfaceKind::Refracting, SurfaceKind::Reflecting] {
                                         if ui
                                             .selectable_value(
                                                 &mut surf.surface_kind,
@@ -136,24 +134,21 @@ pub fn surfaces_panel(ui: &mut egui::Ui, specs: &mut SystemSpecs) -> bool {
                     // Conic Constant
                     row.col(|ui| {
                         if is_conic {
-                            changed |=
-                                editable_cell(ui, &mut surf.conic_constant, row_idx, "cc");
+                            changed |= editable_cell(ui, &mut surf.conic_constant, row_idx, "cc");
                         }
                     });
 
                     // Thickness
                     row.col(|ui| {
                         if !is_image {
-                            changed |=
-                                editable_cell(ui, &mut surf.thickness, row_idx, "thick");
+                            changed |= editable_cell(ui, &mut surf.thickness, row_idx, "thick");
                         }
                     });
 
                     // Refractive Index
                     row.col(|ui| {
                         if !is_image {
-                            changed |=
-                                editable_cell(ui, &mut surf.refractive_index, row_idx, "n");
+                            changed |= editable_cell(ui, &mut surf.refractive_index, row_idx, "n");
                         }
                     });
 

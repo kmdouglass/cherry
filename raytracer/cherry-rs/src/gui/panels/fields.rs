@@ -93,8 +93,7 @@ pub fn fields_panel(ui: &mut egui::Ui, specs: &mut SystemSpecs) -> bool {
 
                     // Pupil spacing
                     row.col(|ui| {
-                        changed |=
-                            editable_cell(ui, &mut field.pupil_spacing, row_idx, "ps");
+                        changed |= editable_cell(ui, &mut field.pupil_spacing, row_idx, "ps");
                     });
 
                     // Actions

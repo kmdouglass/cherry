@@ -16,7 +16,7 @@ path = "src/bin/cherry.rs"
 required-features = [ "gui" ]
 
 [features]
-gui = [ "dep:eframe", "dep:egui", "dep:egui_extras", "dep:env_logger", "dep:log" ]
+gui = [ "dep:eframe", "dep:egui", "dep:egui_extras", "dep:env_logger", "dep:log", "dep:rfd", "dep:serde_json" ]
 ri-info = [ "dep:ria" ]
 
 [dependencies]
@@ -37,10 +37,12 @@ egui_extras = { version = "0.32", default-features = false,  optional = true, fe
     "svg"
 ]}
 log = { version = "0.4.28", optional = true }
+serde_json = { version = "1", optional = true }
 
 # native gui:
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 env_logger = { version = "0.11.8", optional = true }
+rfd = { version = "0.15", optional = true }
 
 # ri-info
 ria = { version = "0.3", optional = true }

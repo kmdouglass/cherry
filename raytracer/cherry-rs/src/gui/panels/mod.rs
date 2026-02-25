@@ -1,5 +1,6 @@
 mod aperture;
 mod fields;
+pub mod summary;
 mod surfaces;
 mod wavelengths;
 
