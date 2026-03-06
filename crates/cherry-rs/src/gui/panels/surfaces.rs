@@ -159,46 +159,31 @@ pub fn surfaces_panel(ui: &mut egui::Ui, specs: &mut SystemSpecs) -> bool {
                     row.col(|ui| {
                         if !is_image {
                             if use_materials {
-                                let display =
-                                    surf.material_key.as_deref().unwrap_or("(none)");
-                                let id =
-                                    ui.make_persistent_id(format!("mat_{row_idx}"));
+                                let display = surf.material_key.as_deref().unwrap_or("(none)");
+                                let id = ui.make_persistent_id(format!("mat_{row_idx}"));
                                 egui::ComboBox::from_id_salt(id)
                                     .selected_text(display)
                                     .width(130.0)
                                     .show_ui(ui, |ui| {
                                         if ui
-                                            .selectable_label(
-                                                surf.material_key.is_none(),
-                                                "(none)",
-                                            )
+                                            .selectable_label(surf.material_key.is_none(), "(none)")
                                             .clicked()
                                         {
                                             surf.material_key = None;
                                             changed = true;
                                         }
                                         for mat_key in &selected_materials {
-                                            let selected = surf
-                                                .material_key
-                                                .as_deref()
+                                            let selected = surf.material_key.as_deref()
                                                 == Some(mat_key.as_str());
-                                            if ui
-                                                .selectable_label(selected, mat_key)
-                                                .clicked()
-                                            {
-                                                surf.material_key =
-                                                    Some(mat_key.clone());
+                                            if ui.selectable_label(selected, mat_key).clicked() {
+                                                surf.material_key = Some(mat_key.clone());
                                                 changed = true;
                                             }
                                         }
                                     });
                             } else {
-                                changed |= editable_cell(
-                                    ui,
-                                    &mut surf.refractive_index,
-                                    row_idx,
-                                    "n",
-                                );
+                                changed |=
+                                    editable_cell(ui, &mut surf.refractive_index, row_idx, "n");
                             }
                         }
                     });

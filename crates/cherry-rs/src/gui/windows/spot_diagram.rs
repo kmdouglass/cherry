@@ -1,8 +1,4 @@
-use crate::{
-    Axis,
-    gui::result_package::ResultPackage,
-    views::ray_trace_3d::RayBundle,
-};
+use crate::{Axis, gui::result_package::ResultPackage, views::ray_trace_3d::RayBundle};
 
 const PLOT_SIZE: f32 = 180.0;
 
@@ -44,18 +40,14 @@ impl SpotDiagramWindow {
                 // Sync wavelength visibility when the result package changes.
                 if let Some(r) = result {
                     if r.wavelengths.len() != self.last_n_wavelengths {
-                        self.wavelength_visible =
-                            vec![true; r.wavelengths.len()];
+                        self.wavelength_visible = vec![true; r.wavelengths.len()];
                         self.last_n_wavelengths = r.wavelengths.len();
                     }
                 }
 
                 let is_stale = matches!(result, Some(r) if r.id < input_id);
                 if is_stale {
-                    ui.colored_label(
-                        egui::Color32::YELLOW,
-                        "\u{26a0} Update in progress\u{2026}",
-                    );
+                    ui.colored_label(egui::Color32::YELLOW, "\u{26a0} Update in progress\u{2026}");
                     ui.separator();
                 }
 
@@ -64,12 +56,8 @@ impl SpotDiagramWindow {
                         ui.label("No data yet.");
                     }
                     Some(r) if r.paraxial.is_none() => {
-                        let msg =
-                            r.error.as_deref().unwrap_or("Unknown error");
-                        ui.colored_label(
-                            egui::Color32::RED,
-                            format!("System error: {msg}"),
-                        );
+                        let msg = r.error.as_deref().unwrap_or("Unknown error");
+                        ui.colored_label(egui::Color32::RED, format!("System error: {msg}"));
                     }
                     Some(r) if r.ray_trace.is_none() => {
                         let msg = r.error.as_deref().unwrap_or("unknown");
@@ -138,12 +126,8 @@ impl SpotDiagramWindow {
         }
 
         // Common axis range across all visible rays.
-        let (axis_min, axis_max) = compute_axis_range(
-            r,
-            ray_trace,
-            selected_idx,
-            &self.wavelength_visible,
-        );
+        let (axis_min, axis_max) =
+            compute_axis_range(r, ray_trace, selected_idx, &self.wavelength_visible);
 
         // Field plots in a row.
         ui.horizontal(|ui| {
@@ -217,8 +201,7 @@ fn render_field_plot(
     axis_max: f64,
 ) {
     let size = egui::Vec2::splat(PLOT_SIZE);
-    let (rect, _) =
-        ui.allocate_exact_size(size, egui::Sense::hover());
+    let (rect, _) = ui.allocate_exact_size(size, egui::Sense::hover());
     let painter = ui.painter_at(rect);
 
     // Background and border.
@@ -236,17 +219,9 @@ fn render_field_plot(
     let axis_color = ui.visuals().weak_text_color();
     if (0.0..=1.0).contains(&origin_t) {
         let cx = rect.left() + origin_t * rect.width();
-        painter.vline(
-            cx,
-            rect.y_range(),
-            egui::Stroke::new(1.0, axis_color),
-        );
+        painter.vline(cx, rect.y_range(), egui::Stroke::new(1.0, axis_color));
         let cy = rect.bottom() - origin_t * rect.height();
-        painter.hline(
-            rect.x_range(),
-            cy,
-            egui::Stroke::new(1.0, axis_color),
-        );
+        painter.hline(rect.x_range(), cy, egui::Stroke::new(1.0, axis_color));
     }
 
     // Helper: map data (x, y) → screen position.
@@ -390,8 +365,7 @@ mod tests {
     #[test]
     fn no_result_shows_placeholder() {
         let mut window = SpotDiagramWindow::default();
-        let mut harness =
-            Harness::new(|ctx| show_window(&mut window, None, 0, ctx));
+        let mut harness = Harness::new(|ctx| show_window(&mut window, None, 0, ctx));
         harness.step();
         harness.get_by_label("No data yet.");
     }
@@ -413,11 +387,12 @@ mod tests {
     #[test]
     fn no_stale_banner_when_no_result() {
         let mut window = SpotDiagramWindow::default();
-        let mut harness =
-            Harness::new(|ctx| show_window(&mut window, None, 5, ctx));
+        let mut harness = Harness::new(|ctx| show_window(&mut window, None, 5, ctx));
         harness.step();
         assert!(
-            harness.query_by_label_contains("Update in progress").is_none()
+            harness
+                .query_by_label_contains("Update in progress")
+                .is_none()
         );
     }
 
@@ -438,20 +413,17 @@ mod tests {
 
     #[test]
     fn ray_trace_unavailable_shown_when_only_paraxial() {
-        use crate::{ParaxialView, SequentialModel};
         use crate::gui::{convert, model::SystemSpecs};
+        use crate::{ParaxialView, SequentialModel};
 
         let specs = SystemSpecs::default();
         #[cfg(not(feature = "ri-info"))]
         let parsed = convert::convert_specs(&specs).expect("convert");
         #[cfg(feature = "ri-info")]
-        let parsed =
-            convert::convert_specs(&specs, &Default::default()).expect("convert");
-        let seq =
-            SequentialModel::new(&parsed.gaps, &parsed.surfaces, &parsed.wavelengths)
-                .expect("model");
-        let pv =
-            ParaxialView::new(&seq, &parsed.fields, false).expect("paraxial");
+        let parsed = convert::convert_specs(&specs, &Default::default()).expect("convert");
+        let seq = SequentialModel::new(&parsed.gaps, &parsed.surfaces, &parsed.wavelengths)
+            .expect("model");
+        let pv = ParaxialView::new(&seq, &parsed.fields, false).expect("paraxial");
 
         let result = ResultPackage {
             id: 1,
@@ -478,8 +450,11 @@ mod tests {
 
     #[test]
     fn full_result_shows_field_labels() {
+        use crate::gui::{
+            convert,
+            model::{FieldRow, SystemSpecs},
+        };
         use crate::{ParaxialView, SequentialModel, ray_trace_3d_view};
-        use crate::gui::{convert, model::{FieldRow, SystemSpecs}};
 
         let mut specs = SystemSpecs::default();
         specs.fields.push(FieldRow {
@@ -491,16 +466,12 @@ mod tests {
         #[cfg(not(feature = "ri-info"))]
         let parsed = convert::convert_specs(&specs).expect("convert");
         #[cfg(feature = "ri-info")]
-        let parsed =
-            convert::convert_specs(&specs, &Default::default()).expect("convert");
-        let seq =
-            SequentialModel::new(&parsed.gaps, &parsed.surfaces, &parsed.wavelengths)
-                .expect("model");
-        let pv =
-            ParaxialView::new(&seq, &parsed.fields, false).expect("paraxial");
+        let parsed = convert::convert_specs(&specs, &Default::default()).expect("convert");
+        let seq = SequentialModel::new(&parsed.gaps, &parsed.surfaces, &parsed.wavelengths)
+            .expect("model");
+        let pv = ParaxialView::new(&seq, &parsed.fields, false).expect("paraxial");
         let trace =
-            ray_trace_3d_view(&parsed.aperture, &parsed.fields, &seq, &pv, None)
-                .expect("trace");
+            ray_trace_3d_view(&parsed.aperture, &parsed.fields, &seq, &pv, None).expect("trace");
 
         let result = ResultPackage {
             id: 1,
@@ -515,8 +486,12 @@ mod tests {
                 })
                 .collect(),
             fields: vec![
-                FieldDesc { label: "0.000\u{00b0}".into() },
-                FieldDesc { label: "5.000\u{00b0}".into() },
+                FieldDesc {
+                    label: "0.000\u{00b0}".into(),
+                },
+                FieldDesc {
+                    label: "5.000\u{00b0}".into(),
+                },
             ],
             paraxial: Some(pv),
             ray_trace: Some(trace),

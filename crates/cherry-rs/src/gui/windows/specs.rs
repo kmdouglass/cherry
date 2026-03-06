@@ -10,7 +10,9 @@ pub struct SpecsWindow {
 
 impl Default for SpecsWindow {
     fn default() -> Self {
-        Self { active_tab: SpecsTab::Surfaces }
+        Self {
+            active_tab: SpecsTab::Surfaces,
+        }
     }
 }
 
@@ -31,32 +33,12 @@ impl SpecsWindow {
             .show(ctx, |ui| {
                 // Tab bar
                 ui.horizontal(|ui| {
-                    ui.selectable_value(
-                        &mut self.active_tab,
-                        SpecsTab::Surfaces,
-                        "Surfaces",
-                    );
-                    ui.selectable_value(
-                        &mut self.active_tab,
-                        SpecsTab::Fields,
-                        "Fields",
-                    );
-                    ui.selectable_value(
-                        &mut self.active_tab,
-                        SpecsTab::Aperture,
-                        "Aperture",
-                    );
-                    ui.selectable_value(
-                        &mut self.active_tab,
-                        SpecsTab::Wavelengths,
-                        "Wavelengths",
-                    );
+                    ui.selectable_value(&mut self.active_tab, SpecsTab::Surfaces, "Surfaces");
+                    ui.selectable_value(&mut self.active_tab, SpecsTab::Fields, "Fields");
+                    ui.selectable_value(&mut self.active_tab, SpecsTab::Aperture, "Aperture");
+                    ui.selectable_value(&mut self.active_tab, SpecsTab::Wavelengths, "Wavelengths");
                     #[cfg(feature = "ri-info")]
-                    ui.selectable_value(
-                        &mut self.active_tab,
-                        SpecsTab::Materials,
-                        "Materials",
-                    );
+                    ui.selectable_value(&mut self.active_tab, SpecsTab::Materials, "Materials");
                 });
                 ui.separator();
 
@@ -66,12 +48,9 @@ impl SpecsWindow {
                     SpecsTab::Aperture => panels::aperture_panel(ui, specs),
                     SpecsTab::Wavelengths => panels::wavelengths_panel(ui, specs),
                     #[cfg(feature = "ri-info")]
-                    SpecsTab::Materials => panels::materials_panel(
-                        ui,
-                        specs,
-                        material_index,
-                        material_browser,
-                    ),
+                    SpecsTab::Materials => {
+                        panels::materials_panel(ui, specs, material_index, material_browser)
+                    }
                 }
             });
 

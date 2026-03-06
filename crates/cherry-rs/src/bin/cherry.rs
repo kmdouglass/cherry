@@ -20,7 +20,8 @@ fn main() -> eframe::Result {
     )
 }
 
-// Required placeholder when compiling for WASM; actual entry via #[wasm_bindgen(start)]
+// Required placeholder when compiling for WASM; actual entry via
+// #[wasm_bindgen(start)]
 #[cfg(target_arch = "wasm32")]
 fn main() {}
 

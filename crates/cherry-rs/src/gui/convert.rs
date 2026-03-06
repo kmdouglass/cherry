@@ -40,10 +40,7 @@ pub type MaterialsMap = std::collections::HashMap<String, Rc<lib_ria::Material>>
 /// When ri-info is enabled, pass the materials map so material keys can be
 /// resolved to `RefractiveIndexSpec` implementations.
 #[cfg(feature = "ri-info")]
-pub fn convert_specs(
-    specs: &SystemSpecs,
-    materials: &MaterialsMap,
-) -> Result<ParsedSpecs> {
+pub fn convert_specs(specs: &SystemSpecs, materials: &MaterialsMap) -> Result<ParsedSpecs> {
     convert_specs_inner(specs, Some(materials))
 }
 
@@ -193,9 +190,9 @@ fn resolve_refractive_index(
         if let Some(key) = &row.material_key {
             let materials =
                 materials.ok_or_else(|| anyhow::anyhow!("Material store not loaded"))?;
-            let mat = materials
-                .get(key)
-                .ok_or_else(|| anyhow::anyhow!("surface {surface_idx}: material '{key}' not found in database"))?;
+            let mat = materials.get(key).ok_or_else(|| {
+                anyhow::anyhow!("surface {surface_idx}: material '{key}' not found in database")
+            })?;
             return Ok(Rc::clone(mat) as Rc<dyn RefractiveIndexSpec>);
         }
     }

@@ -1,14 +1,14 @@
+#[cfg(feature = "ri-info")]
+mod materials;
 mod paraxial;
 mod specs;
 mod spot_diagram;
-#[cfg(feature = "ri-info")]
-mod materials;
 
+#[cfg(feature = "ri-info")]
+pub use materials::MaterialsWindow;
 pub use paraxial::ParaxialWindow;
 pub use specs::SpecsWindow;
 pub use spot_diagram::SpotDiagramWindow;
-#[cfg(feature = "ri-info")]
-pub use materials::MaterialsWindow;
 
 /// Controls which floating windows are currently open.
 #[derive(serde::Serialize, serde::Deserialize)]

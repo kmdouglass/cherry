@@ -1,6 +1,4 @@
-use super::model::{
-    FieldMode, FieldRow, SurfaceKind, SurfaceRow, SurfaceVariant, SystemSpecs,
-};
+use super::model::{FieldMode, FieldRow, SurfaceKind, SurfaceRow, SurfaceVariant, SystemSpecs};
 
 /// Petzval lens example (5 glass elements).
 pub fn petzval_lens() -> SystemSpecs {

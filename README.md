@@ -13,6 +13,7 @@ Optical system design in the browser
 
 - Rust compiler (see [rust-toolchain.toml](rust-toolchain.toml) for the version)
 - [trunk](https://trunk-rs.github.io/trunk/) (for the WASM frontend)
+- [binaryen](https://github.com/WebAssembly/binaryen) (optional — trunk will use `wasm-opt` for WASM optimisation if it is on your PATH)
 
 ## Build
 

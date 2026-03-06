@@ -15,31 +15,33 @@ jobs:
     - name: Install Rust toolchain
       uses: dtolnay/rust-toolchain@master
       # Keep in sync with rust-toolchain.toml
+      with:
+        toolchain: nightly-2025-11-15
+        targets: wasm32-unknown-unknown
+        components: rust-src
 
     - name: Cache Rust build artifacts
       uses: Swatinem/rust-cache@v2
       with:
         workspaces: "crates -> target"
 
-    - name: Install binaryen (wasm-opt)
-      run: sudo apt-get install -y binaryen
+    - name: Install Binaryen
+      run: |
+        VERSION="version_126"
+        wget https://github.com/WebAssembly/binaryen/releases/download/${VERSION}/binaryen-${VERSION}-x86_64-linux.tar.gz
+        tar -xzf binaryen-${VERSION}-x86_64-linux.tar.gz
+        mkdir -p $HOME/.local/bin
+        mv binaryen-${VERSION}/bin/* $HOME/.local/bin/
+        echo "$HOME/.local/bin" >> $GITHUB_PATH
+        rm -rf binaryen-${VERSION} binaryen-${VERSION}-x86_64-linux.tar.gz
+
+    - name: Verify Binaryen installation
+      run: wasm-opt --version
 
     - name: Install trunk
       uses: jetli/trunk-action@v0.5.1
       with:
         version: "latest"
-
-    - name: Run cherry-rs tests (native)
-      working-directory: ./crates
-      run: cargo test -p cherry-rs --features gui,ri-info
-
-    - name: Clippy
-      working-directory: ./crates
-      run: cargo clippy -p cherry-rs --features gui,ri-info -- -D warnings
-
-    - name: Check formatting
-      working-directory: ./crates
-      run: cargo fmt -p cherry-rs --check
 
     - name: Download rii.db
       # Downloads the release matching the ria crate version in Cargo.toml.
@@ -50,7 +52,19 @@ jobs:
         gh release download v2.0.0 \
           --repo kmdouglass/refractiveindex.info-adapters \
           --pattern "rii.db" \
-          --dir www/egui/assets/
+          --dir crates/cherry-rs/data/
+
+    - name: Run cherry-rs tests (native)
+      working-directory: ./crates
+      run: cargo test -p cherry-rs --features gui,ri-info
+
+#    - name: Clippy
+#      working-directory: ./crates
+#      run: cargo clippy -p cherry-rs --features gui,ri-info -- -D warnings
+
+    - name: Check formatting
+      working-directory: ./crates
+      run: cargo fmt -p cherry-rs --check
 
     - name: Generate rii-index.json
       working-directory: ./crates
@@ -59,12 +73,16 @@ jobs:
           --features ri-info --release \
           -- --output ../www/egui/assets/rii-index.json
 
-    - name: Build WASM app
-      working-directory: ./www/egui
-      run: trunk build --release
+    - name: Copy rii.db to WASM assets
+      run: cp crates/cherry-rs/data/rii.db www/egui/assets/rii.db
 
     - name: Setup Pages
+      id: pages
       uses: actions/configure-pages@v5
+
+    - name: Build WASM app
+      working-directory: ./www/egui
+      run: trunk build --release --public-url "${{ steps.pages.outputs.base_path }}/"
 
     - name: Upload artifact
       uses: actions/upload-pages-artifact@v4

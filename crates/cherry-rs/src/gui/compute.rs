@@ -30,9 +30,7 @@ fn deserialize_materials(data: &[u8]) -> HashMap<String, Rc<lib_ria::Material>> 
     let mut store: lib_ria::Store = match bitcode::deserialize(data) {
         Ok(s) => s,
         Err(e) => {
-            log::error!(
-                "Compute thread: cannot deserialize material database: {e}"
-            );
+            log::error!("Compute thread: cannot deserialize material database: {e}");
             return HashMap::new();
         }
     };
@@ -49,15 +47,11 @@ fn deserialize_materials(data: &[u8]) -> HashMap<String, Rc<lib_ria::Material>> 
 /// Load the material store from disk. Returns an empty map on failure.
 #[cfg(all(feature = "ri-info", not(target_arch = "wasm32")))]
 fn load_materials() -> HashMap<String, Rc<lib_ria::Material>> {
-    let filename =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/rii.db");
+    let filename = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/rii.db");
     let data = match std::fs::read(&filename) {
         Ok(d) => d,
         Err(e) => {
-            log::error!(
-                "Compute thread: cannot read {}: {e}",
-                filename.display()
-            );
+            log::error!("Compute thread: cannot read {}: {e}", filename.display());
             return HashMap::new();
         }
     };
@@ -120,21 +114,13 @@ fn run_compute(
 
     let parsed = match parsed {
         Ok(p) => p,
-        Err(e) => {
-            return ResultPackage::error(req.id, format!("Specs error: {e}"))
-        }
+        Err(e) => return ResultPackage::error(req.id, format!("Specs error: {e}")),
     };
 
-    let seq =
-        match SequentialModel::new(&parsed.gaps, &parsed.surfaces, &parsed.wavelengths) {
-            Ok(s) => s,
-            Err(e) => {
-                return ResultPackage::error(
-                    req.id,
-                    format!("Model error: {e}"),
-                )
-            }
-        };
+    let seq = match SequentialModel::new(&parsed.gaps, &parsed.surfaces, &parsed.wavelengths) {
+        Ok(s) => s,
+        Err(e) => return ResultPackage::error(req.id, format!("Model error: {e}")),
+    };
 
     let wavelengths = seq.wavelengths().to_vec();
     let surfaces = build_surface_descs(&seq);
@@ -152,17 +138,11 @@ fn run_compute(
                 ray_trace: None,
                 bounding_box: BoundingBox3D::default(),
                 error: Some(format!("Paraxial error: {e}")),
-            }
+            };
         }
     };
 
-    let trace = match ray_trace_3d_view(
-        &parsed.aperture,
-        &parsed.fields,
-        &seq,
-        &pv,
-        None,
-    ) {
+    let trace = match ray_trace_3d_view(&parsed.aperture, &parsed.fields, &seq, &pv, None) {
         Ok(t) => Some(t),
         Err(e) => {
             log::warn!("Ray trace failed: {e}");
@@ -195,14 +175,15 @@ fn build_surface_descs(seq: &SequentialModel) -> Vec<SurfaceDesc> {
                 Surface::Probe(_) => "Probe",
                 Surface::Stop(_) => "Stop",
             };
-            SurfaceDesc { index: i, label: format!("{name} [{i}]") }
+            SurfaceDesc {
+                index: i,
+                label: format!("{name} [{i}]"),
+            }
         })
         .collect()
 }
 
-fn build_field_descs(
-    fields: &[crate::FieldSpec],
-) -> Vec<super::result_package::FieldDesc> {
+fn build_field_descs(fields: &[crate::FieldSpec]) -> Vec<super::result_package::FieldDesc> {
     use super::result_package::FieldDesc;
     fields
         .iter()
@@ -231,11 +212,9 @@ mod tests {
         #[cfg(not(feature = "ri-info"))]
         let parsed = convert::convert_specs(&specs).expect("convert");
         #[cfg(feature = "ri-info")]
-        let parsed =
-            convert::convert_specs(&specs, &Default::default()).expect("convert");
-        let seq =
-            SequentialModel::new(&parsed.gaps, &parsed.surfaces, &parsed.wavelengths)
-                .expect("model");
+        let parsed = convert::convert_specs(&specs, &Default::default()).expect("convert");
+        let seq = SequentialModel::new(&parsed.gaps, &parsed.surfaces, &parsed.wavelengths)
+            .expect("model");
         let descs = build_surface_descs(&seq);
 
         assert!(
@@ -262,8 +241,14 @@ mod tests {
     fn field_descs_angle_mode() {
         use crate::{FieldSpec, specs::fields::PupilSampling};
         let fields = vec![
-            FieldSpec::Angle { angle: 0.0, pupil_sampling: PupilSampling::TangentialRayFan },
-            FieldSpec::Angle { angle: 5.0, pupil_sampling: PupilSampling::TangentialRayFan },
+            FieldSpec::Angle {
+                angle: 0.0,
+                pupil_sampling: PupilSampling::TangentialRayFan,
+            },
+            FieldSpec::Angle {
+                angle: 5.0,
+                pupil_sampling: PupilSampling::TangentialRayFan,
+            },
         ];
         let descs = build_field_descs(&fields);
         assert_eq!(descs[0].label, "0.000\u{00b0}");

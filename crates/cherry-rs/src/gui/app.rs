@@ -63,8 +63,7 @@ pub struct CherryApp {
 
     // WASM: async-loaded pending material index (swapped in during update())
     #[cfg(all(feature = "ri-info", target_arch = "wasm32"))]
-    pending_material_index:
-        std::sync::Arc<std::sync::Mutex<Option<panels::MaterialIndex>>>,
+    pending_material_index: std::sync::Arc<std::sync::Mutex<Option<panels::MaterialIndex>>>,
 
     // WASM: pending specs loaded asynchronously from file open dialog
     #[cfg(target_arch = "wasm32")]
@@ -73,14 +72,11 @@ pub struct CherryApp {
 
 #[cfg(all(feature = "ri-info", not(target_arch = "wasm32")))]
 fn load_material_store() -> anyhow::Result<HashMap<String, Rc<lib_ria::Material>>> {
-    let filename =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/rii.db");
+    let filename = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/rii.db");
     let data = std::fs::read(&filename)
         .map_err(|e| anyhow::anyhow!("Cannot read {}: {e}", filename.display()))?;
     let mut store: lib_ria::Store = bitcode::deserialize(&data)
-        .map_err(|e| {
-            anyhow::anyhow!("Cannot deserialize material database: {e}")
-        })?;
+        .map_err(|e| anyhow::anyhow!("Cannot deserialize material database: {e}"))?;
     let keys: Vec<String> = store.keys().cloned().collect();
     let mut materials = HashMap::with_capacity(keys.len());
     for key in keys {
@@ -115,8 +111,7 @@ impl CherryApp {
 
         // On WASM+ri-info, create a one-shot channel for the raw database bytes.
         #[cfg(all(feature = "ri-info", target_arch = "wasm32"))]
-        let (materials_bytes_tx, materials_bytes_rx) =
-            std::sync::mpsc::channel::<Vec<u8>>();
+        let (materials_bytes_tx, materials_bytes_rx) = std::sync::mpsc::channel::<Vec<u8>>();
 
         spawn_compute_thread(move || {
             compute_loop(
@@ -130,7 +125,10 @@ impl CherryApp {
         // Send the initial compute request.
         let initial_id = state.input_id;
         compute_tx
-            .send(ComputeRequest { id: initial_id, specs: state.specs.clone() })
+            .send(ComputeRequest {
+                id: initial_id,
+                specs: state.specs.clone(),
+            })
             .ok();
 
         // Native: load materials synchronously from disk.
@@ -148,43 +146,33 @@ impl CherryApp {
 
         // WASM: start empty; materials are fetched asynchronously below.
         #[cfg(all(feature = "ri-info", target_arch = "wasm32"))]
-        let (materials, material_index) =
-            (HashMap::new(), panels::MaterialIndex::default());
+        let (materials, material_index) = (HashMap::new(), panels::MaterialIndex::default());
 
         // WASM: Arc shared with the async loading task.
         #[cfg(all(feature = "ri-info", target_arch = "wasm32"))]
-        let pending_material_index = std::sync::Arc::new(
-            std::sync::Mutex::new(None::<panels::MaterialIndex>),
-        );
+        let pending_material_index =
+            std::sync::Arc::new(std::sync::Mutex::new(None::<panels::MaterialIndex>));
 
         // WASM: Arc shared with the async file-open task.
         #[cfg(target_arch = "wasm32")]
-        let pending_specs =
-            std::sync::Arc::new(std::sync::Mutex::new(None::<SystemSpecs>));
+        let pending_specs = std::sync::Arc::new(std::sync::Mutex::new(None::<SystemSpecs>));
 
         // WASM+ri-info: kick off two-phase async load of the materials database.
         #[cfg(all(feature = "ri-info", target_arch = "wasm32"))]
         {
-            let pending_index =
-                std::sync::Arc::clone(&pending_material_index);
+            let pending_index = std::sync::Arc::clone(&pending_material_index);
             wasm_bindgen_futures::spawn_local(async move {
                 // Phase 1: fetch the small index JSON and populate the browser.
-                match fetch_bytes("/assets/rii-index.json").await {
-                    Ok(bytes) => {
-                        match serde_json::from_slice::<Vec<String>>(&bytes) {
-                            Ok(keys) => {
-                                let idx = panels::MaterialIndex::build_from_keys(
-                                    keys.iter(),
-                                );
-                                *pending_index.lock().unwrap() = Some(idx);
-                            }
-                            Err(e) => {
-                                log::error!(
-                                    "Failed to parse rii-index.json: {e}"
-                                )
-                            }
+                match fetch_bytes("assets/rii-index.json").await {
+                    Ok(bytes) => match serde_json::from_slice::<Vec<String>>(&bytes) {
+                        Ok(keys) => {
+                            let idx = panels::MaterialIndex::build_from_keys(keys.iter());
+                            *pending_index.lock().unwrap() = Some(idx);
                         }
-                    }
+                        Err(e) => {
+                            log::error!("Failed to parse rii-index.json: {e}")
+                        }
+                    },
                     Err(e) => {
                         log::error!("Failed to fetch rii-index.json: {e}")
                     }
@@ -192,7 +180,7 @@ impl CherryApp {
 
                 // Phase 2: fetch the full database and send bytes to the
                 // compute thread for deserialization.
-                match fetch_bytes("/assets/rii.db").await {
+                match fetch_bytes("assets/rii.db").await {
                     Ok(bytes) => {
                         let _ = materials_bytes_tx.send(bytes);
                     }
@@ -446,16 +434,10 @@ impl eframe::App for CherryApp {
                 ui.label(egui::RichText::new("Output").strong());
                 ui.separator();
 
-                ui.toggle_value(
-                    &mut self.windows.paraxial_summary,
-                    "Paraxial Summary",
-                );
+                ui.toggle_value(&mut self.windows.paraxial_summary, "Paraxial Summary");
                 ui.toggle_value(&mut self.windows.spot_diagram, "Spot Diagram");
                 ui.add_enabled_ui(false, |ui| {
-                    ui.toggle_value(
-                        &mut self.windows.cross_section,
-                        "Cross Section",
-                    );
+                    ui.toggle_value(&mut self.windows.cross_section, "Cross Section");
                 });
             });
 

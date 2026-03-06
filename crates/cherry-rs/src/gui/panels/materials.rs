@@ -88,10 +88,7 @@ pub fn materials_panel(
         .show_ui(ui, |ui| {
             for shelf in index.shelves.keys() {
                 if ui
-                    .selectable_label(
-                        browser.selected_shelf.as_deref() == Some(shelf),
-                        shelf,
-                    )
+                    .selectable_label(browser.selected_shelf.as_deref() == Some(shelf), shelf)
                     .clicked()
                 {
                     browser.selected_shelf = Some(shelf.clone());
@@ -104,10 +101,7 @@ pub fn materials_panel(
     // Book ComboBox (depends on shelf)
     if let Some(shelf) = &browser.selected_shelf {
         let books = index.shelves.get(shelf);
-        let book_label = browser
-            .selected_book
-            .as_deref()
-            .unwrap_or("Select book...");
+        let book_label = browser.selected_book.as_deref().unwrap_or("Select book...");
         egui::ComboBox::from_label("Book")
             .selected_text(book_label)
             .width(200.0)
@@ -115,10 +109,7 @@ pub fn materials_panel(
                 if let Some(books) = books {
                     for book in books {
                         if ui
-                            .selectable_label(
-                                browser.selected_book.as_deref() == Some(book),
-                                book,
-                            )
+                            .selectable_label(browser.selected_book.as_deref() == Some(book), book)
                             .clicked()
                         {
                             browser.selected_book = Some(book.clone());
@@ -133,10 +124,7 @@ pub fn materials_panel(
     if let Some(shelf) = &browser.selected_shelf {
         if let Some(book) = &browser.selected_book {
             let pages = index.pages.get(&(shelf.clone(), book.clone()));
-            let page_label = browser
-                .selected_page
-                .as_deref()
-                .unwrap_or("Select page...");
+            let page_label = browser.selected_page.as_deref().unwrap_or("Select page...");
             egui::ComboBox::from_label("Page")
                 .selected_text(page_label)
                 .width(200.0)

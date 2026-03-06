@@ -1,9 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{
-    Axis,
-    core::sequential_model::SubModelID,
-    gui::result_package::ResultPackage,
+    Axis, core::sequential_model::SubModelID, gui::result_package::ResultPackage,
     views::paraxial::ParaxialSubView,
 };
 
@@ -27,10 +25,7 @@ impl ParaxialWindow {
             .show(ctx, |ui| {
                 let is_stale = matches!(result, Some(r) if r.id < input_id);
                 if is_stale {
-                    ui.colored_label(
-                        egui::Color32::YELLOW,
-                        "\u{26a0} Update in progress\u{2026}",
-                    );
+                    ui.colored_label(egui::Color32::YELLOW, "\u{26a0} Update in progress\u{2026}");
                     ui.separator();
                 }
 
@@ -40,10 +35,7 @@ impl ParaxialWindow {
                     }
                     Some(r) if r.paraxial.is_none() => {
                         if let Some(err) = &r.error {
-                            ui.colored_label(
-                                egui::Color32::RED,
-                                format!("System error: {err}"),
-                            );
+                            ui.colored_label(egui::Color32::RED, format!("System error: {err}"));
                         }
                     }
                     Some(r) => {
@@ -88,10 +80,7 @@ fn render_paraxial_content(ui: &mut egui::Ui, r: &ResultPackage) {
         for axis in &axes {
             if let Some(&color) = pac.get(axis) {
                 let axis_suffix = if n_axes > 1 {
-                    format!(
-                        " ({})",
-                        if *axis == Axis::X { "X" } else { "Y" }
-                    )
+                    format!(" ({})", if *axis == Axis::X { "X" } else { "Y" })
                 } else {
                     String::new()
                 };
@@ -124,9 +113,8 @@ fn render_axis_table(
 
     egui::Grid::new(format!(
         "paraxial_{}",
-        ids.first().map_or("empty", |id| {
-            if id.1 == Axis::X { "x" } else { "y" }
-        })
+        ids.first()
+            .map_or("empty", |id| { if id.1 == Axis::X { "x" } else { "y" } })
     ))
     .num_columns(n_cols)
     .spacing([20.0, 4.0])
@@ -243,19 +231,17 @@ mod tests {
     use crate::gui::result_package::{BoundingBox3D, ResultPackage};
 
     fn make_result(wavelengths: &[&str]) -> ResultPackage {
-        use crate::{ParaxialView, SequentialModel};
         use crate::gui::{convert, model::SystemSpecs};
+        use crate::{ParaxialView, SequentialModel};
 
         let mut specs = SystemSpecs::default();
         specs.wavelengths = wavelengths.iter().map(|s| s.to_string()).collect();
         #[cfg(not(feature = "ri-info"))]
         let parsed = convert::convert_specs(&specs).expect("convert");
         #[cfg(feature = "ri-info")]
-        let parsed =
-            convert::convert_specs(&specs, &Default::default()).expect("convert");
-        let seq =
-            SequentialModel::new(&parsed.gaps, &parsed.surfaces, &parsed.wavelengths)
-                .expect("model");
+        let parsed = convert::convert_specs(&specs, &Default::default()).expect("convert");
+        let seq = SequentialModel::new(&parsed.gaps, &parsed.surfaces, &parsed.wavelengths)
+            .expect("model");
         let pv = ParaxialView::new(&seq, &parsed.fields, false).expect("paraxial");
         let wls = seq.wavelengths().to_vec();
         ResultPackage {
@@ -301,7 +287,9 @@ mod tests {
         });
         harness.step();
         assert!(
-            harness.query_by_label_contains("Update in progress").is_none(),
+            harness
+                .query_by_label_contains("Update in progress")
+                .is_none(),
             "stale banner must not appear when no result has been received yet"
         );
     }
@@ -390,7 +378,9 @@ mod tests {
         });
         harness.step();
         assert!(
-            harness.query_by_label_contains("Primary Axial Color").is_none(),
+            harness
+                .query_by_label_contains("Primary Axial Color")
+                .is_none(),
             "Primary Axial Color must not appear for a single wavelength"
         );
     }

@@ -11,7 +11,7 @@ fn main() -> anyhow::Result<()> {
             Some("--output") => {
                 break args
                     .next()
-                    .ok_or_else(|| anyhow::anyhow!("--output requires a value"))?
+                    .ok_or_else(|| anyhow::anyhow!("--output requires a value"))?;
             }
             Some(flag) => {
                 anyhow::bail!("Unknown argument: {flag}")
@@ -22,15 +22,12 @@ fn main() -> anyhow::Result<()> {
         }
     };
 
-    let db_path =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/rii.db");
-    let data = std::fs::read(&db_path).map_err(|e| {
-        anyhow::anyhow!("Cannot read {}: {e}", db_path.display())
-    })?;
+    let db_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/rii.db");
+    let data = std::fs::read(&db_path)
+        .map_err(|e| anyhow::anyhow!("Cannot read {}: {e}", db_path.display()))?;
 
-    let store: lib_ria::Store = bitcode::deserialize(&data).map_err(|e| {
-        anyhow::anyhow!("Cannot deserialize rii.db: {e}")
-    })?;
+    let store: lib_ria::Store = bitcode::deserialize(&data)
+        .map_err(|e| anyhow::anyhow!("Cannot deserialize rii.db: {e}"))?;
 
     let mut keys: Vec<String> = store.keys().cloned().collect();
     keys.sort();
@@ -41,9 +38,8 @@ fn main() -> anyhow::Result<()> {
         }
     }
 
-    let file = std::fs::File::create(&output_path).map_err(|e| {
-        anyhow::anyhow!("Cannot create {output_path}: {e}")
-    })?;
+    let file = std::fs::File::create(&output_path)
+        .map_err(|e| anyhow::anyhow!("Cannot create {output_path}: {e}"))?;
     serde_json::to_writer(file, &keys)?;
 
     println!("Wrote {} keys to {output_path}", keys.len());
