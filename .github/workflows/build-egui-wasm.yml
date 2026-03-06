@@ -6,35 +6,40 @@ on:
   pull_request:
     branches: [ main ]
 
-concurrency:
-  group: "pages"
-  cancel-in-progress: false
-
 jobs:
   build-egui-wasm:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v6
 
-    - name: Install Rust nightly with WASM target
+    - name: Install Rust toolchain
       uses: dtolnay/rust-toolchain@master
+      # Keep in sync with rust-toolchain.toml
+
+    - name: Cache Rust build artifacts
+      uses: Swatinem/rust-cache@v2
       with:
-        # Keep in sync with crates/rust-toolchain.toml
-        toolchain: nightly-2025-11-15
-        targets: wasm32-unknown-unknown
-        components: rust-src
+        workspaces: "crates -> target"
 
     - name: Install binaryen (wasm-opt)
       run: sudo apt-get install -y binaryen
 
     - name: Install trunk
-      uses: jetli/trunk-action@v0.5.0
+      uses: jetli/trunk-action@v0.5.1
       with:
         version: "latest"
 
     - name: Run cherry-rs tests (native)
       working-directory: ./crates
       run: cargo test -p cherry-rs --features gui,ri-info
+
+    - name: Clippy
+      working-directory: ./crates
+      run: cargo clippy -p cherry-rs --features gui,ri-info -- -D warnings
+
+    - name: Check formatting
+      working-directory: ./crates
+      run: cargo fmt -p cherry-rs --check
 
     - name: Download rii.db
       # Downloads the release matching the ria crate version in Cargo.toml.
@@ -69,6 +74,9 @@ jobs:
   deploy:
     needs: build-egui-wasm
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    concurrency:
+      group: "pages"
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     permissions:
       pages: write
