@@ -11,27 +11,21 @@ Optical system design in the browser
 
 ## Prerequisites
 
-- Rust compiler (see [raytracer/rust-toolchain.toml](raytracer/rust-toolchain.toml) for the version)
-- Node 22.13.1 (for the frontend)
+- Rust compiler (see [rust-toolchain.toml](rust-toolchain.toml) for the version)
+- [trunk](https://trunk-rs.github.io/trunk/) (for the WASM frontend)
 
 ## Build
 
 ```console
-cd www/js
-npm run build:prod
+cd www/egui
+trunk build --release
 ```
 
 ## Development
 
-Build the development package:
+Launch the development server:
 
 ```console
-cd www/js
-npm run build:dev
-```
-
-Launch the development server
-
-```
-npm run start
+cd www/egui
+trunk serve
 ```

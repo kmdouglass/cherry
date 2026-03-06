@@ -19,8 +19,8 @@ jobs:
     - name: Install Rust nightly with WASM target
       uses: dtolnay/rust-toolchain@master
       with:
-        # Keep in sync with raytracer/rust-toolchain.toml
-        toolchain: nightly-2026-02-20
+        # Keep in sync with crates/rust-toolchain.toml
+        toolchain: nightly-2025-11-15
         targets: wasm32-unknown-unknown
         components: rust-src
 
@@ -33,7 +33,7 @@ jobs:
         version: "latest"
 
     - name: Run cherry-rs tests (native)
-      working-directory: ./raytracer
+      working-directory: ./crates
       run: cargo test -p cherry-rs --features gui,ri-info
 
     - name: Download rii.db
@@ -48,7 +48,7 @@ jobs:
           --dir www/egui/assets/
 
     - name: Generate rii-index.json
-      working-directory: ./raytracer
+      working-directory: ./crates
       run: |
         cargo run -p cherry-rs --bin gen-rii-index \
           --features ri-info --release \

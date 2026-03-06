@@ -7,7 +7,7 @@ filehash = false
 
 [watch]
 # Do not watch the Rust build output or trunk's own dist output
-ignore = ["../../raytracer/target", "dist", "assets"]
+ignore = ["../../crates/target", "dist", "assets"]
 
 [serve]
 addresses = ["127.0.0.1"]
@@ -21,5 +21,5 @@ stage = "pre_build"
 command = "sh"
 command_arguments = [
     "-c",
-    "test -f assets/rii.db && cargo run --manifest-path ../../raytracer/Cargo.toml -p cherry-rs --bin gen-rii-index --features ri-info --release -- --output assets/rii-index.json || echo 'Skipping gen-rii-index: assets/rii.db not found'",
+    "test -f assets/rii.db && cargo run --manifest-path ../../crates/Cargo.toml -p cherry-rs --bin gen-rii-index --features ri-info --release -- --output assets/rii-index.json || echo 'Skipping gen-rii-index: assets/rii.db not found'",
 ]

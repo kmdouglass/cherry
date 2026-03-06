@@ -1,2 +1,1 @@
-- cherry-rs crate: [raytracer/CHANGELOG.md](raytracer/CHANGELOG.md)
-- Web interface: [www/js/CHANGELOG.md](www/js/CHANGELOG.md)
+- cherry-rs crate: [crates/CHANGELOG.md](crates/CHANGELOG.md)

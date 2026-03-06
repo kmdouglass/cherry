@@ -21,8 +21,7 @@ Test data for the feature must be generated using [refractiveindex.info-adapters
 
 ### Requirements
 
-1. Rust compiler - See [rust-toolchain.toml](rust-toolchain.toml) for the version
-2. [wasm-bindgen-cli](https://rustwasm.github.io/wasm-bindgen/wasm-bindgen-test/usage.html#appendix-using-wasm-bindgen-test-without-wasm-pack) - Required for the WASM/Trunk build; the version must match the installed version of `wasm-bindgen`
+1. Rust compiler - See [rust-toolchain.toml](../../../rust-toolchain.toml) for the version
 
 ### Testing
 
