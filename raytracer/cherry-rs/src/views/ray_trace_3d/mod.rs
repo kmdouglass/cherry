@@ -197,6 +197,11 @@ impl TraceResults {
         &self.ray_bundle
     }
 
+    // Returns the chief ray bundle.
+    pub fn chief_ray(&self) -> &RayBundle {
+        &self.chief_ray
+    }
+
     // Returns the wavelength ID of the ray bundle.
     pub fn wavelength_id(&self) -> usize {
         self.wavelength_id
