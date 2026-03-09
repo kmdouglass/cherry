@@ -3,12 +3,12 @@ use std::sync::mpsc::{Receiver, Sender};
 #[cfg(feature = "ri-info")]
 use std::{collections::HashMap, rc::Rc};
 
-use crate::{ParaxialView, SequentialModel, ray_trace_3d_view};
+use crate::{ParaxialView, SequentialModel, cross_section_view, ray_trace_3d_view};
 
 use super::{
     convert,
     model::SystemSpecs,
-    result_package::{BoundingBox3D, ResultPackage, SurfaceDesc},
+    result_package::{ResultPackage, SurfaceDesc},
 };
 
 pub struct ComputeRequest {
@@ -136,7 +136,7 @@ fn run_compute(
                 fields,
                 paraxial: None,
                 ray_trace: None,
-                bounding_box: BoundingBox3D::default(),
+                cross_section: None,
                 error: Some(format!("Paraxial error: {e}")),
             };
         }
@@ -150,6 +150,8 @@ fn run_compute(
         }
     };
 
+    let cross_section = Some(cross_section_view(&seq, trace.as_ref()));
+
     ResultPackage {
         id: req.id,
         wavelengths,
@@ -157,7 +159,7 @@ fn run_compute(
         fields,
         paraxial: Some(pv),
         ray_trace: trace,
-        bounding_box: BoundingBox3D::default(),
+        cross_section,
         error: None,
     }
 }

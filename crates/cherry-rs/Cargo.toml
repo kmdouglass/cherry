@@ -36,9 +36,7 @@ eframe = { version = "0.32", default-features = false, optional = true, features
     "persistence",   # Enable restoring app state when restarting the app.
 ] }
 egui = { version = "0.32", optional = true }
-egui_extras = { version = "0.32", default-features = false, optional = true, features = [
-    "svg"
-] }
+egui_extras = { version = "0.32", default-features = false, optional = true }
 log = { version = "0.4.28", optional = true }
 rfd = { version = "0.15", optional = true }
 serde_json = { version = "1", optional = true }

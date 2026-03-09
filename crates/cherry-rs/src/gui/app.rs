@@ -8,7 +8,9 @@ use crate::gui::{
     examples,
     model::SystemSpecs,
     result_package::ResultPackage,
-    windows::{ParaxialWindow, SpecsWindow, SpotDiagramWindow, WindowVisibility},
+    windows::{
+        CrossSectionWindow, ParaxialWindow, SpecsWindow, SpotDiagramWindow, WindowVisibility,
+    },
 };
 
 #[cfg(feature = "ri-info")]
@@ -52,6 +54,7 @@ pub struct CherryApp {
     // Window state
     specs_window: SpecsWindow,
     spot_diagram_window: SpotDiagramWindow,
+    cross_section_window: CrossSectionWindow,
 
     // ri-info: material browser data loaded on main thread for UI
     #[cfg(feature = "ri-info")]
@@ -198,6 +201,7 @@ impl CherryApp {
             latest_result: None,
             specs_window: SpecsWindow::default(),
             spot_diagram_window: SpotDiagramWindow::default(),
+            cross_section_window: CrossSectionWindow::default(),
             #[cfg(feature = "ri-info")]
             materials,
             #[cfg(feature = "ri-info")]
@@ -267,6 +271,48 @@ impl CherryApp {
                 {
                     if let Err(e) = handle.write(json.as_bytes()).await {
                         log::error!("Failed to write file: {e}");
+                    }
+                }
+            });
+        }
+    }
+
+    fn export_cross_section_svg(&self, ctx: &egui::Context) {
+        let Some(result) = &self.latest_result else {
+            return;
+        };
+        let Some(cs) = &result.cross_section else {
+            return;
+        };
+        let dark_mode = ctx.style().visuals.dark_mode;
+        let Some(svg) = self.cross_section_window.export_svg_string(cs, dark_mode) else {
+            return;
+        };
+
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            if let Some(path) = rfd::FileDialog::new()
+                .set_title("Export Cross-Section SVG")
+                .add_filter("SVG", &["svg"])
+                .save_file()
+            {
+                if let Err(e) = std::fs::write(&path, svg.as_bytes()) {
+                    log::error!("Failed to write SVG: {e}");
+                }
+            }
+        }
+
+        #[cfg(target_arch = "wasm32")]
+        {
+            wasm_bindgen_futures::spawn_local(async move {
+                if let Some(handle) = rfd::AsyncFileDialog::new()
+                    .set_title("Export Cross-Section SVG")
+                    .add_filter("SVG", &["svg"])
+                    .save_file()
+                    .await
+                {
+                    if let Err(e) = handle.write(svg.as_bytes()).await {
+                        log::error!("Failed to write SVG: {e}");
                     }
                 }
             });
@@ -386,6 +432,18 @@ impl eframe::App for CherryApp {
                         self.save_to_file();
                     }
                     ui.separator();
+                    let can_export_svg = self
+                        .latest_result
+                        .as_ref()
+                        .and_then(|r| r.cross_section.as_ref())
+                        .is_some();
+                    ui.add_enabled_ui(can_export_svg, |ui| {
+                        if ui.button("Export SVG\u{2026}").clicked() {
+                            ui.close();
+                            self.export_cross_section_svg(ctx);
+                        }
+                    });
+                    ui.separator();
                     if ui.button("Quit").clicked() {
                         ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                     }
@@ -436,9 +494,7 @@ impl eframe::App for CherryApp {
 
                 ui.toggle_value(&mut self.windows.paraxial_summary, "Paraxial Summary");
                 ui.toggle_value(&mut self.windows.spot_diagram, "Spot Diagram");
-                ui.add_enabled_ui(false, |ui| {
-                    ui.toggle_value(&mut self.windows.cross_section, "Cross Section");
-                });
+                ui.toggle_value(&mut self.windows.cross_section, "Cross Section");
             });
 
         // Central panel (placeholder for future views)
@@ -487,6 +543,15 @@ impl eframe::App for CherryApp {
             self.spot_diagram_window.show(
                 ctx,
                 &mut self.windows.spot_diagram,
+                self.latest_result.as_ref(),
+                self.input_id,
+            );
+        }
+
+        if self.windows.cross_section {
+            self.cross_section_window.show(
+                ctx,
+                &mut self.windows.cross_section,
                 self.latest_result.as_ref(),
                 self.input_id,
             );

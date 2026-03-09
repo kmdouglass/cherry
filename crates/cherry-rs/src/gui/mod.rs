@@ -1,4 +1,5 @@
 mod app;
+pub(crate) mod colors;
 mod compute;
 mod convert;
 mod examples;

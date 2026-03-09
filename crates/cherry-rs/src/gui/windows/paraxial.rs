@@ -228,7 +228,7 @@ mod tests {
     use super::*;
     use egui_kittest::{Harness, kittest::Queryable};
 
-    use crate::gui::result_package::{BoundingBox3D, ResultPackage};
+    use crate::gui::result_package::ResultPackage;
 
     fn make_result(wavelengths: &[&str]) -> ResultPackage {
         use crate::gui::{convert, model::SystemSpecs};
@@ -251,7 +251,7 @@ mod tests {
             fields: Vec::new(),
             paraxial: Some(pv),
             ray_trace: None,
-            bounding_box: BoundingBox3D::default(),
+            cross_section: None,
             error: None,
         }
     }

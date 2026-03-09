@@ -29,8 +29,6 @@
 //!   Contains information such as focal length, principal planes, etc.
 //! - [RayTrace3DView](fn@ray_trace_3d_view) - A 3D ray trace view of the
 //!   system.
-//! - [CutawayView](struct@CutawayView) - A cutaway view of the system. Used
-//!   primarily for drawing the system (deprecated).
 //! - [CrossSectionView](fn@cross_section_view) - A 2D cross section through the
 //!   system.
 //! - [ComponentsView](fn@components_view) - A view of the components of the
@@ -154,8 +152,9 @@ pub use specs::{
 };
 pub use views::{
     components::{Component, components_view},
-    cross_section::{CuttingPlane, Path, Paths, cross_section_view},
-    cutaway::CutawayView,
+    cross_section::{
+        Bounds2D, CrossSectionView, DrawElement, FlatPlaneKind, PlaneGeometry, cross_section_view,
+    },
     paraxial::{
         ImagePlane, ParaxialSubView, ParaxialSubViewDescription, ParaxialView,
         ParaxialViewDescription, Pupil,

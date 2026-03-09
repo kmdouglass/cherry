@@ -1,9 +1,11 @@
+mod cross_section;
 #[cfg(feature = "ri-info")]
 mod materials;
 mod paraxial;
 mod specs;
 mod spot_diagram;
 
+pub use cross_section::{CrossSectionWindow, CuttingPlane};
 #[cfg(feature = "ri-info")]
 pub use materials::MaterialsWindow;
 pub use paraxial::ParaxialWindow;

@@ -1,12 +1,4 @@
-use crate::{ParaxialView, TraceResultsCollection};
-
-/// Axis-aligned bounding box in 3D space.
-#[derive(Default)]
-pub struct BoundingBox3D {
-    pub x: (f64, f64),
-    pub y: (f64, f64),
-    pub z: (f64, f64),
-}
+use crate::{CrossSectionView, ParaxialView, TraceResultsCollection};
 
 /// Lightweight description of a surface for display in dropdowns.
 pub struct SurfaceDesc {
@@ -28,7 +20,7 @@ pub struct ResultPackage {
     pub fields: Vec<FieldDesc>,
     pub paraxial: Option<ParaxialView>,
     pub ray_trace: Option<TraceResultsCollection>,
-    pub bounding_box: BoundingBox3D,
+    pub cross_section: Option<CrossSectionView>,
     pub error: Option<String>,
 }
 
@@ -42,7 +34,7 @@ impl ResultPackage {
             fields: Vec::new(),
             paraxial: None,
             ray_trace: None,
-            bounding_box: BoundingBox3D::default(),
+            cross_section: None,
             error: Some(msg),
         }
     }
