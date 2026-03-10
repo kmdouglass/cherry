@@ -174,7 +174,14 @@ impl Vec3 {
         radial_offset_x: Float,
         radial_offset_y: Float,
     ) -> Vec<Self> {
+        if n == 0 {
+            return Vec::new();
+        }
         let mut vecs = Vec::with_capacity(n);
+        if n == 1 {
+            vecs.push(Vec3::new(radial_offset_x, radial_offset_y, z));
+            return vecs;
+        }
         let step = 2.0 * r / (n - 1) as Float;
         for i in 0..n {
             let x = (-r + i as Float * step) * theta.cos() + radial_offset_x;

@@ -182,6 +182,13 @@ pub struct SystemSpecs {
     /// Material keys the user has selected for use in the surfaces table.
     #[serde(default)]
     pub selected_materials: Vec<String>,
+    /// Number of rays in the tangential fan for the cross-section view.
+    #[serde(default = "default_cross_section_n_rays")]
+    pub cross_section_n_rays: u32,
+}
+
+fn default_cross_section_n_rays() -> u32 {
+    11
 }
 
 impl Default for SystemSpecs {
@@ -204,6 +211,7 @@ impl Default for SystemSpecs {
             field_mode: FieldMode::Angle,
             use_materials: false,
             selected_materials: Vec::new(),
+            cross_section_n_rays: 11,
         }
     }
 }

@@ -55,18 +55,27 @@ impl CrossSectionWindow {
         open: &mut bool,
         result: Option<&ResultPackage>,
         input_id: u64,
-    ) {
+        n_rays: &mut u32,
+    ) -> bool {
+        let old = *n_rays;
         egui::Window::new("Cross Section")
             .open(open)
             .default_width(700.0)
             .min_width(300.0)
             .resizable(true)
             .show(ctx, |ui| {
-                self.show_content(ui, result, input_id);
+                self.show_content(ui, result, input_id, n_rays);
             });
+        *n_rays != old
     }
 
-    fn show_content(&mut self, ui: &mut egui::Ui, result: Option<&ResultPackage>, input_id: u64) {
+    fn show_content(
+        &mut self,
+        ui: &mut egui::Ui,
+        result: Option<&ResultPackage>,
+        input_id: u64,
+        n_rays: &mut u32,
+    ) {
         let Some(result) = result else {
             self.show_empty_viewport(ui);
             return;
@@ -81,7 +90,7 @@ impl CrossSectionWindow {
         }
 
         // Controls.
-        self.show_controls(ui, cs_data);
+        self.show_controls(ui, cs_data, n_rays);
         ui.separator();
 
         // Viewport.
@@ -98,7 +107,12 @@ impl CrossSectionWindow {
         }
     }
 
-    fn show_controls(&mut self, ui: &mut egui::Ui, cs_data: Option<&CrossSectionView>) {
+    fn show_controls(
+        &mut self,
+        ui: &mut egui::Ui,
+        cs_data: Option<&CrossSectionView>,
+        n_rays: &mut u32,
+    ) {
         // Auto-select the valid plane.
         if let Some(cs) = cs_data {
             if self.cutting_plane == CuttingPlane::YZ && !cs.yz_valid && cs.xz_valid {
@@ -121,6 +135,13 @@ impl CrossSectionWindow {
             });
             ui.separator();
             ui.checkbox(&mut self.show_rays, "Show Rays");
+            ui.separator();
+            ui.label("Rays:");
+            ui.add(
+                egui::DragValue::new(n_rays)
+                    .range(1_u32..=1000_u32)
+                    .speed(1.0),
+            );
         });
     }
 
@@ -718,7 +739,8 @@ mod tests {
         ctx: &egui::Context,
     ) {
         let mut open = true;
-        window.show(ctx, &mut open, result, input_id);
+        let mut n_rays = 11u32;
+        window.show(ctx, &mut open, result, input_id, &mut n_rays);
     }
 
     #[test]
