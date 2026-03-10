@@ -116,6 +116,7 @@ pub fn ray_trace_3d_view(
             &field_specs[field_id],
             paraxial_subview,
             pupil_sampling,
+            axis,
         )?;
         let chief_ray = ray_trace_submodel(
             sequential_submodel,
@@ -124,6 +125,7 @@ pub fn ray_trace_3d_view(
             &field_specs[field_id],
             paraxial_subview,
             Some(PupilSampling::ChiefRay),
+            axis,
         )?;
         results.push(TraceResults {
             wavelength_id,
@@ -215,6 +217,7 @@ fn ray_trace_submodel(
     field_spec: &FieldSpec,
     paraxial_subview: &ParaxialSubView,
     pupil_sampling: Option<PupilSampling>,
+    axis: Axis,
 ) -> Result<RayBundle> {
     let rays = rays(
         surfaces,
@@ -222,6 +225,7 @@ fn ray_trace_submodel(
         paraxial_subview,
         field_spec,
         pupil_sampling,
+        axis,
     )?;
 
     let mut sequential_sub_model_iter = sequential_submodel.try_iter(surfaces)?;
@@ -245,6 +249,7 @@ fn rays(
     paraxial_subview: &ParaxialSubView,
     field_spec: &FieldSpec,
     sampling: Option<PupilSampling>,
+    axis: Axis,
 ) -> Result<Vec<Ray>> {
     let rays: Vec<Ray> = match field_spec {
         FieldSpec::Angle {
@@ -273,17 +278,12 @@ fn rays(
                     spacing,
                     angle,
                 )?,
-                PupilSampling::TangentialRayFan => {
-                    // 3 rays -> two diametrically-opposed rays at the pupil edge
-                    // and a chief ray in the center
-                    parallel_ray_fan(
-                        surfaces,
-                        aperture_spec,
-                        paraxial_subview,
-                        3,
-                        PI / 2.0, // Currently, the ray fan is always in the y-z plane
-                        angle,
-                    )?
+                PupilSampling::TangentialRayFan { n } => {
+                    let theta = match axis {
+                        Axis::Y => PI / 2.0,
+                        Axis::X => 0.0,
+                    };
+                    parallel_ray_fan(surfaces, aperture_spec, paraxial_subview, n, theta, angle)?
                 }
             }
         }
@@ -320,14 +320,13 @@ fn rays(
                     spacing,
                     &origin,
                 )?,
-                PupilSampling::TangentialRayFan => {
-                    // If on-axis, put the rays in the y-z plane by default.
+                PupilSampling::TangentialRayFan { n } => {
                     let theta = if *y == 0.0 && *x == 0.0 {
                         PI / 2.0
                     } else {
                         y.atan2(*x)
                     };
-                    point_source_ray_fan(aperture_spec, paraxial_subview, 3, theta, &origin)?
+                    point_source_ray_fan(aperture_spec, paraxial_subview, n, theta, &origin)?
                 }
             }
         }
@@ -684,11 +683,11 @@ mod tests {
         let field_specs = vec![
             FieldSpec::Angle {
                 angle: 0.0,
-                pupil_sampling: PupilSampling::TangentialRayFan,
+                pupil_sampling: PupilSampling::TangentialRayFan { n: 3 },
             },
             FieldSpec::Angle {
                 angle: 5.0,
-                pupil_sampling: PupilSampling::TangentialRayFan,
+                pupil_sampling: PupilSampling::TangentialRayFan { n: 3 },
             },
         ];
 
@@ -729,6 +728,7 @@ mod tests {
             &s.paraxial_view.subviews()[&SubModelID(0, Axis::Y)],
             &s.field_specs[0],
             None,
+            Axis::Y,
         )
         .unwrap();
 
@@ -742,7 +742,7 @@ mod tests {
         let field_spec = FieldSpec::PointSource {
             x: 0.0,
             y: 0.0,
-            pupil_sampling: PupilSampling::TangentialRayFan,
+            pupil_sampling: PupilSampling::TangentialRayFan { n: 3 },
         };
 
         let result = rays(
@@ -751,6 +751,7 @@ mod tests {
             &s.paraxial_view.subviews()[&SubModelID(0, Axis::Y)],
             &field_spec,
             None,
+            Axis::Y,
         );
 
         assert!(
@@ -934,7 +935,7 @@ mod tests {
 
         let field_specs = vec![FieldSpec::Angle {
             angle: 0.0,
-            pupil_sampling: PupilSampling::TangentialRayFan,
+            pupil_sampling: PupilSampling::TangentialRayFan { n: 3 },
         }];
 
         let result = validate_field_specs(&s.sequential_model, &field_specs);
@@ -947,7 +948,7 @@ mod tests {
         let field_specs = vec![FieldSpec::PointSource {
             x: 0.0,
             y: 0.0,
-            pupil_sampling: PupilSampling::TangentialRayFan,
+            pupil_sampling: PupilSampling::TangentialRayFan { n: 3 },
         }];
 
         let result = validate_field_specs(&s.sequential_model, &field_specs);
@@ -963,11 +964,11 @@ mod tests {
         let field_specs = vec![
             FieldSpec::Angle {
                 angle: 0.0,
-                pupil_sampling: PupilSampling::TangentialRayFan,
+                pupil_sampling: PupilSampling::TangentialRayFan { n: 3 },
             },
             FieldSpec::Angle {
                 angle: 5.0,
-                pupil_sampling: PupilSampling::TangentialRayFan,
+                pupil_sampling: PupilSampling::TangentialRayFan { n: 3 },
             },
         ];
 

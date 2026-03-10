@@ -126,11 +126,11 @@ pub fn field_specs() -> Vec<FieldSpec> {
     vec![
         FieldSpec::Angle {
             angle: 0.0,
-            pupil_sampling: PupilSampling::TangentialRayFan,
+            pupil_sampling: PupilSampling::TangentialRayFan { n: 3 },
         },
         FieldSpec::Angle {
             angle: 5.0,
-            pupil_sampling: PupilSampling::TangentialRayFan,
+            pupil_sampling: PupilSampling::TangentialRayFan { n: 3 },
         },
     ]
 }

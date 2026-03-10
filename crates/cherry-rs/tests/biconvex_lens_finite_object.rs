@@ -10,12 +10,12 @@ const FIELD_SPECS: [FieldSpec; 2] = [
     FieldSpec::PointSource {
         x: 0.0,
         y: 0.0,
-        pupil_sampling: PupilSampling::TangentialRayFan,
+        pupil_sampling: PupilSampling::TangentialRayFan { n: 3 },
     },
     FieldSpec::PointSource {
         x: 0.0,
         y: 5.0,
-        pupil_sampling: PupilSampling::TangentialRayFan,
+        pupil_sampling: PupilSampling::TangentialRayFan { n: 3 },
     },
 ];
 

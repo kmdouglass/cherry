@@ -33,6 +33,7 @@ pub fn petzval_lens() -> SystemSpecs {
         field_mode: FieldMode::Angle,
         use_materials: false,
         selected_materials: Vec::new(),
+        cross_section_n_rays: 11,
     }
 }
 
@@ -63,5 +64,6 @@ pub fn concave_mirror() -> SystemSpecs {
         field_mode: FieldMode::Angle,
         use_materials: false,
         selected_materials: Vec::new(),
+        cross_section_n_rays: 11,
     }
 }

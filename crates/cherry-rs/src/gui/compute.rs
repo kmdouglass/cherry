@@ -150,7 +150,19 @@ fn run_compute(
         }
     };
 
-    let cross_section = Some(cross_section_view(&seq, trace.as_ref()));
+    let cs_sampling = Some(crate::specs::fields::PupilSampling::TangentialRayFan {
+        n: req.specs.cross_section_n_rays as usize,
+    });
+    let cs_trace = match ray_trace_3d_view(&parsed.aperture, &parsed.fields, &seq, &pv, cs_sampling)
+    {
+        Ok(t) => Some(t),
+        Err(e) => {
+            log::warn!("Cross-section ray trace failed: {e}");
+            None
+        }
+    };
+
+    let cross_section = Some(cross_section_view(&seq, cs_trace.as_ref()));
 
     ResultPackage {
         id: req.id,
@@ -245,11 +257,11 @@ mod tests {
         let fields = vec![
             FieldSpec::Angle {
                 angle: 0.0,
-                pupil_sampling: PupilSampling::TangentialRayFan,
+                pupil_sampling: PupilSampling::TangentialRayFan { n: 3 },
             },
             FieldSpec::Angle {
                 angle: 5.0,
-                pupil_sampling: PupilSampling::TangentialRayFan,
+                pupil_sampling: PupilSampling::TangentialRayFan { n: 3 },
             },
         ];
         let descs = build_field_descs(&fields);

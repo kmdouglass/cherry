@@ -17,8 +17,9 @@ pub enum PupilSampling {
     /// pupil edge (marginal rays).
     SquareGrid { spacing: Float },
 
-    /// A tangential ray fan.
-    TangentialRayFan,
+    /// A tangential ray fan of `n` evenly-spaced rays from one pupil edge to
+    /// the other.
+    TangentialRayFan { n: usize },
 }
 
 /// Specifies an object field.
@@ -53,7 +54,7 @@ impl PupilSampling {
                     anyhow::bail!("Pupil grid spacing must be in the range [0, 1]");
                 }
             }
-            PupilSampling::TangentialRayFan => {}
+            PupilSampling::TangentialRayFan { .. } => {}
         }
         Ok(())
     }

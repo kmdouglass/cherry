@@ -549,12 +549,16 @@ impl eframe::App for CherryApp {
         }
 
         if self.windows.cross_section {
-            self.cross_section_window.show(
+            let changed = self.cross_section_window.show(
                 ctx,
                 &mut self.windows.cross_section,
                 self.latest_result.as_ref(),
                 self.input_id,
+                &mut self.specs.cross_section_n_rays,
             );
+            if changed {
+                self.bump_input_id();
+            }
         }
 
         // Keep repainting while a compute is in flight.
