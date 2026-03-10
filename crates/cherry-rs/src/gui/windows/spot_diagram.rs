@@ -1,4 +1,8 @@
-use crate::{Axis, gui::result_package::ResultPackage, views::ray_trace_3d::RayBundle};
+use crate::{
+    Axis,
+    gui::{colors::wavelength_to_color, result_package::ResultPackage},
+    views::ray_trace_3d::RayBundle,
+};
 
 const PLOT_SIZE: f32 = 180.0;
 
@@ -329,28 +333,12 @@ fn rays_at_surface(
     })
 }
 
-/// Map a wavelength in μm to an approximate visible-spectrum color.
-fn wavelength_to_color(wl_um: f64) -> egui::Color32 {
-    let nm = wl_um * 1000.0;
-    if nm <= 450.0 {
-        egui::Color32::from_rgb(110, 0, 220)
-    } else if nm <= 520.0 {
-        egui::Color32::from_rgb(0, 100, 255)
-    } else if nm <= 565.0 {
-        egui::Color32::from_rgb(0, 200, 50)
-    } else if nm <= 600.0 {
-        egui::Color32::from_rgb(220, 220, 0)
-    } else {
-        egui::Color32::from_rgb(220, 30, 0)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use egui_kittest::{Harness, kittest::Queryable};
 
-    use crate::gui::result_package::{BoundingBox3D, FieldDesc, ResultPackage};
+    use crate::gui::result_package::{FieldDesc, ResultPackage};
 
     fn show_window(
         window: &mut SpotDiagramWindow,
@@ -432,7 +420,7 @@ mod tests {
             fields: Vec::new(),
             paraxial: Some(pv),
             ray_trace: None,
-            bounding_box: BoundingBox3D::default(),
+            cross_section: None,
             error: Some("trace failed".to_string()),
         };
 
@@ -495,7 +483,7 @@ mod tests {
             ],
             paraxial: Some(pv),
             ray_trace: Some(trace),
-            bounding_box: BoundingBox3D::default(),
+            cross_section: None,
             error: None,
         };
 

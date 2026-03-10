@@ -73,6 +73,10 @@ impl Cursor {
         self.pos
     }
 
+    pub(crate) fn forward(&self) -> Vec3 {
+        self.forward
+    }
+
     /// Returns a rotation matrix that transforms vectors from the global
     /// coordinate system to the local reference frame of the cursor.
     pub fn rotation_matrix(&self) -> Mat3x3 {

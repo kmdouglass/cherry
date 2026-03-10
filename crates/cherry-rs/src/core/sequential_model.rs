@@ -44,6 +44,7 @@ pub struct SequentialModel {
     surfaces: Vec<Surface>,
     submodels: HashMap<SubModelID, SequentialSubModelBase>,
     wavelengths: Vec<Float>,
+    axis_directions: Vec<Vec3>,
 }
 
 /// A submodel of a sequential optical system.
@@ -317,7 +318,7 @@ impl SequentialModel {
     ) -> Result<Self> {
         Self::validate_specs(gap_specs, wavelengths)?;
 
-        let surfaces = Self::surf_specs_to_surfs(surface_specs, gap_specs);
+        let (surfaces, axis_directions) = Self::surf_specs_to_surfs(surface_specs, gap_specs);
 
         let model_ids: Vec<SubModelID> = Self::calc_model_ids(&surfaces, wavelengths);
         let mut models: HashMap<SubModelID, SequentialSubModelBase> = HashMap::new();
@@ -332,6 +333,7 @@ impl SequentialModel {
             surfaces,
             submodels: models,
             wavelengths: wavelengths.to_vec(),
+            axis_directions,
         })
     }
 
@@ -382,6 +384,11 @@ impl SequentialModel {
         &self.wavelengths
     }
 
+    /// Returns the optical axis directions at each surface vertex.
+    pub fn axis_directions(&self) -> &[Vec3] {
+        &self.axis_directions
+    }
+
     /// Computes the unique IDs for each paraxial model.
     fn calc_model_ids(surfaces: &[Surface], wavelengths: &[Float]) -> Vec<SubModelID> {
         let mut ids = Vec::new();
@@ -420,8 +427,12 @@ impl SequentialModel {
         true
     }
 
-    fn surf_specs_to_surfs(surf_specs: &[SurfaceSpec], gap_specs: &[GapSpec]) -> Vec<Surface> {
+    fn surf_specs_to_surfs(
+        surf_specs: &[SurfaceSpec],
+        gap_specs: &[GapSpec],
+    ) -> (Vec<Surface>, Vec<Vec3>) {
         let mut surfaces = Vec::new();
+        let mut axis_directions = Vec::new();
 
         // The first surface is an object surface.
         // The second surface is at z=0 by convention.
@@ -429,6 +440,7 @@ impl SequentialModel {
 
         // Create surfaces 0 to n-1
         for (surf_spec, gap_spec) in surf_specs.iter().zip(gap_specs.iter()) {
+            axis_directions.push(cursor.forward());
             let surf = Surface::from_spec(surf_spec, &cursor);
 
             // Flip the cursor upon reflection
@@ -444,13 +456,14 @@ impl SequentialModel {
         }
 
         // Add the last surface
+        axis_directions.push(cursor.forward());
         surfaces.push(Surface::from_spec(
             surf_specs
                 .last()
                 .expect("There should always be one last surface."),
             &cursor,
         ));
-        surfaces
+        (surfaces, axis_directions)
     }
 
     fn validate_gaps(gaps: &[GapSpec]) -> Result<()> {
