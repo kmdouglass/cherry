@@ -80,7 +80,7 @@ mod tests {
 
     #[test]
     fn default_tab_is_surfaces() {
-        let mut window = SpecsWindow::default();
+        let window = SpecsWindow::default();
         assert_eq!(window.active_tab, SpecsTab::Surfaces);
     }
 
@@ -100,8 +100,8 @@ mod tests {
 
     #[test]
     fn clicking_fields_tab_switches_content() {
-        let mut window = SpecsWindow::default();
-        let mut specs = SystemSpecs::default();
+        let window = SpecsWindow::default();
+        let specs = SystemSpecs::default();
         let mut harness = Harness::new_state(
             |ctx, (window, specs): &mut (SpecsWindow, SystemSpecs)| {
                 show_specs_window(window, specs, ctx);

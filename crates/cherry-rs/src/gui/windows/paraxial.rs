@@ -234,8 +234,10 @@ mod tests {
         use crate::gui::{convert, model::SystemSpecs};
         use crate::{ParaxialView, SequentialModel};
 
-        let mut specs = SystemSpecs::default();
-        specs.wavelengths = wavelengths.iter().map(|s| s.to_string()).collect();
+        let specs = SystemSpecs {
+            wavelengths: wavelengths.iter().map(|s| s.to_string()).collect(),
+            ..Default::default()
+        };
         #[cfg(not(feature = "ri-info"))]
         let parsed = convert::convert_specs(&specs).expect("convert");
         #[cfg(feature = "ri-info")]

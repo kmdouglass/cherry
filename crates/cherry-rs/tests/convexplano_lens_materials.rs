@@ -46,7 +46,7 @@ mod test_ri_info {
     #[test]
     fn test_feature_enabled() {
         println!("Feature ri-info is enabled!");
-        assert!(cfg!(feature = "ri-info"));
+        const { assert!(cfg!(feature = "ri-info")) };
     }
 
     #[test]

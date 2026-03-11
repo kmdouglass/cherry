@@ -18,16 +18,11 @@ const SVG_PAD: f64 = 35.0;
 // ─────────────────────────────────────────────────────────────
 
 /// Which 2D cutting plane to display.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum CuttingPlane {
+    #[default]
     YZ,
     XZ,
-}
-
-impl Default for CuttingPlane {
-    fn default() -> Self {
-        Self::YZ
-    }
 }
 
 // ── Window struct
@@ -122,8 +117,8 @@ impl CrossSectionWindow {
             }
         }
 
-        let yz_valid = cs_data.map_or(true, |cs| cs.yz_valid);
-        let xz_valid = cs_data.map_or(true, |cs| cs.xz_valid);
+        let yz_valid = cs_data.is_none_or(|cs| cs.yz_valid);
+        let xz_valid = cs_data.is_none_or(|cs| cs.xz_valid);
 
         ui.horizontal(|ui| {
             ui.label("Plane:");
@@ -200,7 +195,7 @@ impl CrossSectionWindow {
             egui::Stroke::new(1.0, egui::Color32::from_gray(180)),
             egui::StrokeKind::Outside,
         );
-        ui.allocate_ui_at_rect(rect, |ui| {
+        ui.scope_builder(egui::UiBuilder::new().max_rect(rect), |ui| {
             ui.centered_and_justified(|ui| {
                 ui.label(
                     "The optical axis leaves both coordinate planes.\n\
@@ -222,7 +217,7 @@ impl CrossSectionWindow {
             egui::Stroke::new(1.0, egui::Color32::from_gray(100)),
             egui::StrokeKind::Outside,
         );
-        ui.allocate_ui_at_rect(rect, |ui| {
+        ui.scope_builder(egui::UiBuilder::new().max_rect(rect), |ui| {
             ui.centered_and_justified(|ui| {
                 ui.label("No data yet.");
             });
@@ -753,7 +748,7 @@ mod tests {
 
     #[test]
     fn stale_result_shows_banner() {
-        let mut window = CrossSectionWindow::default();
+        let window = CrossSectionWindow::default();
         let result = ResultPackage::error(0, String::new());
         let mut harness = Harness::new_state(
             |ctx, (w, r): &mut (CrossSectionWindow, ResultPackage)| {
@@ -767,7 +762,7 @@ mod tests {
 
     #[test]
     fn neither_valid_shows_message() {
-        let mut window = CrossSectionWindow::default();
+        let window = CrossSectionWindow::default();
         use crate::views::cross_section::{Bounds2D, CrossSectionView, PlaneGeometry};
         let cs = CrossSectionView {
             wavelengths: vec![0.5876],

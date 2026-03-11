@@ -186,15 +186,12 @@ fn resolve_refractive_index(
     #[cfg(feature = "ri-info")] materials: Option<&MaterialsMap>,
 ) -> Result<Rc<dyn RefractiveIndexSpec>> {
     #[cfg(feature = "ri-info")]
-    if use_materials {
-        if let Some(key) = &row.material_key {
-            let materials =
-                materials.ok_or_else(|| anyhow::anyhow!("Material store not loaded"))?;
-            let mat = materials.get(key).ok_or_else(|| {
-                anyhow::anyhow!("surface {surface_idx}: material '{key}' not found in database")
-            })?;
-            return Ok(Rc::clone(mat) as Rc<dyn RefractiveIndexSpec>);
-        }
+    if use_materials && let Some(key) = &row.material_key {
+        let materials = materials.ok_or_else(|| anyhow::anyhow!("Material store not loaded"))?;
+        let mat = materials.get(key).ok_or_else(|| {
+            anyhow::anyhow!("surface {surface_idx}: material '{key}' not found in database")
+        })?;
+        return Ok(Rc::clone(mat) as Rc<dyn RefractiveIndexSpec>);
     }
 
     #[cfg(not(feature = "ri-info"))]

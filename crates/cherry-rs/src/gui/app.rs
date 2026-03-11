@@ -1,6 +1,6 @@
 use std::sync::mpsc::{Receiver, Sender, channel};
 
-#[cfg(feature = "ri-info")]
+#[cfg(all(feature = "ri-info", not(target_arch = "wasm32")))]
 use std::{collections::HashMap, rc::Rc};
 
 use crate::gui::{
@@ -20,22 +20,12 @@ use crate::gui::panels;
 use crate::gui::windows::MaterialsWindow;
 
 /// Serialized subset of app state, persisted across sessions.
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Default, serde::Serialize, serde::Deserialize)]
 #[serde(default)]
 struct AppState {
     specs: SystemSpecs,
     input_id: u64,
     windows: WindowVisibility,
-}
-
-impl Default for AppState {
-    fn default() -> Self {
-        Self {
-            specs: SystemSpecs::default(),
-            input_id: 0,
-            windows: WindowVisibility::default(),
-        }
-    }
 }
 
 pub struct CherryApp {
@@ -57,8 +47,6 @@ pub struct CherryApp {
     cross_section_window: CrossSectionWindow,
 
     // ri-info: material browser data loaded on main thread for UI
-    #[cfg(feature = "ri-info")]
-    materials: HashMap<String, Rc<lib_ria::Material>>,
     #[cfg(feature = "ri-info")]
     material_index: panels::MaterialIndex,
     #[cfg(feature = "ri-info")]
@@ -136,20 +124,17 @@ impl CherryApp {
 
         // Native: load materials synchronously from disk.
         #[cfg(all(feature = "ri-info", not(target_arch = "wasm32")))]
-        let (materials, material_index) = match load_material_store() {
-            Ok(mats) => {
-                let index = panels::MaterialIndex::build_from_keys(mats.keys());
-                (mats, index)
-            }
+        let material_index = match load_material_store() {
+            Ok(mats) => panels::MaterialIndex::build_from_keys(mats.keys()),
             Err(e) => {
                 log::error!("Failed to load material database: {e}");
-                (HashMap::new(), panels::MaterialIndex::default())
+                panels::MaterialIndex::default()
             }
         };
 
         // WASM: start empty; materials are fetched asynchronously below.
         #[cfg(all(feature = "ri-info", target_arch = "wasm32"))]
-        let (materials, material_index) = (HashMap::new(), panels::MaterialIndex::default());
+        let material_index = panels::MaterialIndex::default();
 
         // WASM: Arc shared with the async loading task.
         #[cfg(all(feature = "ri-info", target_arch = "wasm32"))]
@@ -202,8 +187,6 @@ impl CherryApp {
             specs_window: SpecsWindow::default(),
             spot_diagram_window: SpotDiagramWindow::default(),
             cross_section_window: CrossSectionWindow::default(),
-            #[cfg(feature = "ri-info")]
-            materials,
             #[cfg(feature = "ri-info")]
             material_index,
             #[cfg(feature = "ri-info")]
@@ -268,10 +251,9 @@ impl CherryApp {
                     .add_filter("JSON", &["json"])
                     .save_file()
                     .await
+                    && let Err(e) = handle.write(json.as_bytes()).await
                 {
-                    if let Err(e) = handle.write(json.as_bytes()).await {
-                        log::error!("Failed to write file: {e}");
-                    }
+                    log::error!("Failed to write file: {e}");
                 }
             });
         }
@@ -295,10 +277,9 @@ impl CherryApp {
                 .set_title("Export Cross-Section SVG")
                 .add_filter("SVG", &["svg"])
                 .save_file()
+                && let Err(e) = std::fs::write(&path, svg.as_bytes())
             {
-                if let Err(e) = std::fs::write(&path, svg.as_bytes()) {
-                    log::error!("Failed to write SVG: {e}");
-                }
+                log::error!("Failed to write SVG: {e}");
             }
         }
 
@@ -310,10 +291,9 @@ impl CherryApp {
                     .add_filter("SVG", &["svg"])
                     .save_file()
                     .await
+                    && let Err(e) = handle.write(svg.as_bytes()).await
                 {
-                    if let Err(e) = handle.write(svg.as_bytes()).await {
-                        log::error!("Failed to write SVG: {e}");
-                    }
+                    log::error!("Failed to write SVG: {e}");
                 }
             });
         }
@@ -410,14 +390,14 @@ impl eframe::App for CherryApp {
             if self
                 .latest_result
                 .as_ref()
-                .map_or(true, |prev| result.id >= prev.id)
+                .is_none_or(|prev| result.id >= prev.id)
             {
                 self.latest_result = Some(result);
             }
         }
 
         let result_ref = self.latest_result.as_ref();
-        let is_computing = result_ref.map_or(true, |r| r.id < self.input_id);
+        let is_computing = result_ref.is_none_or(|r| r.id < self.input_id);
 
         // Top menu bar
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {

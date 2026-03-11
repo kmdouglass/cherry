@@ -6,20 +6,12 @@
 /// matching the format expected by MaterialIndex::build_from_keys.
 fn main() -> anyhow::Result<()> {
     let mut args = std::env::args().skip(1);
-    let output_path = loop {
-        match args.next().as_deref() {
-            Some("--output") => {
-                break args
-                    .next()
-                    .ok_or_else(|| anyhow::anyhow!("--output requires a value"))?;
-            }
-            Some(flag) => {
-                anyhow::bail!("Unknown argument: {flag}")
-            }
-            None => {
-                break "assets/rii-index.json".to_string();
-            }
-        }
+    let output_path = match args.next().as_deref() {
+        Some("--output") => args
+            .next()
+            .ok_or_else(|| anyhow::anyhow!("--output requires a value"))?,
+        Some(flag) => anyhow::bail!("Unknown argument: {flag}"),
+        None => "assets/rii-index.json".to_string(),
     };
 
     let db_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/rii.db");
@@ -32,10 +24,10 @@ fn main() -> anyhow::Result<()> {
     let mut keys: Vec<String> = store.keys().cloned().collect();
     keys.sort();
 
-    if let Some(parent) = std::path::Path::new(&output_path).parent() {
-        if !parent.as_os_str().is_empty() {
-            std::fs::create_dir_all(parent)?;
-        }
+    if let Some(parent) = std::path::Path::new(&output_path).parent()
+        && !parent.as_os_str().is_empty()
+    {
+        std::fs::create_dir_all(parent)?;
     }
 
     let file = std::fs::File::create(&output_path)

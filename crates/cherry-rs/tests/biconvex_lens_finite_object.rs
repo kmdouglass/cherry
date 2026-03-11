@@ -82,7 +82,7 @@ fn test_paraxial_view_back_focal_distance() {
     let view =
         ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
 
-    for (submodel_id, _) in submodels {
+    for submodel_id in submodels.keys() {
         let sub_view = view.subviews().get(submodel_id).unwrap();
         let result = sub_view.back_focal_distance();
 
@@ -97,7 +97,7 @@ fn test_paraxial_view_back_principal_plane() {
     let view =
         ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
 
-    for (submodel_id, _) in submodels {
+    for submodel_id in submodels.keys() {
         let sub_view = view.subviews().get(submodel_id).unwrap();
         let result = sub_view.back_principal_plane();
 
@@ -112,7 +112,7 @@ fn test_paraxial_view_entrance_pupil() {
     let view =
         ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
 
-    for (submodel_id, _) in submodels {
+    for submodel_id in submodels.keys() {
         let sub_view = view.subviews().get(submodel_id).unwrap();
         let result = sub_view.entrance_pupil();
 
@@ -127,7 +127,7 @@ fn test_paraxial_view_exit_pupil() {
     let view =
         ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
 
-    for (submodel_id, _) in submodels {
+    for submodel_id in submodels.keys() {
         let sub_view = view.subviews().get(submodel_id).unwrap();
         let result = sub_view.exit_pupil();
 
@@ -147,7 +147,7 @@ fn test_paraxial_view_effective_focal_length() {
     let view =
         ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
 
-    for (submodel_id, _) in submodels {
+    for submodel_id in submodels.keys() {
         let sub_view = view.subviews().get(submodel_id).unwrap();
         let result = sub_view.effective_focal_length();
 
@@ -162,7 +162,7 @@ fn test_paraxial_view_front_focal_distance() {
     let view =
         ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
 
-    for (submodel_id, _) in submodels {
+    for submodel_id in submodels.keys() {
         let sub_view = view.subviews().get(submodel_id).unwrap();
         let result = sub_view.front_focal_distance();
 
@@ -177,7 +177,7 @@ fn test_paraxial_view_front_principal_plane() {
     let view =
         ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
 
-    for (submodel_id, _) in sub_models {
+    for submodel_id in sub_models.keys() {
         let sub_view = view.subviews().get(submodel_id).unwrap();
         let result = sub_view.front_principal_plane();
 
@@ -192,7 +192,7 @@ fn test_paraxial_view_image_plane() {
     let view =
         ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
 
-    for (submodel_id, _) in sub_models {
+    for submodel_id in sub_models.keys() {
         let sub_view = view.subviews().get(submodel_id).unwrap();
         let result = sub_view.paraxial_image_plane();
 

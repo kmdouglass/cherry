@@ -154,10 +154,10 @@ mod test {
     #[test]
     fn test_ray_is_not_terminated() {
         let terminated = vec![0, 1, 0, 2];
-        assert_eq!(ray_is_not_terminated(0, &terminated), true);
-        assert_eq!(ray_is_not_terminated(1, &terminated), false);
-        assert_eq!(ray_is_not_terminated(2, &terminated), true);
-        assert_eq!(ray_is_not_terminated(3, &terminated), false);
+        assert!(ray_is_not_terminated(0, &terminated));
+        assert!(!ray_is_not_terminated(1, &terminated));
+        assert!(ray_is_not_terminated(2, &terminated));
+        assert!(!ray_is_not_terminated(3, &terminated));
     }
 
     #[test]

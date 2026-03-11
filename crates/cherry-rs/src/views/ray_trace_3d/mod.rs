@@ -723,7 +723,7 @@ mod tests {
         let s = setup();
 
         let rays = rays(
-            &s.sequential_model.surfaces(),
+            s.sequential_model.surfaces(),
             &s.aperture_spec,
             &s.paraxial_view.subviews()[&SubModelID(0, Axis::Y)],
             &s.field_specs[0],
@@ -746,7 +746,7 @@ mod tests {
         };
 
         let result = rays(
-            &s.sequential_model.surfaces(),
+            s.sequential_model.surfaces(),
             &s.aperture_spec,
             &s.paraxial_view.subviews()[&SubModelID(0, Axis::Y)],
             &field_spec,
@@ -766,7 +766,7 @@ mod tests {
         let s = setup();
 
         let rays = chief_ray_from_angle(
-            &s.sequential_model.surfaces(),
+            s.sequential_model.surfaces(),
             &s.aperture_spec,
             &s.paraxial_view.subviews()[&SubModelID(0, Axis::Y)],
             0.0,
@@ -788,7 +788,7 @@ mod tests {
         let s = setup();
 
         let rays = chief_ray_from_angle(
-            &s.sequential_model.surfaces(),
+            s.sequential_model.surfaces(),
             &s.aperture_spec,
             &s.paraxial_view.subviews()[&SubModelID(0, Axis::Y)],
             PI / 2.0,
@@ -850,7 +850,7 @@ mod tests {
         let s = setup();
 
         let rays = parallel_ray_bundle_on_sq_grid(
-            &s.sequential_model.surfaces(),
+            s.sequential_model.surfaces(),
             &s.aperture_spec,
             &s.paraxial_view.subviews()[&SubModelID(0, Axis::Y)],
             1.0,
@@ -862,7 +862,7 @@ mod tests {
         assert_eq!(rays.unwrap().len(), 5);
 
         let rays = parallel_ray_bundle_on_sq_grid(
-            &s.sequential_model.surfaces(),
+            s.sequential_model.surfaces(),
             &s.aperture_spec,
             &s.paraxial_view.subviews()[&SubModelID(0, Axis::Y)],
             0.5,

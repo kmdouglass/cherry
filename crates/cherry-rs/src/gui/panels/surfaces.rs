@@ -209,11 +209,11 @@ pub fn surfaces_panel(ui: &mut egui::Ui, specs: &mut SystemSpecs) -> bool {
                 specs.surfaces.insert(idx + 1, SurfaceRow::new_default());
                 changed = true;
             }
-            if let Some(idx) = delete_at {
-                if specs.surfaces.len() > 2 {
-                    specs.surfaces.remove(idx);
-                    changed = true;
-                }
+            if let Some(idx) = delete_at
+                && specs.surfaces.len() > 2
+            {
+                specs.surfaces.remove(idx);
+                changed = true;
             }
         });
 
