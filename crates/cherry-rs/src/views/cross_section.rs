@@ -239,24 +239,14 @@ fn build_plane_geometry(
                     }
                     let abs_idx = surf_idx * n_rays + ray_idx;
                     if let Some(ray) = bundle.rays().get(abs_idx) {
-                        // Map surf_idx to a z-coordinate in the model.
-                        // surf_idx 0 = launch point: use the ray's actual z position since
-                        // surfaces[0] is the object surface, which is at -inf for infinite
-                        // conjugates.
-                        // surf_idx k (k > 0) = after the k-th surface: use the vertex z of
-                        // surfaces[k] for consistency with the drawn lens outlines.
-                        let model_surf_z = if surf_idx == 0 {
-                            ray.z()
-                        } else if surf_idx < surfaces.len() {
-                            surfaces[surf_idx].pos().z()
-                        } else {
+                        if surf_idx >= surfaces.len() {
                             continue;
-                        };
+                        }
                         let transverse = match axis {
                             Axis::Y => ray.y() as f64,
                             Axis::X => ray.x() as f64,
                         };
-                        path.push([model_surf_z, transverse]);
+                        path.push([ray.z(), transverse]);
                     }
                 }
                 if path.len() >= 2 {
