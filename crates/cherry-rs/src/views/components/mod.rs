@@ -83,18 +83,18 @@ pub fn components_view(
             continue;
         }
 
-        if same_medium(gaps[i].refractive_index, background_refractive_index) {
-            // Don't include surface pairs that go from background to another medium because
-            // these are gaps.
-            continue;
-        }
-
         if let Surface::Image(_) = surf_pair.1 {
             // Check whether the next to last surface has already been paired with another.
             if !paired_surfaces.contains(&i) {
                 components.insert(Component::UnpairedSurface { surf_idx: i });
                 continue;
             }
+        }
+
+        if same_medium(gaps[i].refractive_index, background_refractive_index) {
+            // Don't include surface pairs that go from background to another medium because
+            // these are gaps.
+            continue;
         }
 
         components.insert(Component::Element {
@@ -117,7 +117,7 @@ fn same_medium(eta_1: RefractiveIndex, eta_2: RefractiveIndex) -> bool {
 mod tests {
     use std::rc::Rc;
 
-    use crate::examples::convexplano_lens;
+    use crate::examples::{concave_mirror, convexplano_lens};
     use crate::{GapSpec, Rotation3D, SequentialModel, SurfaceSpec, core::Float, n};
 
     use super::*;
@@ -360,6 +360,16 @@ mod tests {
 
     //     SequentialModel::new(&gaps, &surfaces, &wavelengths).unwrap()
     // }
+
+    #[test]
+    fn test_concave_mirror() {
+        let sequential_model = concave_mirror::sequential_model(n!(1.0), &[0.5876]);
+
+        let components = components_view(&sequential_model, n!(1.0)).unwrap();
+
+        assert_eq!(components.len(), 1);
+        assert!(components.contains(&Component::UnpairedSurface { surf_idx: 1 }));
+    }
 
     #[test]
     fn test_new_no_components() {
