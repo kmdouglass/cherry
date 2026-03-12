@@ -121,29 +121,26 @@ pub fn materials_panel(
     }
 
     // Page ComboBox (depends on shelf + book)
-    if let Some(shelf) = &browser.selected_shelf {
-        if let Some(book) = &browser.selected_book {
-            let pages = index.pages.get(&(shelf.clone(), book.clone()));
-            let page_label = browser.selected_page.as_deref().unwrap_or("Select page...");
-            egui::ComboBox::from_label("Page")
-                .selected_text(page_label)
-                .width(200.0)
-                .show_ui(ui, |ui| {
-                    if let Some(pages) = pages {
-                        for page in pages {
-                            if ui
-                                .selectable_label(
-                                    browser.selected_page.as_deref() == Some(page),
-                                    page,
-                                )
-                                .clicked()
-                            {
-                                browser.selected_page = Some(page.clone());
-                            }
+    if let Some(shelf) = &browser.selected_shelf
+        && let Some(book) = &browser.selected_book
+    {
+        let pages = index.pages.get(&(shelf.clone(), book.clone()));
+        let page_label = browser.selected_page.as_deref().unwrap_or("Select page...");
+        egui::ComboBox::from_label("Page")
+            .selected_text(page_label)
+            .width(200.0)
+            .show_ui(ui, |ui| {
+                if let Some(pages) = pages {
+                    for page in pages {
+                        if ui
+                            .selectable_label(browser.selected_page.as_deref() == Some(page), page)
+                            .clicked()
+                        {
+                            browser.selected_page = Some(page.clone());
                         }
                     }
-                });
-        }
+                }
+            });
     }
 
     // Add button
@@ -154,17 +151,16 @@ pub fn materials_panel(
     if ui
         .add_enabled(can_add, egui::Button::new("Add to selected"))
         .clicked()
-    {
-        if let (Some(shelf), Some(book), Some(page)) = (
+        && let (Some(shelf), Some(book), Some(page)) = (
             &browser.selected_shelf,
             &browser.selected_book,
             &browser.selected_page,
-        ) {
-            let key = format!("{shelf}:{book}:{page}");
-            if !specs.selected_materials.contains(&key) {
-                specs.selected_materials.push(key);
-                changed = true;
-            }
+        )
+    {
+        let key = format!("{shelf}:{book}:{page}");
+        if !specs.selected_materials.contains(&key) {
+            specs.selected_materials.push(key);
+            changed = true;
         }
     }
 

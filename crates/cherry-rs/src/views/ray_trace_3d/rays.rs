@@ -303,8 +303,8 @@ mod test {
         let cursor = Cursor::new(0.0);
 
         // Ray starts at z = -1.0 and travels at 45 degrees to the optics axis
-        let l = 0.7071;
-        let m = ((1.0 as Float) - 0.7071 * 0.7071).sqrt();
+        let l = (std::f64::consts::PI as Float / 4.0).sin();
+        let m = (std::f64::consts::PI as Float / 4.0).cos();
         let ray = Ray::new(Vec3::new(0.0, 0.0, -1.0), Vec3::new(0.0, l, m));
 
         // Surface has radius of curvature -1.0 and conic constant 0.0, i.e. a circle

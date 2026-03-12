@@ -7,6 +7,7 @@ use crate::{
 const PLOT_SIZE: f32 = 180.0;
 
 /// Floating spot diagram output window.
+#[derive(Default)]
 pub struct SpotDiagramWindow {
     /// Surface index to display. `None` means auto-select the Image surface.
     selected_surface: Option<usize>,
@@ -15,16 +16,6 @@ pub struct SpotDiagramWindow {
     wavelength_visible: Vec<bool>,
     /// Wavelength count from the last result seen.
     last_n_wavelengths: usize,
-}
-
-impl Default for SpotDiagramWindow {
-    fn default() -> Self {
-        Self {
-            selected_surface: None,
-            wavelength_visible: Vec::new(),
-            last_n_wavelengths: 0,
-        }
-    }
 }
 
 impl SpotDiagramWindow {
@@ -42,11 +33,11 @@ impl SpotDiagramWindow {
             .min_width(300.0)
             .show(ctx, |ui| {
                 // Sync wavelength visibility when the result package changes.
-                if let Some(r) = result {
-                    if r.wavelengths.len() != self.last_n_wavelengths {
-                        self.wavelength_visible = vec![true; r.wavelengths.len()];
-                        self.last_n_wavelengths = r.wavelengths.len();
-                    }
+                if let Some(r) = result
+                    && r.wavelengths.len() != self.last_n_wavelengths
+                {
+                    self.wavelength_visible = vec![true; r.wavelengths.len()];
+                    self.last_n_wavelengths = r.wavelengths.len();
                 }
 
                 let is_stale = matches!(result, Some(r) if r.id < input_id);
@@ -150,8 +141,7 @@ impl SpotDiagramWindow {
                         field_id,
                         selected_idx,
                         &self.wavelength_visible,
-                        axis_min,
-                        axis_max,
+                        (axis_min, axis_max),
                     );
                 });
             }
@@ -201,9 +191,9 @@ fn render_field_plot(
     field_id: usize,
     surface_idx: usize,
     wavelength_visible: &[bool],
-    axis_min: f64,
-    axis_max: f64,
+    axis_range: (f64, f64),
 ) {
+    let (axis_min, axis_max) = axis_range;
     let size = egui::Vec2::splat(PLOT_SIZE);
     let (rect, _) = ui.allocate_exact_size(size, egui::Sense::hover());
     let painter = ui.painter_at(rect);
@@ -329,7 +319,7 @@ fn rays_at_surface(
             return None;
         }
         let ray = rays.get(abs_idx)?;
-        Some((ray.x() as f64, ray.y() as f64))
+        Some((ray.x(), ray.y()))
     })
 }
 
@@ -360,7 +350,7 @@ mod tests {
 
     #[test]
     fn stale_result_shows_update_in_progress() {
-        let mut window = SpotDiagramWindow::default();
+        let window = SpotDiagramWindow::default();
         let result = ResultPackage::error(0, String::new());
         let mut harness = Harness::new_state(
             |ctx, (w, r): &mut (SpotDiagramWindow, ResultPackage)| {
@@ -386,7 +376,7 @@ mod tests {
 
     #[test]
     fn system_error_shown() {
-        let mut window = SpotDiagramWindow::default();
+        let window = SpotDiagramWindow::default();
         let result = ResultPackage::error(1, "bad specs".to_string());
         let mut harness = Harness::new_state(
             |ctx, (w, r): &mut (SpotDiagramWindow, ResultPackage)| {
@@ -424,7 +414,7 @@ mod tests {
             error: Some("trace failed".to_string()),
         };
 
-        let mut window = SpotDiagramWindow::default();
+        let window = SpotDiagramWindow::default();
         let mut harness = Harness::new_state(
             |ctx, (w, r): &mut (SpotDiagramWindow, ResultPackage)| {
                 show_window(w, Some(r), 1, ctx);
@@ -487,7 +477,7 @@ mod tests {
             error: None,
         };
 
-        let mut window = SpotDiagramWindow::default();
+        let window = SpotDiagramWindow::default();
         let mut harness = Harness::new_state(
             |ctx, (w, r): &mut (SpotDiagramWindow, ResultPackage)| {
                 show_window(w, Some(r), 1, ctx);

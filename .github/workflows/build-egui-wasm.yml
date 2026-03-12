@@ -18,7 +18,7 @@ jobs:
       with:
         toolchain: nightly-2025-11-15
         targets: wasm32-unknown-unknown
-        components: rust-src
+        components: rust-src,clippy
 
     - name: Cache Rust build artifacts
       uses: Swatinem/rust-cache@v2
@@ -58,9 +58,15 @@ jobs:
       working-directory: ./crates
       run: cargo test -p cherry-rs --features gui,ri-info
 
-#    - name: Clippy
-#      working-directory: ./crates
-#      run: cargo clippy -p cherry-rs --features gui,ri-info -- -D warnings
+    - name: Clippy
+      working-directory: ./crates
+      run: cargo clippy -p cherry-rs --features gui,ri-info --all-targets -- -D warnings
+
+    - name: Clippy (wasm32)
+      working-directory: ./crates
+      env:
+        RUSTFLAGS: "-C target-feature=+atomics,+bulk-memory,+mutable-globals"
+      run: cargo clippy -p cherry-rs --target wasm32-unknown-unknown --features gui,ri-info -- -D warnings
 
     - name: Check formatting
       working-directory: ./crates

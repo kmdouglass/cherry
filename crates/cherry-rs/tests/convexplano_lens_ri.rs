@@ -96,7 +96,7 @@ fn convexplano_lens_ri_paraxial_back_focal_distance() {
     let view =
         ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
 
-    for (sub_model_id, _) in sub_models {
+    for sub_model_id in sub_models.keys() {
         let sub_view = view.subviews().get(sub_model_id).unwrap();
         let result = sub_view.back_focal_distance();
 
@@ -111,7 +111,7 @@ fn convexplano_lens_ri_paraxial_back_principal_plane() {
     let view =
         ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
 
-    for (sub_model_id, _) in sub_models {
+    for sub_model_id in sub_models.keys() {
         let sub_view = view.subviews().get(sub_model_id).unwrap();
         let result = sub_view.back_principal_plane();
 
@@ -126,7 +126,7 @@ fn convexplano_lens_ri_paraxial_entrance_pupil() {
     let view =
         ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
 
-    for (sub_model_id, _) in sub_models {
+    for sub_model_id in sub_models.keys() {
         let sub_view = view.subviews().get(sub_model_id).unwrap();
         let result = sub_view.entrance_pupil();
 
@@ -141,7 +141,7 @@ fn convexplano_lens_ri_paraxial_exit_pupil() {
     let view =
         ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
 
-    for (sub_model_id, _) in sub_models {
+    for sub_model_id in sub_models.keys() {
         let sub_view = view.subviews().get(sub_model_id).unwrap();
         let result = sub_view.exit_pupil();
 
@@ -161,7 +161,7 @@ fn convexplano_lens_ri_paraxial_effective_focal_length() {
     let view =
         ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
 
-    for (sub_model_id, _) in sub_models {
+    for sub_model_id in sub_models.keys() {
         let sub_view = view.subviews().get(sub_model_id).unwrap();
         let result = sub_view.effective_focal_length();
 
@@ -176,7 +176,7 @@ fn convexplano_lens_ri_paraxial_front_focal_distance() {
     let view =
         ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
 
-    for (sub_model_id, _) in sub_models {
+    for sub_model_id in sub_models.keys() {
         let sub_view = view.subviews().get(sub_model_id).unwrap();
         let result = sub_view.front_focal_distance();
 
@@ -191,7 +191,7 @@ fn convexplano_lens_ri_paraxial_front_principal_plane() {
     let view =
         ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
 
-    for (sub_model_id, _) in sub_models {
+    for sub_model_id in sub_models.keys() {
         let sub_view = view.subviews().get(sub_model_id).unwrap();
         let result = sub_view.front_principal_plane();
 
@@ -206,7 +206,7 @@ fn convexplano_lens_ri_paraxial_image_plane() {
     let view =
         ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
 
-    for (sub_model_id, _) in sub_models {
+    for sub_model_id in sub_models.keys() {
         let sub_view = view.subviews().get(sub_model_id).unwrap();
         let result = sub_view.paraxial_image_plane();
 

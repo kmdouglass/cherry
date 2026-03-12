@@ -209,10 +209,7 @@ fn build_plane_geometry(
     let mut ray_paths: Vec<Vec<Vec<[f64; 2]>>> = vec![Vec::new(); n_wavelengths];
 
     if let Some(tc) = trace {
-        let trace_axis = match axis {
-            Axis::Y => Axis::Y,
-            Axis::X => Axis::X,
-        };
+        let trace_axis = axis;
         for result in tc.get_by_axis(trace_axis) {
             let wl_id = result.wavelength_id();
             if wl_id >= n_wavelengths {
@@ -243,8 +240,8 @@ fn build_plane_geometry(
                             continue;
                         }
                         let transverse = match axis {
-                            Axis::Y => ray.y() as f64,
-                            Axis::X => ray.x() as f64,
+                            Axis::Y => ray.y(),
+                            Axis::X => ray.x(),
                         };
                         path.push([ray.z(), transverse]);
                     }

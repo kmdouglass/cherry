@@ -645,13 +645,6 @@ impl Surface {
         self.pos().z()
     }
 
-    pub(crate) fn conic_constant(&self) -> Option<Float> {
-        match self {
-            Self::Conic(conic) => Some(conic.conic_constant),
-            _ => None,
-        }
-    }
-
     /// Creates a new surface from a specification.
     ///
     /// The position and rotation of the surface are determined by the input
