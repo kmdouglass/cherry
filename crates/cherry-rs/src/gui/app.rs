@@ -436,12 +436,20 @@ impl eframe::App for CherryApp {
                         self.load_specs(SystemSpecs::default());
                         ui.close();
                     }
+                    if ui.button("Convexplano Lens (Materials)").clicked() {
+                        self.load_specs(examples::convexplano_lens_with_materials());
+                        ui.close();
+                    }
                     if ui.button("Petzval Lens").clicked() {
                         self.load_specs(examples::petzval_lens());
                         ui.close();
                     }
                     if ui.button("Concave Mirror").clicked() {
                         self.load_specs(examples::concave_mirror());
+                        ui.close();
+                    }
+                    if ui.button("Biconvex Lens").clicked() {
+                        self.load_specs(examples::biconvex_lens());
                         ui.close();
                     }
                 });
