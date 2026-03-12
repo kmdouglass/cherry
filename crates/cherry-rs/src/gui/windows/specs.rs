@@ -18,14 +18,7 @@ impl Default for SpecsWindow {
 
 impl SpecsWindow {
     /// Show the specs window. Returns true if any spec was modified.
-    pub fn show(
-        &mut self,
-        ctx: &egui::Context,
-        open: &mut bool,
-        specs: &mut SystemSpecs,
-        #[cfg(feature = "ri-info")] material_index: &panels::MaterialIndex,
-        #[cfg(feature = "ri-info")] material_browser: &mut panels::MaterialBrowserState,
-    ) -> bool {
+    pub fn show(&mut self, ctx: &egui::Context, open: &mut bool, specs: &mut SystemSpecs) -> bool {
         let response = egui::Window::new("Specs")
             .open(open)
             .default_width(640.0)
@@ -37,8 +30,6 @@ impl SpecsWindow {
                     ui.selectable_value(&mut self.active_tab, SpecsTab::Fields, "Fields");
                     ui.selectable_value(&mut self.active_tab, SpecsTab::Aperture, "Aperture");
                     ui.selectable_value(&mut self.active_tab, SpecsTab::Wavelengths, "Wavelengths");
-                    #[cfg(feature = "ri-info")]
-                    ui.selectable_value(&mut self.active_tab, SpecsTab::Materials, "Materials");
                 });
                 ui.separator();
 
@@ -47,10 +38,6 @@ impl SpecsWindow {
                     SpecsTab::Fields => panels::fields_panel(ui, specs),
                     SpecsTab::Aperture => panels::aperture_panel(ui, specs),
                     SpecsTab::Wavelengths => panels::wavelengths_panel(ui, specs),
-                    #[cfg(feature = "ri-info")]
-                    SpecsTab::Materials => {
-                        panels::materials_panel(ui, specs, material_index, material_browser)
-                    }
                 }
             });
 
@@ -67,15 +54,7 @@ mod tests {
 
     fn show_specs_window(window: &mut SpecsWindow, specs: &mut SystemSpecs, ctx: &egui::Context) {
         let mut open = true;
-        window.show(
-            ctx,
-            &mut open,
-            specs,
-            #[cfg(feature = "ri-info")]
-            &panels::MaterialIndex::default(),
-            #[cfg(feature = "ri-info")]
-            &mut panels::MaterialBrowserState::default(),
-        );
+        window.show(ctx, &mut open, specs);
     }
 
     #[test]
