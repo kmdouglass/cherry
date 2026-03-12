@@ -10,37 +10,21 @@ pub struct ParaxialWindow;
 
 impl ParaxialWindow {
     /// Show the paraxial summary window.
-    ///
-    /// `input_id` is the current `CherryApp::input_id`; a stale banner is
-    /// shown when the result's id lags behind.
-    pub fn show(
-        ctx: &egui::Context,
-        open: &mut bool,
-        result: Option<&ResultPackage>,
-        input_id: u64,
-    ) {
+    pub fn show(ctx: &egui::Context, open: &mut bool, result: Option<&ResultPackage>) {
         egui::Window::new("Paraxial Summary")
             .open(open)
             .default_width(400.0)
-            .show(ctx, |ui| {
-                let is_stale = matches!(result, Some(r) if r.id < input_id);
-                if is_stale {
-                    ui.colored_label(egui::Color32::YELLOW, "\u{26a0} Update in progress\u{2026}");
-                    ui.separator();
+            .show(ctx, |ui| match result {
+                None => {
+                    ui.label("No data yet.");
                 }
-
-                match result {
-                    None => {
-                        ui.label("No data yet.");
+                Some(r) if r.paraxial.is_none() => {
+                    if let Some(err) = &r.error {
+                        ui.colored_label(egui::Color32::RED, format!("System error: {err}"));
                     }
-                    Some(r) if r.paraxial.is_none() => {
-                        if let Some(err) = &r.error {
-                            ui.colored_label(egui::Color32::RED, format!("System error: {err}"));
-                        }
-                    }
-                    Some(r) => {
-                        render_paraxial_content(ui, r);
-                    }
+                }
+                Some(r) => {
+                    render_paraxial_content(ui, r);
                 }
             });
     }
@@ -262,38 +246,10 @@ mod tests {
     fn no_result_shows_placeholder() {
         let mut harness = Harness::new(|ctx| {
             let mut open = true;
-            ParaxialWindow::show(ctx, &mut open, None, 0);
+            ParaxialWindow::show(ctx, &mut open, None);
         });
         harness.step();
         harness.get_by_label("No data yet.");
-    }
-
-    #[test]
-    fn stale_result_shows_update_in_progress_banner() {
-        // result.id = 0, input_id = 1 → stale
-        let result = ResultPackage::error(0, String::new());
-        let mut harness = Harness::new(|ctx| {
-            let mut open = true;
-            ParaxialWindow::show(ctx, &mut open, Some(&result), 1);
-        });
-        harness.step();
-        harness.get_by_label_contains("Update in progress");
-    }
-
-    #[test]
-    fn no_stale_banner_when_no_result() {
-        // When result is None, no stale banner should appear even if input_id > 0.
-        let mut harness = Harness::new(|ctx| {
-            let mut open = true;
-            ParaxialWindow::show(ctx, &mut open, None, 5);
-        });
-        harness.step();
-        assert!(
-            harness
-                .query_by_label_contains("Update in progress")
-                .is_none(),
-            "stale banner must not appear when no result has been received yet"
-        );
     }
 
     #[test]
@@ -301,7 +257,7 @@ mod tests {
         let result = ResultPackage::error(1, "bad specs".to_string());
         let mut harness = Harness::new(|ctx| {
             let mut open = true;
-            ParaxialWindow::show(ctx, &mut open, Some(&result), 1);
+            ParaxialWindow::show(ctx, &mut open, Some(&result));
         });
         harness.step();
         harness.get_by_label_contains("bad specs");
@@ -312,7 +268,7 @@ mod tests {
         let result = make_result(&["0.567"]);
         let mut harness = Harness::new(|ctx| {
             let mut open = true;
-            ParaxialWindow::show(ctx, &mut open, Some(&result), 1);
+            ParaxialWindow::show(ctx, &mut open, Some(&result));
         });
         harness.step();
         harness.get_by_label("EFL");
@@ -325,7 +281,7 @@ mod tests {
         let result = make_result(&["0.567"]);
         let mut harness = Harness::new(|ctx| {
             let mut open = true;
-            ParaxialWindow::show(ctx, &mut open, Some(&result), 1);
+            ParaxialWindow::show(ctx, &mut open, Some(&result));
         });
         harness.step();
         harness.get_by_label_contains("Distances are relative");
@@ -336,7 +292,7 @@ mod tests {
         let result = make_result(&["0.567"]);
         let mut harness = Harness::new(|ctx| {
             let mut open = true;
-            ParaxialWindow::show(ctx, &mut open, Some(&result), 1);
+            ParaxialWindow::show(ctx, &mut open, Some(&result));
         });
         harness.step();
         // With one wavelength, no wavelength header row should appear.
@@ -351,7 +307,7 @@ mod tests {
         let result = make_result(&["0.486", "0.587", "0.656"]);
         let mut harness = Harness::new(|ctx| {
             let mut open = true;
-            ParaxialWindow::show(ctx, &mut open, Some(&result), 1);
+            ParaxialWindow::show(ctx, &mut open, Some(&result));
         });
         harness.step();
         // Each wavelength should appear as a column header.
@@ -365,7 +321,7 @@ mod tests {
         let result = make_result(&["0.486", "0.587", "0.656"]);
         let mut harness = Harness::new(|ctx| {
             let mut open = true;
-            ParaxialWindow::show(ctx, &mut open, Some(&result), 1);
+            ParaxialWindow::show(ctx, &mut open, Some(&result));
         });
         harness.step();
         harness.get_by_label_contains("Primary Axial Color");
@@ -376,7 +332,7 @@ mod tests {
         let result = make_result(&["0.567"]);
         let mut harness = Harness::new(|ctx| {
             let mut open = true;
-            ParaxialWindow::show(ctx, &mut open, Some(&result), 1);
+            ParaxialWindow::show(ctx, &mut open, Some(&result));
         });
         harness.step();
         assert!(

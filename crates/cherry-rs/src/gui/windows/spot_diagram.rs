@@ -20,13 +20,7 @@ pub struct SpotDiagramWindow {
 
 impl SpotDiagramWindow {
     /// Show the spot diagram window.
-    pub fn show(
-        &mut self,
-        ctx: &egui::Context,
-        open: &mut bool,
-        result: Option<&ResultPackage>,
-        input_id: u64,
-    ) {
+    pub fn show(&mut self, ctx: &egui::Context, open: &mut bool, result: Option<&ResultPackage>) {
         egui::Window::new("Spot Diagram")
             .open(open)
             .default_width(640.0)
@@ -38,12 +32,6 @@ impl SpotDiagramWindow {
                 {
                     self.wavelength_visible = vec![true; r.wavelengths.len()];
                     self.last_n_wavelengths = r.wavelengths.len();
-                }
-
-                let is_stale = matches!(result, Some(r) if r.id < input_id);
-                if is_stale {
-                    ui.colored_label(egui::Color32::YELLOW, "\u{26a0} Update in progress\u{2026}");
-                    ui.separator();
                 }
 
                 match result {
@@ -350,45 +338,18 @@ mod tests {
     fn show_window(
         window: &mut SpotDiagramWindow,
         result: Option<&ResultPackage>,
-        input_id: u64,
         ctx: &egui::Context,
     ) {
         let mut open = true;
-        window.show(ctx, &mut open, result, input_id);
+        window.show(ctx, &mut open, result);
     }
 
     #[test]
     fn no_result_shows_placeholder() {
         let mut window = SpotDiagramWindow::default();
-        let mut harness = Harness::new(|ctx| show_window(&mut window, None, 0, ctx));
+        let mut harness = Harness::new(|ctx| show_window(&mut window, None, ctx));
         harness.step();
         harness.get_by_label("No data yet.");
-    }
-
-    #[test]
-    fn stale_result_shows_update_in_progress() {
-        let window = SpotDiagramWindow::default();
-        let result = ResultPackage::error(0, String::new());
-        let mut harness = Harness::new_state(
-            |ctx, (w, r): &mut (SpotDiagramWindow, ResultPackage)| {
-                show_window(w, Some(r), 1, ctx);
-            },
-            (window, result),
-        );
-        harness.step();
-        harness.get_by_label_contains("Update in progress");
-    }
-
-    #[test]
-    fn no_stale_banner_when_no_result() {
-        let mut window = SpotDiagramWindow::default();
-        let mut harness = Harness::new(|ctx| show_window(&mut window, None, 5, ctx));
-        harness.step();
-        assert!(
-            harness
-                .query_by_label_contains("Update in progress")
-                .is_none()
-        );
     }
 
     #[test]
@@ -397,7 +358,7 @@ mod tests {
         let result = ResultPackage::error(1, "bad specs".to_string());
         let mut harness = Harness::new_state(
             |ctx, (w, r): &mut (SpotDiagramWindow, ResultPackage)| {
-                show_window(w, Some(r), 1, ctx);
+                show_window(w, Some(r), ctx);
             },
             (window, result),
         );
@@ -434,7 +395,7 @@ mod tests {
         let window = SpotDiagramWindow::default();
         let mut harness = Harness::new_state(
             |ctx, (w, r): &mut (SpotDiagramWindow, ResultPackage)| {
-                show_window(w, Some(r), 1, ctx);
+                show_window(w, Some(r), ctx);
             },
             (window, result),
         );
@@ -497,7 +458,7 @@ mod tests {
         let window = SpotDiagramWindow::default();
         let mut harness = Harness::new_state(
             |ctx, (w, r): &mut (SpotDiagramWindow, ResultPackage)| {
-                show_window(w, Some(r), 1, ctx);
+                show_window(w, Some(r), ctx);
             },
             (window, result),
         );

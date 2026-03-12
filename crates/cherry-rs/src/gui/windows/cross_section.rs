@@ -49,7 +49,6 @@ impl CrossSectionWindow {
         ctx: &egui::Context,
         open: &mut bool,
         result: Option<&ResultPackage>,
-        input_id: u64,
         n_rays: &mut u32,
     ) -> bool {
         let old = *n_rays;
@@ -59,7 +58,7 @@ impl CrossSectionWindow {
             .min_width(300.0)
             .resizable(true)
             .show(ctx, |ui| {
-                self.show_content(ui, result, input_id, n_rays);
+                self.show_content(ui, result, n_rays);
             });
         *n_rays != old
     }
@@ -68,7 +67,6 @@ impl CrossSectionWindow {
         &mut self,
         ui: &mut egui::Ui,
         result: Option<&ResultPackage>,
-        input_id: u64,
         n_rays: &mut u32,
     ) {
         let Some(result) = result else {
@@ -77,12 +75,6 @@ impl CrossSectionWindow {
         };
 
         let cs_data = result.cross_section.as_ref();
-
-        // Staleness banner.
-        if result.id < input_id {
-            ui.colored_label(egui::Color32::YELLOW, "\u{26a0} Update in progress\u{2026}");
-            ui.separator();
-        }
 
         // Controls.
         self.show_controls(ui, cs_data, n_rays);
@@ -730,34 +722,19 @@ mod tests {
     fn show_window(
         window: &mut CrossSectionWindow,
         result: Option<&ResultPackage>,
-        input_id: u64,
         ctx: &egui::Context,
     ) {
         let mut open = true;
         let mut n_rays = 11u32;
-        window.show(ctx, &mut open, result, input_id, &mut n_rays);
+        window.show(ctx, &mut open, result, &mut n_rays);
     }
 
     #[test]
     fn no_result_shows_empty_viewport() {
         let mut window = CrossSectionWindow::default();
-        let mut harness = Harness::new(|ctx| show_window(&mut window, None, 0, ctx));
+        let mut harness = Harness::new(|ctx| show_window(&mut window, None, ctx));
         harness.step();
         harness.get_by_label("No data yet.");
-    }
-
-    #[test]
-    fn stale_result_shows_banner() {
-        let window = CrossSectionWindow::default();
-        let result = ResultPackage::error(0, String::new());
-        let mut harness = Harness::new_state(
-            |ctx, (w, r): &mut (CrossSectionWindow, ResultPackage)| {
-                show_window(w, Some(r), 1, ctx);
-            },
-            (window, result),
-        );
-        harness.step();
-        harness.get_by_label_contains("Update in progress");
     }
 
     #[test]
@@ -797,7 +774,7 @@ mod tests {
         };
         let mut harness = Harness::new_state(
             |ctx, (w, r): &mut (CrossSectionWindow, ResultPackage)| {
-                show_window(w, Some(r), 1, ctx);
+                show_window(w, Some(r), ctx);
             },
             (window, result),
         );

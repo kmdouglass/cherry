@@ -398,6 +398,7 @@ impl eframe::App for CherryApp {
 
         let result_ref = self.latest_result.as_ref();
         let is_computing = result_ref.is_none_or(|r| r.id < self.input_id);
+        let has_result = self.latest_result.is_some();
 
         // Top menu bar
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
@@ -451,6 +452,9 @@ impl eframe::App for CherryApp {
                 if is_computing {
                     ui.add_space(8.0);
                     ui.spinner();
+                    if has_result {
+                        ui.label("Update in progress\u{2026}");
+                    }
                 }
             });
         });
@@ -509,7 +513,6 @@ impl eframe::App for CherryApp {
                 ctx,
                 &mut self.windows.paraxial_summary,
                 self.latest_result.as_ref(),
-                self.input_id,
             );
         }
 
@@ -518,7 +521,6 @@ impl eframe::App for CherryApp {
                 ctx,
                 &mut self.windows.spot_diagram,
                 self.latest_result.as_ref(),
-                self.input_id,
             );
         }
 
@@ -527,7 +529,6 @@ impl eframe::App for CherryApp {
                 ctx,
                 &mut self.windows.cross_section,
                 self.latest_result.as_ref(),
-                self.input_id,
                 &mut self.specs.cross_section_n_rays,
             );
             if changed {
