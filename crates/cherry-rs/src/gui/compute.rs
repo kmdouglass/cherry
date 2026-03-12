@@ -3,7 +3,7 @@ use std::sync::mpsc::{Receiver, Sender};
 #[cfg(feature = "ri-info")]
 use std::{collections::HashMap, rc::Rc};
 
-use crate::{ParaxialView, SequentialModel, cross_section_view, ray_trace_3d_view};
+use crate::{Axis, ParaxialView, SequentialModel, cross_section_view, ray_trace_3d_view};
 
 use super::{
     convert,
@@ -150,17 +150,18 @@ fn run_compute(
         }
     };
 
-    let cs_sampling = Some(crate::specs::fields::PupilSampling::TangentialRayFan {
-        n: req.specs.cross_section_n_rays as usize,
-    });
-    let cs_trace = match ray_trace_3d_view(&parsed.aperture, &parsed.fields, &seq, &pv, cs_sampling)
-    {
-        Ok(t) => Some(t),
-        Err(e) => {
-            log::warn!("Cross-section ray trace failed: {e}");
-            None
+    let n = req.specs.cross_section_n_rays as usize;
+    let mut cs_trace: Option<crate::TraceResultsCollection> = None;
+    for axis in [Axis::Y, Axis::X] {
+        let sampling = Some(crate::specs::fields::PupilSampling::TangentialRayFan { n, axis });
+        match ray_trace_3d_view(&parsed.aperture, &parsed.fields, &seq, &pv, sampling) {
+            Ok(t) => match cs_trace.as_mut() {
+                Some(existing) => existing.extend(t),
+                None => cs_trace = Some(t),
+            },
+            Err(e) => log::warn!("Cross-section ray trace ({axis:?}) failed: {e}"),
         }
-    };
+    }
 
     let cross_section = Some(cross_section_view(&seq, cs_trace.as_ref()));
 
@@ -257,11 +258,17 @@ mod tests {
         let fields = vec![
             FieldSpec::Angle {
                 angle: 0.0,
-                pupil_sampling: PupilSampling::TangentialRayFan { n: 3 },
+                pupil_sampling: PupilSampling::TangentialRayFan {
+                    n: 3,
+                    axis: crate::Axis::Y,
+                },
             },
             FieldSpec::Angle {
                 angle: 5.0,
-                pupil_sampling: PupilSampling::TangentialRayFan { n: 3 },
+                pupil_sampling: PupilSampling::TangentialRayFan {
+                    n: 3,
+                    axis: crate::Axis::Y,
+                },
             },
         ];
         let descs = build_field_descs(&fields);

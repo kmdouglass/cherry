@@ -91,23 +91,31 @@ pub fn ray_trace_3d_view(
 ) -> Result<TraceResultsCollection> {
     validate_field_specs(sequential_model, field_specs)?;
 
-    let combinations = all_combinations(
-        field_specs,
-        sequential_model.wavelengths(),
-        &sequential_model.axes(),
-    );
+    // When the sampling override is a TangentialRayFan, trace only along its
+    // axis. This lets the caller request YZ and XZ fans independently.
+    // For rotationally symmetric systems (Axis::Y submodels only), fall back
+    // to the Y submodel when the requested axis has no submodel.
+    let axes: Vec<Axis> = match pupil_sampling {
+        Some(PupilSampling::TangentialRayFan { axis, .. }) => vec![axis],
+        _ => sequential_model.axes(),
+    };
+
+    let combinations = all_combinations(field_specs, sequential_model.wavelengths(), &axes);
 
     let mut results: Vec<TraceResults> = Vec::with_capacity(RESULTS_CAPACITY);
 
     for (field_id, wavelength_id, axis) in combinations {
         let submodel_id = SubModelID(wavelength_id, axis);
+        let fallback_id = SubModelID(wavelength_id, Axis::Y);
         let sequential_submodel = sequential_model
             .submodels()
             .get(&submodel_id)
+            .or_else(|| sequential_model.submodels().get(&fallback_id))
             .ok_or_else(|| anyhow!("Submodel not found"))?;
         let paraxial_subview = paraxial_view
             .subviews()
             .get(&submodel_id)
+            .or_else(|| paraxial_view.subviews().get(&fallback_id))
             .ok_or_else(|| anyhow!("Submodel not found"))?;
         let ray_bundle = ray_trace_submodel(
             sequential_submodel,
@@ -116,7 +124,6 @@ pub fn ray_trace_3d_view(
             &field_specs[field_id],
             paraxial_subview,
             pupil_sampling,
-            axis,
         )?;
         let chief_ray = ray_trace_submodel(
             sequential_submodel,
@@ -125,7 +132,6 @@ pub fn ray_trace_3d_view(
             &field_specs[field_id],
             paraxial_subview,
             Some(PupilSampling::ChiefRay),
-            axis,
         )?;
         results.push(TraceResults {
             wavelength_id,
@@ -170,6 +176,11 @@ impl TraceResultsCollection {
             .iter()
             .filter(|r| r.field_id == field_id)
             .collect()
+    }
+
+    /// Appends all results from `other` into this collection.
+    pub fn extend(&mut self, other: TraceResultsCollection) {
+        self.results.extend(other.results);
     }
 
     /// Returns whether the collection is empty.
@@ -217,7 +228,6 @@ fn ray_trace_submodel(
     field_spec: &FieldSpec,
     paraxial_subview: &ParaxialSubView,
     pupil_sampling: Option<PupilSampling>,
-    axis: Axis,
 ) -> Result<RayBundle> {
     let rays = rays(
         surfaces,
@@ -225,7 +235,6 @@ fn ray_trace_submodel(
         paraxial_subview,
         field_spec,
         pupil_sampling,
-        axis,
     )?;
 
     let mut sequential_sub_model_iter = sequential_submodel.try_iter(surfaces)?;
@@ -249,7 +258,6 @@ fn rays(
     paraxial_subview: &ParaxialSubView,
     field_spec: &FieldSpec,
     sampling: Option<PupilSampling>,
-    axis: Axis,
 ) -> Result<Vec<Ray>> {
     let rays: Vec<Ray> = match field_spec {
         FieldSpec::Angle {
@@ -278,7 +286,7 @@ fn rays(
                     spacing,
                     angle,
                 )?,
-                PupilSampling::TangentialRayFan { n } => {
+                PupilSampling::TangentialRayFan { n, axis } => {
                     let theta = match axis {
                         Axis::Y => PI / 2.0,
                         Axis::X => 0.0,
@@ -320,9 +328,12 @@ fn rays(
                     spacing,
                     &origin,
                 )?,
-                PupilSampling::TangentialRayFan { n } => {
+                PupilSampling::TangentialRayFan { n, axis } => {
                     let theta = if *y == 0.0 && *x == 0.0 {
-                        PI / 2.0
+                        match axis {
+                            Axis::Y => PI / 2.0,
+                            Axis::X => 0.0,
+                        }
                     } else {
                         y.atan2(*x)
                     };
@@ -683,11 +694,17 @@ mod tests {
         let field_specs = vec![
             FieldSpec::Angle {
                 angle: 0.0,
-                pupil_sampling: PupilSampling::TangentialRayFan { n: 3 },
+                pupil_sampling: PupilSampling::TangentialRayFan {
+                    n: 3,
+                    axis: Axis::Y,
+                },
             },
             FieldSpec::Angle {
                 angle: 5.0,
-                pupil_sampling: PupilSampling::TangentialRayFan { n: 3 },
+                pupil_sampling: PupilSampling::TangentialRayFan {
+                    n: 3,
+                    axis: Axis::Y,
+                },
             },
         ];
 
@@ -728,7 +745,6 @@ mod tests {
             &s.paraxial_view.subviews()[&SubModelID(0, Axis::Y)],
             &s.field_specs[0],
             None,
-            Axis::Y,
         )
         .unwrap();
 
@@ -742,7 +758,10 @@ mod tests {
         let field_spec = FieldSpec::PointSource {
             x: 0.0,
             y: 0.0,
-            pupil_sampling: PupilSampling::TangentialRayFan { n: 3 },
+            pupil_sampling: PupilSampling::TangentialRayFan {
+                n: 3,
+                axis: Axis::Y,
+            },
         };
 
         let result = rays(
@@ -751,7 +770,6 @@ mod tests {
             &s.paraxial_view.subviews()[&SubModelID(0, Axis::Y)],
             &field_spec,
             None,
-            Axis::Y,
         );
 
         assert!(
@@ -935,7 +953,10 @@ mod tests {
 
         let field_specs = vec![FieldSpec::Angle {
             angle: 0.0,
-            pupil_sampling: PupilSampling::TangentialRayFan { n: 3 },
+            pupil_sampling: PupilSampling::TangentialRayFan {
+                n: 3,
+                axis: Axis::Y,
+            },
         }];
 
         let result = validate_field_specs(&s.sequential_model, &field_specs);
@@ -948,7 +969,10 @@ mod tests {
         let field_specs = vec![FieldSpec::PointSource {
             x: 0.0,
             y: 0.0,
-            pupil_sampling: PupilSampling::TangentialRayFan { n: 3 },
+            pupil_sampling: PupilSampling::TangentialRayFan {
+                n: 3,
+                axis: Axis::Y,
+            },
         }];
 
         let result = validate_field_specs(&s.sequential_model, &field_specs);
@@ -964,11 +988,17 @@ mod tests {
         let field_specs = vec![
             FieldSpec::Angle {
                 angle: 0.0,
-                pupil_sampling: PupilSampling::TangentialRayFan { n: 3 },
+                pupil_sampling: PupilSampling::TangentialRayFan {
+                    n: 3,
+                    axis: Axis::Y,
+                },
             },
             FieldSpec::Angle {
                 angle: 5.0,
-                pupil_sampling: PupilSampling::TangentialRayFan { n: 3 },
+                pupil_sampling: PupilSampling::TangentialRayFan {
+                    n: 3,
+                    axis: Axis::Y,
+                },
             },
         ];
 

@@ -1,5 +1,6 @@
 use crate::{
-    FieldSpec, GapSpec, PupilSampling, Rotation3D, SequentialModel, SurfaceSpec, SurfaceType, n,
+    Axis, FieldSpec, GapSpec, PupilSampling, Rotation3D, SequentialModel, SurfaceSpec, SurfaceType,
+    n,
 };
 
 pub fn sequential_model() -> SequentialModel {
@@ -126,11 +127,17 @@ pub fn field_specs() -> Vec<FieldSpec> {
     vec![
         FieldSpec::Angle {
             angle: 0.0,
-            pupil_sampling: PupilSampling::TangentialRayFan { n: 3 },
+            pupil_sampling: PupilSampling::TangentialRayFan {
+                n: 3,
+                axis: Axis::Y,
+            },
         },
         FieldSpec::Angle {
             angle: 5.0,
-            pupil_sampling: PupilSampling::TangentialRayFan { n: 3 },
+            pupil_sampling: PupilSampling::TangentialRayFan {
+                n: 3,
+                axis: Axis::Y,
+            },
         },
     ]
 }

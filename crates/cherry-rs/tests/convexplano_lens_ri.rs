@@ -8,11 +8,17 @@ const WAVELENGTHS: [f64; 1] = [0.5876]; // He d line
 const FIELD_SPECS: [FieldSpec; 2] = [
     FieldSpec::Angle {
         angle: 0.0,
-        pupil_sampling: PupilSampling::TangentialRayFan { n: 3 },
+        pupil_sampling: PupilSampling::TangentialRayFan {
+            n: 3,
+            axis: cherry_rs::Axis::Y,
+        },
     },
     FieldSpec::Angle {
         angle: 5.0,
-        pupil_sampling: PupilSampling::TangentialRayFan { n: 3 },
+        pupil_sampling: PupilSampling::TangentialRayFan {
+            n: 3,
+            axis: cherry_rs::Axis::Y,
+        },
     },
 ];
 
