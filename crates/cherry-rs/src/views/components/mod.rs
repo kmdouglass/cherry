@@ -5,7 +5,7 @@ use anyhow::{Result, anyhow};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    RefractiveIndexSpec, SequentialModel, SequentialSubModel,
+    RefractiveIndexSpec, SequentialModel, SequentialSubModel, SurfaceType,
     core::{Float, refractive_index::RefractiveIndex, sequential_model::Surface},
 };
 
@@ -24,6 +24,7 @@ const TOL: Float = 1e-6;
 pub enum Component {
     Element { surf_idxs: (usize, usize) },
     Stop { stop_idx: usize },
+    Mirror { surf_idx: usize },
     UnpairedSurface { surf_idx: usize },
 }
 
@@ -69,6 +70,17 @@ pub fn components_view(
     for (i, surf_pair) in surface_pairs {
         if i == 0 || i == max_idx {
             // Don't include the object or image plane surfaces
+            continue;
+        }
+
+        // Detect reflecting surfaces explicitly by type — before any gap-based logic.
+        if matches!(surf_pair.0.surface_type(), SurfaceType::Reflecting) {
+            components.insert(Component::Mirror { surf_idx: i });
+            continue;
+        }
+
+        if let Surface::Probe(_) = surf_pair.0 {
+            // Probe surfaces are observation planes, not optical components.
             continue;
         }
 
@@ -368,7 +380,7 @@ mod tests {
         let components = components_view(&sequential_model, n!(1.0)).unwrap();
 
         assert_eq!(components.len(), 1);
-        assert!(components.contains(&Component::UnpairedSurface { surf_idx: 1 }));
+        assert!(components.contains(&Component::Mirror { surf_idx: 1 }));
     }
 
     #[test]
@@ -425,5 +437,49 @@ mod tests {
         assert!(components.contains(&Component::Stop { stop_idx: 1 })); // Hard stop
         assert!(components.contains(&Component::Element { surf_idxs: (2, 3) }));
         // Lens
+    }
+
+    pub fn mirror_then_probe() -> SequentialModel {
+        let air = n!(1.0);
+        let surfaces = vec![
+            SurfaceSpec::Object,
+            SurfaceSpec::Conic {
+                semi_diameter: 12.5,
+                radius_of_curvature: -200.0,
+                conic_constant: 0.0,
+                surf_type: crate::SurfaceType::Reflecting,
+                rotation: Rotation3D::None,
+            },
+            SurfaceSpec::Probe {
+                rotation: Rotation3D::None,
+            },
+            SurfaceSpec::Image {
+                rotation: Rotation3D::None,
+            },
+        ];
+        let gaps = vec![
+            GapSpec {
+                thickness: Float::INFINITY,
+                refractive_index: air.clone(),
+            },
+            GapSpec {
+                thickness: 50.0,
+                refractive_index: air.clone(),
+            },
+            GapSpec {
+                thickness: 50.0,
+                refractive_index: air.clone(),
+            },
+        ];
+        SequentialModel::new(&gaps, &surfaces, &[0.5876]).unwrap()
+    }
+
+    #[test]
+    fn test_mirror_before_probe() {
+        // Regression: mirror must appear even when a probe sits between it and Image.
+        let model = mirror_then_probe();
+        let components = components_view(&model, n!(1.0)).unwrap();
+        assert_eq!(components.len(), 1);
+        assert!(components.contains(&Component::Mirror { surf_idx: 1 }));
     }
 }

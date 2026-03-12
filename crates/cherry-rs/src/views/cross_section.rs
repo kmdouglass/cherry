@@ -129,6 +129,7 @@ fn build_plane_geometry(
     sorted_components.sort_by_key(|c| match c {
         Component::Element { surf_idxs: (i, _) } => *i,
         Component::Stop { stop_idx } => *stop_idx,
+        Component::Mirror { surf_idx } => *surf_idx,
         Component::UnpairedSurface { surf_idx } => *surf_idx,
     });
 
@@ -153,6 +154,13 @@ fn build_plane_geometry(
                     half_gap: sd,
                     extent: largest_sd * 1.5,
                 });
+            }
+            Component::Mirror { surf_idx } => {
+                let surf = &surfaces[*surf_idx];
+                let pts = sample_surface(surf, axis, N_PTS);
+                if !pts.is_empty() {
+                    elements.push(DrawElement::SurfaceProfile { points: pts });
+                }
             }
             Component::UnpairedSurface { surf_idx } => {
                 let surf = &surfaces[*surf_idx];
