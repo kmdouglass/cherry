@@ -37,6 +37,95 @@ pub fn petzval_lens() -> SystemSpecs {
     }
 }
 
+/// f = +100 mm biconvex lens (Thorlabs LB1676-A) with a finite object at 200
+/// mm.
+pub fn biconvex_lens() -> SystemSpecs {
+    SystemSpecs {
+        surfaces: vec![
+            SurfaceRow::new_object("200.0"),
+            SurfaceRow::new_conic("12.7", "102.4", "0.0", "3.6", "1.517"),
+            SurfaceRow::new_conic("12.7", "-102.4", "0.0", "196.1684", "1.0"),
+            SurfaceRow::new_image(),
+        ],
+        fields: vec![
+            FieldRow {
+                value: "0.0".into(),
+                x: "0.0".into(),
+                pupil_spacing: "0.1".into(),
+            },
+            FieldRow {
+                value: "5.0".into(),
+                x: "0.0".into(),
+                pupil_spacing: "0.1".into(),
+            },
+        ],
+        aperture_semi_diameter: "5.0".into(),
+        wavelengths: vec!["0.5876".into()],
+        field_mode: FieldMode::PointSource,
+        use_materials: false,
+        selected_materials: Vec::new(),
+        cross_section_n_rays: 11,
+    }
+}
+
+/// f = 50 mm convexplano lens with BK7 glass and Ciddor air (F, d, C
+/// wavelengths).
+pub fn convexplano_lens_with_materials() -> SystemSpecs {
+    SystemSpecs {
+        surfaces: vec![
+            SurfaceRow {
+                variant: SurfaceVariant::Object,
+                surface_kind: SurfaceKind::Refracting,
+                refractive_index: "1.0".into(),
+                thickness: "Infinity".into(),
+                semi_diameter: "12.5".into(),
+                radius_of_curvature: "Infinity".into(),
+                conic_constant: "0.0".into(),
+                material_key: Some("other:air:Ciddor".into()),
+            },
+            SurfaceRow {
+                variant: SurfaceVariant::Conic,
+                surface_kind: SurfaceKind::Refracting,
+                refractive_index: "1.515".into(),
+                thickness: "5.3".into(),
+                semi_diameter: "12.5".into(),
+                radius_of_curvature: "25.8".into(),
+                conic_constant: "0.0".into(),
+                material_key: Some("popular_glass:BK7:SCHOTT".into()),
+            },
+            SurfaceRow {
+                variant: SurfaceVariant::Conic,
+                surface_kind: SurfaceKind::Refracting,
+                refractive_index: "1.0".into(),
+                thickness: "46.6".into(),
+                semi_diameter: "12.5".into(),
+                radius_of_curvature: "Infinity".into(),
+                conic_constant: "0.0".into(),
+                material_key: Some("other:air:Ciddor".into()),
+            },
+            SurfaceRow::new_image(),
+        ],
+        fields: vec![
+            FieldRow {
+                value: "0.0".into(),
+                x: "0.0".into(),
+                pupil_spacing: "0.1".into(),
+            },
+            FieldRow {
+                value: "5.0".into(),
+                x: "0.0".into(),
+                pupil_spacing: "0.1".into(),
+            },
+        ],
+        aperture_semi_diameter: "5.0".into(),
+        wavelengths: vec!["0.4861".into(), "0.5876".into(), "0.6563".into()],
+        field_mode: FieldMode::Angle,
+        use_materials: true,
+        selected_materials: vec!["other:air:Ciddor".into(), "popular_glass:BK7:SCHOTT".into()],
+        cross_section_n_rays: 11,
+    }
+}
+
 /// f = +100 mm concave mirror.
 pub fn concave_mirror() -> SystemSpecs {
     SystemSpecs {
@@ -54,11 +143,18 @@ pub fn concave_mirror() -> SystemSpecs {
             },
             SurfaceRow::new_image(),
         ],
-        fields: vec![FieldRow {
-            value: "0.0".into(),
-            x: "0.0".into(),
-            pupil_spacing: "0.1".into(),
-        }],
+        fields: vec![
+            FieldRow {
+                value: "0.0".into(),
+                x: "0.0".into(),
+                pupil_spacing: "0.1".into(),
+            },
+            FieldRow {
+                value: "5.0".into(),
+                x: "0.0".into(),
+                pupil_spacing: "0.1".into(),
+            },
+        ],
         aperture_semi_diameter: "12.5".into(),
         wavelengths: vec!["0.567".into()],
         field_mode: FieldMode::Angle,
