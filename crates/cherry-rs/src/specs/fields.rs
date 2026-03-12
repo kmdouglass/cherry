@@ -1,7 +1,7 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
-use crate::core::Float;
+use crate::core::{Float, sequential_model::Axis};
 
 /// Specifies a pupil sampling method.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
@@ -18,8 +18,9 @@ pub enum PupilSampling {
     SquareGrid { spacing: Float },
 
     /// A tangential ray fan of `n` evenly-spaced rays from one pupil edge to
-    /// the other.
-    TangentialRayFan { n: usize },
+    /// the other, spanning the given axis (YZ plane for `Axis::Y`, XZ plane
+    /// for `Axis::X`).
+    TangentialRayFan { n: usize, axis: Axis },
 }
 
 /// Specifies an object field.
