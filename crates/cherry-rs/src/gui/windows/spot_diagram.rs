@@ -120,11 +120,7 @@ impl SpotDiagramWindow {
             return;
         }
 
-        // Common axis range across all visible rays.
-        let (axis_min, axis_max) =
-            compute_axis_range(r, ray_trace, selected_idx, &self.wavelength_visible);
-
-        // Field plots in a row.
+        // Field plots in a row, each with its own bounding box.
         ui.horizontal(|ui| {
             for field_id in 0..n_fields {
                 let field_label = r
@@ -132,6 +128,12 @@ impl SpotDiagramWindow {
                     .get(field_id)
                     .map(|f| f.label.as_str())
                     .unwrap_or("—");
+                let (x_range, y_range) = compute_field_axis_range(
+                    ray_trace,
+                    field_id,
+                    selected_idx,
+                    &self.wavelength_visible,
+                );
                 ui.vertical(|ui| {
                     ui.label(field_label);
                     render_field_plot(
@@ -141,7 +143,7 @@ impl SpotDiagramWindow {
                         field_id,
                         selected_idx,
                         &self.wavelength_visible,
-                        (axis_min, axis_max),
+                        (x_range, y_range),
                     );
                 });
             }
@@ -149,38 +151,47 @@ impl SpotDiagramWindow {
     }
 }
 
-/// Compute a common symmetric axis range over all visible fields/wavelengths.
-fn compute_axis_range(
-    r: &ResultPackage,
+/// Compute independent X and Y axis ranges enclosing all visible ray
+/// intersections for a single field. Returns `(x_range, y_range)` as a square
+/// viewport centered on the spot centroid.
+fn compute_field_axis_range(
     ray_trace: &crate::TraceResultsCollection,
+    field_id: usize,
     surface_idx: usize,
     wavelength_visible: &[bool],
-) -> (f64, f64) {
-    let mut min_v = f64::MAX;
-    let mut max_v = f64::MIN;
+) -> ((f64, f64), (f64, f64)) {
+    let mut x_min = f64::MAX;
+    let mut x_max = f64::MIN;
+    let mut y_min = f64::MAX;
+    let mut y_max = f64::MIN;
 
-    for field_id in 0..r.fields.len() {
-        for (wl_id, &visible) in wavelength_visible.iter().enumerate() {
-            if !visible {
-                continue;
-            }
-            if let Some(tr) = ray_trace.get(field_id, wl_id, Axis::Y) {
-                for (x, y) in rays_at_surface(tr.ray_bundle(), surface_idx) {
-                    min_v = min_v.min(x).min(y);
-                    max_v = max_v.max(x).max(y);
-                }
+    for (wl_id, &visible) in wavelength_visible.iter().enumerate() {
+        if !visible {
+            continue;
+        }
+        if let Some(tr) = ray_trace.get(field_id, wl_id, Axis::Y) {
+            for (x, y) in rays_at_surface(tr.ray_bundle(), surface_idx) {
+                x_min = x_min.min(x);
+                x_max = x_max.max(x);
+                y_min = y_min.min(y);
+                y_max = y_max.max(y);
             }
         }
     }
 
-    if min_v > max_v {
-        (-1.0, 1.0)
-    } else {
-        let half = (max_v - min_v).max(1e-6) / 2.0;
-        let mid = (min_v + max_v) / 2.0;
-        let pad = half * 0.15 + 1e-6;
-        (mid - half - pad, mid + half + pad)
+    if x_min > x_max || y_min > y_max {
+        return ((-1.0, 1.0), (-1.0, 1.0));
     }
+
+    // Square viewport: same span for both axes, centered on the spot centroid.
+    let x_center = (x_min + x_max) / 2.0;
+    let y_center = (y_min + y_max) / 2.0;
+    let half = ((x_max - x_min).max(y_max - y_min)).max(1e-6) / 2.0;
+    let pad = half * 0.15 + 1e-6;
+    (
+        (x_center - half - pad, x_center + half + pad),
+        (y_center - half - pad, y_center + half + pad),
+    )
 }
 
 /// Draw a scatter plot for a single field using egui's painter.
@@ -191,9 +202,11 @@ fn render_field_plot(
     field_id: usize,
     surface_idx: usize,
     wavelength_visible: &[bool],
-    axis_range: (f64, f64),
+    ranges: ((f64, f64), (f64, f64)),
 ) {
-    let (axis_min, axis_max) = axis_range;
+    let (x_range, y_range) = ranges;
+    let (x_min, x_max) = x_range;
+    let (y_min, y_max) = y_range;
     let size = egui::Vec2::splat(PLOT_SIZE);
     let (rect, _) = ui.allocate_exact_size(size, egui::Sense::hover());
     let painter = ui.painter_at(rect);
@@ -207,21 +220,25 @@ fn render_field_plot(
         egui::StrokeKind::Outside,
     );
 
-    // Axes through origin (if origin is in range).
-    let data_range = (axis_max - axis_min).max(f64::EPSILON);
-    let origin_t = (-axis_min / data_range) as f32;
+    // Axes through origin (if origin is in range), independently for X and Y.
+    let x_span = (x_max - x_min).max(f64::EPSILON);
+    let y_span = (y_max - y_min).max(f64::EPSILON);
     let axis_color = ui.visuals().weak_text_color();
-    if (0.0..=1.0).contains(&origin_t) {
-        let cx = rect.left() + origin_t * rect.width();
+    let origin_tx = (-x_min / x_span) as f32;
+    let origin_ty = (-y_min / y_span) as f32;
+    if (0.0..=1.0).contains(&origin_tx) {
+        let cx = rect.left() + origin_tx * rect.width();
         painter.vline(cx, rect.y_range(), egui::Stroke::new(1.0, axis_color));
-        let cy = rect.bottom() - origin_t * rect.height();
+    }
+    if (0.0..=1.0).contains(&origin_ty) {
+        let cy = rect.bottom() - origin_ty * rect.height();
         painter.hline(rect.x_range(), cy, egui::Stroke::new(1.0, axis_color));
     }
 
     // Helper: map data (x, y) → screen position.
     let to_screen = |dx: f64, dy: f64| -> egui::Pos2 {
-        let tx = ((dx - axis_min) / data_range) as f32;
-        let ty = ((dy - axis_min) / data_range) as f32;
+        let tx = ((dx - x_min) / x_span) as f32;
+        let ty = ((dy - y_min) / y_span) as f32;
         egui::pos2(
             rect.left() + tx * rect.width(),
             rect.bottom() - ty * rect.height(),
@@ -271,14 +288,14 @@ fn render_field_plot(
     painter.text(
         egui::pos2(rect.left(), rect.bottom()),
         egui::Align2::LEFT_BOTTOM,
-        format!("{axis_min:.3}"),
+        format!("{x_min:.3}"),
         font.clone(),
         label_color,
     );
     painter.text(
         egui::pos2(rect.right(), rect.bottom()),
         egui::Align2::RIGHT_BOTTOM,
-        format!("{axis_max:.3}"),
+        format!("{x_max:.3}"),
         font.clone(),
         label_color,
     );
