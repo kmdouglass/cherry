@@ -164,8 +164,6 @@ pub enum SpecsTab {
     Fields,
     Aperture,
     Wavelengths,
-    #[cfg(feature = "ri-info")]
-    Materials,
 }
 
 /// All user-editable input specifications.
