@@ -452,6 +452,10 @@ impl eframe::App for CherryApp {
                         self.load_specs(examples::biconvex_lens());
                         ui.close();
                     }
+                    if ui.button("Mirrors (Figure Z)").clicked() {
+                        self.load_specs(examples::mirrors_figure_z());
+                        ui.close();
+                    }
                 });
                 ui.add_space(16.0);
 

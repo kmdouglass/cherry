@@ -3,8 +3,8 @@ use std::rc::Rc;
 use anyhow::{Context, Result, bail};
 
 use crate::{
-    ApertureSpec, ConstantRefractiveIndex, FieldSpec, GapSpec, PupilSampling, RefractiveIndexSpec,
-    Rotation3D, SurfaceSpec, SurfaceType,
+    ApertureSpec, ConstantRefractiveIndex, EulerAngles, FieldSpec, GapSpec, PupilSampling,
+    RefractiveIndexSpec, Rotation3D, SurfaceSpec, SurfaceType,
 };
 
 use super::model::{FieldMode, SurfaceKind, SurfaceVariant, SystemSpecs};
@@ -76,12 +76,29 @@ fn convert_specs_inner(
                     SurfaceKind::Refracting => SurfaceType::Refracting,
                     SurfaceKind::Reflecting => SurfaceType::Reflecting,
                 };
+                let rotation = if matches!(surf_type, SurfaceType::Reflecting) {
+                    let theta_deg =
+                        parse_float(&row.theta).with_context(|| format!("surface {i}: theta"))?;
+                    let psi_deg =
+                        parse_float(&row.psi).with_context(|| format!("surface {i}: psi"))?;
+                    if theta_deg == 0.0 && psi_deg == 0.0 {
+                        Rotation3D::None
+                    } else {
+                        Rotation3D::IntrinsicPassiveRUF(EulerAngles(
+                            theta_deg.to_radians(),
+                            psi_deg.to_radians(),
+                            0.0,
+                        ))
+                    }
+                } else {
+                    Rotation3D::None
+                };
                 SurfaceSpec::Conic {
                     semi_diameter,
                     radius_of_curvature: roc,
                     conic_constant: conic,
                     surf_type,
-                    rotation: Rotation3D::None,
+                    rotation,
                 }
             }
             SurfaceVariant::Stop => {

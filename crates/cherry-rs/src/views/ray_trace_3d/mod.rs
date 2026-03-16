@@ -93,7 +93,7 @@ pub fn ray_trace_3d_view(
 
     // When the sampling override is a TangentialRayFan, trace only along its
     // axis. This lets the caller request YZ and XZ fans independently.
-    // For rotationally symmetric systems (Axis::Y submodels only), fall back
+    // For rotationally symmetric systems (Axis::U submodels only), fall back
     // to the Y submodel when the requested axis has no submodel.
     let axes: Vec<Axis> = match pupil_sampling {
         Some(PupilSampling::TangentialRayFan { axis, .. }) => vec![axis],
@@ -106,7 +106,7 @@ pub fn ray_trace_3d_view(
 
     for (field_id, wavelength_id, axis) in combinations {
         let submodel_id = SubModelID(wavelength_id, axis);
-        let fallback_id = SubModelID(wavelength_id, Axis::Y);
+        let fallback_id = SubModelID(wavelength_id, Axis::U);
         let sequential_submodel = sequential_model
             .submodels()
             .get(&submodel_id)
@@ -288,8 +288,8 @@ fn rays(
                 )?,
                 PupilSampling::TangentialRayFan { n, axis } => {
                     let theta = match axis {
-                        Axis::Y => PI / 2.0,
-                        Axis::X => 0.0,
+                        Axis::U => PI / 2.0,
+                        Axis::R => 0.0,
                     };
                     parallel_ray_fan(surfaces, aperture_spec, paraxial_subview, n, theta, angle)?
                 }
@@ -331,8 +331,8 @@ fn rays(
                 PupilSampling::TangentialRayFan { n, axis } => {
                     let theta = if *y == 0.0 && *x == 0.0 {
                         match axis {
-                            Axis::Y => PI / 2.0,
-                            Axis::X => 0.0,
+                            Axis::U => PI / 2.0,
+                            Axis::R => 0.0,
                         }
                     } else {
                         y.atan2(*x)
@@ -381,7 +381,7 @@ fn chief_ray_from_pos(
     origin: &Vec3,
 ) -> Result<Vec<Ray>> {
     let enp = entrance_pupil(aperture_spec, paraxial_subview)?;
-    let dir = (enp.pos() - *origin).normalize();
+    let dir = (Vec3::new(0.0, 0.0, enp.location) - *origin).normalize();
 
     Ok(vec![Ray::new(*origin, dir)])
 }
@@ -482,7 +482,7 @@ fn point_source_ray_fan(
 ) -> Result<Vec<Ray>> {
     let enp = entrance_pupil(aperture_spec, paraxial_subview)?;
     let enp_radius = enp.semi_diameter;
-    let enp_z = enp.pos().z();
+    let enp_z = enp.location;
 
     let pupil_ray_positions = Vec3::fan(num_rays, enp_radius, enp_z, theta, 0.0, 0.0);
 
@@ -526,7 +526,7 @@ fn point_source_ray_bundle_on_sq_grid(
     let abs_spacing = enp_radius * spacing;
 
     let pupil_ray_positions =
-        Vec3::sq_grid_in_circ(enp_radius, abs_spacing, enp.pos().z(), 0.0, 0.0);
+        Vec3::sq_grid_in_circ(enp_radius, abs_spacing, enp.location, 0.0, 0.0);
 
     let directions = pupil_ray_positions
         .iter()
@@ -583,7 +583,7 @@ fn entrance_pupil(
     };
 
     let entrance_pupil = paraxial_sub_view.entrance_pupil();
-    let z = entrance_pupil.pos().z();
+    let z = entrance_pupil.location;
 
     Ok(Pupil {
         location: z,
@@ -631,7 +631,7 @@ fn parallel_ray_bundle_origin(
     let enp = entrance_pupil(aperture_spec, paraxial_subview)?;
     let obj_z = surfaces[0].pos().z();
     let sur_z = surfaces[1].pos().z();
-    let enp_z = enp.pos().z();
+    let enp_z = enp.location;
 
     let launch_point_z = axial_launch_point(obj_z, sur_z, enp_z);
 
@@ -696,14 +696,14 @@ mod tests {
                 angle: 0.0,
                 pupil_sampling: PupilSampling::TangentialRayFan {
                     n: 3,
-                    axis: Axis::Y,
+                    axis: Axis::U,
                 },
             },
             FieldSpec::Angle {
                 angle: 5.0,
                 pupil_sampling: PupilSampling::TangentialRayFan {
                     n: 3,
-                    axis: Axis::Y,
+                    axis: Axis::U,
                 },
             },
         ];
@@ -742,7 +742,7 @@ mod tests {
         let rays = rays(
             s.sequential_model.surfaces(),
             &s.aperture_spec,
-            &s.paraxial_view.subviews()[&SubModelID(0, Axis::Y)],
+            &s.paraxial_view.subviews()[&SubModelID(0, Axis::U)],
             &s.field_specs[0],
             None,
         )
@@ -760,14 +760,14 @@ mod tests {
             y: 0.0,
             pupil_sampling: PupilSampling::TangentialRayFan {
                 n: 3,
-                axis: Axis::Y,
+                axis: Axis::U,
             },
         };
 
         let result = rays(
             s.sequential_model.surfaces(),
             &s.aperture_spec,
-            &s.paraxial_view.subviews()[&SubModelID(0, Axis::Y)],
+            &s.paraxial_view.subviews()[&SubModelID(0, Axis::U)],
             &field_spec,
             None,
         );
@@ -786,7 +786,7 @@ mod tests {
         let rays = chief_ray_from_angle(
             s.sequential_model.surfaces(),
             &s.aperture_spec,
-            &s.paraxial_view.subviews()[&SubModelID(0, Axis::Y)],
+            &s.paraxial_view.subviews()[&SubModelID(0, Axis::U)],
             0.0,
             0.0,
         )
@@ -808,7 +808,7 @@ mod tests {
         let rays = chief_ray_from_angle(
             s.sequential_model.surfaces(),
             &s.aperture_spec,
-            &s.paraxial_view.subviews()[&SubModelID(0, Axis::Y)],
+            &s.paraxial_view.subviews()[&SubModelID(0, Axis::U)],
             PI / 2.0,
             0.08727, // 5 degrees
         )
@@ -829,7 +829,7 @@ mod tests {
 
         let rays = chief_ray_from_pos(
             &s.aperture_spec,
-            &s.paraxial_view.subviews()[&SubModelID(0, Axis::Y)],
+            &s.paraxial_view.subviews()[&SubModelID(0, Axis::U)],
             &Vec3::new(0.0, 0.0, -1.0),
         )
         .unwrap();
@@ -849,7 +849,7 @@ mod tests {
 
         let rays = chief_ray_from_pos(
             &s.aperture_spec,
-            &s.paraxial_view.subviews()[&SubModelID(0, Axis::Y)],
+            &s.paraxial_view.subviews()[&SubModelID(0, Axis::U)],
             &Vec3::new(0.0, -0.08749, -1.0),
         )
         .unwrap();
@@ -870,7 +870,7 @@ mod tests {
         let rays = parallel_ray_bundle_on_sq_grid(
             s.sequential_model.surfaces(),
             &s.aperture_spec,
-            &s.paraxial_view.subviews()[&SubModelID(0, Axis::Y)],
+            &s.paraxial_view.subviews()[&SubModelID(0, Axis::U)],
             1.0,
             0.0,
         );
@@ -882,7 +882,7 @@ mod tests {
         let rays = parallel_ray_bundle_on_sq_grid(
             s.sequential_model.surfaces(),
             &s.aperture_spec,
-            &s.paraxial_view.subviews()[&SubModelID(0, Axis::Y)],
+            &s.paraxial_view.subviews()[&SubModelID(0, Axis::U)],
             0.5,
             0.0,
         );
@@ -894,7 +894,7 @@ mod tests {
     #[test]
     fn test_point_source_ray_fan() {
         let s = setup();
-        let enp_radius = &s.paraxial_view.subviews()[&SubModelID(0, Axis::Y)]
+        let enp_radius = &s.paraxial_view.subviews()[&SubModelID(0, Axis::U)]
             .entrance_pupil()
             .semi_diameter;
         let expected_z_dir_cosines: [Float; 3] = [
@@ -905,7 +905,7 @@ mod tests {
 
         let rays = point_source_ray_fan(
             &s.aperture_spec,
-            &s.paraxial_view.subviews()[&SubModelID(0, Axis::Y)],
+            &s.paraxial_view.subviews()[&SubModelID(0, Axis::U)],
             3,
             PI / 2.0,
             &Vec3::new(0.0, 0.0, -1.0), // Point source located at z = -1.0
@@ -927,7 +927,7 @@ mod tests {
 
         let rays = point_source_ray_bundle_on_sq_grid(
             &s.aperture_spec,
-            &s.paraxial_view.subviews()[&SubModelID(0, Axis::Y)],
+            &s.paraxial_view.subviews()[&SubModelID(0, Axis::U)],
             1.0,
             &Vec3::new(0.0, 0.0, -1.0), // Point source located at z = -1.0
         );
@@ -938,7 +938,7 @@ mod tests {
 
         let rays = point_source_ray_bundle_on_sq_grid(
             &s.aperture_spec,
-            &s.paraxial_view.subviews()[&SubModelID(0, Axis::Y)],
+            &s.paraxial_view.subviews()[&SubModelID(0, Axis::U)],
             0.5,
             &Vec3::new(0.0, 0.0, -1.0), // Point source located at z = -1.0
         );
@@ -955,7 +955,7 @@ mod tests {
             angle: 0.0,
             pupil_sampling: PupilSampling::TangentialRayFan {
                 n: 3,
-                axis: Axis::Y,
+                axis: Axis::U,
             },
         }];
 
@@ -971,7 +971,7 @@ mod tests {
             y: 0.0,
             pupil_sampling: PupilSampling::TangentialRayFan {
                 n: 3,
-                axis: Axis::Y,
+                axis: Axis::U,
             },
         }];
 
@@ -990,35 +990,35 @@ mod tests {
                 angle: 0.0,
                 pupil_sampling: PupilSampling::TangentialRayFan {
                     n: 3,
-                    axis: Axis::Y,
+                    axis: Axis::U,
                 },
             },
             FieldSpec::Angle {
                 angle: 5.0,
                 pupil_sampling: PupilSampling::TangentialRayFan {
                     n: 3,
-                    axis: Axis::Y,
+                    axis: Axis::U,
                 },
             },
         ];
 
         let wavelengths = vec![0.4861, 0.5876, 0.6563];
-        let axes = vec![Axis::X, Axis::Y];
+        let axes = vec![Axis::R, Axis::U];
 
         let combinations = all_combinations(&field_specs, &wavelengths, &axes);
 
         assert_eq!(combinations.len(), 12); // 2 fields x 3 wavelengths x 2 axes
-        assert!(combinations.contains(&(0, 0, Axis::X)));
-        assert!(combinations.contains(&(0, 0, Axis::Y)));
-        assert!(combinations.contains(&(0, 1, Axis::X)));
-        assert!(combinations.contains(&(0, 1, Axis::Y)));
-        assert!(combinations.contains(&(0, 2, Axis::X)));
-        assert!(combinations.contains(&(0, 2, Axis::Y)));
-        assert!(combinations.contains(&(1, 0, Axis::X)));
-        assert!(combinations.contains(&(1, 0, Axis::Y)));
-        assert!(combinations.contains(&(1, 1, Axis::X)));
-        assert!(combinations.contains(&(1, 1, Axis::Y)));
-        assert!(combinations.contains(&(1, 2, Axis::X)));
-        assert!(combinations.contains(&(1, 2, Axis::Y)));
+        assert!(combinations.contains(&(0, 0, Axis::R)));
+        assert!(combinations.contains(&(0, 0, Axis::U)));
+        assert!(combinations.contains(&(0, 1, Axis::R)));
+        assert!(combinations.contains(&(0, 1, Axis::U)));
+        assert!(combinations.contains(&(0, 2, Axis::R)));
+        assert!(combinations.contains(&(0, 2, Axis::U)));
+        assert!(combinations.contains(&(1, 0, Axis::R)));
+        assert!(combinations.contains(&(1, 0, Axis::U)));
+        assert!(combinations.contains(&(1, 1, Axis::R)));
+        assert!(combinations.contains(&(1, 1, Axis::U)));
+        assert!(combinations.contains(&(1, 2, Axis::R)));
+        assert!(combinations.contains(&(1, 2, Axis::U)));
     }
 }

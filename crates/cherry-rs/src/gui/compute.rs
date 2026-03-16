@@ -152,7 +152,7 @@ fn run_compute(
 
     let n = req.specs.cross_section_n_rays as usize;
     let mut cs_trace: Option<crate::TraceResultsCollection> = None;
-    for axis in [Axis::Y, Axis::X] {
+    for axis in [Axis::U, Axis::R] {
         let sampling = Some(crate::specs::fields::PupilSampling::TangentialRayFan { n, axis });
         match ray_trace_3d_view(&parsed.aperture, &parsed.fields, &seq, &pv, sampling) {
             Ok(t) => match cs_trace.as_mut() {
@@ -193,6 +193,8 @@ fn build_surface_descs(seq: &SequentialModel) -> Vec<SurfaceDesc> {
             SurfaceDesc {
                 index: i,
                 label: format!("{name} [{i}]"),
+                pos: s.pos(),
+                rot_mat: s.rot_mat(),
             }
         })
         .collect()
@@ -260,14 +262,14 @@ mod tests {
                 angle: 0.0,
                 pupil_sampling: PupilSampling::TangentialRayFan {
                     n: 3,
-                    axis: crate::Axis::Y,
+                    axis: crate::Axis::U,
                 },
             },
             FieldSpec::Angle {
                 angle: 5.0,
                 pupil_sampling: PupilSampling::TangentialRayFan {
                     n: 3,
-                    axis: crate::Axis::Y,
+                    axis: crate::Axis::U,
                 },
             },
         ];

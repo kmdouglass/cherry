@@ -1,10 +1,24 @@
 use crate::{
     Axis,
-    gui::{colors::wavelength_to_color, result_package::ResultPackage},
+    core::math::{linalg::mat3x3::Mat3x3, vec3::Vec3},
+    gui::{
+        colors::wavelength_to_color,
+        result_package::{ResultPackage, SurfaceDesc},
+    },
     views::ray_trace_3d::RayBundle,
 };
 
 const PLOT_SIZE: f32 = 180.0;
+
+/// Parameters describing which field/surface/wavelength data to render.
+struct FieldPlotQuery<'a> {
+    ray_trace: &'a crate::TraceResultsCollection,
+    wavelengths: &'a [f64],
+    field_id: usize,
+    surface_idx: usize,
+    wavelength_visible: &'a [bool],
+    surf_desc: Option<&'a SurfaceDesc>,
+}
 
 /// Floating spot diagram output window.
 #[derive(Default)]
@@ -116,23 +130,18 @@ impl SpotDiagramWindow {
                     .get(field_id)
                     .map(|f| f.label.as_str())
                     .unwrap_or("—");
-                let (x_range, y_range) = compute_field_axis_range(
+                let query = FieldPlotQuery {
                     ray_trace,
+                    wavelengths: &r.wavelengths,
                     field_id,
-                    selected_idx,
-                    &self.wavelength_visible,
-                );
+                    surface_idx: selected_idx,
+                    wavelength_visible: &self.wavelength_visible,
+                    surf_desc: r.surfaces.get(selected_idx),
+                };
+                let ranges = compute_field_axis_range(&query);
                 ui.vertical(|ui| {
                     ui.label(field_label);
-                    render_field_plot(
-                        ui,
-                        r,
-                        ray_trace,
-                        field_id,
-                        selected_idx,
-                        &self.wavelength_visible,
-                        (x_range, y_range),
-                    );
+                    render_field_plot(ui, &query, ranges);
                 });
             }
         });
@@ -142,23 +151,18 @@ impl SpotDiagramWindow {
 /// Compute independent X and Y axis ranges enclosing all visible ray
 /// intersections for a single field. Returns `(x_range, y_range)` as a square
 /// viewport centered on the spot centroid.
-fn compute_field_axis_range(
-    ray_trace: &crate::TraceResultsCollection,
-    field_id: usize,
-    surface_idx: usize,
-    wavelength_visible: &[bool],
-) -> ((f64, f64), (f64, f64)) {
+fn compute_field_axis_range(query: &FieldPlotQuery) -> ((f64, f64), (f64, f64)) {
     let mut x_min = f64::MAX;
     let mut x_max = f64::MIN;
     let mut y_min = f64::MAX;
     let mut y_max = f64::MIN;
 
-    for (wl_id, &visible) in wavelength_visible.iter().enumerate() {
+    for (wl_id, &visible) in query.wavelength_visible.iter().enumerate() {
         if !visible {
             continue;
         }
-        if let Some(tr) = ray_trace.get(field_id, wl_id, Axis::Y) {
-            for (x, y) in rays_at_surface(tr.ray_bundle(), surface_idx) {
+        if let Some(tr) = query.ray_trace.get(query.field_id, wl_id, Axis::U) {
+            for (x, y) in rays_at_surface(tr.ray_bundle(), query.surface_idx, query.surf_desc) {
                 x_min = x_min.min(x);
                 x_max = x_max.max(x);
                 y_min = y_min.min(y);
@@ -183,15 +187,7 @@ fn compute_field_axis_range(
 }
 
 /// Draw a scatter plot for a single field using egui's painter.
-fn render_field_plot(
-    ui: &mut egui::Ui,
-    r: &ResultPackage,
-    ray_trace: &crate::TraceResultsCollection,
-    field_id: usize,
-    surface_idx: usize,
-    wavelength_visible: &[bool],
-    ranges: ((f64, f64), (f64, f64)),
-) {
+fn render_field_plot(ui: &mut egui::Ui, query: &FieldPlotQuery, ranges: ((f64, f64), (f64, f64))) {
     let (x_range, y_range) = ranges;
     let (x_min, x_max) = x_range;
     let (y_min, y_max) = y_range;
@@ -233,20 +229,20 @@ fn render_field_plot(
         )
     };
 
-    for (wl_id, &visible) in wavelength_visible.iter().enumerate() {
+    for (wl_id, &visible) in query.wavelength_visible.iter().enumerate() {
         if !visible {
             continue;
         }
-        let color = r
+        let color = query
             .wavelengths
             .get(wl_id)
             .copied()
             .map(wavelength_to_color)
             .unwrap_or(egui::Color32::WHITE);
 
-        if let Some(tr) = ray_trace.get(field_id, wl_id, Axis::Y) {
+        if let Some(tr) = query.ray_trace.get(query.field_id, wl_id, Axis::U) {
             // Ray intersection scatter.
-            for (rx, ry) in rays_at_surface(tr.ray_bundle(), surface_idx) {
+            for (rx, ry) in rays_at_surface(tr.ray_bundle(), query.surface_idx, query.surf_desc) {
                 let sp = to_screen(rx, ry);
                 if rect.contains(sp) {
                     painter.circle_filled(sp, 2.0, color);
@@ -254,7 +250,7 @@ fn render_field_plot(
             }
 
             // Chief ray: cross marker.
-            for (cx, cy) in rays_at_surface(tr.chief_ray(), surface_idx) {
+            for (cx, cy) in rays_at_surface(tr.chief_ray(), query.surface_idx, query.surf_desc) {
                 let sp = to_screen(cx, cy);
                 let arm = 5.0_f32;
                 let stroke = egui::Stroke::new(1.5, color);
@@ -296,15 +292,21 @@ fn render_field_plot(
     );
 }
 
-/// Extract (x, y) positions of non-terminated rays at `surface_idx`.
+/// Extract (x, y) positions of non-terminated rays at `surface_idx`,
+/// projected into the surface's local coordinate frame.
+///
+/// `RayBundle` stores ray positions in global coordinates. For a tilted
+/// surface (folded system), we rotate into the surface's local frame so that
+/// x/y represent positions in the plane of the surface.
 ///
 /// `RayBundle` stores rays as a flat
 /// `[surface_0_rays … surface_N_rays]` array of length
 /// `num_surfaces × num_rays_per_surface`.
-fn rays_at_surface(
-    bundle: &RayBundle,
+fn rays_at_surface<'a>(
+    bundle: &'a RayBundle,
     surface_idx: usize,
-) -> impl Iterator<Item = (f64, f64)> + '_ {
+    surf_desc: Option<&'a SurfaceDesc>,
+) -> impl Iterator<Item = (f64, f64)> + 'a {
     let total = bundle.rays().len();
     let n_surf = bundle.num_surfaces();
     let n_rays = if n_surf > 0 { total / n_surf } else { 0 };
@@ -318,13 +320,21 @@ fn rays_at_surface(
     let rays = bundle.rays();
     let terminated = bundle.terminated();
 
+    // Extract surface transform; default to identity (no rotation, origin).
+    let (surf_pos, rot_mat) = surf_desc
+        .map(|s| (s.pos, s.rot_mat))
+        .unwrap_or_else(|| (Vec3::new(0.0, 0.0, 0.0), Mat3x3::identity()));
+
     (start..end).filter_map(move |abs_idx| {
         let ray_idx = abs_idx - start;
         if terminated.get(ray_idx).copied().unwrap_or(0) > 0 {
             return None;
         }
         let ray = rays.get(abs_idx)?;
-        Some((ray.x(), ray.y()))
+        // Transform the global position into the surface's local frame.
+        let global = Vec3::new(ray.x(), ray.y(), ray.z());
+        let local = rot_mat * (global - surf_pos);
+        Some((local.x(), local.y()))
     })
 }
 
@@ -436,9 +446,11 @@ mod tests {
                 .surfaces()
                 .iter()
                 .enumerate()
-                .map(|(i, _)| crate::gui::result_package::SurfaceDesc {
+                .map(|(i, s)| crate::gui::result_package::SurfaceDesc {
                     index: i,
                     label: format!("S{i}"),
+                    pos: s.pos(),
+                    rot_mat: s.rot_mat(),
                 })
                 .collect(),
             fields: vec![

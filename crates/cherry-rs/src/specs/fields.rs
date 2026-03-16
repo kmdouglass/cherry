@@ -18,8 +18,8 @@ pub enum PupilSampling {
     SquareGrid { spacing: Float },
 
     /// A tangential ray fan of `n` evenly-spaced rays from one pupil edge to
-    /// the other, spanning the given axis (YZ plane for `Axis::Y`, XZ plane
-    /// for `Axis::X`).
+    /// the other, spanning the given axis (YZ plane for `Axis::U`, XZ plane
+    /// for `Axis::R`).
     TangentialRayFan { n: usize, axis: Axis },
 }
 

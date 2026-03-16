@@ -17,11 +17,14 @@ use crate::specs::{
 };
 
 /// The transverse direction along which system properties will be computed with
-/// respect to the reference frame of the system.
+/// respect to the cursor reference frame of the system.
+///
+/// `R` is the cursor-right (initially global X) direction; `U` is the
+/// cursor-up (initially global Y) direction.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Axis {
-    X,
-    Y,
+    R,
+    U,
 }
 
 /// A gap between two surfaces in a sequential system.
@@ -189,8 +192,10 @@ pub enum Surface {
 #[derive(Debug)]
 pub struct Conic {
     pos: Vec3,
+    track: Float,
     rotation_matrix: Mat3x3,
     inv_rotation_matrix: Mat3x3,
+    rotation_matrix_global_to_cursor: Mat3x3,
     semi_diameter: Float,
     radius_of_curvature: Float,
     conic_constant: Float,
@@ -200,6 +205,7 @@ pub struct Conic {
 #[derive(Debug)]
 pub struct Image {
     pos: Vec3,
+    track: Float,
     rotation_matrix: Mat3x3,
     inv_rotation_matrix: Mat3x3,
 }
@@ -207,12 +213,14 @@ pub struct Image {
 #[derive(Debug)]
 pub struct Object {
     pos: Vec3,
+    track: Float,
 }
 
 /// A surface without any effect on rays that is used to measure intersections.
 #[derive(Debug)]
 pub struct Probe {
     pos: Vec3,
+    track: Float,
     rotation_matrix: Mat3x3,
     inv_rotation_matrix: Mat3x3,
 }
@@ -220,8 +228,10 @@ pub struct Probe {
 #[derive(Debug)]
 pub struct Stop {
     pos: Vec3,
+    track: Float,
     rotation_matrix: Mat3x3,
     inv_rotation_matrix: Mat3x3,
+    rotation_matrix_global_to_cursor: Mat3x3,
     semi_diameter: Float,
 }
 
@@ -394,9 +404,9 @@ impl SequentialModel {
         let mut ids = Vec::new();
 
         let axes: Vec<Axis> = if Self::is_rotationally_symmetric(surfaces) {
-            vec![Axis::Y]
+            vec![Axis::U]
         } else {
-            vec![Axis::X, Axis::Y]
+            vec![Axis::R, Axis::U]
         };
 
         for (idx, _wavelength) in wavelengths.iter().enumerate() {
@@ -419,12 +429,19 @@ impl SequentialModel {
 
     /// Returns true if the system is rotationally symmetric about the optical
     /// axis.
-    fn is_rotationally_symmetric(_surfaces: &[Surface]) -> bool {
-        // Return false if any toric surface is present in the system.
-        //!surfaces
-        //    .iter()
-        //    .any(|surf| matches!(surf, Surface::Toric(_)))
-        true
+    fn is_rotationally_symmetric(surfaces: &[Surface]) -> bool {
+        !surfaces.iter().any(|surf| {
+            let r_surf = match surf {
+                Surface::Conic(c) => {
+                    c.rotation_matrix * c.rotation_matrix_global_to_cursor.transpose()
+                }
+                Surface::Stop(s) => {
+                    s.rotation_matrix * s.rotation_matrix_global_to_cursor.transpose()
+                }
+                _ => return false,
+            };
+            !r_surf.approx_eq(&Mat3x3::identity(), 1e-10)
+        })
     }
 
     fn surf_specs_to_surfs(
@@ -542,8 +559,8 @@ impl Serialize for SubModelID {
             "{}:{}",
             self.0,
             match self.1 {
-                Axis::X => "X",
-                Axis::Y => "Y",
+                Axis::R => "R",
+                Axis::U => "U",
             }
         );
         serializer.serialize_str(&key)
@@ -645,6 +662,18 @@ impl Surface {
         self.pos().z()
     }
 
+    /// Returns the cumulative path length (track) to this surface along the
+    /// beam.
+    pub fn track(&self) -> Float {
+        match self {
+            Surface::Conic(s) => s.track,
+            Surface::Image(s) => s.track,
+            Surface::Object(s) => s.track,
+            Surface::Probe(s) => s.track,
+            Surface::Stop(s) => s.track,
+        }
+    }
+
     /// Creates a new surface from a specification.
     ///
     /// The position and rotation of the surface are determined by the input
@@ -658,6 +687,7 @@ impl Surface {
     /// * `cursor` - The reference frame in which the surface is defined.
     pub(crate) fn from_spec(spec: &SurfaceSpec, cursor: &Cursor) -> Self {
         let pos = cursor.pos();
+        let track = cursor.track();
         let rot_mat_global_to_cursor = cursor.rotation_matrix();
 
         match spec {
@@ -673,8 +703,10 @@ impl Surface {
                 let inv_rotation_matrix = rotation_matrix.transpose();
                 Self::Conic(Conic {
                     pos,
+                    track,
                     rotation_matrix,
                     inv_rotation_matrix,
+                    rotation_matrix_global_to_cursor: rot_mat_global_to_cursor,
                     semi_diameter: *semi_diameter,
                     radius_of_curvature: *radius_of_curvature,
                     conic_constant: *conic_constant,
@@ -686,16 +718,18 @@ impl Surface {
                 let inv_rotation_matrix = rotation_matrix.transpose();
                 Self::Image(Image {
                     pos,
+                    track,
                     rotation_matrix,
-                    inv_rotation_matrix
+                    inv_rotation_matrix,
                 })
             }
-            SurfaceSpec::Object => Self::Object(Object { pos }),
+            SurfaceSpec::Object => Self::Object(Object { pos, track }),
             SurfaceSpec::Probe { rotation } => {
                 let rotation_matrix = rotation.rotation_matrix() * rot_mat_global_to_cursor;
                 let inv_rotation_matrix = rotation_matrix.transpose();
                 Self::Probe(Probe {
                     pos,
+                    track,
                     rotation_matrix,
                     inv_rotation_matrix,
                 })
@@ -708,8 +742,10 @@ impl Surface {
                 let inv_rotation_matrix = rotation_matrix.transpose();
                 Self::Stop(Stop {
                     pos,
+                    track,
                     rotation_matrix,
                     inv_rotation_matrix,
+                    rotation_matrix_global_to_cursor: rot_mat_global_to_cursor,
                     semi_diameter: *semi_diameter,
                 })
             }
@@ -755,8 +791,8 @@ impl Surface {
 
     pub(crate) fn roc(&self, axis: &Axis) -> Float {
         match axis {
-            Axis::X => self.rocx(),
-            Axis::Y => self.rocy(),
+            Axis::R => self.rocx(),
+            Axis::U => self.rocy(),
         }
     }
 
@@ -841,6 +877,52 @@ impl Surface {
         }
     }
 
+    /// Returns the semi-diameter of the surface as seen by a paraxial ray
+    /// traveling along the cursor axis in the given transverse direction.
+    ///
+    /// For a tilted surface, the clear aperture radius `r` is in the surface's
+    /// local plane.  A paraxial ray at cursor height `h` intersects the surface
+    /// at a transverse distance larger than `h` by a foreshortening factor, so
+    /// the effective limit on cursor height is `r · |n_F| / sqrt(n_axis² +
+    /// n_F²)` where `(n_R, n_U, n_F)` are the surface-normal components in
+    /// the cursor frame and `n_axis` is the component along the queried
+    /// axis.
+    pub(crate) fn projected_semi_diameter(&self, axis: &Axis) -> Float {
+        let (r, rotation_matrix, rotation_matrix_global_to_cursor) = match self {
+            Self::Conic(c) => (
+                c.semi_diameter,
+                c.rotation_matrix,
+                c.rotation_matrix_global_to_cursor,
+            ),
+            Self::Stop(s) => (
+                s.semi_diameter,
+                s.rotation_matrix,
+                s.rotation_matrix_global_to_cursor,
+            ),
+            _ => return Float::INFINITY,
+        };
+
+        // R_surf = cursor_to_local = global_to_local · cursor_to_global
+        let r_surf = rotation_matrix * rotation_matrix_global_to_cursor.transpose();
+
+        // Third row of R_surf is the surface normal expressed in cursor frame: (n_R,
+        // n_U, n_F)
+        let n_r = r_surf.e[2][0];
+        let n_u = r_surf.e[2][1];
+        let n_f = r_surf.e[2][2];
+
+        let denom = match axis {
+            Axis::U => (n_u * n_u + n_f * n_f).sqrt(),
+            Axis::R => (n_r * n_r + n_f * n_f).sqrt(),
+        };
+
+        if denom < 1e-12 {
+            return 0.0;
+        }
+
+        r * n_f.abs() / denom
+    }
+
     pub(crate) fn surface_type(&self) -> SurfaceType {
         match self {
             Self::Conic(conic) => conic.surface_type,
@@ -866,15 +948,133 @@ impl Display for Surface {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{core::Float, examples::convexplano_lens::sequential_model, n};
+    use crate::{
+        EulerAngles, Rotation3D, core::Float, examples::convexplano_lens::sequential_model, n,
+        specs::surfaces::SurfaceType,
+    };
+
+    // Helper: build a Conic surface with the given semi-diameter and rotation spec
+    // in an identity cursor frame.
+    fn conic_with_rotation(semi_diameter: Float, rotation: Rotation3D) -> Surface {
+        let rot_mat_g2c = Mat3x3::identity();
+        let rotation_matrix = rotation.rotation_matrix() * rot_mat_g2c;
+        let inv_rotation_matrix = rotation_matrix.transpose();
+        Surface::Conic(Conic {
+            pos: Vec3::new(0.0, 0.0, 0.0),
+            track: 0.0,
+            rotation_matrix,
+            inv_rotation_matrix,
+            rotation_matrix_global_to_cursor: rot_mat_g2c,
+            semi_diameter,
+            radius_of_curvature: Float::INFINITY,
+            conic_constant: 0.0,
+            surface_type: SurfaceType::Refracting,
+        })
+    }
+
+    #[test]
+    fn projected_sd_untilted_surface() {
+        let r = 10.0;
+        let surf = conic_with_rotation(r, Rotation3D::None);
+        let tol = 1e-12;
+        assert!(
+            (surf.projected_semi_diameter(&Axis::U) - r).abs() < tol,
+            "U axis: expected {r}, got {}",
+            surf.projected_semi_diameter(&Axis::U)
+        );
+        assert!(
+            (surf.projected_semi_diameter(&Axis::R) - r).abs() < tol,
+            "R axis: expected {r}, got {}",
+            surf.projected_semi_diameter(&Axis::R)
+        );
+    }
+
+    #[test]
+    fn projected_sd_theta_tilted_mirror() {
+        // 45° rotation about cursor-R; foreshortens only the U axis.
+        let r = 10.0;
+        let theta = 45.0_f64.to_radians();
+        let surf = conic_with_rotation(
+            r,
+            Rotation3D::IntrinsicPassiveRUF(EulerAngles(theta, 0.0, 0.0)),
+        );
+        let tol = 1e-10;
+        assert!(
+            (surf.projected_semi_diameter(&Axis::U) - r * theta.cos()).abs() < tol,
+            "U axis: expected {}, got {}",
+            r * theta.cos(),
+            surf.projected_semi_diameter(&Axis::U)
+        );
+        assert!(
+            (surf.projected_semi_diameter(&Axis::R) - r).abs() < tol,
+            "R axis: expected {r}, got {}",
+            surf.projected_semi_diameter(&Axis::R)
+        );
+    }
+
+    #[test]
+    fn projected_sd_psi_tilted_surface() {
+        // 30° rotation about cursor-U; foreshortens only the R axis.
+        let r = 10.0;
+        let psi = 30.0_f64.to_radians();
+        let surf = conic_with_rotation(
+            r,
+            Rotation3D::IntrinsicPassiveRUF(EulerAngles(0.0, psi, 0.0)),
+        );
+        let tol = 1e-10;
+        assert!(
+            (surf.projected_semi_diameter(&Axis::R) - r * psi.cos()).abs() < tol,
+            "R axis: expected {}, got {}",
+            r * psi.cos(),
+            surf.projected_semi_diameter(&Axis::R)
+        );
+        assert!(
+            (surf.projected_semi_diameter(&Axis::U) - r).abs() < tol,
+            "U axis: expected {r}, got {}",
+            surf.projected_semi_diameter(&Axis::U)
+        );
+    }
+
+    #[test]
+    fn projected_sd_after_fold() {
+        // Figure-Z system: two flat mirrors each with theta = 30° about cursor-R.
+        // The projected SD in the U direction should be r * cos(30°) for both mirrors.
+        use crate::examples::mirrors_figure_z;
+        let air = n!(1.0);
+        let wavelengths = [0.5876];
+        let model = mirrors_figure_z::sequential_model(air, &wavelengths);
+        let surfaces = model.surfaces();
+        let r = 12.7_f64;
+        let expected_u = r * (30.0_f64.to_radians()).cos();
+        let tol = 1e-10;
+
+        // Surface indices: 0 = Object, 1 = Mirror 1, 2 = Mirror 2, 3 = Image
+        for &mirror_idx in &[1usize, 2usize] {
+            let surf = &surfaces[mirror_idx];
+            assert!(
+                (surf.projected_semi_diameter(&Axis::U) - expected_u).abs() < tol,
+                "Mirror {mirror_idx} U: expected {expected_u}, got {}",
+                surf.projected_semi_diameter(&Axis::U)
+            );
+            assert!(
+                (surf.projected_semi_diameter(&Axis::R) - r).abs() < tol,
+                "Mirror {mirror_idx} R: expected {r}, got {}",
+                surf.projected_semi_diameter(&Axis::R)
+            );
+        }
+    }
 
     #[test]
     fn is_rotationally_symmetric() {
         let surfaces = vec![
             Surface::Conic(Conic {
                 pos: Vec3::new(0.0, 0.0, 0.0),
+                track: 0.0,
                 rotation_matrix: Mat3x3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
                 inv_rotation_matrix: Mat3x3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
+                rotation_matrix_global_to_cursor: Mat3x3::new(
+                    1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0,
+                ),
                 semi_diameter: 1.0,
                 radius_of_curvature: 1.0,
                 conic_constant: 0.0,
@@ -882,8 +1082,12 @@ mod tests {
             }),
             Surface::Conic(Conic {
                 pos: Vec3::new(0.0, 0.0, 0.0),
+                track: 0.0,
                 rotation_matrix: Mat3x3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
                 inv_rotation_matrix: Mat3x3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
+                rotation_matrix_global_to_cursor: Mat3x3::new(
+                    1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0,
+                ),
                 semi_diameter: 1.0,
                 radius_of_curvature: 1.0,
                 conic_constant: 0.0,
@@ -892,26 +1096,14 @@ mod tests {
         ];
         assert!(SequentialModel::is_rotationally_symmetric(&surfaces));
 
-        // let surfaces = vec![
-        //     Surface::Conic(Conic {
-        //         pos: Vec3::new(0.0, 0.0, 0.0),
-        //         rotation_matrix: Mat3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0,
-        // 0.0, 1.0),         semi_diameter: 1.0,
-        //         radius_of_curvature: 1.0,
-        //         conic_constant: 0.0,
-        //         surface_type: SurfaceType::Refracting,
-        //     }),
-        //     Surface::Toric(Toric {
-        //         pos: Vec3::new(0.0, 0.0, 0.0),
-        //         rotation_matrix: Mat3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0,
-        // 0.0, 1.0),         semi_diameter: 1.0,
-        //         radius_of_curvature_y: 1.0,
-        //         radius_of_curvature_x: 1.0,
-        //         conic_constant: 0.0,
-        //         surface_type: SurfaceType::Refracting,
-        //     }),
-        // ];
-        // assert!(!SequentialModel::is_rotationally_symmetric(&surfaces));
+        // A system with tilted surfaces is not rotationally symmetric.
+        use crate::examples::mirrors_figure_z;
+        let air = n!(1.0);
+        let wavelengths = [0.5876];
+        let figure_z = mirrors_figure_z::sequential_model(air, &wavelengths);
+        assert!(!SequentialModel::is_rotationally_symmetric(
+            figure_z.surfaces()
+        ));
     }
 
     #[test]
@@ -937,7 +1129,7 @@ mod tests {
         let axes = sequential_model.axes();
 
         assert_eq!(axes.len(), 1); // Rotationally symmetric
-        assert_eq!(axes[0], Axis::Y);
+        assert_eq!(axes[0], Axis::U);
     }
 
     #[test]
@@ -945,16 +1137,22 @@ mod tests {
         let surfaces = vec![
             Surface::Object(Object {
                 pos: Vec3::new(0.0, 0.0, 0.0),
+                track: 0.0,
             }),
             Surface::Probe(Probe {
                 pos: Vec3::new(0.0, 0.0, 0.0),
+                track: 0.0,
                 rotation_matrix: Mat3x3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
                 inv_rotation_matrix: Mat3x3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
             }),
             Surface::Conic(Conic {
                 pos: Vec3::new(0.0, 0.0, 0.0),
+                track: 0.0,
                 rotation_matrix: Mat3x3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
                 inv_rotation_matrix: Mat3x3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
+                rotation_matrix_global_to_cursor: Mat3x3::new(
+                    1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0,
+                ),
                 semi_diameter: 1.0,
                 radius_of_curvature: 1.0,
                 conic_constant: 0.0,
@@ -962,8 +1160,12 @@ mod tests {
             }),
             Surface::Conic(Conic {
                 pos: Vec3::new(0.0, 0.0, 0.0),
+                track: 0.0,
                 rotation_matrix: Mat3x3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
                 inv_rotation_matrix: Mat3x3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
+                rotation_matrix_global_to_cursor: Mat3x3::new(
+                    1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0,
+                ),
                 semi_diameter: 1.0,
                 radius_of_curvature: 1.0,
                 conic_constant: 0.0,
@@ -971,6 +1173,7 @@ mod tests {
             }),
             Surface::Image(Image {
                 pos: Vec3::new(0.0, 0.0, 0.0),
+                track: 0.0,
                 rotation_matrix: Mat3x3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
                 inv_rotation_matrix: Mat3x3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
             }),
@@ -985,11 +1188,16 @@ mod tests {
         let surfaces = vec![
             Surface::Object(Object {
                 pos: Vec3::new(0.0, 0.0, 0.0),
+                track: 0.0,
             }),
             Surface::Conic(Conic {
                 pos: Vec3::new(0.0, 0.0, 0.0),
+                track: 0.0,
                 rotation_matrix: Mat3x3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
                 inv_rotation_matrix: Mat3x3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
+                rotation_matrix_global_to_cursor: Mat3x3::new(
+                    1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0,
+                ),
                 semi_diameter: 1.0,
                 radius_of_curvature: 1.0,
                 conic_constant: 0.0,
@@ -997,8 +1205,12 @@ mod tests {
             }),
             Surface::Conic(Conic {
                 pos: Vec3::new(0.0, 0.0, 0.0),
+                track: 0.0,
                 rotation_matrix: Mat3x3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
                 inv_rotation_matrix: Mat3x3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
+                rotation_matrix_global_to_cursor: Mat3x3::new(
+                    1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0,
+                ),
                 semi_diameter: 1.0,
                 radius_of_curvature: 1.0,
                 conic_constant: 0.0,
@@ -1006,11 +1218,13 @@ mod tests {
             }),
             Surface::Probe(Probe {
                 pos: Vec3::new(0.0, 0.0, 0.0),
+                track: 0.0,
                 rotation_matrix: Mat3x3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
                 inv_rotation_matrix: Mat3x3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
             }),
             Surface::Image(Image {
                 pos: Vec3::new(0.0, 0.0, 0.0),
+                track: 0.0,
                 rotation_matrix: Mat3x3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
                 inv_rotation_matrix: Mat3x3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
             }),
@@ -1025,11 +1239,16 @@ mod tests {
         let surfaces = vec![
             Surface::Object(Object {
                 pos: Vec3::new(0.0, 0.0, 0.0),
+                track: 0.0,
             }),
             Surface::Conic(Conic {
                 pos: Vec3::new(0.0, 0.0, 0.0),
+                track: 0.0,
                 rotation_matrix: Mat3x3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
                 inv_rotation_matrix: Mat3x3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
+                rotation_matrix_global_to_cursor: Mat3x3::new(
+                    1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0,
+                ),
                 semi_diameter: 1.0,
                 radius_of_curvature: 1.0,
                 conic_constant: 0.0,
@@ -1037,8 +1256,12 @@ mod tests {
             }),
             Surface::Conic(Conic {
                 pos: Vec3::new(0.0, 0.0, 0.0),
+                track: 0.0,
                 rotation_matrix: Mat3x3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
                 inv_rotation_matrix: Mat3x3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
+                rotation_matrix_global_to_cursor: Mat3x3::new(
+                    1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0,
+                ),
                 semi_diameter: 1.0,
                 radius_of_curvature: 1.0,
                 conic_constant: 0.0,
@@ -1046,11 +1269,13 @@ mod tests {
             }),
             Surface::Probe(Probe {
                 pos: Vec3::new(0.0, 0.0, 0.0),
+                track: 0.0,
                 rotation_matrix: Mat3x3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
                 inv_rotation_matrix: Mat3x3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
             }),
             Surface::Image(Image {
                 pos: Vec3::new(0.0, 0.0, 0.0),
+                track: 0.0,
                 rotation_matrix: Mat3x3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
                 inv_rotation_matrix: Mat3x3::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
             }),
@@ -1068,8 +1293,10 @@ mod tests {
         // z-coordinate infinite
         let surf = Surface::Conic(Conic {
             pos: Vec3::new(0.0, 0.0, Float::INFINITY),
+            track: 0.0,
             rotation_matrix: Mat3x3::identity(),
             inv_rotation_matrix: Mat3x3::identity(),
+            rotation_matrix_global_to_cursor: Mat3x3::identity(),
             semi_diameter: 1.0,
             radius_of_curvature: 1.0,
             conic_constant: 0.0,
@@ -1080,8 +1307,10 @@ mod tests {
         // x- or y-coordinate infinite
         let surf = Surface::Conic(Conic {
             pos: Vec3::new(0.0, Float::INFINITY, 0.0),
+            track: 0.0,
             rotation_matrix: Mat3x3::identity(),
             inv_rotation_matrix: Mat3x3::identity(),
+            rotation_matrix_global_to_cursor: Mat3x3::identity(),
             semi_diameter: 1.0,
             radius_of_curvature: 1.0,
             conic_constant: 0.0,
@@ -1091,8 +1320,10 @@ mod tests {
 
         let surf = Surface::Conic(Conic {
             pos: Vec3::new(Float::INFINITY, 0.0, 0.0),
+            track: 0.0,
             rotation_matrix: Mat3x3::identity(),
             inv_rotation_matrix: Mat3x3::identity(),
+            rotation_matrix_global_to_cursor: Mat3x3::identity(),
             semi_diameter: 1.0,
             radius_of_curvature: 1.0,
             conic_constant: 0.0,
@@ -1103,13 +1334,35 @@ mod tests {
         // Finite coordinates
         let surf = Surface::Conic(Conic {
             pos: Vec3::new(0.0, 0.0, 0.0),
+            track: 0.0,
             rotation_matrix: Mat3x3::identity(),
             inv_rotation_matrix: Mat3x3::identity(),
+            rotation_matrix_global_to_cursor: Mat3x3::identity(),
             semi_diameter: 1.0,
             radius_of_curvature: 1.0,
             conic_constant: 0.0,
             surface_type: SurfaceType::Refracting,
         });
         assert!(!surf.is_infinite());
+    }
+
+    #[test]
+    fn track_equals_z_for_straight_system() {
+        use crate::examples::convexplano_lens;
+        let air = n!(1.0);
+        let nbk7 = n!(1.515);
+        let wavelengths = [0.5876];
+        let model = convexplano_lens::sequential_model(air, nbk7, &wavelengths);
+        let surfaces = model.surfaces();
+        for surf in surfaces {
+            if surf.z().is_finite() {
+                assert!(
+                    (surf.track() - surf.z()).abs() < 1e-10,
+                    "Expected track == z for straight system, got track={}, z={}",
+                    surf.track(),
+                    surf.z()
+                );
+            }
+        }
     }
 }

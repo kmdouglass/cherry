@@ -15,7 +15,7 @@ Install this feature by adding the following to your Cargo.toml: `cherry-rs = { 
 
 #### Testing
 
-Test data for the feature must be generated using [refractiveindex.info-adapters](https://github.com/kmdouglass/refractiveindex.info-adapters) in bitcode format. The resulting file should be placed in the `data/rii.db` directory.
+Test data for the feature must be obtained from [refractiveindex.info-adapters](https://github.com/kmdouglass/refractiveindex.info-adapters/releases) in bitcode format. The resulting file should be placed in the `data/rii.db` directory.
 
 ## Development
 
@@ -35,6 +35,13 @@ Run tests for the core library only. No test data is necessary.
 
 ```console
 cargo test
+```
+
+### Linting and Formatting
+
+```console
+cargo clippy --all-features
+cargo fmt
 ```
 
 ### Benchmarks

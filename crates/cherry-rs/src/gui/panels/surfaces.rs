@@ -16,6 +16,11 @@ pub fn surfaces_panel(ui: &mut egui::Ui, specs: &mut SystemSpecs) -> bool {
 
     let n_col_width = if use_materials { 140.0 } else { 80.0 };
 
+    let has_reflecting = specs
+        .surfaces
+        .iter()
+        .any(|s| s.variant == SurfaceVariant::Conic && s.surface_kind == SurfaceKind::Reflecting);
+
     let table = TableBuilder::new(ui)
         .striped(true)
         .resizable(true)
@@ -27,8 +32,17 @@ pub fn surfaces_panel(ui: &mut egui::Ui, specs: &mut SystemSpecs) -> bool {
         .column(Column::initial(80.0).resizable(true)) // RoC
         .column(Column::initial(80.0).resizable(true)) // Conic
         .column(Column::initial(80.0).resizable(true)) // Thickness
-        .column(Column::initial(n_col_width).resizable(true)) // n / Material
-        .column(Column::auto().at_least(50.0)); // Actions
+        .column(Column::initial(n_col_width).resizable(true)); // n / Material
+
+    let table = if has_reflecting {
+        table
+            .column(Column::initial(65.0).resizable(true)) // θ (deg)
+            .column(Column::initial(65.0).resizable(true)) // ψ (deg)
+    } else {
+        table
+    };
+
+    let table = table.column(Column::auto().at_least(50.0)); // Actions
 
     table
         .header(20.0, |mut header| {
@@ -56,6 +70,14 @@ pub fn surfaces_panel(ui: &mut egui::Ui, specs: &mut SystemSpecs) -> bool {
             header.col(|ui| {
                 ui.strong("n");
             });
+            if has_reflecting {
+                header.col(|ui| {
+                    ui.strong("\u{03b8} (deg)");
+                });
+                header.col(|ui| {
+                    ui.strong("\u{03c8} (deg)");
+                });
+            }
             header.col(|ui| {
                 ui.strong("");
             });
@@ -188,14 +210,33 @@ pub fn surfaces_panel(ui: &mut egui::Ui, specs: &mut SystemSpecs) -> bool {
                         }
                     });
 
-                    // Actions column
+                    // θ / ψ columns (only shown when system has reflecting surfaces)
+                    if has_reflecting {
+                        let is_reflecting_conic =
+                            is_conic && surf.surface_kind == SurfaceKind::Reflecting;
+                        row.col(|ui| {
+                            if is_reflecting_conic {
+                                changed |= editable_cell(ui, &mut surf.theta, row_idx, "theta");
+                            }
+                        });
+                        row.col(|ui| {
+                            if is_reflecting_conic {
+                                changed |= editable_cell(ui, &mut surf.psi, row_idx, "psi");
+                            }
+                        });
+                    }
+
+                    // Actions column (always last).
+                    // Object row: + only (cannot remove object surface).
+                    // Image row: no buttons (cannot insert after or remove image).
+                    // All other rows: + and -.
                     row.col(|ui| {
-                        if !is_locked {
+                        if !is_image {
                             ui.horizontal(|ui| {
                                 if ui.small_button("+").clicked() {
                                     insert_after = Some(row_idx);
                                 }
-                                if ui.small_button("-").clicked() {
+                                if !is_object && ui.small_button("-").clicked() {
                                     delete_at = Some(row_idx);
                                 }
                             });
@@ -228,4 +269,90 @@ fn editable_cell(ui: &mut egui::Ui, value: &mut String, row: usize, col: &str) -
             .id(egui::Id::new(format!("cell_{row}_{col}"))),
     );
     response.changed()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use egui_kittest::{Harness, kittest::Queryable};
+
+    use crate::gui::model::{SurfaceKind, SurfaceRow, SurfaceVariant, SystemSpecs};
+
+    fn specs_with_reflecting_surface() -> SystemSpecs {
+        let mut mirror = SurfaceRow::new_conic("12.7", "Infinity", "0.0", "100.0", "1.0");
+        mirror.surface_kind = SurfaceKind::Reflecting;
+        SystemSpecs {
+            surfaces: vec![
+                SurfaceRow::new_object("Infinity"),
+                mirror,
+                SurfaceRow::new_image(),
+            ],
+            ..Default::default()
+        }
+    }
+
+    fn minimal_specs() -> SystemSpecs {
+        SystemSpecs {
+            surfaces: vec![SurfaceRow::new_object("Infinity"), SurfaceRow::new_image()],
+            ..Default::default()
+        }
+    }
+
+    /// The object row must have a + button so users can insert surfaces after
+    /// it.
+    #[test]
+    fn object_row_has_add_button() {
+        let mut specs = minimal_specs();
+        let mut harness = Harness::new_ui(|ui| {
+            surfaces_panel(ui, &mut specs);
+        });
+        harness.run();
+        // Panics if no + button is found — that is the red state.
+        harness.get_by_label("+");
+    }
+
+    /// Clicking + on the object row inserts a new surface after it.
+    #[test]
+    fn clicking_add_on_object_row_inserts_surface() {
+        let mut specs = minimal_specs();
+        {
+            let mut harness = Harness::new_ui(|ui| {
+                surfaces_panel(ui, &mut specs);
+            });
+            harness.run();
+            harness.get_by_label("+").click();
+            harness.run();
+        }
+        assert_eq!(
+            specs.surfaces.len(),
+            3,
+            "clicking + on the object row should insert a surface"
+        );
+        assert_eq!(specs.surfaces[1].variant, SurfaceVariant::Conic);
+    }
+
+    /// The actions (+/-) column must always be the last column, appearing to
+    /// the right of the θ/ψ columns when a reflecting surface is present.
+    #[test]
+    fn actions_column_is_rightmost_with_reflecting_surfaces() {
+        let mut specs = specs_with_reflecting_surface();
+        let mut harness = Harness::new_ui(|ui| {
+            surfaces_panel(ui, &mut specs);
+        });
+        harness.run();
+
+        let theta_header = harness.get_by_label("\u{03b8} (deg)");
+        let add_button = harness
+            .get_all_by_label("+")
+            .next()
+            .expect("at least one + button should be present");
+
+        assert!(
+            add_button.rect().center().x > theta_header.rect().center().x,
+            "actions column must be to the right of θ column: \
+             + button at x={:.1}, θ header at x={:.1}",
+            add_button.rect().center().x,
+            theta_header.rect().center().x,
+        );
+    }
 }

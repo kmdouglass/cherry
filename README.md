@@ -9,20 +9,30 @@ Optical system design in the browser
 1. Go to https://kmdouglass.github.io/cherry/
 2. Start designing!
 
-## Prerequisites
+## Development
+
+See [crates/cherry-rs/README.md](crates/cherry-rs/README.md) for information about the cherry-rs library.
+
+### Prerequisites
 
 - Rust compiler (see [rust-toolchain.toml](rust-toolchain.toml) for the version)
 - [trunk](https://trunk-rs.github.io/trunk/) (for the WASM frontend)
 - [binaryen](https://github.com/WebAssembly/binaryen) (optional — trunk will use `wasm-opt` for WASM optimization if it is on your PATH)
+- [rii.db](https://github.com/kmdouglass/refractiveindex.info-adapters/releases) (the materials database)
 
-## Build
+Place the `rii.db` materials database in
+
+1. `crates/cherry-rs/data` for desktop development and testing, and
+2. in `www/egui/assets` for web app development.
+
+### Build
 
 ```console
 cd www/egui
 trunk build --release
 ```
 
-## Development
+### Serve Locally
 
 Launch the development server:
 

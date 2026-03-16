@@ -30,14 +30,14 @@ mod test_ri_info {
             angle: 0.0,
             pupil_sampling: PupilSampling::TangentialRayFan {
                 n: 3,
-                axis: cherry_rs::Axis::Y,
+                axis: cherry_rs::Axis::U,
             },
         },
         FieldSpec::Angle {
             angle: 5.0,
             pupil_sampling: PupilSampling::TangentialRayFan {
                 n: 3,
-                axis: cherry_rs::Axis::Y,
+                axis: cherry_rs::Axis::U,
             },
         },
     ];
@@ -45,7 +45,7 @@ mod test_ri_info {
     // Paraxial property values
     fn primary_axial_color() -> HashMap<Axis, f64> {
         let mut primary_axial_color = HashMap::new();
-        primary_axial_color.insert(Axis::Y, 0.7743);
+        primary_axial_color.insert(Axis::U, 0.7743);
         primary_axial_color
     }
 

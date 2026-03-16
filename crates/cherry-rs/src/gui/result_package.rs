@@ -1,9 +1,16 @@
-use crate::{CrossSectionView, ParaxialView, TraceResultsCollection};
+use crate::{
+    CrossSectionView, ParaxialView, TraceResultsCollection,
+    core::math::{linalg::mat3x3::Mat3x3, vec3::Vec3},
+};
 
 /// Lightweight description of a surface for display in dropdowns.
 pub struct SurfaceDesc {
     pub index: usize,
     pub label: String,
+    /// Position of the surface in the global coordinate system.
+    pub pos: Vec3,
+    /// Rotation matrix from global into the surface's local coordinate system.
+    pub rot_mat: Mat3x3,
 }
 
 /// Lightweight description of a field point for display.

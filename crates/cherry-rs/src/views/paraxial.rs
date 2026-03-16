@@ -17,7 +17,6 @@ use crate::{
     FieldSpec,
     core::{
         Float,
-        math::vec3::Vec3,
         sequential_model::{
             Axis, SequentialModel, SequentialSubModel, Step, SubModelID, Surface,
             first_physical_surface, last_physical_surface, reversed_surface_id,
@@ -144,14 +143,19 @@ fn propagate(rays: ParaxialRaysView, distance: Float) -> ParaxialRays {
     propagated
 }
 
-/// Compute the z-intercepts of a set of paraxial rays.
+/// Compute the axis-intercepts of a set of paraxial rays.
 ///
-/// This will return an error if any of the z-intercepts are NaNs.
-fn z_intercepts(rays: ParaxialRaysView) -> Result<Array1<Float>> {
+/// The axis-intercept is the signed distance along the local propagation axis
+/// from the current surface to where the ray crosses that axis. In an unfolded
+/// system this coincides with the z-axis; in a folded system it is the local
+/// optical axis at each segment.
+///
+/// This will return an error if any of the intercepts are NaNs.
+fn axis_intercepts(rays: ParaxialRaysView) -> Result<Array1<Float>> {
     let results = (-&rays.row(0) / rays.row(1)).to_owned();
 
     if results.iter().any(|&x| x.is_nan()) {
-        return Err(anyhow!("Some z_intercepts are NaNs"));
+        return Err(anyhow!("Some axis_intercepts are NaNs"));
     }
 
     Ok(results)
@@ -343,11 +347,12 @@ impl ParaxialSubView {
         let reverse_parallel_ray =
             Self::calc_reverse_parallel_ray(sequential_sub_model, surfaces, axis)?;
 
-        let aperture_stop = Self::calc_aperture_stop(surfaces, &pseudo_marginal_ray);
+        let aperture_stop = Self::calc_aperture_stop(surfaces, &pseudo_marginal_ray, &axis);
         let back_focal_distance = Self::calc_back_focal_distance(surfaces, &parallel_ray)?;
         let front_focal_distance =
             Self::calc_front_focal_distance(surfaces, &reverse_parallel_ray)?;
-        let marginal_ray = Self::calc_marginal_ray(surfaces, &pseudo_marginal_ray, &aperture_stop);
+        let marginal_ray =
+            Self::calc_marginal_ray(surfaces, &pseudo_marginal_ray, &aperture_stop, &axis);
         let entrance_pupil = Self::calc_entrance_pupil(
             sequential_sub_model,
             surfaces,
@@ -365,7 +370,7 @@ impl ParaxialSubView {
         let effective_focal_length = Self::calc_effective_focal_length(&parallel_ray);
 
         let back_principal_plane =
-            Self::calc_back_principal_plane(surfaces, back_focal_distance, effective_focal_length)?;
+            Self::calc_back_principal_plane(back_focal_distance, effective_focal_length)?;
         let front_principal_plane =
             Self::calc_front_principal_plane(front_focal_distance, effective_focal_length);
 
@@ -463,12 +468,16 @@ impl ParaxialSubView {
     fn calc_aperture_stop(
         surfaces: &[Surface],
         pseudo_marginal_ray: &ParaxialRayTraceResults,
+        axis: &Axis,
     ) -> usize {
-        // Get all the semi-diameters of the surfaces and put them in an ndarray.
+        // Get all the projected semi-diameters of the surfaces and put them in an
+        // ndarray. For tilted surfaces, projected_semi_diameter accounts for
+        // the foreshortening of the clear aperture as seen by a paraxial ray
+        // traveling along the cursor axis.
         let semi_diameters = Array::from_vec(
             surfaces
                 .iter()
-                .map(|surface| surface.semi_diameter())
+                .map(|surface| surface.projected_semi_diameter(axis))
                 .collect::<Vec<Float>>(),
         );
 
@@ -488,10 +497,10 @@ impl ParaxialSubView {
     ) -> Result<Float> {
         let last_physical_surface_index =
             last_physical_surface(surfaces).ok_or(anyhow!("There are no physical surfaces"))?;
-        let z_intercepts =
-            z_intercepts(parallel_ray.slice(s![last_physical_surface_index, .., ..]))?;
+        let intercepts =
+            axis_intercepts(parallel_ray.slice(s![last_physical_surface_index, .., ..]))?;
 
-        let bfd = z_intercepts[0];
+        let bfd = intercepts[0];
 
         // Handle edge case for infinite BFD
         if bfd.is_infinite() {
@@ -503,7 +512,6 @@ impl ParaxialSubView {
     }
 
     fn calc_back_principal_plane(
-        surfaces: &[Surface],
         back_focal_distance: Float,
         effective_focal_length: Float,
     ) -> Result<Float> {
@@ -514,12 +522,10 @@ impl ParaxialSubView {
             return Ok(Float::NAN);
         }
 
-        // Find the z position of the last real surface
-        let last_physical_surface_index =
-            last_physical_surface(surfaces).ok_or(anyhow!("There are no physical surfaces"))?;
-        let last_surface_z = surfaces[last_physical_surface_index].z();
-
-        Ok(last_surface_z + delta)
+        // Return a signed distance from the last physical surface along the beam
+        // path, matching the convention of front_principal_plane (distance from the
+        // first physical surface).
+        Ok(delta)
     }
 
     /// Computes the paraxial chief ray for a given field.
@@ -531,7 +537,10 @@ impl ParaxialSubView {
         entrance_pupil: &Pupil,
     ) -> Result<ParaxialRayTraceResults> {
         let enp_loc = entrance_pupil.location;
-        let obj_loc = surfaces.first().ok_or(anyhow!("No surfaces provided"))?.z();
+        let obj_loc = surfaces
+            .first()
+            .ok_or(anyhow!("No surfaces provided"))?
+            .track();
         let sep = if obj_loc.is_infinite() {
             0.0
         } else {
@@ -587,7 +596,7 @@ impl ParaxialSubView {
         if *aperture_stop == 1usize {
             return Ok(Pupil {
                 location: 0.0,
-                semi_diameter: surfaces[1].semi_diameter(),
+                semi_diameter: surfaces[1].projected_semi_diameter(axis),
             });
         }
 
@@ -601,7 +610,7 @@ impl ParaxialSubView {
             axis,
             true,
         )?;
-        let location = z_intercepts(results.slice(s![-1, .., ..]))?[0];
+        let location = axis_intercepts(results.slice(s![-1, .., ..]))?[0];
 
         // Propagate the marginal ray to the entrance pupil location to determine its
         // semi-diameter. I'm not sure, but I think the [0, .., ..1] slice on
@@ -637,7 +646,7 @@ impl ParaxialSubView {
             last_physical_surface(surfaces).ok_or(anyhow!("There are no physical surfaces"))?;
         if last_physical_surface_id == *aperture_stop {
             return Ok(Pupil {
-                location: surfaces[last_physical_surface_id].z(),
+                location: 0.0,
                 semi_diameter: surfaces[last_physical_surface_id].semi_diameter(),
             });
         }
@@ -649,15 +658,14 @@ impl ParaxialSubView {
             ray,
             &sequential_sub_model.slice(*aperture_stop..sequential_sub_model.len()),
             &surfaces[*aperture_stop..],
-            &Axis::Y,
+            &Axis::U,
             false,
         )?;
 
         // Distance is relative to the last physical surface
         let sliced_last_physical_surface_id = last_physical_surface_id - aperture_stop;
-        let distance = z_intercepts(results.slice(s![sliced_last_physical_surface_id, .., ..]))?[0];
-        let last_physical_surface = surfaces[last_physical_surface_id].borrow();
-        let location = last_physical_surface.z() + distance;
+        let distance =
+            axis_intercepts(results.slice(s![sliced_last_physical_surface_id, .., ..]))?[0];
 
         // Propagate the marginal ray to the exit pupil location and find its height
         let semi_diameter = propagate(
@@ -666,7 +674,7 @@ impl ParaxialSubView {
         )[[0, 0]];
 
         Ok(Pupil {
-            location,
+            location: distance,
             semi_diameter,
         })
     }
@@ -678,9 +686,9 @@ impl ParaxialSubView {
         let first_physical_surface_index =
             first_physical_surface(surfaces).ok_or(anyhow!("There are no physical surfaces"))?;
         let index = reversed_surface_id(surfaces, first_physical_surface_index);
-        let z_intercepts = z_intercepts(reverse_parallel_ray.slice(s![index, .., ..]))?;
+        let intercepts = axis_intercepts(reverse_parallel_ray.slice(s![index, .., ..]))?;
 
-        let ffd = z_intercepts[0];
+        let ffd = intercepts[0];
 
         // Handle edge case for infinite FFD
         if ffd.is_infinite() {
@@ -707,11 +715,12 @@ impl ParaxialSubView {
         surfaces: &[Surface],
         pseudo_marginal_ray: &ParaxialRayTraceResults,
         aperture_stop: &usize,
+        axis: &Axis,
     ) -> ParaxialRayTraceResults {
         let semi_diameters = Array::from_vec(
             surfaces
                 .iter()
-                .map(|surface| surface.semi_diameter())
+                .map(|surface| surface.projected_semi_diameter(axis))
                 .collect::<Vec<Float>>(),
         );
         let ratios = semi_diameters / pseudo_marginal_ray.slice(s![.., 0, 0]);
@@ -742,18 +751,18 @@ impl ParaxialSubView {
             last_physical_surface(surfaces).ok_or(anyhow!("There are no physical surfaces"))?;
         let last_surface = surfaces[last_physical_surface_id].borrow();
 
-        let dz = z_intercepts(marginal_ray.slice(s![last_physical_surface_id, .., ..]))?[0];
-        let location = if dz.is_infinite() {
+        let d_axis = axis_intercepts(marginal_ray.slice(s![last_physical_surface_id, .., ..]))?[0];
+        let location = if d_axis.is_infinite() {
             // Ensure positive infinity is returned for infinite image planes
             Float::INFINITY
         } else {
-            last_surface.z() + dz
+            last_surface.track() + d_axis
         };
 
         // Propagate the chief ray from the last physical surface to the image plane to
         // determine its semi-diameter.
         let ray = chief_ray.slice(s![last_physical_surface_id, .., ..]);
-        let propagated = propagate(ray, dz);
+        let propagated = propagate(ray, d_axis);
         let semi_diameter = propagated[[0, 0]].abs();
 
         Ok(ImagePlane {
@@ -864,12 +873,6 @@ impl ParaxialSubView {
     }
 }
 
-impl Pupil {
-    pub fn pos(&self) -> Vec3 {
-        Vec3::new(0.0, 0.0, self.location)
-    }
-}
-
 /// Compute the ray transfer matrix for propagation to and interaction with a
 /// surface.
 fn surface_to_rtm(
@@ -943,30 +946,30 @@ mod test {
     }
 
     #[test]
-    fn test_z_intercepts() {
+    fn test_axis_intercepts() {
         let rays = arr2(&[[1.0, 2.0, 3.0, 0.0], [4.0, 5.0, 6.0, 7.0]]);
-        let z_intercepts = z_intercepts(rays.view()).unwrap();
+        let intercepts = axis_intercepts(rays.view()).unwrap();
 
         let expected = arr1(&[-0.25, -0.4, -0.5, 0.0]);
 
-        assert_abs_diff_eq!(z_intercepts, expected, epsilon = 1e-4);
+        assert_abs_diff_eq!(intercepts, expected, epsilon = 1e-4);
     }
 
     #[test]
-    fn test_z_intercepts_divide_by_zero() {
+    fn test_axis_intercepts_divide_by_zero() {
         let rays = arr2(&[[1.0], [0.0]]);
-        let z_intercepts = z_intercepts(rays.view()).unwrap();
+        let intercepts = axis_intercepts(rays.view()).unwrap();
 
-        assert!(z_intercepts.shape() == [1]);
-        assert!(z_intercepts[0].is_infinite());
+        assert!(intercepts.shape() == [1]);
+        assert!(intercepts[0].is_infinite());
     }
 
     #[test]
-    fn test_z_intercepts_zero_height_divide_by_zero() {
+    fn test_axis_intercepts_zero_height_divide_by_zero() {
         let rays = arr2(&[[0.0], [0.0]]);
-        let z_intercepts = z_intercepts(rays.view());
+        let intercepts = axis_intercepts(rays.view());
 
-        assert!(z_intercepts.is_err());
+        assert!(intercepts.is_err());
     }
 
     fn setup() -> (ParaxialSubView, SequentialModel) {
@@ -976,7 +979,7 @@ mod test {
         let sequential_model = convexplano_lens::sequential_model(air, nbk7, &wavelengths);
         let seq_sub_model = sequential_model
             .submodels()
-            .get(&SubModelID(0usize, Axis::Y))
+            .get(&SubModelID(0usize, Axis::U))
             .expect("Submodel not found.");
         let field_specs = vec![
             FieldSpec::Angle {
@@ -993,7 +996,7 @@ mod test {
             ParaxialSubView::new(
                 seq_sub_model,
                 sequential_model.surfaces(),
-                Axis::Y,
+                Axis::U,
                 &field_specs,
                 false,
             )
@@ -1053,12 +1056,12 @@ mod test {
         let sequential_model = convexplano_lens::sequential_model(air, nbk7, &wavelengths);
         let seq_sub_model = sequential_model
             .submodels()
-            .get(&SubModelID(0usize, Axis::Y))
+            .get(&SubModelID(0usize, Axis::U))
             .expect("Submodel not found.");
         let pseudo_marginal_ray = ParaxialSubView::calc_pseudo_marginal_ray(
             seq_sub_model,
             sequential_model.surfaces(),
-            Axis::Y,
+            Axis::U,
         )
         .unwrap();
 
@@ -1080,12 +1083,12 @@ mod test {
         let sequential_model = convexplano_lens::sequential_model(air, nbk7, &wavelengths);
         let seq_sub_model = sequential_model
             .submodels()
-            .get(&SubModelID(0usize, Axis::Y))
+            .get(&SubModelID(0usize, Axis::U))
             .expect("Submodel not found.");
         let reverse_parallel_ray = ParaxialSubView::calc_reverse_parallel_ray(
             seq_sub_model,
             sequential_model.surfaces(),
-            Axis::Y,
+            Axis::U,
         )
         .unwrap();
 
