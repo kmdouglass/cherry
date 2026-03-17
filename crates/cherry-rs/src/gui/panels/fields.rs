@@ -1,6 +1,7 @@
 use egui_extras::{Column, TableBuilder};
 
 use super::super::model::{FieldMode, FieldRow, SystemSpecs};
+use super::{format_display_float, parse_display_float};
 
 /// Draw the fields editor panel. Returns true if any spec was modified.
 pub fn fields_panel(ui: &mut egui::Ui, specs: &mut SystemSpecs) -> bool {
@@ -81,19 +82,45 @@ pub fn fields_panel(ui: &mut egui::Ui, specs: &mut SystemSpecs) -> bool {
 
                     // Value column (angle or y position)
                     row.col(|ui| {
-                        changed |= editable_cell(ui, &mut field.value, row_idx, "val");
+                        if is_angle {
+                            changed |=
+                                drag_value(ui, &mut field.value, row_idx, "val", -90.0..=90.0, 0.1);
+                        } else {
+                            changed |= drag_value(
+                                ui,
+                                &mut field.value,
+                                row_idx,
+                                "val",
+                                f64::NEG_INFINITY..=f64::INFINITY,
+                                1.0,
+                            );
+                        }
                     });
 
                     // X column (PointSource only)
                     if !is_angle {
                         row.col(|ui| {
-                            changed |= editable_cell(ui, &mut field.x, row_idx, "x");
+                            changed |= drag_value(
+                                ui,
+                                &mut field.x,
+                                row_idx,
+                                "x",
+                                f64::NEG_INFINITY..=f64::INFINITY,
+                                1.0,
+                            );
                         });
                     }
 
                     // Pupil spacing
                     row.col(|ui| {
-                        changed |= editable_cell(ui, &mut field.pupil_spacing, row_idx, "ps");
+                        changed |= drag_value(
+                            ui,
+                            &mut field.pupil_spacing,
+                            row_idx,
+                            "ps",
+                            0.001..=1.0,
+                            0.001,
+                        );
                     });
 
                     // Actions
@@ -130,12 +157,22 @@ pub fn fields_panel(ui: &mut egui::Ui, specs: &mut SystemSpecs) -> bool {
     changed
 }
 
-fn editable_cell(ui: &mut egui::Ui, value: &mut String, row: usize, col: &str) -> bool {
-    let response = ui.add(
-        egui::TextEdit::singleline(value)
-            .desired_width(80.0)
-            .horizontal_align(egui::Align::RIGHT)
-            .id(egui::Id::new(format!("field_{row}_{col}"))),
-    );
-    response.changed()
+fn drag_value(
+    ui: &mut egui::Ui,
+    field: &mut String,
+    row: usize,
+    col: &str,
+    range: std::ops::RangeInclusive<f64>,
+    speed: f64,
+) -> bool {
+    let mut val = parse_display_float(field);
+    let response = ui.push_id(format!("field_{row}_{col}"), |ui| {
+        ui.add(egui::DragValue::new(&mut val).range(range).speed(speed))
+    });
+    if response.inner.changed() {
+        *field = format_display_float(val);
+        true
+    } else {
+        false
+    }
 }
