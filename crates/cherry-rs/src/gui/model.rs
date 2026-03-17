@@ -48,6 +48,10 @@ impl std::fmt::Display for SurfaceKind {
     }
 }
 
+fn default_zero() -> String {
+    "0".to_string()
+}
+
 /// A single row in the surfaces table. All numeric fields are strings for
 /// editing.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -59,6 +63,14 @@ pub struct SurfaceRow {
     pub semi_diameter: String,
     pub radius_of_curvature: String,
     pub conic_constant: String,
+    /// Tilt in UF plane (about cursor-R axis), degrees. Only meaningful for
+    /// reflecting Conic surfaces.
+    #[serde(default = "default_zero")]
+    pub theta: String,
+    /// Tilt in RF plane (about cursor-U axis), degrees. Only meaningful for
+    /// reflecting Conic surfaces.
+    #[serde(default = "default_zero")]
+    pub psi: String,
     /// Material key from rii.db (e.g. "glass:BK7:SCHOTT"). Used when
     /// `SystemSpecs::use_materials` is true.
     #[serde(default)]
@@ -75,6 +87,8 @@ impl SurfaceRow {
             semi_diameter: String::new(),
             radius_of_curvature: String::new(),
             conic_constant: String::new(),
+            theta: "0".into(),
+            psi: "0".into(),
             material_key: None,
         }
     }
@@ -94,6 +108,8 @@ impl SurfaceRow {
             semi_diameter: semi_diameter.into(),
             radius_of_curvature: radius_of_curvature.into(),
             conic_constant: conic_constant.into(),
+            theta: "0".into(),
+            psi: "0".into(),
             material_key: None,
         }
     }
@@ -107,6 +123,8 @@ impl SurfaceRow {
             semi_diameter: semi_diameter.into(),
             radius_of_curvature: String::new(),
             conic_constant: String::new(),
+            theta: "0".into(),
+            psi: "0".into(),
             material_key: None,
         }
     }
@@ -120,6 +138,8 @@ impl SurfaceRow {
             semi_diameter: String::new(),
             radius_of_curvature: String::new(),
             conic_constant: String::new(),
+            theta: "0".into(),
+            psi: "0".into(),
             material_key: None,
         }
     }

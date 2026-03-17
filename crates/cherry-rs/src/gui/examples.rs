@@ -1,5 +1,51 @@
 use super::model::{FieldMode, FieldRow, SurfaceKind, SurfaceRow, SurfaceVariant, SystemSpecs};
 
+/// Figure-Z two-mirror system: two flat mirrors at 30° tilt, separated by 100
+/// mm, returning the beam parallel to the z-axis.
+pub fn mirrors_figure_z() -> SystemSpecs {
+    SystemSpecs {
+        surfaces: vec![
+            SurfaceRow::new_object("Infinity"),
+            SurfaceRow {
+                variant: SurfaceVariant::Conic,
+                surface_kind: SurfaceKind::Reflecting,
+                refractive_index: "1.0".into(),
+                thickness: "100.0".into(),
+                semi_diameter: "12.7".into(),
+                radius_of_curvature: "Infinity".into(),
+                conic_constant: "0.0".into(),
+                theta: "30".into(),
+                psi: "0".into(),
+                material_key: None,
+            },
+            SurfaceRow {
+                variant: SurfaceVariant::Conic,
+                surface_kind: SurfaceKind::Reflecting,
+                refractive_index: "1.0".into(),
+                thickness: "50.0".into(),
+                semi_diameter: "12.7".into(),
+                radius_of_curvature: "Infinity".into(),
+                conic_constant: "0.0".into(),
+                theta: "30".into(),
+                psi: "0".into(),
+                material_key: None,
+            },
+            SurfaceRow::new_image(),
+        ],
+        fields: vec![FieldRow {
+            value: "0.0".into(),
+            x: "0.0".into(),
+            pupil_spacing: "0.1".into(),
+        }],
+        aperture_semi_diameter: "12.7".into(),
+        wavelengths: vec!["0.567".into()],
+        field_mode: FieldMode::Angle,
+        use_materials: false,
+        selected_materials: Vec::new(),
+        cross_section_n_rays: 11,
+    }
+}
+
 /// Petzval lens example (5 glass elements).
 pub fn petzval_lens() -> SystemSpecs {
     SystemSpecs {
@@ -81,6 +127,8 @@ pub fn convexplano_lens_with_materials() -> SystemSpecs {
                 semi_diameter: "12.5".into(),
                 radius_of_curvature: "Infinity".into(),
                 conic_constant: "0.0".into(),
+                theta: "0".into(),
+                psi: "0".into(),
                 material_key: Some("other:air:Ciddor".into()),
             },
             SurfaceRow {
@@ -91,6 +139,8 @@ pub fn convexplano_lens_with_materials() -> SystemSpecs {
                 semi_diameter: "12.5".into(),
                 radius_of_curvature: "25.8".into(),
                 conic_constant: "0.0".into(),
+                theta: "0".into(),
+                psi: "0".into(),
                 material_key: Some("popular_glass:BK7:SCHOTT".into()),
             },
             SurfaceRow {
@@ -101,6 +151,8 @@ pub fn convexplano_lens_with_materials() -> SystemSpecs {
                 semi_diameter: "12.5".into(),
                 radius_of_curvature: "Infinity".into(),
                 conic_constant: "0.0".into(),
+                theta: "0".into(),
+                psi: "0".into(),
                 material_key: Some("other:air:Ciddor".into()),
             },
             SurfaceRow::new_image(),
@@ -139,6 +191,8 @@ pub fn concave_mirror() -> SystemSpecs {
                 semi_diameter: "12.5".into(),
                 radius_of_curvature: "-200.0".into(),
                 conic_constant: "0.0".into(),
+                theta: "0".into(),
+                psi: "0".into(),
                 material_key: None,
             },
             SurfaceRow::new_image(),

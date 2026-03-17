@@ -12,6 +12,13 @@ use crate::{
     },
 };
 
+/// Identifies a global transverse coordinate axis for cross-section projection.
+#[derive(Clone, Copy)]
+pub enum GlobalAxis {
+    X,
+    Y,
+}
+
 const N_PTS: usize = 64;
 const EPS: f64 = 1e-6;
 
@@ -56,9 +63,10 @@ pub enum DrawElement {
         extent: f64,
     },
     FlatPlane {
-        z: f64,
-        min: f64,
-        max: f64,
+        /// First endpoint in (z, transverse) plot space.
+        p1: [f64; 2],
+        /// Second endpoint in (z, transverse) plot space.
+        p2: [f64; 2],
         kind: FlatPlaneKind,
     },
 }
@@ -86,8 +94,8 @@ pub fn cross_section_view(
     let yz_valid = axis_dirs.iter().all(|d| d.x().abs() < EPS);
     let xz_valid = axis_dirs.iter().all(|d| d.y().abs() < EPS);
 
-    let yz = build_plane_geometry(model, trace, Axis::Y);
-    let xz = build_plane_geometry(model, trace, Axis::X);
+    let yz = build_plane_geometry(model, trace, GlobalAxis::Y);
+    let xz = build_plane_geometry(model, trace, GlobalAxis::X);
 
     CrossSectionView {
         wavelengths,
@@ -102,7 +110,7 @@ pub fn cross_section_view(
 fn build_plane_geometry(
     model: &SequentialModel,
     trace: Option<&TraceResultsCollection>,
-    axis: Axis,
+    axis: GlobalAxis,
 ) -> PlaneGeometry {
     let surfaces = model.surfaces();
     let largest_sd = model.largest_semi_diameter();
@@ -177,39 +185,40 @@ fn build_plane_geometry(
         if surf.is_infinite() {
             continue;
         }
-        let z = surf.pos().z();
         let half = if largest_sd > 0.0 {
             largest_sd * 1.2
         } else {
             1.0
         };
-        match surf {
-            Surface::Image(_) => {
-                elements.push(DrawElement::FlatPlane {
-                    z,
-                    min: -half,
-                    max: half,
-                    kind: FlatPlaneKind::Image,
-                });
-            }
-            Surface::Probe(_) => {
-                elements.push(DrawElement::FlatPlane {
-                    z,
-                    min: -half,
-                    max: half,
-                    kind: FlatPlaneKind::Probe,
-                });
-            }
-            Surface::Object(_) => {
-                elements.push(DrawElement::FlatPlane {
-                    z,
-                    min: -half,
-                    max: half,
-                    kind: FlatPlaneKind::Object,
-                });
-            }
-            _ => {}
-        }
+        let kind = match surf {
+            Surface::Image(_) => FlatPlaneKind::Image,
+            Surface::Probe(_) => FlatPlaneKind::Probe,
+            Surface::Object(_) => FlatPlaneKind::Object,
+            _ => continue,
+        };
+
+        // Center of the plane in (z, transverse) plot space.
+        let center_z = surf.pos().z();
+        let center_t = match axis {
+            GlobalAxis::Y => surf.pos().y(),
+            GlobalAxis::X => surf.pos().x(),
+        };
+
+        // Forward direction of the cursor at this surface in global coordinates.
+        // inv_rot_mat() maps local → global; applying to (0,0,1) gives the cursor
+        // forward direction. For Object (no rotation field) this is (0,0,1).
+        let fwd = surf.inv_rot_mat() * Vec3::new(0.0, 0.0, 1.0);
+        let fwd_z = fwd.z();
+        let fwd_t = match axis {
+            GlobalAxis::Y => fwd.y(),
+            GlobalAxis::X => fwd.x(),
+        };
+
+        // Perpendicular to (fwd_z, fwd_t) in 2D is (-fwd_t, fwd_z).
+        let p1 = [center_z - fwd_t * half, center_t + fwd_z * half];
+        let p2 = [center_z + fwd_t * half, center_t - fwd_z * half];
+
+        elements.push(DrawElement::FlatPlane { p1, p2, kind });
     }
 
     // Extract ray paths.
@@ -217,7 +226,10 @@ fn build_plane_geometry(
     let mut ray_paths: Vec<Vec<Vec<[f64; 2]>>> = vec![Vec::new(); n_wavelengths];
 
     if let Some(tc) = trace {
-        let trace_axis = axis;
+        let trace_axis = match axis {
+            GlobalAxis::Y => Axis::U,
+            GlobalAxis::X => Axis::R,
+        };
         for result in tc.get_by_axis(trace_axis) {
             let wl_id = result.wavelength_id();
             if wl_id >= n_wavelengths {
@@ -248,8 +260,8 @@ fn build_plane_geometry(
                             continue;
                         }
                         let transverse = match axis {
-                            Axis::Y => ray.y(),
-                            Axis::X => ray.x(),
+                            GlobalAxis::Y => ray.y(),
+                            GlobalAxis::X => ray.x(),
                         };
                         path.push([ray.z(), transverse]);
                     }
@@ -275,7 +287,7 @@ fn build_plane_geometry(
 /// For axis = Y: samples at (0, y, 0) for y in [-sd, sd], returns global (z, y)
 /// pairs. For axis = X: samples at (x, 0, 0) for x in [-sd, sd], returns global
 /// (z, x) pairs.
-fn sample_surface(surf: &Surface, axis: Axis, n_pts: usize) -> Vec<[f64; 2]> {
+fn sample_surface(surf: &Surface, axis: GlobalAxis, n_pts: usize) -> Vec<[f64; 2]> {
     let sd = surf.semi_diameter();
     if !sd.is_finite() || sd <= 0.0 || n_pts < 2 {
         return Vec::new();
@@ -286,19 +298,19 @@ fn sample_surface(surf: &Surface, axis: Axis, n_pts: usize) -> Vec<[f64; 2]> {
         let t = i as Float / (n_pts - 1) as Float; // 0.0 to 1.0
         let transverse = sd * (2.0 * t - 1.0); // -sd to +sd
         let local_pt = match axis {
-            Axis::Y => Vec3::new(0.0, transverse, 0.0),
-            Axis::X => Vec3::new(transverse, 0.0, 0.0),
+            GlobalAxis::Y => Vec3::new(0.0, transverse, 0.0),
+            GlobalAxis::X => Vec3::new(transverse, 0.0, 0.0),
         };
         let (sag, _) = surf.sag_norm(local_pt);
         let local_surface_pt = match axis {
-            Axis::Y => Vec3::new(0.0, transverse, sag),
-            Axis::X => Vec3::new(transverse, 0.0, sag),
+            GlobalAxis::Y => Vec3::new(0.0, transverse, sag),
+            GlobalAxis::X => Vec3::new(transverse, 0.0, sag),
         };
         // Transform to global coordinates.
         let global_pt = surf.inv_rot_mat() * local_surface_pt + surf.pos();
         let transverse_global = match axis {
-            Axis::Y => global_pt.y(),
-            Axis::X => global_pt.x(),
+            GlobalAxis::Y => global_pt.y(),
+            GlobalAxis::X => global_pt.x(),
         };
         pts.push([global_pt.z(), transverse_global]);
     }
@@ -363,9 +375,9 @@ fn compute_bounds(elements: &[DrawElement], ray_paths: &[Vec<Vec<[f64; 2]>>]) ->
                 update(*z, *extent, &mut z_min, &mut z_max, &mut t_min, &mut t_max);
                 update(*z, -extent, &mut z_min, &mut z_max, &mut t_min, &mut t_max);
             }
-            DrawElement::FlatPlane { z, min, max, .. } => {
-                update(*z, *min, &mut z_min, &mut z_max, &mut t_min, &mut t_max);
-                update(*z, *max, &mut z_min, &mut z_max, &mut t_min, &mut t_max);
+            DrawElement::FlatPlane { p1, p2, .. } => {
+                update(p1[0], p1[1], &mut z_min, &mut z_max, &mut t_min, &mut t_max);
+                update(p2[0], p2[1], &mut z_min, &mut z_max, &mut t_min, &mut t_max);
             }
         }
     }
@@ -418,7 +430,7 @@ mod tests {
         let model = convexplano_lens::sequential_model(air, nbk7, &wavelengths);
         let surfaces = model.surfaces();
         // Surface 2 is the plano (flat) back surface.
-        let pts = sample_surface(&surfaces[2], Axis::Y, 10);
+        let pts = sample_surface(&surfaces[2], GlobalAxis::Y, 10);
         // All sag values should be zero for a flat surface.
         for &[_z, _t] in &pts {
             // Just ensure we got points back

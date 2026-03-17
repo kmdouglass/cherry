@@ -34,15 +34,18 @@ fn render_paraxial_content(ui: &mut egui::Ui, r: &ResultPackage) {
     let pv = r.paraxial.as_ref().unwrap();
     let subviews = pv.subviews();
 
-    // Collect unique axes, sorted X before Y.
+    // Collect unique axes, sorted R before U.
     let mut axes: Vec<Axis> = subviews.keys().map(|id| id.1).collect();
-    axes.sort_by_key(|a| if *a == Axis::X { 0u8 } else { 1 });
+    axes.sort_by_key(|a| if *a == Axis::R { 0u8 } else { 1 });
     axes.dedup();
     let n_axes = axes.len();
 
-    for axis in &axes {
+    for (i, axis) in axes.iter().enumerate() {
         if n_axes > 1 {
-            let label = if *axis == Axis::X { "X Axis" } else { "Y Axis" };
+            if i > 0 {
+                ui.separator();
+            }
+            let label = if *axis == Axis::R { "R Axis" } else { "U Axis" };
             ui.heading(label);
         }
 
@@ -64,7 +67,7 @@ fn render_paraxial_content(ui: &mut egui::Ui, r: &ResultPackage) {
         for axis in &axes {
             if let Some(&color) = pac.get(axis) {
                 let axis_suffix = if n_axes > 1 {
-                    format!(" ({})", if *axis == Axis::X { "X" } else { "Y" })
+                    format!(" ({})", if *axis == Axis::R { "R" } else { "U" })
                 } else {
                     String::new()
                 };
@@ -77,13 +80,6 @@ fn render_paraxial_content(ui: &mut egui::Ui, r: &ResultPackage) {
         }
         ui.add_space(4.0);
     }
-
-    // Note.
-    ui.label(
-        egui::RichText::new("Distances are relative to the first surface.")
-            .small()
-            .italics(),
-    );
 }
 
 fn render_axis_table(
@@ -98,7 +94,7 @@ fn render_axis_table(
     egui::Grid::new(format!(
         "paraxial_{}",
         ids.first()
-            .map_or("empty", |id| { if id.1 == Axis::X { "x" } else { "y" } })
+            .map_or("empty", |id| { if id.1 == Axis::R { "r" } else { "u" } })
     ))
     .num_columns(n_cols)
     .spacing([20.0, 4.0])
@@ -128,27 +124,43 @@ fn render_axis_table(
 
         sep_row(ui, n_cols);
 
-        multi_row(ui, "Entrance pupil location", ids, subviews, |sv| {
-            sv.entrance_pupil().location
-        });
-        multi_row(ui, "Entrance pupil semi-dia", ids, subviews, |sv| {
+        multi_row(
+            ui,
+            "Entrance pupil dist. from first surface",
+            ids,
+            subviews,
+            |sv| sv.entrance_pupil().location,
+        );
+        multi_row(ui, "Entrance pupil semi-diameter", ids, subviews, |sv| {
             sv.entrance_pupil().semi_diameter
         });
-        multi_row(ui, "Exit pupil location", ids, subviews, |sv| {
-            sv.exit_pupil().location
-        });
-        multi_row(ui, "Exit pupil semi-dia", ids, subviews, |sv| {
+        multi_row(
+            ui,
+            "Exit pupil dist. from last surface",
+            ids,
+            subviews,
+            |sv| sv.exit_pupil().location,
+        );
+        multi_row(ui, "Exit pupil semi-diameter", ids, subviews, |sv| {
             sv.exit_pupil().semi_diameter
         });
 
         sep_row(ui, n_cols);
 
-        multi_row(ui, "Front principal plane", ids, subviews, |sv| {
-            *sv.front_principal_plane()
-        });
-        multi_row(ui, "Back principal plane", ids, subviews, |sv| {
-            *sv.back_principal_plane()
-        });
+        multi_row(
+            ui,
+            "Front principal plane dist. from first surface",
+            ids,
+            subviews,
+            |sv| *sv.front_principal_plane(),
+        );
+        multi_row(
+            ui,
+            "Back principal plane dist. from last surface",
+            ids,
+            subviews,
+            |sv| *sv.back_principal_plane(),
+        );
 
         sep_row(ui, n_cols);
 
@@ -274,17 +286,6 @@ mod tests {
         harness.get_by_label("EFL");
         harness.get_by_label("BFD");
         harness.get_by_label("FFD");
-    }
-
-    #[test]
-    fn shows_distances_note() {
-        let result = make_result(&["0.567"]);
-        let mut harness = Harness::new(|ctx| {
-            let mut open = true;
-            ParaxialWindow::show(ctx, &mut open, Some(&result));
-        });
-        harness.step();
-        harness.get_by_label_contains("Distances are relative");
     }
 
     #[test]

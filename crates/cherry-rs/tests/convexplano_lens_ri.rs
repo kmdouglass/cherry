@@ -10,14 +10,14 @@ const FIELD_SPECS: [FieldSpec; 2] = [
         angle: 0.0,
         pupil_sampling: PupilSampling::TangentialRayFan {
             n: 3,
-            axis: cherry_rs::Axis::Y,
+            axis: cherry_rs::Axis::U,
         },
     },
     FieldSpec::Angle {
         angle: 5.0,
         pupil_sampling: PupilSampling::TangentialRayFan {
             n: 3,
-            axis: cherry_rs::Axis::Y,
+            axis: cherry_rs::Axis::U,
         },
     },
 ];
@@ -25,14 +25,14 @@ const FIELD_SPECS: [FieldSpec; 2] = [
 // Paraxial property values
 const APERTURE_STOP: usize = 1;
 const BACK_FOCAL_DISTANCE: f64 = 46.5987;
-const BACK_PRINCIPAL_PLANE: f64 = 1.8017;
+const BACK_PRINCIPAL_PLANE: f64 = -3.4983;
 const EFFECTIVE_FOCAL_LENGTH: f64 = 50.097;
 const ENTRANCE_PUPIL: Pupil = Pupil {
     location: 0.0,
     semi_diameter: 12.5,
 };
 const EXIT_PUPIL: Pupil = Pupil {
-    location: 1.8017,
+    location: -3.4983,
     semi_diameter: 12.5,
 };
 const FRONT_FOCAL_DISTANCE: f64 = EFFECTIVE_FOCAL_LENGTH;

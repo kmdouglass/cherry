@@ -311,8 +311,8 @@ fn draw_element(
         } => {
             draw_stop(painter, *z as f32, *half_gap as f32, *extent as f32, w2s);
         }
-        DrawElement::FlatPlane { z, min, max, kind } => {
-            draw_flat_plane(painter, *z as f32, *min as f32, *max as f32, *kind, w2s);
+        DrawElement::FlatPlane { p1, p2, kind } => {
+            draw_flat_plane(painter, *p1, *p2, *kind, w2s);
         }
     }
 }
@@ -377,9 +377,8 @@ fn draw_stop(painter: &egui::Painter, z: f32, half_gap: f32, extent: f32, w2s: &
 
 fn draw_flat_plane(
     painter: &egui::Painter,
-    z: f32,
-    min: f32,
-    max: f32,
+    p1: [f64; 2],
+    p2: [f64; 2],
     kind: FlatPlaneKind,
     w2s: &WorldToScreen,
 ) {
@@ -389,7 +388,10 @@ fn draw_flat_plane(
         FlatPlaneKind::Object => (egui::Color32::from_gray(150), 1.0),
     };
     painter.line_segment(
-        [w2s.map(z, max), w2s.map(z, min)],
+        [
+            w2s.map(p1[0] as f32, p1[1] as f32),
+            w2s.map(p2[0] as f32, p2[1] as f32),
+        ],
         egui::Stroke::new(width, color),
     );
 }
@@ -558,8 +560,8 @@ fn render_svg(
             } => {
                 svg_stop(&mut s, *z, *half_gap, *extent, &w2s, stop_color);
             }
-            DrawElement::FlatPlane { z, min, max, kind } => {
-                svg_flat_plane(&mut s, *z, *min, *max, *kind, &w2s);
+            DrawElement::FlatPlane { p1, p2, kind } => {
+                svg_flat_plane(&mut s, *p1, *p2, *kind, &w2s);
             }
         }
     }
@@ -644,9 +646,8 @@ fn svg_stop(s: &mut String, z: f64, half_gap: f64, extent: f64, w2s: &WorldToSvg
 
 fn svg_flat_plane(
     s: &mut String,
-    z: f64,
-    min: f64,
-    max: f64,
+    p1: [f64; 2],
+    p2: [f64; 2],
     kind: FlatPlaneKind,
     w2s: &WorldToSvg,
 ) {
@@ -655,10 +656,10 @@ fn svg_flat_plane(
         FlatPlaneKind::Probe => ("#c8c800", 1.0),
         FlatPlaneKind::Object => ("#969696", 1.0),
     };
-    let (x, y1) = w2s.map(z, max);
-    let (_, y2) = w2s.map(z, min);
+    let (x1, y1) = w2s.map(p1[0], p1[1]);
+    let (x2, y2) = w2s.map(p2[0], p2[1]);
     s.push_str(&format!(
-        r#"<line x1="{x:.2}" y1="{y1:.2}" x2="{x:.2}" y2="{y2:.2}" stroke="{color}" stroke-width="{width}"/>"#
+        r#"<line x1="{x1:.2}" y1="{y1:.2}" x2="{x2:.2}" y2="{y2:.2}" stroke="{color}" stroke-width="{width}"/>"#
     ));
 }
 
