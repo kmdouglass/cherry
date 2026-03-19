@@ -342,6 +342,26 @@ impl CherryApp {
     }
 }
 
+fn is_mobile(ctx: &egui::Context) -> bool {
+    ctx.screen_rect().width() < 550.0
+}
+
+impl CherryApp {
+    fn window_list_ui(&mut self, ui: &mut egui::Ui) {
+        ui.label(egui::RichText::new("Input").strong());
+        ui.separator();
+        ui.toggle_value(&mut self.windows.specs, "Specs");
+        #[cfg(feature = "ri-info")]
+        ui.toggle_value(&mut self.windows.materials, "Materials");
+        ui.add_space(8.0);
+        ui.label(egui::RichText::new("Output").strong());
+        ui.separator();
+        ui.toggle_value(&mut self.windows.paraxial_summary, "Paraxial Summary");
+        ui.toggle_value(&mut self.windows.spot_diagram, "Spot Diagram");
+        ui.toggle_value(&mut self.windows.cross_section, "Cross Section");
+    }
+}
+
 impl eframe::App for CherryApp {
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
         let state = AppState {
@@ -471,27 +491,27 @@ impl eframe::App for CherryApp {
             });
         });
 
-        // Right panel: window toggle list
-        egui::SidePanel::right("window_list")
-            .default_width(160.0)
-            .resizable(false)
-            .show(ctx, |ui| {
-                ui.add_space(4.0);
-                ui.label(egui::RichText::new("Input").strong());
-                ui.separator();
-
-                ui.toggle_value(&mut self.windows.specs, "Specs");
-                #[cfg(feature = "ri-info")]
-                ui.toggle_value(&mut self.windows.materials, "Materials");
-
-                ui.add_space(8.0);
-                ui.label(egui::RichText::new("Output").strong());
-                ui.separator();
-
-                ui.toggle_value(&mut self.windows.paraxial_summary, "Paraxial Summary");
-                ui.toggle_value(&mut self.windows.spot_diagram, "Spot Diagram");
-                ui.toggle_value(&mut self.windows.cross_section, "Cross Section");
+        // Mobile: second top bar with Windows dropdown
+        if is_mobile(ctx) {
+            egui::TopBottomPanel::top("window_bar").show(ctx, |ui| {
+                egui::MenuBar::new().ui(ui, |ui| {
+                    ui.menu_button("⏷ Windows", |ui| {
+                        self.window_list_ui(ui);
+                    });
+                });
             });
+        }
+
+        // Right panel: window toggle list (desktop only; mobile uses top-bar dropdown)
+        if !is_mobile(ctx) {
+            egui::SidePanel::right("window_list")
+                .default_width(160.0)
+                .resizable(false)
+                .show(ctx, |ui| {
+                    ui.add_space(4.0);
+                    self.window_list_ui(ui);
+                });
+        }
 
         // Central panel (placeholder for future views)
         egui::CentralPanel::default().show(ctx, |_ui| {});
