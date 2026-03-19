@@ -1,6 +1,7 @@
 use egui_extras::{Column, TableBuilder};
 
 use super::super::model::{SurfaceKind, SurfaceRow, SurfaceVariant, SystemSpecs};
+use super::{format_display_float, inf_formatter, inf_parser, parse_display_float};
 
 /// Draw the surfaces editor panel. Returns true if any spec was modified.
 pub fn surfaces_panel(ui: &mut egui::Ui, specs: &mut SystemSpecs) -> bool {
@@ -151,29 +152,56 @@ pub fn surfaces_panel(ui: &mut egui::Ui, specs: &mut SystemSpecs) -> bool {
                     // Semi-Diameter
                     row.col(|ui| {
                         if !is_object && !is_image {
-                            changed |= editable_cell(ui, &mut surf.semi_diameter, row_idx, "sd");
+                            changed |= drag_value(
+                                ui,
+                                &mut surf.semi_diameter,
+                                row_idx,
+                                "sd",
+                                0.0..=500.0,
+                                0.1,
+                            );
                         }
                     });
 
                     // Radius of Curvature
                     row.col(|ui| {
                         if is_conic {
-                            changed |=
-                                editable_cell(ui, &mut surf.radius_of_curvature, row_idx, "roc");
+                            changed |= drag_inf(
+                                ui,
+                                &mut surf.radius_of_curvature,
+                                row_idx,
+                                "roc",
+                                f64::NEG_INFINITY..=f64::INFINITY,
+                                1.0,
+                            );
                         }
                     });
 
                     // Conic Constant
                     row.col(|ui| {
                         if is_conic {
-                            changed |= editable_cell(ui, &mut surf.conic_constant, row_idx, "cc");
+                            changed |= drag_value(
+                                ui,
+                                &mut surf.conic_constant,
+                                row_idx,
+                                "cc",
+                                -10.0..=10.0,
+                                0.01,
+                            );
                         }
                     });
 
                     // Thickness
                     row.col(|ui| {
                         if !is_image {
-                            changed |= editable_cell(ui, &mut surf.thickness, row_idx, "thick");
+                            changed |= drag_inf(
+                                ui,
+                                &mut surf.thickness,
+                                row_idx,
+                                "thick",
+                                0.0..=f64::INFINITY,
+                                0.5,
+                            );
                         }
                     });
 
@@ -204,8 +232,14 @@ pub fn surfaces_panel(ui: &mut egui::Ui, specs: &mut SystemSpecs) -> bool {
                                         }
                                     });
                             } else {
-                                changed |=
-                                    editable_cell(ui, &mut surf.refractive_index, row_idx, "n");
+                                changed |= drag_value(
+                                    ui,
+                                    &mut surf.refractive_index,
+                                    row_idx,
+                                    "n",
+                                    1.0..=4.0,
+                                    0.01,
+                                );
                             }
                         }
                     });
@@ -216,12 +250,26 @@ pub fn surfaces_panel(ui: &mut egui::Ui, specs: &mut SystemSpecs) -> bool {
                             is_conic && surf.surface_kind == SurfaceKind::Reflecting;
                         row.col(|ui| {
                             if is_reflecting_conic {
-                                changed |= editable_cell(ui, &mut surf.theta, row_idx, "theta");
+                                changed |= drag_value(
+                                    ui,
+                                    &mut surf.theta,
+                                    row_idx,
+                                    "theta",
+                                    -90.0..=90.0,
+                                    0.5,
+                                );
                             }
                         });
                         row.col(|ui| {
                             if is_reflecting_conic {
-                                changed |= editable_cell(ui, &mut surf.psi, row_idx, "psi");
+                                changed |= drag_value(
+                                    ui,
+                                    &mut surf.psi,
+                                    row_idx,
+                                    "psi",
+                                    -90.0..=90.0,
+                                    0.5,
+                                );
                             }
                         });
                     }
@@ -261,14 +309,54 @@ pub fn surfaces_panel(ui: &mut egui::Ui, specs: &mut SystemSpecs) -> bool {
     changed
 }
 
-fn editable_cell(ui: &mut egui::Ui, value: &mut String, row: usize, col: &str) -> bool {
-    let response = ui.add(
-        egui::TextEdit::singleline(value)
-            .desired_width(70.0)
-            .horizontal_align(egui::Align::RIGHT)
-            .id(egui::Id::new(format!("cell_{row}_{col}"))),
-    );
-    response.changed()
+/// DragValue cell without special infinity handling.
+fn drag_value(
+    ui: &mut egui::Ui,
+    field: &mut String,
+    row: usize,
+    col: &str,
+    range: std::ops::RangeInclusive<f64>,
+    speed: f64,
+) -> bool {
+    let mut val = parse_display_float(field);
+    let response = ui.push_id(format!("cell_{row}_{col}"), |ui| {
+        ui.add(egui::DragValue::new(&mut val).range(range).speed(speed))
+    });
+    if response.inner.changed() {
+        *field = format_display_float(val);
+        true
+    } else {
+        false
+    }
+}
+
+/// DragValue cell with infinity-aware formatting: displays and accepts
+/// `"Infinity"` as a string value. Use this for fields that legitimately hold
+/// `f64::INFINITY` (e.g. RoC, thickness).
+fn drag_inf(
+    ui: &mut egui::Ui,
+    field: &mut String,
+    row: usize,
+    col: &str,
+    range: std::ops::RangeInclusive<f64>,
+    speed: f64,
+) -> bool {
+    let mut val = parse_display_float(field);
+    let response = ui.push_id(format!("cell_{row}_{col}"), |ui| {
+        ui.add(
+            egui::DragValue::new(&mut val)
+                .range(range)
+                .speed(speed)
+                .custom_formatter(inf_formatter)
+                .custom_parser(inf_parser),
+        )
+    });
+    if response.inner.changed() {
+        *field = format_display_float(val);
+        true
+    } else {
+        false
+    }
 }
 
 #[cfg(test)]

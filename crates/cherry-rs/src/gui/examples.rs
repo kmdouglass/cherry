@@ -37,7 +37,7 @@ pub fn mirrors_figure_z() -> SystemSpecs {
             x: "0.0".into(),
             pupil_spacing: "0.1".into(),
         }],
-        aperture_semi_diameter: "12.7".into(),
+        aperture_semi_diameter: "10.9".into(),
         wavelengths: vec!["0.567".into()],
         field_mode: FieldMode::Angle,
         use_materials: false,
