@@ -22,7 +22,6 @@ impl SpecsWindow {
         let response = egui::Window::new("Specs")
             .open(open)
             .default_width(640.0)
-            .min_width(400.0)
             .show(ctx, |ui| {
                 // Tab bar
                 ui.horizontal(|ui| {

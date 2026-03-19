@@ -22,289 +22,301 @@ pub fn surfaces_panel(ui: &mut egui::Ui, specs: &mut SystemSpecs) -> bool {
         .iter()
         .any(|s| s.variant == SurfaceVariant::Conic && s.surface_kind == SurfaceKind::Reflecting);
 
-    let table = TableBuilder::new(ui)
-        .striped(true)
-        .resizable(true)
-        .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
-        .column(Column::auto().at_least(30.0)) // #
-        .column(Column::auto().at_least(70.0)) // Variant
-        .column(Column::auto().at_least(60.0)) // Kind
-        .column(Column::initial(80.0).resizable(true)) // Semi-Diam
-        .column(Column::initial(80.0).resizable(true)) // RoC
-        .column(Column::initial(80.0).resizable(true)) // Conic
-        .column(Column::initial(80.0).resizable(true)) // Thickness
-        .column(Column::initial(n_col_width).resizable(true)); // n / Material
+    egui::ScrollArea::horizontal().show(ui, |ui| {
+        let table = TableBuilder::new(ui)
+            .striped(true)
+            .resizable(true)
+            .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
+            .column(Column::auto().at_least(30.0)) // #
+            .column(Column::auto().at_least(70.0)) // Variant
+            .column(Column::auto().at_least(60.0)) // Kind
+            .column(Column::initial(80.0).resizable(true)) // Semi-Diam
+            .column(Column::initial(80.0).resizable(true)) // RoC
+            .column(Column::initial(80.0).resizable(true)) // Conic
+            .column(Column::initial(80.0).resizable(true)) // Thickness
+            .column(Column::initial(n_col_width).resizable(true)); // n / Material
 
-    let table = if has_reflecting {
+        let table = if has_reflecting {
+            table
+                .column(Column::initial(65.0).resizable(true)) // θ (deg)
+                .column(Column::initial(65.0).resizable(true)) // ψ (deg)
+        } else {
+            table
+        };
+
+        let table = table.column(Column::auto().at_least(50.0)); // Actions
+
         table
-            .column(Column::initial(65.0).resizable(true)) // θ (deg)
-            .column(Column::initial(65.0).resizable(true)) // ψ (deg)
-    } else {
-        table
-    };
-
-    let table = table.column(Column::auto().at_least(50.0)); // Actions
-
-    table
-        .header(20.0, |mut header| {
-            header.col(|ui| {
-                ui.strong("#");
-            });
-            header.col(|ui| {
-                ui.strong("Variant");
-            });
-            header.col(|ui| {
-                ui.strong("Kind");
-            });
-            header.col(|ui| {
-                ui.strong("Semi-Diam");
-            });
-            header.col(|ui| {
-                ui.strong("RoC");
-            });
-            header.col(|ui| {
-                ui.strong("Conic");
-            });
-            header.col(|ui| {
-                ui.strong("Thickness");
-            });
-            header.col(|ui| {
-                ui.strong("n");
-            });
-            if has_reflecting {
+            .header(20.0, |mut header| {
                 header.col(|ui| {
-                    ui.strong("\u{03b8} (deg)");
+                    ui.strong("#");
                 });
                 header.col(|ui| {
-                    ui.strong("\u{03c8} (deg)");
+                    ui.strong("Variant");
                 });
-            }
-            header.col(|ui| {
-                ui.strong("");
-            });
-        })
-        .body(|mut body| {
-            let num_surfaces = specs.surfaces.len();
-            // We need to collect actions to apply after iteration to avoid
-            // borrow conflicts.
-            let mut insert_after: Option<usize> = None;
-            let mut delete_at: Option<usize> = None;
-
-            for row_idx in 0..num_surfaces {
-                body.row(22.0, |mut row| {
-                    let surf = &mut specs.surfaces[row_idx];
-                    let is_object = surf.variant == SurfaceVariant::Object;
-                    let is_image = surf.variant == SurfaceVariant::Image;
-                    let is_conic = surf.variant == SurfaceVariant::Conic;
-                    let is_locked = is_object || is_image;
-
-                    // # column
-                    row.col(|ui| {
-                        ui.label(row_idx.to_string());
+                header.col(|ui| {
+                    ui.strong("Kind");
+                });
+                header.col(|ui| {
+                    ui.strong("Semi-Diam");
+                });
+                header.col(|ui| {
+                    ui.strong("RoC");
+                });
+                header.col(|ui| {
+                    ui.strong("Conic");
+                });
+                header.col(|ui| {
+                    ui.strong("Thickness");
+                });
+                header.col(|ui| {
+                    ui.strong("n");
+                });
+                if has_reflecting {
+                    header.col(|ui| {
+                        ui.strong("\u{03b8} (deg)");
                     });
-
-                    // Variant column
-                    row.col(|ui| {
-                        if is_locked {
-                            ui.label(surf.variant.to_string());
-                        } else {
-                            let id = ui.make_persistent_id(format!("variant_{row_idx}"));
-                            egui::ComboBox::from_id_salt(id)
-                                .selected_text(surf.variant.to_string())
-                                .width(60.0)
-                                .show_ui(ui, |ui| {
-                                    for &v in SurfaceVariant::SELECTABLE {
-                                        if ui
-                                            .selectable_value(&mut surf.variant, v, v.to_string())
-                                            .changed()
-                                        {
-                                            changed = true;
-                                        }
-                                    }
-                                });
-                        }
+                    header.col(|ui| {
+                        ui.strong("\u{03c8} (deg)");
                     });
+                }
+                header.col(|ui| {
+                    ui.strong("");
+                });
+            })
+            .body(|mut body| {
+                let num_surfaces = specs.surfaces.len();
+                // We need to collect actions to apply after iteration to avoid
+                // borrow conflicts.
+                let mut insert_after: Option<usize> = None;
+                let mut delete_at: Option<usize> = None;
 
-                    // Kind column (only for Conic)
-                    row.col(|ui| {
-                        if is_conic {
-                            let id = ui.make_persistent_id(format!("kind_{row_idx}"));
-                            egui::ComboBox::from_id_salt(id)
-                                .selected_text(surf.surface_kind.to_string())
-                                .width(80.0)
-                                .show_ui(ui, |ui| {
-                                    for kind in [SurfaceKind::Refracting, SurfaceKind::Reflecting] {
-                                        if ui
-                                            .selectable_value(
-                                                &mut surf.surface_kind,
-                                                kind,
-                                                kind.to_string(),
-                                            )
-                                            .changed()
-                                        {
-                                            changed = true;
-                                        }
-                                    }
-                                });
-                        }
-                    });
+                for row_idx in 0..num_surfaces {
+                    body.row(22.0, |mut row| {
+                        let surf = &mut specs.surfaces[row_idx];
+                        let is_object = surf.variant == SurfaceVariant::Object;
+                        let is_image = surf.variant == SurfaceVariant::Image;
+                        let is_conic = surf.variant == SurfaceVariant::Conic;
+                        let is_locked = is_object || is_image;
 
-                    // Semi-Diameter
-                    row.col(|ui| {
-                        if !is_object && !is_image {
-                            changed |= drag_value(
-                                ui,
-                                &mut surf.semi_diameter,
-                                row_idx,
-                                "sd",
-                                0.0..=500.0,
-                                0.1,
-                            );
-                        }
-                    });
+                        // # column
+                        row.col(|ui| {
+                            ui.label(row_idx.to_string());
+                        });
 
-                    // Radius of Curvature
-                    row.col(|ui| {
-                        if is_conic {
-                            changed |= drag_inf(
-                                ui,
-                                &mut surf.radius_of_curvature,
-                                row_idx,
-                                "roc",
-                                f64::NEG_INFINITY..=f64::INFINITY,
-                                1.0,
-                            );
-                        }
-                    });
-
-                    // Conic Constant
-                    row.col(|ui| {
-                        if is_conic {
-                            changed |= drag_value(
-                                ui,
-                                &mut surf.conic_constant,
-                                row_idx,
-                                "cc",
-                                -10.0..=10.0,
-                                0.01,
-                            );
-                        }
-                    });
-
-                    // Thickness
-                    row.col(|ui| {
-                        if !is_image {
-                            changed |= drag_inf(
-                                ui,
-                                &mut surf.thickness,
-                                row_idx,
-                                "thick",
-                                0.0..=f64::INFINITY,
-                                0.5,
-                            );
-                        }
-                    });
-
-                    // Refractive Index / Material
-                    row.col(|ui| {
-                        if !is_image {
-                            if use_materials {
-                                let display = surf.material_key.as_deref().unwrap_or("(none)");
-                                let id = ui.make_persistent_id(format!("mat_{row_idx}"));
+                        // Variant column
+                        row.col(|ui| {
+                            if is_locked {
+                                ui.label(surf.variant.to_string());
+                            } else {
+                                let id = ui.make_persistent_id(format!("variant_{row_idx}"));
                                 egui::ComboBox::from_id_salt(id)
-                                    .selected_text(display)
-                                    .width(130.0)
+                                    .selected_text(surf.variant.to_string())
+                                    .width(60.0)
                                     .show_ui(ui, |ui| {
-                                        if ui
-                                            .selectable_label(surf.material_key.is_none(), "(none)")
-                                            .clicked()
-                                        {
-                                            surf.material_key = None;
-                                            changed = true;
-                                        }
-                                        for mat_key in &selected_materials {
-                                            let selected = surf.material_key.as_deref()
-                                                == Some(mat_key.as_str());
-                                            if ui.selectable_label(selected, mat_key).clicked() {
-                                                surf.material_key = Some(mat_key.clone());
+                                        for &v in SurfaceVariant::SELECTABLE {
+                                            if ui
+                                                .selectable_value(
+                                                    &mut surf.variant,
+                                                    v,
+                                                    v.to_string(),
+                                                )
+                                                .changed()
+                                            {
                                                 changed = true;
                                             }
                                         }
                                     });
-                            } else {
+                            }
+                        });
+
+                        // Kind column (only for Conic)
+                        row.col(|ui| {
+                            if is_conic {
+                                let id = ui.make_persistent_id(format!("kind_{row_idx}"));
+                                egui::ComboBox::from_id_salt(id)
+                                    .selected_text(surf.surface_kind.to_string())
+                                    .width(80.0)
+                                    .show_ui(ui, |ui| {
+                                        for kind in
+                                            [SurfaceKind::Refracting, SurfaceKind::Reflecting]
+                                        {
+                                            if ui
+                                                .selectable_value(
+                                                    &mut surf.surface_kind,
+                                                    kind,
+                                                    kind.to_string(),
+                                                )
+                                                .changed()
+                                            {
+                                                changed = true;
+                                            }
+                                        }
+                                    });
+                            }
+                        });
+
+                        // Semi-Diameter
+                        row.col(|ui| {
+                            if !is_object && !is_image {
                                 changed |= drag_value(
                                     ui,
-                                    &mut surf.refractive_index,
+                                    &mut surf.semi_diameter,
                                     row_idx,
-                                    "n",
-                                    1.0..=4.0,
+                                    "sd",
+                                    0.0..=500.0,
+                                    0.1,
+                                );
+                            }
+                        });
+
+                        // Radius of Curvature
+                        row.col(|ui| {
+                            if is_conic {
+                                changed |= drag_inf(
+                                    ui,
+                                    &mut surf.radius_of_curvature,
+                                    row_idx,
+                                    "roc",
+                                    f64::NEG_INFINITY..=f64::INFINITY,
+                                    1.0,
+                                );
+                            }
+                        });
+
+                        // Conic Constant
+                        row.col(|ui| {
+                            if is_conic {
+                                changed |= drag_value(
+                                    ui,
+                                    &mut surf.conic_constant,
+                                    row_idx,
+                                    "cc",
+                                    -10.0..=10.0,
                                     0.01,
                                 );
                             }
-                        }
-                    });
+                        });
 
-                    // θ / ψ columns (only shown when system has reflecting surfaces)
-                    if has_reflecting {
-                        let is_reflecting_conic =
-                            is_conic && surf.surface_kind == SurfaceKind::Reflecting;
+                        // Thickness
                         row.col(|ui| {
-                            if is_reflecting_conic {
-                                changed |= drag_value(
+                            if !is_image {
+                                changed |= drag_inf(
                                     ui,
-                                    &mut surf.theta,
+                                    &mut surf.thickness,
                                     row_idx,
-                                    "theta",
-                                    -90.0..=90.0,
+                                    "thick",
+                                    0.0..=f64::INFINITY,
                                     0.5,
                                 );
                             }
                         });
-                        row.col(|ui| {
-                            if is_reflecting_conic {
-                                changed |= drag_value(
-                                    ui,
-                                    &mut surf.psi,
-                                    row_idx,
-                                    "psi",
-                                    -90.0..=90.0,
-                                    0.5,
-                                );
-                            }
-                        });
-                    }
 
-                    // Actions column (always last).
-                    // Object row: + only (cannot remove object surface).
-                    // Image row: no buttons (cannot insert after or remove image).
-                    // All other rows: + and -.
-                    row.col(|ui| {
-                        if !is_image {
-                            ui.horizontal(|ui| {
-                                if ui.small_button("+").clicked() {
-                                    insert_after = Some(row_idx);
+                        // Refractive Index / Material
+                        row.col(|ui| {
+                            if !is_image {
+                                if use_materials {
+                                    let display = surf.material_key.as_deref().unwrap_or("(none)");
+                                    let id = ui.make_persistent_id(format!("mat_{row_idx}"));
+                                    egui::ComboBox::from_id_salt(id)
+                                        .selected_text(display)
+                                        .width(130.0)
+                                        .show_ui(ui, |ui| {
+                                            if ui
+                                                .selectable_label(
+                                                    surf.material_key.is_none(),
+                                                    "(none)",
+                                                )
+                                                .clicked()
+                                            {
+                                                surf.material_key = None;
+                                                changed = true;
+                                            }
+                                            for mat_key in &selected_materials {
+                                                let selected = surf.material_key.as_deref()
+                                                    == Some(mat_key.as_str());
+                                                if ui.selectable_label(selected, mat_key).clicked()
+                                                {
+                                                    surf.material_key = Some(mat_key.clone());
+                                                    changed = true;
+                                                }
+                                            }
+                                        });
+                                } else {
+                                    changed |= drag_value(
+                                        ui,
+                                        &mut surf.refractive_index,
+                                        row_idx,
+                                        "n",
+                                        1.0..=4.0,
+                                        0.01,
+                                    );
                                 }
-                                if !is_object && ui.small_button("-").clicked() {
-                                    delete_at = Some(row_idx);
+                            }
+                        });
+
+                        // θ / ψ columns (only shown when system has reflecting surfaces)
+                        if has_reflecting {
+                            let is_reflecting_conic =
+                                is_conic && surf.surface_kind == SurfaceKind::Reflecting;
+                            row.col(|ui| {
+                                if is_reflecting_conic {
+                                    changed |= drag_value(
+                                        ui,
+                                        &mut surf.theta,
+                                        row_idx,
+                                        "theta",
+                                        -90.0..=90.0,
+                                        0.5,
+                                    );
+                                }
+                            });
+                            row.col(|ui| {
+                                if is_reflecting_conic {
+                                    changed |= drag_value(
+                                        ui,
+                                        &mut surf.psi,
+                                        row_idx,
+                                        "psi",
+                                        -90.0..=90.0,
+                                        0.5,
+                                    );
                                 }
                             });
                         }
-                    });
-                });
-            }
 
-            // Apply deferred mutations
-            if let Some(idx) = insert_after {
-                specs.surfaces.insert(idx + 1, SurfaceRow::new_default());
-                changed = true;
-            }
-            if let Some(idx) = delete_at
-                && specs.surfaces.len() > 2
-            {
-                specs.surfaces.remove(idx);
-                changed = true;
-            }
-        });
+                        // Actions column (always last).
+                        // Object row: + only (cannot remove object surface).
+                        // Image row: no buttons (cannot insert after or remove image).
+                        // All other rows: + and -.
+                        row.col(|ui| {
+                            if !is_image {
+                                ui.horizontal(|ui| {
+                                    if ui.small_button("+").clicked() {
+                                        insert_after = Some(row_idx);
+                                    }
+                                    if !is_object && ui.small_button("-").clicked() {
+                                        delete_at = Some(row_idx);
+                                    }
+                                });
+                            }
+                        });
+                    });
+                }
+
+                // Apply deferred mutations
+                if let Some(idx) = insert_after {
+                    specs.surfaces.insert(idx + 1, SurfaceRow::new_default());
+                    changed = true;
+                }
+                if let Some(idx) = delete_at
+                    && specs.surfaces.len() > 2
+                {
+                    specs.surfaces.remove(idx);
+                    changed = true;
+                }
+            });
+    });
 
     changed
 }
