@@ -203,10 +203,20 @@ pub struct SystemSpecs {
     /// Number of rays in the tangential fan for the cross-section view.
     #[serde(default = "default_cross_section_n_rays")]
     pub cross_section_n_rays: u32,
+    /// Refractive index of the background medium (used in constant-n mode).
+    #[serde(default = "default_background_n")]
+    pub background_n: String,
+    /// Material key for the background medium (used in materials mode).
+    #[serde(default)]
+    pub background_material_key: Option<String>,
 }
 
 fn default_cross_section_n_rays() -> u32 {
     11
+}
+
+fn default_background_n() -> String {
+    "1.0".to_owned()
 }
 
 impl Default for SystemSpecs {
@@ -230,6 +240,8 @@ impl Default for SystemSpecs {
             use_materials: false,
             selected_materials: Vec::new(),
             cross_section_n_rays: 11,
+            background_n: "1.0".into(),
+            background_material_key: None,
         }
     }
 }

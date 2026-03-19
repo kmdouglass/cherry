@@ -1,15 +1,11 @@
 //! 2D cross-section view of a sequential optical system.
 
-use std::rc::Rc;
+use std::collections::HashSet;
 
 use crate::{
     Axis, SequentialModel,
     core::{Float, math::vec3::Vec3, sequential_model::Surface},
-    specs::gaps::ConstantRefractiveIndex,
-    views::{
-        components::{Component, components_view},
-        ray_trace_3d::TraceResultsCollection,
-    },
+    views::{components::Component, ray_trace_3d::TraceResultsCollection},
 };
 
 /// Identifies a global transverse coordinate axis for cross-section projection.
@@ -52,7 +48,10 @@ pub struct Bounds2D {
 /// A drawable element in the cross-section view.
 pub enum DrawElement {
     LensGroup {
-        outline: Vec<[f64; 2]>,
+        /// Front surface points sampled bottom-to-top (transverse -sd → +sd).
+        front_pts: Vec<[f64; 2]>,
+        /// Back surface points sampled bottom-to-top (transverse -sd → +sd).
+        back_pts: Vec<[f64; 2]>,
     },
     SurfaceProfile {
         points: Vec<[f64; 2]>,
@@ -83,9 +82,11 @@ pub enum FlatPlaneKind {
 /// # Arguments
 /// * `model` - The sequential model.
 /// * `trace` - Optional ray trace results to overlay on the view.
+/// * `components` - Pre-computed optical components (from `components_view`).
 pub fn cross_section_view(
     model: &SequentialModel,
     trace: Option<&TraceResultsCollection>,
+    components: &HashSet<Component>,
 ) -> CrossSectionView {
     let wavelengths = model.wavelengths().to_vec();
     let axis_dirs = model.axis_directions();
@@ -94,8 +95,8 @@ pub fn cross_section_view(
     let yz_valid = axis_dirs.iter().all(|d| d.x().abs() < EPS);
     let xz_valid = axis_dirs.iter().all(|d| d.y().abs() < EPS);
 
-    let yz = build_plane_geometry(model, trace, GlobalAxis::Y);
-    let xz = build_plane_geometry(model, trace, GlobalAxis::X);
+    let yz = build_plane_geometry(model, trace, GlobalAxis::Y, components);
+    let xz = build_plane_geometry(model, trace, GlobalAxis::X, components);
 
     CrossSectionView {
         wavelengths,
@@ -111,29 +112,16 @@ fn build_plane_geometry(
     model: &SequentialModel,
     trace: Option<&TraceResultsCollection>,
     axis: GlobalAxis,
+    components: &HashSet<Component>,
 ) -> PlaneGeometry {
     let surfaces = model.surfaces();
     let largest_sd = model.largest_semi_diameter();
-
-    // Get components (lens groups and stops).
-    let background: Rc<dyn crate::specs::gaps::RefractiveIndexSpec> =
-        Rc::new(ConstantRefractiveIndex::new(1.0, 0.0));
-    let components = components_view(model, background).unwrap_or_default();
-
-    // Build the set of surface indices that are part of a lens group.
-    let mut paired: std::collections::HashSet<usize> = std::collections::HashSet::new();
-    for comp in &components {
-        if let Component::Element { surf_idxs: (i, j) } = comp {
-            paired.insert(*i);
-            paired.insert(*j);
-        }
-    }
 
     let mut elements: Vec<DrawElement> = Vec::new();
 
     // Add lens groups and stops.
     // Sort components by surface index for consistent ordering.
-    let mut sorted_components: Vec<Component> = components.into_iter().collect();
+    let mut sorted_components: Vec<Component> = components.iter().cloned().collect();
     sorted_components.sort_by_key(|c| match c {
         Component::Element { surf_idxs: (i, _) } => *i,
         Component::Stop { stop_idx } => *stop_idx,
@@ -148,9 +136,11 @@ fn build_plane_geometry(
                 let back = &surfaces[*j];
                 let front_pts = sample_surface(front, axis, N_PTS);
                 let back_pts = sample_surface(back, axis, N_PTS);
-                let outline = lens_group_outline(&front_pts, &back_pts);
-                if !outline.is_empty() {
-                    elements.push(DrawElement::LensGroup { outline });
+                if !front_pts.is_empty() && !back_pts.is_empty() {
+                    elements.push(DrawElement::LensGroup {
+                        front_pts,
+                        back_pts,
+                    });
                 }
             }
             Component::Stop { stop_idx } => {
@@ -317,29 +307,6 @@ fn sample_surface(surf: &Surface, axis: GlobalAxis, n_pts: usize) -> Vec<[f64; 2
     pts
 }
 
-/// Build a closed polygon outline for a lens element.
-///
-/// `front_pts` and `back_pts` are sampled from -sd to +sd (bottom to top in
-/// transverse).
-fn lens_group_outline(front_pts: &[[f64; 2]], back_pts: &[[f64; 2]]) -> Vec<[f64; 2]> {
-    if front_pts.is_empty() || back_pts.is_empty() {
-        return Vec::new();
-    }
-
-    let mut outline = Vec::with_capacity(2 * front_pts.len() + 4);
-    // Front surface from bottom to top.
-    outline.extend_from_slice(front_pts);
-    // Top rim: front top to back top.
-    outline.push(*back_pts.last().unwrap());
-    // Back surface from top to bottom (reversed).
-    for pt in back_pts.iter().rev() {
-        outline.push(*pt);
-    }
-    // Bottom rim: close back to front bottom.
-    outline.push(*front_pts.first().unwrap());
-    outline
-}
-
 /// Compute the bounding box over all elements and ray paths.
 fn compute_bounds(elements: &[DrawElement], ray_paths: &[Vec<Vec<[f64; 2]>>]) -> Bounds2D {
     let mut z_min = f64::MAX;
@@ -361,8 +328,11 @@ fn compute_bounds(elements: &[DrawElement], ray_paths: &[Vec<Vec<[f64; 2]>>]) ->
 
     for elem in elements {
         match elem {
-            DrawElement::LensGroup { outline } => {
-                for &[z, t] in outline {
+            DrawElement::LensGroup {
+                front_pts,
+                back_pts,
+            } => {
+                for &[z, t] in front_pts.iter().chain(back_pts.iter()) {
                     update(z, t, &mut z_min, &mut z_max, &mut t_min, &mut t_max);
                 }
             }
@@ -409,15 +379,16 @@ fn compute_bounds(elements: &[DrawElement], ray_paths: &[Vec<Vec<[f64; 2]>>]) ->
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{core::Float, examples::convexplano_lens, n};
+    use crate::{core::Float, examples::convexplano_lens, n, views::components::components_view};
 
     #[test]
     fn yz_valid_for_straight_system() {
         let air = n!(1.0);
         let nbk7 = n!(1.515);
         let wavelengths: [Float; 1] = [0.5876];
-        let model = convexplano_lens::sequential_model(air, nbk7, &wavelengths);
-        let cs = cross_section_view(&model, None);
+        let model = convexplano_lens::sequential_model(air.clone(), nbk7, &wavelengths);
+        let components = components_view(&model, air).unwrap();
+        let cs = cross_section_view(&model, None, &components);
         assert!(cs.yz_valid, "YZ should be valid for a straight system");
         assert!(cs.xz_valid, "XZ should be valid for a straight system");
     }
@@ -439,19 +410,19 @@ mod tests {
     }
 
     #[test]
-    fn lens_group_outline_symmetric() {
-        // For equal semi-diameters, the outline should have points at ±sd.
-        let front = vec![
-            [-1.0, -5.0],
-            [-0.5, -2.5],
-            [0.0, 0.0],
-            [0.5, 2.5],
-            [1.0, 5.0],
-        ];
-        let back = vec![[2.0, -5.0], [2.2, -2.5], [2.5, 0.0], [2.2, 2.5], [2.0, 5.0]];
-        let outline = lens_group_outline(&front, &back);
-        assert!(!outline.is_empty());
-        // Should have at least front + back + rim points.
-        assert!(outline.len() >= front.len() + back.len());
+    fn test_f_theta_three_lens_groups() {
+        use crate::examples::f_theta_scan_lens;
+        let air = n!(1.00029); // simulate Ciddor air
+        let glass = n!(1.847); // simulate N-SF57
+        let model = f_theta_scan_lens::sequential_model(air.clone(), glass, &[0.5876]);
+        let components = components_view(&model, air).unwrap();
+        let cs = cross_section_view(&model, None, &components);
+        let n_groups = cs
+            .yz
+            .elements
+            .iter()
+            .filter(|e| matches!(e, DrawElement::LensGroup { .. }))
+            .count();
+        assert_eq!(n_groups, 3, "expected 3 separate lens groups");
     }
 }

@@ -294,7 +294,10 @@ fn draw_element(
     visuals: &egui::Visuals,
 ) {
     match elem {
-        DrawElement::LensGroup { outline } => draw_lens_group(painter, outline, w2s, visuals),
+        DrawElement::LensGroup {
+            front_pts,
+            back_pts,
+        } => draw_lens_group(painter, front_pts, back_pts, w2s, visuals),
         DrawElement::SurfaceProfile { points } => {
             draw_surface_profile(painter, points, w2s);
         }
@@ -313,28 +316,43 @@ fn draw_element(
 
 fn draw_lens_group(
     painter: &egui::Painter,
-    outline: &[[f64; 2]],
+    front_pts: &[[f64; 2]],
+    back_pts: &[[f64; 2]],
     w2s: &WorldToScreen,
     visuals: &egui::Visuals,
 ) {
-    if outline.len() < 3 {
+    let n = front_pts.len().min(back_pts.len());
+    if n < 2 {
         return;
     }
-    let screen_pts: Vec<egui::Pos2> = outline
-        .iter()
-        .map(|&[z, t]| w2s.map(z as f32, t as f32))
-        .collect();
 
     let fill = if visuals.dark_mode {
         egui::Color32::from_rgba_premultiplied(50, 100, 160, 80)
     } else {
         egui::Color32::from_rgba_premultiplied(100, 160, 220, 80)
     };
-    painter.add(egui::Shape::convex_polygon(
-        screen_pts.clone(),
-        fill,
-        egui::Stroke::NONE,
-    ));
+
+    // Zipper-triangulate the band between the two surface curves.
+    // Front vertices at indices 0..n-1; back vertices at indices n..2n-1.
+    // Both curves are sampled bottom-to-top, so front[i] and back[i] share
+    // the same transverse parameter — quads connect them correctly regardless
+    // of concavity.
+    let mut mesh = egui::Mesh::default();
+    for &[z, t] in front_pts.iter().take(n) {
+        mesh.colored_vertex(w2s.map(z as f32, t as f32), fill);
+    }
+    for &[z, t] in back_pts.iter().take(n) {
+        mesh.colored_vertex(w2s.map(z as f32, t as f32), fill);
+    }
+    for i in 0..(n as u32 - 1) {
+        let fi = i;
+        let fi1 = i + 1;
+        let bi = n as u32 + i;
+        let bi1 = n as u32 + i + 1;
+        mesh.indices.extend_from_slice(&[fi, fi1, bi]);
+        mesh.indices.extend_from_slice(&[fi1, bi1, bi]);
+    }
+    painter.add(egui::Shape::mesh(mesh));
 
     let stroke_color = if visuals.dark_mode {
         egui::Color32::from_rgb(100, 149, 220)
@@ -342,10 +360,28 @@ fn draw_lens_group(
         egui::Color32::from_rgb(30, 80, 160)
     };
     let stroke = egui::Stroke::new(1.5, stroke_color);
-    for i in 0..screen_pts.len() {
-        let a = screen_pts[i];
-        let b = screen_pts[(i + 1) % screen_pts.len()];
-        painter.line_segment([a, b], stroke);
+
+    let front_screen: Vec<egui::Pos2> = front_pts
+        .iter()
+        .map(|&[z, t]| w2s.map(z as f32, t as f32))
+        .collect();
+    let back_screen: Vec<egui::Pos2> = back_pts
+        .iter()
+        .map(|&[z, t]| w2s.map(z as f32, t as f32))
+        .collect();
+
+    for pair in front_screen.windows(2) {
+        painter.line_segment([pair[0], pair[1]], stroke);
+    }
+    for pair in back_screen.windows(2) {
+        painter.line_segment([pair[0], pair[1]], stroke);
+    }
+    // Top and bottom rims.
+    if let (Some(&ft), Some(&bt)) = (front_screen.last(), back_screen.last()) {
+        painter.line_segment([ft, bt], stroke);
+    }
+    if let (Some(&fb), Some(&bb)) = (front_screen.first(), back_screen.first()) {
+        painter.line_segment([fb, bb], stroke);
     }
 }
 
@@ -536,8 +572,11 @@ fn render_svg(geom: &PlaneGeometry, wavelengths: &[f64], dark_mode: bool) -> Str
 
     for elem in &geom.elements {
         match elem {
-            DrawElement::LensGroup { outline } => {
-                svg_lens_group(&mut s, outline, &w2s, lens_fill, lens_stroke);
+            DrawElement::LensGroup {
+                front_pts,
+                back_pts,
+            } => {
+                svg_lens_group(&mut s, front_pts, back_pts, &w2s, lens_fill, lens_stroke);
             }
             DrawElement::SurfaceProfile { points } => {
                 svg_polyline(&mut s, points, &w2s, profile_color, 1.5);
@@ -580,16 +619,20 @@ fn render_svg(geom: &PlaneGeometry, wavelengths: &[f64], dark_mode: bool) -> Str
 
 fn svg_lens_group(
     s: &mut String,
-    outline: &[[f64; 2]],
+    front_pts: &[[f64; 2]],
+    back_pts: &[[f64; 2]],
     w2s: &WorldToSvg,
     fill: &str,
     stroke: &str,
 ) {
-    if outline.len() < 3 {
+    if front_pts.is_empty() || back_pts.is_empty() {
         return;
     }
-    let pts: String = outline
+    // Outline: front bottom→top, then back top→bottom. SVG's nonzero fill rule
+    // handles non-convex polygons correctly.
+    let pts: String = front_pts
         .iter()
+        .chain(back_pts.iter().rev())
         .map(|&[z, t]| {
             let (x, y) = w2s.map(z, t);
             format!("{x:.2},{y:.2}")
