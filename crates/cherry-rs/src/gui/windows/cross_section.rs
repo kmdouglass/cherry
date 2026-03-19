@@ -31,14 +31,12 @@ pub enum CuttingPlane {
 /// Cross-section output window.
 pub struct CrossSectionWindow {
     cutting_plane: CuttingPlane,
-    show_rays: bool,
 }
 
 impl Default for CrossSectionWindow {
     fn default() -> Self {
         Self {
             cutting_plane: CuttingPlane::YZ,
-            show_rays: true,
         }
     }
 }
@@ -121,12 +119,10 @@ impl CrossSectionWindow {
                 ui.radio_value(&mut self.cutting_plane, CuttingPlane::XZ, "XZ");
             });
             ui.separator();
-            ui.checkbox(&mut self.show_rays, "Show Rays");
-            ui.separator();
             ui.label("Rays:");
             ui.add(
                 egui::DragValue::new(n_rays)
-                    .range(1_u32..=1000_u32)
+                    .range(0_u32..=1000_u32)
                     .speed(1.0),
             );
         });
@@ -161,15 +157,13 @@ impl CrossSectionWindow {
         }
 
         // Draw rays.
-        if self.show_rays {
-            for (wl_idx, paths) in geom.ray_paths.iter().enumerate() {
-                let color = wavelengths
-                    .get(wl_idx)
-                    .copied()
-                    .map(wavelength_to_color)
-                    .unwrap_or(egui::Color32::WHITE);
-                draw_rays(&painter, paths, &w2s, color);
-            }
+        for (wl_idx, paths) in geom.ray_paths.iter().enumerate() {
+            let color = wavelengths
+                .get(wl_idx)
+                .copied()
+                .map(wavelength_to_color)
+                .unwrap_or(egui::Color32::WHITE);
+            draw_rays(&painter, paths, &w2s, color);
         }
 
         // Draw scale bar.
@@ -226,7 +220,7 @@ impl CrossSectionWindow {
             CuttingPlane::XZ if cs.xz_valid => &cs.xz,
             _ => return None,
         };
-        Some(render_svg(geom, &cs.wavelengths, self.show_rays, dark_mode))
+        Some(render_svg(geom, &cs.wavelengths, dark_mode))
     }
 }
 
@@ -516,12 +510,7 @@ impl WorldToSvg {
     }
 }
 
-fn render_svg(
-    geom: &PlaneGeometry,
-    wavelengths: &[f64],
-    show_rays: bool,
-    dark_mode: bool,
-) -> String {
+fn render_svg(geom: &PlaneGeometry, wavelengths: &[f64], dark_mode: bool) -> String {
     let w2s = WorldToSvg::new(&geom.bounding_box);
 
     let bg = if dark_mode { "#1e1e2e" } else { "#f5f5f5" };
@@ -566,22 +555,20 @@ fn render_svg(
         }
     }
 
-    if show_rays {
-        for (wl_idx, paths) in geom.ray_paths.iter().enumerate() {
-            let color = wavelengths
-                .get(wl_idx)
-                .copied()
-                .map(|wl| color_to_hex(wavelength_to_color(wl)))
-                .unwrap_or_else(|| {
-                    if dark_mode {
-                        "#ffffff".to_owned()
-                    } else {
-                        "#000000".to_owned()
-                    }
-                });
-            for path in paths {
-                svg_polyline(&mut s, path, &w2s, &color, 1.0);
-            }
+    for (wl_idx, paths) in geom.ray_paths.iter().enumerate() {
+        let color = wavelengths
+            .get(wl_idx)
+            .copied()
+            .map(|wl| color_to_hex(wavelength_to_color(wl)))
+            .unwrap_or_else(|| {
+                if dark_mode {
+                    "#ffffff".to_owned()
+                } else {
+                    "#000000".to_owned()
+                }
+            });
+        for path in paths {
+            svg_polyline(&mut s, path, &w2s, &color, 1.0);
         }
     }
 
