@@ -1,5 +1,6 @@
 use anyhow::{Result, bail};
 use serde::{Deserialize, Serialize};
+use tracing::{error, trace, trace_span};
 
 use crate::{
     SurfaceType,
@@ -52,6 +53,8 @@ impl Ray {
     /// - surf: Surface to intersect with
     /// - max_iter: Maximum number of iterations for the Newton-Raphson method
     pub fn intersect(&self, surf: &Surface, max_iter: usize) -> Result<(Vec3, Vec3)> {
+        let _intersect_span = trace_span!("intersect").entered();
+
         // Initial guess for the intersection point
         let mut s_1 = 0.0;
 
@@ -68,7 +71,22 @@ impl Ray {
 
             // Update the distance s using the Newton-Raphson method
             (sag, norm) = surf.sag_norm(p);
-            s -= (p.z() - sag) / norm.dot(&self.dir);
+            let residual = p.z() - sag;
+            let denom = norm.dot(&self.dir);
+            s -= residual / denom;
+
+            trace!(
+                ctr,
+                s,
+                s_1,
+                p_x = p.x(),
+                p_y = p.y(),
+                p_z = p.z(),
+                sag,
+                residual,
+                denom,
+                "newton-raphson iteration data"
+            );
 
             // Check for convergence by comparing the current and previous values of s
             if (s - s_1).abs() / s.abs().max(s_1.abs()) < TOL {
@@ -76,6 +94,7 @@ impl Ray {
             }
 
             if ctr == max_iter - 1 {
+                error!(ctr, s, residual, "Ray intersection did not converge");
                 bail!("Ray intersection did not converge");
             }
 

@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use serde::Serialize;
+use tracing::{error, trace_span, warn};
 
 use super::rays::Ray;
 use crate::core::sequential_model::SequentialSubModelIter;
@@ -40,6 +41,8 @@ pub fn trace(sequential_submodel: &mut SequentialSubModelIter, mut rays: Vec<Ray
         let rays_at_surface = rays_at_surface_mut(&mut ray_bundle, surface_id, num_surfaces);
 
         for (ray_id, ray) in rays.iter_mut().enumerate() {
+            let _ray_span = trace_span!("trace_ray", ray_id, surface_id).entered();
+
             // Transform into coordinate system of the surface
             ray.transform(surf);
 
@@ -51,6 +54,7 @@ pub fn trace(sequential_submodel: &mut SequentialSubModelIter, mut rays: Vec<Ray
                     if ray_is_not_terminated(ray_id, &terminated) {
                         terminated[ray_id] = surface_id;
                         reason_for_termination.insert(ray_id, e.to_string());
+                        error!(ray_id, surface_id, reason = %e, "Ray terminated due to intersection failure");
                     }
                     continue;
                 }
@@ -60,6 +64,14 @@ pub fn trace(sequential_submodel: &mut SequentialSubModelIter, mut rays: Vec<Ray
             if surf.outside_clear_aperture(pos) && ray_is_not_terminated(ray_id, &terminated) {
                 terminated[ray_id] = surface_id;
                 reason_for_termination.insert(ray_id, "Ray outside clear aperture".to_string());
+                warn!(
+                    ray_id,
+                    surface_id,
+                    pos_x = pos.x(),
+                    pos_y = pos.y(),
+                    pos_z = pos.z(),
+                    "Ray terminated because intersection point is outside the clear aperture of the surface"
+                );
             }
 
             // Displace the ray to the intersection point
