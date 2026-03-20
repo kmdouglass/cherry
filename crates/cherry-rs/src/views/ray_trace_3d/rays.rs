@@ -71,7 +71,7 @@ impl Ray {
             s -= (p.z() - sag) / norm.dot(&self.dir);
 
             // Check for convergence by comparing the current and previous values of s
-            if (s - s_1).abs() / Float::max(s, s_1) < TOL {
+            if (s - s_1).abs() / s.abs().max(s_1.abs()) < TOL {
                 break;
             }
 
