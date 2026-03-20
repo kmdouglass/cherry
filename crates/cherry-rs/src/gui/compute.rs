@@ -3,7 +3,9 @@ use std::sync::mpsc::{Receiver, Sender};
 #[cfg(feature = "ri-info")]
 use std::{collections::HashMap, rc::Rc};
 
-use crate::{Axis, ParaxialView, SequentialModel, cross_section_view, ray_trace_3d_view};
+use crate::{
+    Axis, ParaxialView, SequentialModel, components_view, cross_section_view, ray_trace_3d_view,
+};
 
 use super::{
     convert,
@@ -163,7 +165,8 @@ fn run_compute(
         }
     }
 
-    let cross_section = Some(cross_section_view(&seq, cs_trace.as_ref()));
+    let components = components_view(&seq, parsed.background.clone()).unwrap_or_default();
+    let cross_section = Some(cross_section_view(&seq, cs_trace.as_ref(), &components));
 
     ResultPackage {
         id: req.id,

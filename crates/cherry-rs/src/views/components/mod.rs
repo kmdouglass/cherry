@@ -50,17 +50,25 @@ pub fn components_view(
     let max_idx = surfaces.len() - 1;
     let mut paired_surfaces = HashSet::new();
 
-    // TODO: This is a temporary solution to get the submodel due to the need for
-    // gaps. Ignore wavelengths and axes, just get any submodel for now
+    let wavelength = sequential_model
+        .wavelengths()
+        .first()
+        .copied()
+        .unwrap_or(0.5876);
+
+    // Evaluate the background at the model's first wavelength.  This value is
+    // used only in the fallback branch of `same_medium` (identity comparison
+    // takes priority); see `RefractiveIndex::same_material` for the edge case.
+    let background_refractive_index =
+        RefractiveIndex::try_from_spec(background.as_ref(), wavelength)?;
+
     let sequential_sub_model = sequential_model
         .submodels()
-        .values()
-        .next()
-        .ok_or(anyhow!("No submodels found in the sequential model."))?;
+        .iter()
+        .find(|(id, _)| id.0 == 0)
+        .map(|(_, m)| m)
+        .ok_or(anyhow!("No submodel found for wavelength index 0."))?;
     let gaps = sequential_sub_model.gaps();
-
-    // TODO: Yep, hardcoding 0.5876 is a hack. Again, this is temporary.
-    let background_refractive_index = RefractiveIndex::try_from_spec(background.as_ref(), 0.5876)?;
 
     if max_idx < 2 {
         // There are no components because only the object and image plane exist.
@@ -121,6 +129,10 @@ pub fn components_view(
 
 /// Two different media are considered the same if their refractive indices are
 /// within a small tolerance of each other.
+///
+/// Both values must be evaluated at the **same wavelength** before calling
+/// this function; comparing values evaluated at different wavelengths will
+/// produce incorrect results for dispersive materials.
 fn same_medium(eta_1: RefractiveIndex, eta_2: RefractiveIndex) -> bool {
     (eta_1.n() - eta_2.n()).abs() < TOL && (eta_1.k() - eta_2.k()).abs() < TOL
 }
@@ -481,5 +493,22 @@ mod tests {
         let components = components_view(&model, n!(1.0)).unwrap();
         assert_eq!(components.len(), 1);
         assert!(components.contains(&Component::Mirror { surf_idx: 1 }));
+    }
+
+    #[test]
+    fn test_f_theta_scan_lens() {
+        // With the correct background (Ciddor air ≈ 1.00029), air gaps between
+        // lens elements must be recognized as background so that the three
+        // glass elements are kept separate rather than merged.
+        use crate::examples::f_theta_scan_lens;
+        let air = n!(1.00029);
+        let glass = n!(1.847);
+        let model = f_theta_scan_lens::sequential_model(air.clone(), glass, &[0.5876]);
+        let components = components_view(&model, air).unwrap();
+        assert_eq!(components.len(), 4); // 1 stop + 3 elements
+        assert!(components.contains(&Component::Stop { stop_idx: 1 }));
+        assert!(components.contains(&Component::Element { surf_idxs: (2, 3) }));
+        assert!(components.contains(&Component::Element { surf_idxs: (4, 5) }));
+        assert!(components.contains(&Component::Element { surf_idxs: (6, 7) }));
     }
 }

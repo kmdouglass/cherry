@@ -3,6 +3,7 @@ mod fields;
 #[cfg(feature = "ri-info")]
 mod materials;
 mod surfaces;
+mod system;
 mod wavelengths;
 
 pub use aperture::aperture_panel;
@@ -10,6 +11,7 @@ pub use fields::fields_panel;
 #[cfg(feature = "ri-info")]
 pub use materials::{MaterialBrowserState, MaterialIndex, materials_panel};
 pub use surfaces::surfaces_panel;
+pub use system::system_panel;
 pub use wavelengths::wavelengths_panel;
 
 /// Parse a string to f64 for display in a DragValue, treating

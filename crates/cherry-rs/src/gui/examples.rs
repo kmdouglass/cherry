@@ -43,6 +43,8 @@ pub fn mirrors_figure_z() -> SystemSpecs {
         use_materials: false,
         selected_materials: Vec::new(),
         cross_section_n_rays: 11,
+        background_n: "1.0".into(),
+        background_material_key: None,
     }
 }
 
@@ -80,6 +82,8 @@ pub fn petzval_lens() -> SystemSpecs {
         use_materials: false,
         selected_materials: Vec::new(),
         cross_section_n_rays: 11,
+        background_n: "1.0".into(),
+        background_material_key: None,
     }
 }
 
@@ -111,6 +115,8 @@ pub fn biconvex_lens() -> SystemSpecs {
         use_materials: false,
         selected_materials: Vec::new(),
         cross_section_n_rays: 11,
+        background_n: "1.0".into(),
+        background_material_key: None,
     }
 }
 
@@ -175,6 +181,132 @@ pub fn convexplano_lens_with_materials() -> SystemSpecs {
         use_materials: true,
         selected_materials: vec!["other:air:Ciddor".into(), "popular_glass:BK7:SCHOTT".into()],
         cross_section_n_rays: 11,
+        background_n: "1.0".into(),
+        background_material_key: Some("other:air:Ciddor".into()),
+    }
+}
+
+/// Compact f-theta scan lens with three N-SF57 glass elements (F, d, C
+/// wavelengths).
+///
+/// Milton Laikin, *Lens Design*, 4th ed., CRC Press, 2007, p. 251.
+pub fn f_theta_scan_lens() -> SystemSpecs {
+    SystemSpecs {
+        surfaces: vec![
+            SurfaceRow {
+                variant: SurfaceVariant::Object,
+                surface_kind: SurfaceKind::Refracting,
+                refractive_index: "1.0".into(),
+                thickness: "Infinity".into(),
+                semi_diameter: "12.5".into(),
+                radius_of_curvature: "Infinity".into(),
+                conic_constant: "0.0".into(),
+                theta: "0".into(),
+                psi: "0".into(),
+                material_key: Some("other:air:Ciddor".into()),
+            },
+            SurfaceRow {
+                variant: SurfaceVariant::Stop,
+                surface_kind: SurfaceKind::Refracting,
+                refractive_index: "1.0".into(),
+                thickness: "5".into(),
+                semi_diameter: "0.5".into(),
+                radius_of_curvature: "Infinity".into(),
+                conic_constant: "0.0".into(),
+                theta: "0".into(),
+                psi: "0".into(),
+                material_key: Some("other:air:Ciddor".into()),
+            },
+            SurfaceRow {
+                variant: SurfaceVariant::Conic,
+                surface_kind: SurfaceKind::Refracting,
+                refractive_index: "1.0".into(),
+                thickness: "0.3".into(),
+                semi_diameter: "2".into(),
+                radius_of_curvature: "-2.2136".into(),
+                conic_constant: "0.0".into(),
+                theta: "0".into(),
+                psi: "0".into(),
+                material_key: Some("specs:SCHOTT-optical:N-SF57".into()),
+            },
+            SurfaceRow {
+                variant: SurfaceVariant::Conic,
+                surface_kind: SurfaceKind::Refracting,
+                refractive_index: "1.0".into(),
+                thickness: "0.02".into(),
+                semi_diameter: "2".into(),
+                radius_of_curvature: "-2.6575".into(),
+                conic_constant: "0.0".into(),
+                theta: "0".into(),
+                psi: "0".into(),
+                material_key: Some("other:air:Ciddor".into()),
+            },
+            SurfaceRow {
+                variant: SurfaceVariant::Conic,
+                surface_kind: SurfaceKind::Refracting,
+                refractive_index: "1.0".into(),
+                thickness: "0.5292".into(),
+                semi_diameter: "2".into(),
+                radius_of_curvature: "-5.5022".into(),
+                conic_constant: "0.0".into(),
+                theta: "0".into(),
+                psi: "0".into(),
+                material_key: Some("specs:SCHOTT-optical:N-SF57".into()),
+            },
+            SurfaceRow {
+                variant: SurfaceVariant::Conic,
+                surface_kind: SurfaceKind::Refracting,
+                refractive_index: "1.0".into(),
+                thickness: "4.2927".into(),
+                semi_diameter: "2".into(),
+                radius_of_curvature: "-3.8129".into(),
+                conic_constant: "0.0".into(),
+                theta: "0".into(),
+                psi: "0".into(),
+                material_key: Some("other:air:Ciddor".into()),
+            },
+            SurfaceRow {
+                variant: SurfaceVariant::Conic,
+                surface_kind: SurfaceKind::Refracting,
+                refractive_index: "1.0".into(),
+                thickness: "0.59".into(),
+                semi_diameter: "3".into(),
+                radius_of_curvature: "7.9951".into(),
+                conic_constant: "0.0".into(),
+                theta: "0".into(),
+                psi: "0".into(),
+                material_key: Some("specs:SCHOTT-optical:N-SF57".into()),
+            },
+            SurfaceRow {
+                variant: SurfaceVariant::Conic,
+                surface_kind: SurfaceKind::Refracting,
+                refractive_index: "1.0".into(),
+                thickness: "17.6".into(),
+                semi_diameter: "3".into(),
+                radius_of_curvature: "8.3651".into(),
+                conic_constant: "0.0".into(),
+                theta: "0".into(),
+                psi: "0".into(),
+                material_key: Some("other:air:Ciddor".into()),
+            },
+            SurfaceRow::new_image(),
+        ],
+        fields: vec![FieldRow {
+            value: "0".into(),
+            x: "0.0".into(),
+            pupil_spacing: "0.1".into(),
+        }],
+        aperture_semi_diameter: "0.49".into(),
+        wavelengths: vec!["0.4861".into(), "0.5876".into(), "0.6563".into()],
+        field_mode: FieldMode::Angle,
+        use_materials: true,
+        selected_materials: vec![
+            "other:air:Ciddor".into(),
+            "specs:SCHOTT-optical:N-SF57".into(),
+        ],
+        cross_section_n_rays: 3,
+        background_n: "1.0".into(),
+        background_material_key: Some("other:air:Ciddor".into()),
     }
 }
 
@@ -215,5 +347,7 @@ pub fn concave_mirror() -> SystemSpecs {
         use_materials: false,
         selected_materials: Vec::new(),
         cross_section_n_rays: 11,
+        background_n: "1.0".into(),
+        background_material_key: None,
     }
 }

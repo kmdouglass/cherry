@@ -16,6 +16,7 @@ pub struct ParsedSpecs {
     pub fields: Vec<FieldSpec>,
     pub aperture: ApertureSpec,
     pub wavelengths: Vec<f64>,
+    pub background: std::rc::Rc<dyn RefractiveIndexSpec>,
 }
 
 /// Parse a string as f64, treating "Infinity" / "infinity" / "inf" as
@@ -185,13 +186,40 @@ fn convert_specs_inner(
         wavelengths.push(wl);
     }
 
+    let background = resolve_background(
+        specs,
+        #[cfg(feature = "ri-info")]
+        materials,
+    )?;
+
     Ok(ParsedSpecs {
         surfaces,
         gaps,
         fields,
         aperture,
         wavelengths,
+        background,
     })
+}
+
+/// Resolve the background refractive index from SystemSpecs.
+fn resolve_background(
+    specs: &SystemSpecs,
+    #[cfg(feature = "ri-info")] materials: Option<&MaterialsMap>,
+) -> Result<Rc<dyn RefractiveIndexSpec>> {
+    #[cfg(feature = "ri-info")]
+    if specs.use_materials
+        && let Some(key) = &specs.background_material_key
+    {
+        let materials = materials.ok_or_else(|| anyhow::anyhow!("Material store not loaded"))?;
+        let mat = materials
+            .get(key)
+            .ok_or_else(|| anyhow::anyhow!("background material '{key}' not found in database"))?;
+        return Ok(Rc::clone(mat) as Rc<dyn RefractiveIndexSpec>);
+    }
+
+    let n = parse_float(&specs.background_n).context("background refractive index")?;
+    Ok(Rc::new(ConstantRefractiveIndex::new(n, 0.0)))
 }
 
 /// Resolve the refractive index for a gap, using either a material key or a

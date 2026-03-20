@@ -9,7 +9,8 @@ use crate::gui::{
     model::SystemSpecs,
     result_package::ResultPackage,
     windows::{
-        CrossSectionWindow, ParaxialWindow, SpecsWindow, SpotDiagramWindow, WindowVisibility,
+        CrossSectionWindow, ParaxialWindow, SpecsWindow, SpotDiagramWindow, SystemWindow,
+        WindowVisibility,
     },
 };
 
@@ -353,6 +354,7 @@ impl CherryApp {
         ui.toggle_value(&mut self.windows.specs, "Specs");
         #[cfg(feature = "ri-info")]
         ui.toggle_value(&mut self.windows.materials, "Materials");
+        ui.toggle_value(&mut self.windows.system, "System");
         ui.add_space(8.0);
         ui.label(egui::RichText::new("Output").strong());
         ui.separator();
@@ -373,6 +375,7 @@ impl eframe::App for CherryApp {
                 paraxial_summary: self.windows.paraxial_summary,
                 spot_diagram: self.windows.spot_diagram,
                 cross_section: self.windows.cross_section,
+                system: self.windows.system,
             },
         };
         eframe::set_value(storage, eframe::APP_KEY, &state);
@@ -452,16 +455,13 @@ impl eframe::App for CherryApp {
                 ui.add_space(16.0);
 
                 ui.menu_button("Examples", |ui| {
+                    ui.label("Simple");
                     if ui.button("Convexplano Lens").clicked() {
                         self.load_specs(SystemSpecs::default());
                         ui.close();
                     }
                     if ui.button("Convexplano Lens (Materials)").clicked() {
                         self.load_specs(examples::convexplano_lens_with_materials());
-                        ui.close();
-                    }
-                    if ui.button("Petzval Lens").clicked() {
-                        self.load_specs(examples::petzval_lens());
                         ui.close();
                     }
                     if ui.button("Concave Mirror").clicked() {
@@ -474,6 +474,16 @@ impl eframe::App for CherryApp {
                     }
                     if ui.button("Mirrors (Figure Z)").clicked() {
                         self.load_specs(examples::mirrors_figure_z());
+                        ui.close();
+                    }
+                    ui.separator();
+                    ui.label("Compound Lenses");
+                    if ui.button("Petzval Lens").clicked() {
+                        self.load_specs(examples::petzval_lens());
+                        ui.close();
+                    }
+                    if ui.button("F-Theta Scan Lens").clicked() {
+                        self.load_specs(examples::f_theta_scan_lens());
                         ui.close();
                     }
                 });
@@ -554,6 +564,13 @@ impl eframe::App for CherryApp {
                 &mut self.windows.spot_diagram,
                 self.latest_result.as_ref(),
             );
+        }
+
+        if self.windows.system {
+            let changed = SystemWindow::show(ctx, &mut self.windows.system, &mut self.specs);
+            if changed {
+                self.bump_input_id();
+            }
         }
 
         if self.windows.cross_section {
