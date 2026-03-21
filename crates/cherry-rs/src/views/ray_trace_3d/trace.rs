@@ -6,6 +6,8 @@ use tracing::{error, trace_span, warn};
 use super::rays::Ray;
 use crate::core::sequential_model::SequentialSubModelIter;
 
+const MAX_INTERSECTION_ITER: usize = 10;
+
 /// A set of rays traced through an optical system.
 ///
 /// # Attributes
@@ -48,7 +50,7 @@ pub fn trace(sequential_submodel: &mut SequentialSubModelIter, mut rays: Vec<Ray
 
             // Find the ray intersection with the surface.
             // Errors if the intersection point does not converge.
-            let (pos, norm) = match ray.intersect(surf, 1000) {
+            let (pos, norm) = match ray.intersect(surf, MAX_INTERSECTION_ITER) {
                 Ok((pos, norm)) => (pos, norm),
                 Err(e) => {
                     if ray_is_not_terminated(ray_id, &terminated) {

@@ -15,6 +15,9 @@ use crate::{
 /// of the machine epsilon
 const TOL: Float = Float::EPSILON;
 
+/// Maximum number of bisections when backtracking to find a non-NaN sag value during ray intersection
+const MAX_BISECT: usize = 64;
+
 /// A single ray to be traced through an optical system.
 ///
 /// # Attributes
@@ -62,6 +65,17 @@ impl Ray {
         // value for s
         let mut s = -self.pos.z() / self.dir.n();
 
+        trace!(
+            pos_x = self.pos.x(),
+            pos_y = self.pos.y(),
+            pos_z = self.pos.z(),
+            dir_l = self.dir.l(),
+            dir_m = self.dir.m(),
+            dir_n = self.dir.n(),
+            s_init = s,
+            "intersect_init"
+        );
+
         let mut p: Vec3;
         let mut sag: Float;
         let mut norm: Vec3;
@@ -71,8 +85,29 @@ impl Ray {
 
             // Update the distance s using the Newton-Raphson method
             (sag, norm) = surf.sag_norm(p);
+
+            // sag can be NaN for points outside the clear aperture due to sqrt of a negative number
+            // Bisect s backwards until we find a point where sag is not NaN, or until we reach the initial guess
+            let mut bisect_counter: usize = 0;
+            while sag.is_nan() {
+                s /= 2.0;
+                p = self.pos + self.dir * s;
+                (sag, norm) = surf.sag_norm(p);
+                bisect_counter += 1;
+                if bisect_counter > MAX_BISECT {
+                    error!(ctr, s, "Ray intersection did not converge: sag is NaN for all bisected points");
+                    bail!("Ray intersection did not converge: sag is NaN (point may be outside clear aperture)");
+                }
+            }
+
             let residual = p.z() - sag;
             let denom = norm.dot(&self.dir);
+
+            if denom == 0.0 {
+                error!(ctr, s, residual, "nr_failed: denominator is zero (ray perpendicular to surface normal)");
+                bail!("Ray intersection did not converge: denominator is zero");
+            }
+
             s -= residual / denom;
 
             trace!(
@@ -88,8 +123,10 @@ impl Ray {
                 "newton-raphson iteration data"
             );
 
-            // Check for convergence by comparing the current and previous values of s
-            if (s - s_1).abs() / s.abs().max(s_1.abs()) < TOL {
+            // Check for convergence by comparing the current and previous values of s,
+            // or by checking that the residual is at machine epsilon (handles near-grazing
+            // rays where a small residual still produces a step larger than TOL * |s|)
+            if (s - s_1).abs() / s.abs().max(s_1.abs()) < TOL || residual.abs() < TOL {
                 break;
             }
 

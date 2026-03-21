@@ -4,7 +4,7 @@ mod trace;
 
 use anyhow::{Result, anyhow};
 use serde::Serialize;
-use tracing::trace_span;
+use tracing::{trace, trace_span};
 
 use crate::{
     Axis, Pupil,
@@ -143,6 +143,12 @@ pub fn ray_trace_3d_view(
             ray_bundle,
             chief_ray,
         });
+
+        trace!(
+            field_id, 
+            wavelength_id,
+            axis = ?axis,
+            "Finished tracing ray bundle for field {}, wavelength {}, axis {:?}", field_id, wavelength_id, axis);
     }
 
     Ok(TraceResultsCollection::new(results))
