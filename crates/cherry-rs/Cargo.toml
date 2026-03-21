@@ -28,6 +28,7 @@ ri-info = [ "dep:ria", "dep:bitcode", "dep:serde_json" ]
 anyhow = "1.0"
 ndarray = { version = "0.16", features = [ "serde" ] }
 serde = { version = "1", features = [ "derive" ] }
+tracing = "0.1"
 
 # gui (shared: native + WASM)
 eframe = { version = "0.32", default-features = false, optional = true, features = [
@@ -70,6 +71,7 @@ approx = "0.5"
 egui-winit = { version = "0.32", features = ["accesskit"] }
 egui_kittest = "0.32"
 ndarray = { version = "0.16", features = [ "approx", "serde" ] }
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 criterion = { version = "0.7", features = [ "html_reports" ] }

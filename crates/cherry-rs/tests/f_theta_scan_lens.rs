@@ -1,0 +1,94 @@
+use cherry_rs::examples::f_theta_scan_lens::{field_specs, sequential_model};
+use cherry_rs::{ApertureSpec, Axis, FieldSpec, ParaxialView, PupilSampling, n, ray_trace_3d_view};
+
+const WAVELENGTHS: [f64; 1] = [0.5876]; // He d line
+
+fn init_tracing() {
+    use tracing_subscriber::{EnvFilter, fmt};
+    let _ = fmt()
+        .pretty()
+        .with_env_filter(EnvFilter::from_default_env())
+        .try_init();
+}
+
+fn setup() -> (
+    cherry_rs::SequentialModel,
+    ApertureSpec,
+    Vec<FieldSpec>,
+    ParaxialView,
+) {
+    let model = sequential_model(n!(1.0), n!(1.84666), &WAVELENGTHS);
+    let aperture_spec = ApertureSpec::EntrancePupil { semi_diameter: 0.5 };
+    let field_specs = field_specs();
+    let paraxial_view =
+        ParaxialView::new(&model, &field_specs, false).expect("Could not create paraxial view");
+    (model, aperture_spec, field_specs, paraxial_view)
+}
+
+#[test]
+fn test_ray_trace_3d_on_axis() {
+    init_tracing();
+    let (model, aperture_spec, field_specs, paraxial_view) = setup();
+
+    let results = ray_trace_3d_view(&aperture_spec, &field_specs, &model, &paraxial_view, None)
+        .expect("Ray trace failed");
+
+    assert!(!results.is_empty());
+}
+
+#[test]
+fn test_ray_trace_3d_off_axis() {
+    init_tracing();
+    let (model, aperture_spec, _, paraxial_view) = setup();
+
+    let off_axis_fields = vec![
+        FieldSpec::Angle {
+            angle: 5.0,
+            pupil_sampling: PupilSampling::TangentialRayFan {
+                n: 9,
+                axis: Axis::U,
+            },
+        },
+        FieldSpec::Angle {
+            angle: 10.0,
+            pupil_sampling: PupilSampling::TangentialRayFan {
+                n: 9,
+                axis: Axis::U,
+            },
+        },
+        FieldSpec::Angle {
+            angle: 20.0,
+            pupil_sampling: PupilSampling::TangentialRayFan {
+                n: 9,
+                axis: Axis::U,
+            },
+        },
+    ];
+
+    let results = ray_trace_3d_view(
+        &aperture_spec,
+        &off_axis_fields,
+        &model,
+        &paraxial_view,
+        None,
+    )
+    .expect("Ray trace failed");
+
+    assert_eq!(results.len(), off_axis_fields.len());
+}
+
+#[test]
+fn test_ray_trace_3d_square_grid() {
+    init_tracing();
+    let (model, aperture_spec, _, paraxial_view) = setup();
+
+    let fields = vec![FieldSpec::Angle {
+        angle: 10.0,
+        pupil_sampling: PupilSampling::SquareGrid { spacing: 0.5 },
+    }];
+
+    let results = ray_trace_3d_view(&aperture_spec, &fields, &model, &paraxial_view, None)
+        .expect("Ray trace failed");
+
+    assert!(!results.is_empty());
+}
