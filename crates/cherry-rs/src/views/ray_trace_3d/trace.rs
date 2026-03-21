@@ -6,6 +6,8 @@ use tracing::{error, trace_span, warn};
 use super::rays::Ray;
 use crate::core::sequential_model::SequentialSubModelIter;
 
+const MAX_INTERSECTION_ITER: usize = 100;
+
 /// A set of rays traced through an optical system.
 ///
 /// # Attributes
@@ -43,15 +45,20 @@ pub fn trace(sequential_submodel: &mut SequentialSubModelIter, mut rays: Vec<Ray
         for (ray_id, ray) in rays.iter_mut().enumerate() {
             let _ray_span = trace_span!("trace_ray", ray_id, surface_id).entered();
 
+            // Short circuit on terminated rays
+            if ray_is_terminated(ray_id, &terminated) {
+                continue;
+            }
+
             // Transform into coordinate system of the surface
             ray.transform(surf);
 
             // Find the ray intersection with the surface.
             // Errors if the intersection point does not converge.
-            let (pos, norm) = match ray.intersect(surf, 1000) {
+            let (pos, norm) = match ray.intersect(surf, MAX_INTERSECTION_ITER) {
                 Ok((pos, norm)) => (pos, norm),
                 Err(e) => {
-                    if ray_is_not_terminated(ray_id, &terminated) {
+                    if !ray_is_terminated(ray_id, &terminated) {
                         terminated[ray_id] = surface_id;
                         reason_for_termination.insert(ray_id, e.to_string());
                         error!(ray_id, surface_id, reason = %e, "Ray terminated due to intersection failure");
@@ -61,7 +68,7 @@ pub fn trace(sequential_submodel: &mut SequentialSubModelIter, mut rays: Vec<Ray
             };
 
             // Terminate ray if intersection is outside the clear aperture of surface
-            if surf.outside_clear_aperture(pos) && ray_is_not_terminated(ray_id, &terminated) {
+            if surf.outside_clear_aperture(pos) {
                 terminated[ray_id] = surface_id;
                 reason_for_termination.insert(ray_id, "Ray outside clear aperture".to_string());
                 warn!(
@@ -135,8 +142,8 @@ fn initialize_bundle(initial_rays: &[Ray], num_surfaces: usize) -> Vec<Ray> {
     bundle
 }
 
-fn ray_is_not_terminated(ray_id: usize, terminated: &[usize]) -> bool {
-    terminated[ray_id] == 0
+fn ray_is_terminated(ray_id: usize, terminated: &[usize]) -> bool {
+    terminated[ray_id] != 0
 }
 
 /// Returns the set of rays at a given surface index.
@@ -164,12 +171,12 @@ mod test {
     }
 
     #[test]
-    fn test_ray_is_not_terminated() {
+    fn test_ray_is_terminated() {
         let terminated = vec![0, 1, 0, 2];
-        assert!(ray_is_not_terminated(0, &terminated));
-        assert!(!ray_is_not_terminated(1, &terminated));
-        assert!(ray_is_not_terminated(2, &terminated));
-        assert!(!ray_is_not_terminated(3, &terminated));
+        assert!(!ray_is_terminated(0, &terminated));
+        assert!(ray_is_terminated(1, &terminated));
+        assert!(!ray_is_terminated(2, &terminated));
+        assert!(ray_is_terminated(3, &terminated));
     }
 
     #[test]

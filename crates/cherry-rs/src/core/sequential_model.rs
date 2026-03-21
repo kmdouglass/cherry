@@ -5,6 +5,7 @@ use std::ops::Range;
 
 use anyhow::{Result, anyhow};
 use serde::{Deserialize, Serialize, Serializer};
+use tracing::trace;
 
 use crate::core::{
     Float,
@@ -293,7 +294,12 @@ impl Conic {
         let dfdx = -r * self.radius_of_curvature * theta.cos() / denom;
         let dfdy = -r * self.radius_of_curvature * theta.sin() / denom;
         let dfdz = 1.0 as Float;
-        let norm = Vec3::new(dfdx, dfdy, dfdz).normalize();
+
+        // Do not normalize the normal vector!
+        // Its magnitude is important for Newton-Raphson ray tracing calculations.
+        let norm = Vec3::new(dfdx, dfdy, dfdz);
+
+        trace!(sag, dfdx, dfdy, dfdz, "conic sag_norm");
 
         (sag, norm)
     }
@@ -858,6 +864,9 @@ impl Surface {
     /// position.
     ///
     /// The position is given in the local coordinate system of the surface.
+    ///
+    /// The normal vector is not normalized. Its magnitude is important for
+    /// Newton-Raphson ray tracing calculations.
     pub(crate) fn sag_norm(&self, pos: Vec3) -> (Float, Vec3) {
         match self {
             Self::Conic(conic) => conic.sag_norm(pos),
