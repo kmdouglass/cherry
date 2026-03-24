@@ -108,6 +108,13 @@ pub fn ray_trace_3d_view(
     for (field_id, wavelength_id, axis) in combinations {
         let _trace_bundle_span = trace_span!("trace_bundle", field_id, wavelength_id).entered();
 
+        tracing::trace!(
+            "Tracing rays for field_id={}, wavelength_id={}, axis={:?}",
+            field_id,
+            wavelength_id,
+            axis
+        );
+
         let submodel_id = SubModelID(wavelength_id, axis);
         let fallback_id = SubModelID(wavelength_id, Axis::U);
         let sequential_submodel = sequential_model
