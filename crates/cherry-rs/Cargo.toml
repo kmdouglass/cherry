@@ -79,3 +79,7 @@ criterion = { version = "0.7", features = [ "html_reports" ] }
 [[bench]]
 name = "convexplano_lens"
 harness = false
+
+[[bench]]
+name = "f_theta_scan_lens"
+harness = false
