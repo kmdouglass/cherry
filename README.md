@@ -40,3 +40,9 @@ Launch the development server:
 cd www/egui
 trunk serve
 ```
+
+## License
+
+Copyright (c) 2024-2026, ECOLE POLYTECHNIQUE FEDERALE DE LAUSANNE, Switzerland, Laboratory of Experimental Biophysics (LEB)
+
+The cherry-rs library is licensed under the [GNU Lesser General Public License v3.0 or later](LICENSE.txt) (LGPL-3.0-or-later). The compiled `cherry` GUI binary is licensed under the GNU General Public License v3.0 or later (GPL-3.0-or-later).
