@@ -179,10 +179,11 @@ fn max_field(obj_pupil_separation: Float, field_specs: &[FieldSpec]) -> (Float, 
     for field_spec in field_specs {
         let (height, paraxial_angle) = match field_spec {
             FieldSpec::Angle {
-                angle,
+                chi,
+                phi: _,
                 pupil_sampling: _,
             } => {
-                let paraxial_angle = angle.to_radians().tan();
+                let paraxial_angle = chi.to_radians().tan();
                 let height = -obj_pupil_separation * paraxial_angle;
                 (height, paraxial_angle)
             }
@@ -983,11 +984,13 @@ mod test {
             .expect("Submodel not found.");
         let field_specs = vec![
             FieldSpec::Angle {
-                angle: 0.0,
+                chi: 0.0,
+                phi: 90.0,
                 pupil_sampling: crate::PupilSampling::SquareGrid { spacing: 0.1 },
             },
             FieldSpec::Angle {
-                angle: 5.0,
+                chi: 5.0,
+                phi: 90.0,
                 pupil_sampling: crate::PupilSampling::SquareGrid { spacing: 0.1 },
             },
         ];

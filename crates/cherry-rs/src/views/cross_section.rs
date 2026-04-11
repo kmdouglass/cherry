@@ -3,7 +3,7 @@
 use std::collections::HashSet;
 
 use crate::{
-    Axis, SequentialModel,
+    SequentialModel,
     core::{Float, math::vec3::Vec3, sequential_model::Surface},
     views::{components::Component, ray_trace_3d::TraceResultsCollection},
 };
@@ -216,11 +216,7 @@ fn build_plane_geometry(
     let mut ray_paths: Vec<Vec<Vec<[f64; 2]>>> = vec![Vec::new(); n_wavelengths];
 
     if let Some(tc) = trace {
-        let trace_axis = match axis {
-            GlobalAxis::Y => Axis::U,
-            GlobalAxis::X => Axis::R,
-        };
-        for result in tc.get_by_axis(trace_axis) {
+        for result in tc.iter() {
             let wl_id = result.wavelength_id();
             if wl_id >= n_wavelengths {
                 continue;
@@ -407,6 +403,40 @@ mod tests {
             // Just ensure we got points back
         }
         assert_eq!(pts.len(), 10);
+    }
+
+    #[test]
+    fn xz_rays_come_from_u_axis_results() {
+        // After removing axis-based filtering, a TangentialRayFan trace (which
+        // produces Axis::U results) should contribute ray paths to the XZ plane
+        // cross-section via projection, not just the YZ plane.
+        use crate::{
+            ApertureSpec, FieldSpec, ParaxialView, specs::fields::PupilSampling,
+            views::ray_trace_3d::ray_trace_3d_view,
+        };
+        let air = n!(1.0);
+        let nbk7 = n!(1.515);
+        let wavelengths: [Float; 1] = [0.5876];
+        let model = convexplano_lens::sequential_model(air.clone(), nbk7, &wavelengths);
+        // phi=90° places the tangential fan in the YZ plane (Axis::U results).
+        let fields = vec![FieldSpec::Angle {
+            chi: 0.0,
+            phi: 90.0,
+            pupil_sampling: PupilSampling::TangentialRayFan { n: 3 },
+        }];
+        let aperture = ApertureSpec::EntrancePupil {
+            semi_diameter: 12.5,
+        };
+        let pv = ParaxialView::new(&model, &fields, false).unwrap();
+        let sampling = Some(PupilSampling::TangentialRayFan { n: 5 });
+        let trace = ray_trace_3d_view(&aperture, &fields, &model, &pv, sampling).unwrap();
+        let components = components_view(&model, air).unwrap();
+        let cs = cross_section_view(&model, Some(&trace), &components);
+        // XZ plane should have ray paths from the U-axis trace projected onto X.
+        assert!(
+            !cs.xz.ray_paths.iter().all(|w| w.is_empty()),
+            "XZ plane should have ray paths from trace projection"
+        );
     }
 
     #[test]

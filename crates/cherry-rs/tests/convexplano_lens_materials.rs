@@ -27,18 +27,14 @@ mod test_ri_info {
     const WAVELENGTHS: [f64; 3] = [0.4861, 0.5876, 0.6563]; // Fraunhofer F, d, and C lines
     const FIELD_SPECS: [FieldSpec; 2] = [
         FieldSpec::Angle {
-            angle: 0.0,
-            pupil_sampling: PupilSampling::TangentialRayFan {
-                n: 3,
-                axis: cherry_rs::Axis::U,
-            },
+            chi: 0.0,
+            phi: 90.0,
+            pupil_sampling: PupilSampling::TangentialRayFan { n: 3 },
         },
         FieldSpec::Angle {
-            angle: 5.0,
-            pupil_sampling: PupilSampling::TangentialRayFan {
-                n: 3,
-                axis: cherry_rs::Axis::U,
-            },
+            chi: 5.0,
+            phi: 90.0,
+            pupil_sampling: PupilSampling::TangentialRayFan { n: 3 },
         },
     ];
 

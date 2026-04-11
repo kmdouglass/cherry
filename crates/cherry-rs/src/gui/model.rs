@@ -150,11 +150,19 @@ impl SurfaceRow {
     }
 }
 
+fn default_phi() -> String {
+    "90.0".into()
+}
+
 /// A single row in the fields table.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FieldRow {
-    /// Angle in degrees (Angle mode) or Y position (PointSource mode).
-    pub value: String,
+    /// χ (chi): zenith angle in degrees (Angle mode) or Y position (PointSource
+    /// mode).
+    pub chi: String,
+    /// φ (phi): azimuthal angle in degrees (Angle mode only). Defaults to 90.0.
+    #[serde(default = "default_phi")]
+    pub phi: String,
     /// X position (PointSource mode only).
     pub x: String,
     /// Pupil sampling grid spacing.
@@ -230,7 +238,8 @@ impl Default for SystemSpecs {
                 SurfaceRow::new_image(),
             ],
             fields: vec![FieldRow {
-                value: "0.0".into(),
+                chi: "0.0".into(),
+                phi: "90.0".into(),
                 x: "0.0".into(),
                 pupil_spacing: "0.1".into(),
             }],

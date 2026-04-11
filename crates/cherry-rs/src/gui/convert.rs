@@ -150,15 +150,16 @@ fn convert_specs_inner(
 
         let field = match specs.field_mode {
             FieldMode::Angle => {
-                let angle =
-                    parse_float(&frow.value).with_context(|| format!("field {i}: angle"))?;
+                let chi = parse_float(&frow.chi).with_context(|| format!("field {i}: chi"))?;
+                let phi = parse_float(&frow.phi).with_context(|| format!("field {i}: phi"))?;
                 FieldSpec::Angle {
-                    angle,
+                    chi,
+                    phi,
                     pupil_sampling,
                 }
             }
             FieldMode::PointSource => {
-                let y = parse_float(&frow.value).with_context(|| format!("field {i}: y"))?;
+                let y = parse_float(&frow.chi).with_context(|| format!("field {i}: y"))?;
                 let x = parse_float(&frow.x).with_context(|| format!("field {i}: x"))?;
                 FieldSpec::PointSource {
                     x,

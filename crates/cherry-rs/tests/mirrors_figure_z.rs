@@ -3,11 +3,9 @@ use cherry_rs::{Axis, FieldSpec, ParaxialView, PupilSampling, examples::mirrors_
 
 const WAVELENGTHS: [f64; 1] = [0.5876];
 const FIELD_SPECS: [FieldSpec; 1] = [FieldSpec::Angle {
-    angle: 0.0,
-    pupil_sampling: PupilSampling::TangentialRayFan {
-        n: 3,
-        axis: cherry_rs::Axis::U,
-    },
+    chi: 0.0,
+    phi: 90.0,
+    pupil_sampling: PupilSampling::TangentialRayFan { n: 3 },
 }];
 
 // Aperture stop is the first mirror (surface 1, track = 0).

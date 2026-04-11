@@ -4,7 +4,7 @@ use std::sync::mpsc::{Receiver, Sender};
 use std::{collections::HashMap, rc::Rc};
 
 use crate::{
-    Axis, ParaxialView, SequentialModel, components_view, cross_section_view, ray_trace_3d_view,
+    ParaxialView, SequentialModel, components_view, cross_section_view, ray_trace_3d_view,
 };
 
 use super::{
@@ -153,17 +153,14 @@ fn run_compute(
     };
 
     let n = req.specs.cross_section_n_rays as usize;
-    let mut cs_trace: Option<crate::TraceResultsCollection> = None;
-    for axis in [Axis::U, Axis::R] {
-        let sampling = Some(crate::specs::fields::PupilSampling::TangentialRayFan { n, axis });
-        match ray_trace_3d_view(&parsed.aperture, &parsed.fields, &seq, &pv, sampling) {
-            Ok(t) => match cs_trace.as_mut() {
-                Some(existing) => existing.extend(t),
-                None => cs_trace = Some(t),
-            },
-            Err(e) => log::warn!("Cross-section ray trace ({axis:?}) failed: {e}"),
+    let sampling = Some(crate::specs::fields::PupilSampling::TangentialRayFan { n });
+    let cs_trace = match ray_trace_3d_view(&parsed.aperture, &parsed.fields, &seq, &pv, sampling) {
+        Ok(t) => Some(t),
+        Err(e) => {
+            log::warn!("Cross-section ray trace failed: {e}");
+            None
         }
-    }
+    };
 
     let components = components_view(&seq, parsed.background.clone()).unwrap_or_default();
     let cross_section = Some(cross_section_view(&seq, cs_trace.as_ref(), &components));
@@ -209,8 +206,8 @@ fn build_field_descs(fields: &[crate::FieldSpec]) -> Vec<super::result_package::
         .iter()
         .map(|f| {
             let label = match f {
-                crate::FieldSpec::Angle { angle, .. } => {
-                    format!("{angle:.3}\u{00b0}")
+                crate::FieldSpec::Angle { chi, phi, .. } => {
+                    format!("\u{03c7}={chi:.3}\u{00b0}, \u{03c6}={phi:.3}\u{00b0}")
                 }
                 crate::FieldSpec::PointSource { x, y, .. } => {
                     format!("({x}, {y}) mm")
@@ -262,22 +259,24 @@ mod tests {
         use crate::{FieldSpec, specs::fields::PupilSampling};
         let fields = vec![
             FieldSpec::Angle {
-                angle: 0.0,
-                pupil_sampling: PupilSampling::TangentialRayFan {
-                    n: 3,
-                    axis: crate::Axis::U,
-                },
+                chi: 0.0,
+                phi: 90.0,
+                pupil_sampling: PupilSampling::TangentialRayFan { n: 3 },
             },
             FieldSpec::Angle {
-                angle: 5.0,
-                pupil_sampling: PupilSampling::TangentialRayFan {
-                    n: 3,
-                    axis: crate::Axis::U,
-                },
+                chi: 5.0,
+                phi: 90.0,
+                pupil_sampling: PupilSampling::TangentialRayFan { n: 3 },
             },
         ];
         let descs = build_field_descs(&fields);
-        assert_eq!(descs[0].label, "0.000\u{00b0}");
-        assert_eq!(descs[1].label, "5.000\u{00b0}");
+        assert_eq!(
+            descs[0].label,
+            "\u{03c7}=0.000\u{00b0}, \u{03c6}=90.000\u{00b0}"
+        );
+        assert_eq!(
+            descs[1].label,
+            "\u{03c7}=5.000\u{00b0}, \u{03c6}=90.000\u{00b0}"
+        );
     }
 }

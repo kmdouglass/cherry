@@ -92,14 +92,9 @@ pub fn ray_trace_3d_view(
 ) -> Result<TraceResultsCollection> {
     validate_field_specs(sequential_model, field_specs)?;
 
-    // When the sampling override is a TangentialRayFan, trace only along its
-    // axis. This lets the caller request YZ and XZ fans independently.
-    // For rotationally symmetric systems (Axis::U submodels only), fall back
-    // to the Y submodel when the requested axis has no submodel.
-    let axes: Vec<Axis> = match pupil_sampling {
-        Some(PupilSampling::TangentialRayFan { axis, .. }) => vec![axis],
-        _ => sequential_model.axes(),
-    };
+    // Trace over all model axes. The tangential fan orientation is determined
+    // per-field via FieldSpec::tangential_fan_phi(), not by an axis override.
+    let axes: Vec<Axis> = sequential_model.axes();
 
     let combinations = all_combinations(field_specs, sequential_model.wavelengths(), &axes);
 
@@ -199,6 +194,11 @@ impl TraceResultsCollection {
         self.results.extend(other.results);
     }
 
+    /// Returns an iterator over all results in the collection.
+    pub fn iter(&self) -> impl Iterator<Item = &TraceResults> {
+        self.results.iter()
+    }
+
     /// Returns whether the collection is empty.
     pub fn is_empty(&self) -> bool {
         self.results.is_empty()
@@ -277,10 +277,12 @@ fn rays(
 ) -> Result<Vec<Ray>> {
     let rays: Vec<Ray> = match field_spec {
         FieldSpec::Angle {
-            angle,
+            chi,
+            phi,
             pupil_sampling,
         } => {
-            let angle = angle.to_radians();
+            let chi_rad = chi.to_radians();
+            let phi_rad = phi.to_radians();
 
             let pupil_sampling = match sampling {
                 Some(sampling) => sampling,
@@ -292,22 +294,26 @@ fn rays(
                     surfaces,
                     aperture_spec,
                     paraxial_subview,
-                    PI / 2.0,
-                    angle,
+                    phi_rad,
+                    chi_rad,
                 )?,
                 PupilSampling::SquareGrid { spacing } => parallel_ray_bundle_on_sq_grid(
                     surfaces,
                     aperture_spec,
                     paraxial_subview,
                     spacing,
-                    angle,
+                    chi_rad,
                 )?,
-                PupilSampling::TangentialRayFan { n, axis } => {
-                    let theta = match axis {
-                        Axis::U => PI / 2.0,
-                        Axis::R => 0.0,
-                    };
-                    parallel_ray_fan(surfaces, aperture_spec, paraxial_subview, n, theta, angle)?
+                PupilSampling::TangentialRayFan { n } => {
+                    let fan_phi = field_spec.tangential_fan_phi();
+                    parallel_ray_fan(
+                        surfaces,
+                        aperture_spec,
+                        paraxial_subview,
+                        n,
+                        fan_phi,
+                        chi_rad,
+                    )?
                 }
             }
         }
@@ -344,16 +350,9 @@ fn rays(
                     spacing,
                     &origin,
                 )?,
-                PupilSampling::TangentialRayFan { n, axis } => {
-                    let theta = if *y == 0.0 && *x == 0.0 {
-                        match axis {
-                            Axis::U => PI / 2.0,
-                            Axis::R => 0.0,
-                        }
-                    } else {
-                        y.atan2(*x)
-                    };
-                    point_source_ray_fan(aperture_spec, paraxial_subview, n, theta, &origin)?
+                PupilSampling::TangentialRayFan { n } => {
+                    let fan_phi = field_spec.tangential_fan_phi();
+                    point_source_ray_fan(aperture_spec, paraxial_subview, n, fan_phi, &origin)?
                 }
             }
         }
@@ -569,9 +568,9 @@ fn validate_field_specs(
 ) -> Result<()> {
     for field_spec in field_specs {
         match field_spec {
-            FieldSpec::Angle { angle, .. } => {
-                if !angle.is_finite() {
-                    return Err(anyhow!("Field angle must be finite"));
+            FieldSpec::Angle { chi, .. } => {
+                if !chi.is_finite() {
+                    return Err(anyhow!("Field chi must be finite"));
                 }
             }
             FieldSpec::PointSource { .. } => {
@@ -709,18 +708,14 @@ mod tests {
         };
         let field_specs = vec![
             FieldSpec::Angle {
-                angle: 0.0,
-                pupil_sampling: PupilSampling::TangentialRayFan {
-                    n: 3,
-                    axis: Axis::U,
-                },
+                chi: 0.0,
+                phi: 90.0,
+                pupil_sampling: PupilSampling::TangentialRayFan { n: 3 },
             },
             FieldSpec::Angle {
-                angle: 5.0,
-                pupil_sampling: PupilSampling::TangentialRayFan {
-                    n: 3,
-                    axis: Axis::U,
-                },
+                chi: 5.0,
+                phi: 90.0,
+                pupil_sampling: PupilSampling::TangentialRayFan { n: 3 },
             },
         ];
 
@@ -774,10 +769,7 @@ mod tests {
         let field_spec = FieldSpec::PointSource {
             x: 0.0,
             y: 0.0,
-            pupil_sampling: PupilSampling::TangentialRayFan {
-                n: 3,
-                axis: Axis::U,
-            },
+            pupil_sampling: PupilSampling::TangentialRayFan { n: 3 },
         };
 
         let result = rays(
@@ -968,11 +960,9 @@ mod tests {
         let s = setup();
 
         let field_specs = vec![FieldSpec::Angle {
-            angle: 0.0,
-            pupil_sampling: PupilSampling::TangentialRayFan {
-                n: 3,
-                axis: Axis::U,
-            },
+            chi: 0.0,
+            phi: 90.0,
+            pupil_sampling: PupilSampling::TangentialRayFan { n: 3 },
         }];
 
         let result = validate_field_specs(&s.sequential_model, &field_specs);
@@ -985,10 +975,7 @@ mod tests {
         let field_specs = vec![FieldSpec::PointSource {
             x: 0.0,
             y: 0.0,
-            pupil_sampling: PupilSampling::TangentialRayFan {
-                n: 3,
-                axis: Axis::U,
-            },
+            pupil_sampling: PupilSampling::TangentialRayFan { n: 3 },
         }];
 
         let result = validate_field_specs(&s.sequential_model, &field_specs);
@@ -1003,18 +990,14 @@ mod tests {
     fn test_all_combinations() {
         let field_specs = vec![
             FieldSpec::Angle {
-                angle: 0.0,
-                pupil_sampling: PupilSampling::TangentialRayFan {
-                    n: 3,
-                    axis: Axis::U,
-                },
+                chi: 0.0,
+                phi: 90.0,
+                pupil_sampling: PupilSampling::TangentialRayFan { n: 3 },
             },
             FieldSpec::Angle {
-                angle: 5.0,
-                pupil_sampling: PupilSampling::TangentialRayFan {
-                    n: 3,
-                    axis: Axis::U,
-                },
+                chi: 5.0,
+                phi: 90.0,
+                pupil_sampling: PupilSampling::TangentialRayFan { n: 3 },
             },
         ];
 
@@ -1036,5 +1019,45 @@ mod tests {
         assert!(combinations.contains(&(1, 1, Axis::U)));
         assert!(combinations.contains(&(1, 2, Axis::R)));
         assert!(combinations.contains(&(1, 2, Axis::U)));
+    }
+
+    /// A tangential fan at phi=45° should produce rays whose pupil positions
+    /// are spread along the (1,1)/√2 diagonal, not along the Y or X axis.
+    #[test]
+    fn test_diagonal_tangential_fan_orientation() {
+        let s = setup();
+
+        let field_spec = FieldSpec::Angle {
+            chi: 5.0,
+            phi: 45.0, // diagonal: fan should run along (1,1)/√2
+            pupil_sampling: PupilSampling::TangentialRayFan { n: 3 },
+        };
+
+        let generated = rays(
+            s.sequential_model.surfaces(),
+            &s.aperture_spec,
+            s.paraxial_view
+                .subviews()
+                .get(&SubModelID(0, Axis::U))
+                .unwrap(),
+            &field_spec,
+            None,
+        )
+        .expect("rays should be generated for diagonal field");
+
+        assert_eq!(generated.len(), 3);
+
+        // The three fan rays should be spread along the (1,1)/√2 direction.
+        // That means x and y offsets from the center ray should be equal in magnitude.
+        // Chief ray is the middle ray of the fan (index 1 of 3)
+        let center_x = generated[1].x();
+        let center_y = generated[1].y();
+        let outer_x = generated[2].x();
+        let outer_y = generated[2].y();
+        let dx = outer_x - center_x;
+        let dy = outer_y - center_y;
+
+        // For a 45° fan, dy/dx should equal tan(45°) = 1.0
+        approx::assert_abs_diff_eq!(dy / dx, 1.0, epsilon = 1e-6);
     }
 }

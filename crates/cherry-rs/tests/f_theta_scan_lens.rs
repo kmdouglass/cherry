@@ -1,5 +1,5 @@
 use cherry_rs::examples::f_theta_scan_lens::{field_specs, sequential_model};
-use cherry_rs::{ApertureSpec, Axis, FieldSpec, ParaxialView, PupilSampling, n, ray_trace_3d_view};
+use cherry_rs::{ApertureSpec, FieldSpec, ParaxialView, PupilSampling, n, ray_trace_3d_view};
 
 const WAVELENGTHS: [f64; 1] = [0.5876]; // He d line
 
@@ -43,25 +43,19 @@ fn test_ray_trace_3d_off_axis() {
 
     let off_axis_fields = vec![
         FieldSpec::Angle {
-            angle: 5.0,
-            pupil_sampling: PupilSampling::TangentialRayFan {
-                n: 9,
-                axis: Axis::U,
-            },
+            chi: 5.0,
+            phi: 90.0,
+            pupil_sampling: PupilSampling::TangentialRayFan { n: 9 },
         },
         FieldSpec::Angle {
-            angle: 10.0,
-            pupil_sampling: PupilSampling::TangentialRayFan {
-                n: 9,
-                axis: Axis::U,
-            },
+            chi: 10.0,
+            phi: 90.0,
+            pupil_sampling: PupilSampling::TangentialRayFan { n: 9 },
         },
         FieldSpec::Angle {
-            angle: 20.0,
-            pupil_sampling: PupilSampling::TangentialRayFan {
-                n: 9,
-                axis: Axis::U,
-            },
+            chi: 20.0,
+            phi: 90.0,
+            pupil_sampling: PupilSampling::TangentialRayFan { n: 9 },
         },
     ];
 
@@ -83,7 +77,8 @@ fn test_ray_trace_3d_square_grid() {
     let (model, aperture_spec, _, paraxial_view) = setup();
 
     let fields = vec![FieldSpec::Angle {
-        angle: 10.0,
+        chi: 10.0,
+        phi: 90.0,
         pupil_sampling: PupilSampling::SquareGrid { spacing: 0.5 },
     }];
 
