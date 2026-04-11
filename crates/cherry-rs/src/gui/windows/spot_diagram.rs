@@ -424,7 +424,8 @@ mod tests {
 
         let mut specs = SystemSpecs::default();
         specs.fields.push(FieldRow {
-            value: "5.0".into(),
+            chi: "5.0".into(),
+            phi: "90.0".into(),
             x: "0.0".into(),
             pupil_spacing: "0.1".into(),
         });

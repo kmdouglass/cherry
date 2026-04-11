@@ -36,11 +36,8 @@ pub fn fields_panel(ui: &mut egui::Ui, specs: &mut SystemSpecs) -> bool {
             .resizable(true)
             .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
             .column(Column::auto().at_least(30.0)) // #
-            .column(Column::initial(100.0).resizable(true)) // Value (angle or y)
-            .columns(
-                Column::initial(100.0).resizable(true),
-                if is_angle { 0 } else { 1 }, // X (only for PointSource)
-            )
+            .column(Column::initial(100.0).resizable(true)) // χ (angle) or Y (point source)
+            .column(Column::initial(100.0).resizable(true)) // φ (angle mode) or X (point source)
             .column(Column::initial(100.0).resizable(true)) // Pupil spacing
             .column(Column::auto().at_least(50.0)); // Actions
 
@@ -51,16 +48,18 @@ pub fn fields_panel(ui: &mut egui::Ui, specs: &mut SystemSpecs) -> bool {
                 });
                 header.col(|ui| {
                     if is_angle {
-                        ui.strong("Angle (deg)");
+                        ui.strong("\u{03c7} (\u{00b0})");
                     } else {
                         ui.strong("Y");
                     }
                 });
-                if !is_angle {
-                    header.col(|ui| {
+                header.col(|ui| {
+                    if is_angle {
+                        ui.strong("\u{03c6} (\u{00b0})");
+                    } else {
                         ui.strong("X");
-                    });
-                }
+                    }
+                });
                 header.col(|ui| {
                     ui.strong("Pupil Spacing");
                 });
@@ -86,7 +85,7 @@ pub fn fields_panel(ui: &mut egui::Ui, specs: &mut SystemSpecs) -> bool {
                             if is_angle {
                                 changed |= drag_value(
                                     ui,
-                                    &mut field.value,
+                                    &mut field.chi,
                                     row_idx,
                                     "val",
                                     -90.0..=90.0,
@@ -95,7 +94,7 @@ pub fn fields_panel(ui: &mut egui::Ui, specs: &mut SystemSpecs) -> bool {
                             } else {
                                 changed |= drag_value(
                                     ui,
-                                    &mut field.value,
+                                    &mut field.chi,
                                     row_idx,
                                     "val",
                                     f64::NEG_INFINITY..=f64::INFINITY,
@@ -104,9 +103,18 @@ pub fn fields_panel(ui: &mut egui::Ui, specs: &mut SystemSpecs) -> bool {
                             }
                         });
 
-                        // X column (PointSource only)
-                        if !is_angle {
-                            row.col(|ui| {
+                        // φ column (Angle mode) or X column (PointSource mode)
+                        row.col(|ui| {
+                            if is_angle {
+                                changed |= drag_value(
+                                    ui,
+                                    &mut field.phi,
+                                    row_idx,
+                                    "phi",
+                                    -180.0..=180.0,
+                                    1.0,
+                                );
+                            } else {
                                 changed |= drag_value(
                                     ui,
                                     &mut field.x,
@@ -115,8 +123,8 @@ pub fn fields_panel(ui: &mut egui::Ui, specs: &mut SystemSpecs) -> bool {
                                     f64::NEG_INFINITY..=f64::INFINITY,
                                     1.0,
                                 );
-                            });
-                        }
+                            }
+                        });
 
                         // Pupil spacing
                         row.col(|ui| {
@@ -148,7 +156,8 @@ pub fn fields_panel(ui: &mut egui::Ui, specs: &mut SystemSpecs) -> bool {
                     specs.fields.insert(
                         idx + 1,
                         FieldRow {
-                            value: "0.0".into(),
+                            chi: "0.0".into(),
+                            phi: "90.0".into(),
                             x: "0.0".into(),
                             pupil_spacing: "0.1".into(),
                         },

@@ -95,11 +95,13 @@
 //! // with a square grid with a spacing of 0.1 in normalized pupil coordinates.
 //! let field_specs = vec![
 //!     FieldSpec::Angle {
-//!         angle: 0.0,
+//!         chi: 0.0,
+//!         phi: 90.0,
 //!         pupil_sampling: PupilSampling::SquareGrid { spacing: 0.1 },
 //!     },
 //!     FieldSpec::Angle {
-//!         angle: 5.0,
+//!         chi: 5.0,
+//!         phi: 90.0,
 //!         pupil_sampling: PupilSampling::SquareGrid { spacing: 0.1 },
 //!     },
 //! ];

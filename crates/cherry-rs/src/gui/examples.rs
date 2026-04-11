@@ -33,7 +33,8 @@ pub fn mirrors_figure_z() -> SystemSpecs {
             SurfaceRow::new_image(),
         ],
         fields: vec![FieldRow {
-            value: "0.0".into(),
+            chi: "0.0".into(),
+            phi: "90.0".into(),
             x: "0.0".into(),
             pupil_spacing: "0.1".into(),
         }],
@@ -66,12 +67,14 @@ pub fn petzval_lens() -> SystemSpecs {
         ],
         fields: vec![
             FieldRow {
-                value: "0.0".into(),
+                chi: "0.0".into(),
+                phi: "90.0".into(),
                 x: "0.0".into(),
                 pupil_spacing: "0.1".into(),
             },
             FieldRow {
-                value: "5.0".into(),
+                chi: "5.0".into(),
+                phi: "90.0".into(),
                 x: "0.0".into(),
                 pupil_spacing: "0.1".into(),
             },
@@ -99,12 +102,14 @@ pub fn biconvex_lens() -> SystemSpecs {
         ],
         fields: vec![
             FieldRow {
-                value: "0.0".into(),
+                chi: "0.0".into(),
+                phi: "90.0".into(),
                 x: "0.0".into(),
                 pupil_spacing: "0.1".into(),
             },
             FieldRow {
-                value: "5.0".into(),
+                chi: "5.0".into(),
+                phi: "90.0".into(),
                 x: "0.0".into(),
                 pupil_spacing: "0.1".into(),
             },
@@ -165,12 +170,14 @@ pub fn convexplano_lens_with_materials() -> SystemSpecs {
         ],
         fields: vec![
             FieldRow {
-                value: "0.0".into(),
+                chi: "0.0".into(),
+                phi: "90.0".into(),
                 x: "0.0".into(),
                 pupil_spacing: "0.1".into(),
             },
             FieldRow {
-                value: "5.0".into(),
+                chi: "5.0".into(),
+                phi: "90.0".into(),
                 x: "0.0".into(),
                 pupil_spacing: "0.1".into(),
             },
@@ -292,7 +299,8 @@ pub fn f_theta_scan_lens() -> SystemSpecs {
             SurfaceRow::new_image(),
         ],
         fields: vec![FieldRow {
-            value: "0".into(),
+            chi: "0".into(),
+            phi: "90.0".into(),
             x: "0.0".into(),
             pupil_spacing: "0.1".into(),
         }],
@@ -331,12 +339,14 @@ pub fn concave_mirror() -> SystemSpecs {
         ],
         fields: vec![
             FieldRow {
-                value: "0.0".into(),
+                chi: "0.0".into(),
+                phi: "90.0".into(),
                 x: "0.0".into(),
                 pupil_spacing: "0.1".into(),
             },
             FieldRow {
-                value: "5.0".into(),
+                chi: "5.0".into(),
+                phi: "90.0".into(),
                 x: "0.0".into(),
                 pupil_spacing: "0.1".into(),
             },
