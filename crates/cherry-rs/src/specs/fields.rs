@@ -21,6 +21,12 @@ pub enum PupilSampling {
     /// the other. The fan lies in the meridional plane, whose orientation is
     /// determined by the field spec via [`FieldSpec::tangential_fan_phi`].
     TangentialRayFan { n: usize },
+
+    /// A sagittal ray fan of `n` evenly-spaced rays from one pupil edge to
+    /// the other. The fan lies in the sagittal plane, perpendicular to the
+    /// meridional plane, whose orientation is determined by the field spec
+    /// via [`FieldSpec::sagittal_fan_phi`].
+    SagittalRayFan { n: usize },
 }
 
 /// Specifies an object field.
@@ -67,6 +73,7 @@ impl PupilSampling {
                 }
             }
             PupilSampling::TangentialRayFan { .. } => {}
+            PupilSampling::SagittalRayFan { .. } => {}
         }
         Ok(())
     }

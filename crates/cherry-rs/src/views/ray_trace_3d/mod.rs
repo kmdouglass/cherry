@@ -315,6 +315,17 @@ fn rays(
                         chi_rad,
                     )?
                 }
+                PupilSampling::SagittalRayFan { n } => {
+                    let fan_phi = field_spec.sagittal_fan_phi();
+                    parallel_ray_fan(
+                        surfaces,
+                        aperture_spec,
+                        paraxial_subview,
+                        n,
+                        fan_phi,
+                        chi_rad,
+                    )?
+                }
             }
         }
 
@@ -352,6 +363,10 @@ fn rays(
                 )?,
                 PupilSampling::TangentialRayFan { n } => {
                     let fan_phi = field_spec.tangential_fan_phi();
+                    point_source_ray_fan(aperture_spec, paraxial_subview, n, fan_phi, &origin)?
+                }
+                PupilSampling::SagittalRayFan { n } => {
+                    let fan_phi = field_spec.sagittal_fan_phi();
                     point_source_ray_fan(aperture_spec, paraxial_subview, n, fan_phi, &origin)?
                 }
             }
@@ -760,6 +775,44 @@ mod tests {
         .unwrap();
 
         assert_eq!(rays.len(), 3); // 3 rays for tangential ray fan
+    }
+
+    #[test]
+    fn test_rays_sagittal_fan() {
+        // For phi=90° (U/YZ plane), the tangential fan spreads along Y;
+        // the sagittal fan must spread along X (perpendicular to the meridional plane).
+        let air = n!(1.0);
+        let nbk7 = n!(1.515);
+        let wavelengths: [Float; 1] = [0.5876];
+        let seq_model = sequential_model(air, nbk7, &wavelengths);
+        let aperture_spec = ApertureSpec::EntrancePupil {
+            semi_diameter: 12.5,
+        };
+        let field_specs = vec![FieldSpec::Angle {
+            chi: 5.0,
+            phi: 90.0,
+            pupil_sampling: PupilSampling::SagittalRayFan { n: 3 },
+        }];
+        let paraxial_view = ParaxialView::new(&seq_model, &field_specs, false).unwrap();
+
+        let fan_rays = rays(
+            seq_model.surfaces(),
+            &aperture_spec,
+            &paraxial_view.subviews()[&SubModelID(0, Axis::U)],
+            &field_specs[0],
+            None,
+        )
+        .unwrap();
+
+        assert_eq!(fan_rays.len(), 3);
+
+        // Sagittal fan phi = tangential_fan_phi + π/2 = π/2 + π/2 = π.
+        // Vec3::fan with theta=π spreads positions along (-cos π, -sin π) = (+1, 0),
+        // so the three ray origins differ in X and share the same Y coordinate.
+        let xs: Vec<f64> = fan_rays.iter().map(|r| r.x()).collect();
+        let ys: Vec<f64> = fan_rays.iter().map(|r| r.y()).collect();
+        assert!(xs.iter().any(|x| (x - xs[0]).abs() > 1e-6));
+        assert!(ys.windows(2).all(|w| (w[1] - w[0]).abs() < 1e-6));
     }
 
     #[test]
