@@ -178,20 +178,12 @@ fn max_field(obj_pupil_separation: Float, field_specs: &[FieldSpec]) -> (Float, 
 
     for field_spec in field_specs {
         let (height, paraxial_angle) = match field_spec {
-            FieldSpec::Angle {
-                chi,
-                phi: _,
-                pupil_sampling: _,
-            } => {
+            FieldSpec::Angle { chi, phi: _ } => {
                 let paraxial_angle = chi.to_radians().tan();
                 let height = -obj_pupil_separation * paraxial_angle;
                 (height, paraxial_angle)
             }
-            FieldSpec::PointSource {
-                x,
-                y,
-                pupil_sampling: _,
-            } => {
+            FieldSpec::PointSource { x, y } => {
                 let height = (x.powi(2) + y.powi(2)).sqrt();
                 let paraxial_angle = -height / obj_pupil_separation;
                 (height, paraxial_angle)
@@ -986,12 +978,10 @@ mod test {
             FieldSpec::Angle {
                 chi: 0.0,
                 phi: 90.0,
-                pupil_sampling: crate::PupilSampling::SquareGrid { spacing: 0.1 },
             },
             FieldSpec::Angle {
                 chi: 5.0,
                 phi: 90.0,
-                pupil_sampling: crate::PupilSampling::SquareGrid { spacing: 0.1 },
             },
         ];
 

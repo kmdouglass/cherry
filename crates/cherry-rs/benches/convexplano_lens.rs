@@ -3,7 +3,7 @@ use std::hint::black_box;
 use std::rc::Rc;
 
 use cherry_rs::{
-    ApertureSpec, FieldSpec, ParaxialView, PupilSampling, RefractiveIndexSpec,
+    ApertureSpec, FieldSpec, ParaxialView, RefractiveIndexSpec, SamplingConfig,
     examples::convexplano_lens::sequential_model, n, ray_trace_3d_view,
 };
 
@@ -13,12 +13,10 @@ const FIELD_SPECS: [FieldSpec; 2] = [
     FieldSpec::Angle {
         chi: 0.0,
         phi: 90.0,
-        pupil_sampling: PupilSampling::SquareGrid { spacing: 0.1 },
     },
     FieldSpec::Angle {
         chi: 5.0,
         phi: 90.0,
-        pupil_sampling: PupilSampling::SquareGrid { spacing: 0.1 },
     },
 ];
 const APERTURE_SPEC: ApertureSpec = ApertureSpec::EntrancePupil { semi_diameter: 5.0 };
@@ -39,7 +37,10 @@ fn benchmark(c: &mut Criterion) {
                 black_box(&FIELD_SPECS),
                 black_box(&model),
                 black_box(&paraxial_view),
-                black_box(None),
+                black_box(SamplingConfig {
+                    n_fan_rays: 9,
+                    full_pupil_spacing: 0.1,
+                }),
             )
             .unwrap();
         });

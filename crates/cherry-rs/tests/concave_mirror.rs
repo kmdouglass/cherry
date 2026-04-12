@@ -1,6 +1,6 @@
 use approx::assert_abs_diff_eq;
 use cherry_rs::examples::concave_mirror::sequential_model;
-use cherry_rs::{FieldSpec, ImagePlane, ParaxialView, Pupil, PupilSampling, n};
+use cherry_rs::{FieldSpec, ImagePlane, ParaxialView, Pupil, n};
 use ndarray::{Array3, arr3};
 
 // Inputs
@@ -9,12 +9,10 @@ const FIELD_SPECS: [FieldSpec; 2] = [
     FieldSpec::Angle {
         chi: 0.0,
         phi: 90.0,
-        pupil_sampling: PupilSampling::TangentialRayFan { n: 3 },
     },
     FieldSpec::Angle {
         chi: 5.0,
         phi: 90.0,
-        pupil_sampling: PupilSampling::TangentialRayFan { n: 3 },
     },
 ];
 

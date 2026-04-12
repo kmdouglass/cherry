@@ -38,7 +38,6 @@ pub fn fields_panel(ui: &mut egui::Ui, specs: &mut SystemSpecs) -> bool {
             .column(Column::auto().at_least(30.0)) // #
             .column(Column::initial(100.0).resizable(true)) // χ (angle) or Y (point source)
             .column(Column::initial(100.0).resizable(true)) // φ (angle mode) or X (point source)
-            .column(Column::initial(100.0).resizable(true)) // Pupil spacing
             .column(Column::auto().at_least(50.0)); // Actions
 
         table
@@ -59,9 +58,6 @@ pub fn fields_panel(ui: &mut egui::Ui, specs: &mut SystemSpecs) -> bool {
                     } else {
                         ui.strong("X");
                     }
-                });
-                header.col(|ui| {
-                    ui.strong("Pupil Spacing");
                 });
                 header.col(|ui| {
                     ui.strong("");
@@ -126,18 +122,6 @@ pub fn fields_panel(ui: &mut egui::Ui, specs: &mut SystemSpecs) -> bool {
                             }
                         });
 
-                        // Pupil spacing
-                        row.col(|ui| {
-                            changed |= drag_value(
-                                ui,
-                                &mut field.pupil_spacing,
-                                row_idx,
-                                "ps",
-                                0.001..=1.0,
-                                0.001,
-                            );
-                        });
-
                         // Actions
                         row.col(|ui| {
                             ui.horizontal(|ui| {
@@ -159,7 +143,6 @@ pub fn fields_panel(ui: &mut egui::Ui, specs: &mut SystemSpecs) -> bool {
                             chi: "0.0".into(),
                             phi: "90.0".into(),
                             x: "0.0".into(),
-                            pupil_spacing: "0.1".into(),
                         },
                     );
                     changed = true;

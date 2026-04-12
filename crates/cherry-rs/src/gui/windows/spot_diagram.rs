@@ -1,5 +1,4 @@
 use crate::{
-    Axis,
     core::math::{linalg::mat3x3::Mat3x3, vec3::Vec3},
     gui::{
         colors::wavelength_to_color,
@@ -161,8 +160,8 @@ fn compute_field_axis_range(query: &FieldPlotQuery) -> ((f64, f64), (f64, f64)) 
         if !visible {
             continue;
         }
-        if let Some(tr) = query.ray_trace.get(query.field_id, wl_id, Axis::U) {
-            for (x, y) in rays_at_surface(tr.ray_bundle(), query.surface_idx, query.surf_desc) {
+        if let Some(tr) = query.ray_trace.get(query.field_id, wl_id) {
+            for (x, y) in rays_at_surface(tr.full_pupil(), query.surface_idx, query.surf_desc) {
                 x_min = x_min.min(x);
                 x_max = x_max.max(x);
                 y_min = y_min.min(y);
@@ -240,9 +239,9 @@ fn render_field_plot(ui: &mut egui::Ui, query: &FieldPlotQuery, ranges: ((f64, f
             .map(wavelength_to_color)
             .unwrap_or(egui::Color32::WHITE);
 
-        if let Some(tr) = query.ray_trace.get(query.field_id, wl_id, Axis::U) {
+        if let Some(tr) = query.ray_trace.get(query.field_id, wl_id) {
             // Ray intersection scatter.
-            for (rx, ry) in rays_at_surface(tr.ray_bundle(), query.surface_idx, query.surf_desc) {
+            for (rx, ry) in rays_at_surface(tr.full_pupil(), query.surface_idx, query.surf_desc) {
                 let sp = to_screen(rx, ry);
                 if rect.contains(sp) {
                     painter.circle_filled(sp, 2.0, color);
@@ -427,7 +426,6 @@ mod tests {
             chi: "5.0".into(),
             phi: "90.0".into(),
             x: "0.0".into(),
-            pupil_spacing: "0.1".into(),
         });
 
         #[cfg(not(feature = "ri-info"))]
@@ -437,8 +435,17 @@ mod tests {
         let seq = SequentialModel::new(&parsed.gaps, &parsed.surfaces, &parsed.wavelengths)
             .expect("model");
         let pv = ParaxialView::new(&seq, &parsed.fields, false).expect("paraxial");
-        let trace =
-            ray_trace_3d_view(&parsed.aperture, &parsed.fields, &seq, &pv, None).expect("trace");
+        let trace = ray_trace_3d_view(
+            &parsed.aperture,
+            &parsed.fields,
+            &seq,
+            &pv,
+            crate::views::ray_trace_3d::SamplingConfig {
+                n_fan_rays: 3,
+                full_pupil_spacing: 0.1,
+            },
+        )
+        .expect("trace");
 
         let result = ResultPackage {
             id: 1,

@@ -3,8 +3,8 @@ use std::rc::Rc;
 use anyhow::{Context, Result, bail};
 
 use crate::{
-    ApertureSpec, ConstantRefractiveIndex, EulerAngles, FieldSpec, GapSpec, PupilSampling,
-    RefractiveIndexSpec, Rotation3D, SurfaceSpec, SurfaceType,
+    ApertureSpec, ConstantRefractiveIndex, EulerAngles, FieldSpec, GapSpec, RefractiveIndexSpec,
+    Rotation3D, SurfaceSpec, SurfaceType,
 };
 
 use super::model::{FieldMode, SurfaceKind, SurfaceVariant, SystemSpecs};
@@ -144,28 +144,16 @@ fn convert_specs_inner(
 
     let mut fields = Vec::with_capacity(specs.fields.len());
     for (i, frow) in specs.fields.iter().enumerate() {
-        let spacing = parse_float(&frow.pupil_spacing)
-            .with_context(|| format!("field {i}: pupil spacing"))?;
-        let pupil_sampling = PupilSampling::SquareGrid { spacing };
-
         let field = match specs.field_mode {
             FieldMode::Angle => {
                 let chi = parse_float(&frow.chi).with_context(|| format!("field {i}: chi"))?;
                 let phi = parse_float(&frow.phi).with_context(|| format!("field {i}: phi"))?;
-                FieldSpec::Angle {
-                    chi,
-                    phi,
-                    pupil_sampling,
-                }
+                FieldSpec::Angle { chi, phi }
             }
             FieldMode::PointSource => {
                 let y = parse_float(&frow.chi).with_context(|| format!("field {i}: y"))?;
                 let x = parse_float(&frow.x).with_context(|| format!("field {i}: x"))?;
-                FieldSpec::PointSource {
-                    x,
-                    y,
-                    pupil_sampling,
-                }
+                FieldSpec::PointSource { x, y }
             }
         };
         fields.push(field);

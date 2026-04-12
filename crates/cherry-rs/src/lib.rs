@@ -38,7 +38,7 @@
 //! ```rust
 //! use cherry_rs::{
 //!     n, ray_trace_3d_view, ApertureSpec, FieldSpec, GapSpec, ImagePlane,
-//!     ParaxialView, Pupil, PupilSampling, RefractiveIndexSpec, Rotation3D,
+//!     ParaxialView, Pupil, SamplingConfig, RefractiveIndexSpec, Rotation3D,
 //!     SequentialModel, SurfaceSpec, SurfaceType,
 //! };
 //!
@@ -91,19 +91,10 @@
 //! // Define a user-defined system aperture.
 //! let aperture_spec = ApertureSpec::EntrancePupil { semi_diameter: 5.0 };
 //!
-//! // Analyze the system at two different field points, sampling the pupil
-//! // with a square grid with a spacing of 0.1 in normalized pupil coordinates.
+//! // Analyze the system at two different field points.
 //! let field_specs = vec![
-//!     FieldSpec::Angle {
-//!         chi: 0.0,
-//!         phi: 90.0,
-//!         pupil_sampling: PupilSampling::SquareGrid { spacing: 0.1 },
-//!     },
-//!     FieldSpec::Angle {
-//!         chi: 5.0,
-//!         phi: 90.0,
-//!         pupil_sampling: PupilSampling::SquareGrid { spacing: 0.1 },
-//!     },
+//!     FieldSpec::Angle { chi: 0.0, phi: 90.0 },
+//!     FieldSpec::Angle { chi: 5.0, phi: 90.0 },
 //! ];
 //!
 //! // Compute the paraxial view of the system.
@@ -117,12 +108,13 @@
 //!     println!("Submodel ID: {:?}, Effective focal length: {}", sub_model_id, result);
 //! }
 //!
-//! // Compute a 3D ray trace of the system.
+//! // Compute a 3D ray trace of the system, sampling the pupil with a square
+//! // grid with a spacing of 0.1 in normalized pupil coordinates.
 //! let results_collection = ray_trace_3d_view(
 //!     &aperture_spec, &field_specs,
 //!     &sequential_model,
 //!     &paraxial_view,
-//!     None,
+//!     SamplingConfig { n_fan_rays: 9, full_pupil_spacing: 0.1 },
 //! ).unwrap();
 //!
 //! // Get all results for the second (5 degree) field point.
@@ -161,7 +153,9 @@ pub use views::{
         ImagePlane, ParaxialSubView, ParaxialSubViewDescription, ParaxialView,
         ParaxialViewDescription, Pupil,
     },
-    ray_trace_3d::{Ray, RayBundle, TraceResults, TraceResultsCollection, ray_trace_3d_view},
+    ray_trace_3d::{
+        Ray, RayBundle, SamplingConfig, TraceResults, TraceResultsCollection, ray_trace_3d_view,
+    },
 };
 
 // Re-exports from dependencies

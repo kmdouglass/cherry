@@ -2,6 +2,8 @@ set working-directory := "crates"
 
 alias f := fmt
 alias g := gui
+alias l := lint
+alias s := serve
 alias t := test
 
 [doc("Run a benchmark test. Example: 'just bench f_theta_scan_lens'")]
@@ -15,11 +17,19 @@ gui:
 fmt:
   cargo fmt
 
+lint:
+  cargo clippy --all-features --all-targets
+
 list-benches:
   cargo bench -- --list
 
 list-tests:
   cargo test --test '*' -- --list
+
+[doc("Build and serve the web app on a local web server")]
+[working-directory: "../www/egui"]
+serve:
+  trunk serve
 
 test:
   cargo test --all-features

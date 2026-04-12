@@ -221,7 +221,7 @@ fn build_plane_geometry(
             if wl_id >= n_wavelengths {
                 continue;
             }
-            let bundle = result.ray_bundle();
+            let bundle = result.tangential_fan();
             let n_surf = bundle.num_surfaces();
             let total = bundle.rays().len();
             let n_rays = if n_surf > 0 { total / n_surf } else { 0 };
@@ -411,8 +411,8 @@ mod tests {
         // produces Axis::U results) should contribute ray paths to the XZ plane
         // cross-section via projection, not just the YZ plane.
         use crate::{
-            ApertureSpec, FieldSpec, ParaxialView, specs::fields::PupilSampling,
-            views::ray_trace_3d::ray_trace_3d_view,
+            ApertureSpec, FieldSpec, ParaxialView,
+            views::ray_trace_3d::{SamplingConfig, ray_trace_3d_view},
         };
         let air = n!(1.0);
         let nbk7 = n!(1.515);
@@ -422,14 +422,22 @@ mod tests {
         let fields = vec![FieldSpec::Angle {
             chi: 0.0,
             phi: 90.0,
-            pupil_sampling: PupilSampling::TangentialRayFan { n: 3 },
         }];
         let aperture = ApertureSpec::EntrancePupil {
             semi_diameter: 12.5,
         };
         let pv = ParaxialView::new(&model, &fields, false).unwrap();
-        let sampling = Some(PupilSampling::TangentialRayFan { n: 5 });
-        let trace = ray_trace_3d_view(&aperture, &fields, &model, &pv, sampling).unwrap();
+        let trace = ray_trace_3d_view(
+            &aperture,
+            &fields,
+            &model,
+            &pv,
+            SamplingConfig {
+                n_fan_rays: 5,
+                full_pupil_spacing: 0.1,
+            },
+        )
+        .unwrap();
         let components = components_view(&model, air).unwrap();
         let cs = cross_section_view(&model, Some(&trace), &components);
         // XZ plane should have ray paths from the U-axis trace projected onto X.

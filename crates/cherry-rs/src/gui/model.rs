@@ -165,8 +165,6 @@ pub struct FieldRow {
     pub phi: String,
     /// X position (PointSource mode only).
     pub x: String,
-    /// Pupil sampling grid spacing.
-    pub pupil_spacing: String,
 }
 
 /// Which field specification mode is active.
@@ -211,6 +209,10 @@ pub struct SystemSpecs {
     /// Number of rays in the tangential fan for the cross-section view.
     #[serde(default = "default_cross_section_n_rays")]
     pub cross_section_n_rays: u32,
+    /// Grid spacing for full-pupil sampling, in normalised pupil coordinates
+    /// [0, 1].
+    #[serde(default = "default_full_pupil_spacing")]
+    pub full_pupil_spacing: String,
     /// Refractive index of the background medium (used in constant-n mode).
     #[serde(default = "default_background_n")]
     pub background_n: String,
@@ -221,6 +223,10 @@ pub struct SystemSpecs {
 
 fn default_cross_section_n_rays() -> u32 {
     11
+}
+
+fn default_full_pupil_spacing() -> String {
+    "0.1".to_owned()
 }
 
 fn default_background_n() -> String {
@@ -241,7 +247,6 @@ impl Default for SystemSpecs {
                 chi: "0.0".into(),
                 phi: "90.0".into(),
                 x: "0.0".into(),
-                pupil_spacing: "0.1".into(),
             }],
             aperture_semi_diameter: "12.5".into(),
             wavelengths: vec!["0.567".into()],
@@ -249,6 +254,7 @@ impl Default for SystemSpecs {
             use_materials: false,
             selected_materials: Vec::new(),
             cross_section_n_rays: 11,
+            full_pupil_spacing: "0.1".into(),
             background_n: "1.0".into(),
             background_material_key: None,
         }

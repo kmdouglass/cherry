@@ -6,6 +6,22 @@ use super::{format_display_float, parse_display_float};
 pub fn system_panel(ui: &mut egui::Ui, specs: &mut SystemSpecs) -> bool {
     let mut changed = false;
 
+    ui.label("Sampling");
+    ui.separator();
+
+    let mut spacing_val = parse_display_float(&specs.full_pupil_spacing);
+    let response = ui.add(
+        egui::DragValue::new(&mut spacing_val)
+            .range(0.01..=0.2)
+            .speed(0.001)
+            .prefix("Pupil grid spacing: "),
+    );
+    if response.changed() {
+        specs.full_pupil_spacing = format_display_float(spacing_val);
+        changed = true;
+    }
+
+    ui.add_space(8.0);
     ui.label("Background");
     ui.separator();
 
