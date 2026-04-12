@@ -43,20 +43,12 @@ pub enum FieldSpec {
     ///   plane; φ = 90 → U/YZ plane (default).
     ///
     /// Chief ray direction: `(sin χ · cos φ, sin χ · sin φ, cos χ)`.
-    Angle {
-        chi: Float,
-        phi: Float,
-        pupil_sampling: PupilSampling,
-    },
+    Angle { chi: Float, phi: Float },
 
     /// The x, y position of the object field point.
     ///
     /// (0, 0) corresponds to the optical axis.
-    PointSource {
-        x: Float,
-        y: Float,
-        pupil_sampling: PupilSampling,
-    },
+    PointSource { x: Float, y: Float },
 }
 
 impl PupilSampling {
@@ -96,8 +88,8 @@ impl FieldSpec {
     /// is on-axis.
     pub fn tangential_fan_phi(&self) -> Float {
         match self {
-            FieldSpec::Angle { phi, .. } => phi.to_radians(),
-            FieldSpec::PointSource { x, y, .. } => {
+            FieldSpec::Angle { chi: _, phi } => phi.to_radians(),
+            FieldSpec::PointSource { x, y } => {
                 if *x == 0.0 && *y == 0.0 {
                     PI / 2.0
                 } else {
@@ -119,11 +111,7 @@ impl FieldSpec {
     /// Validate the field specification.
     pub fn validate(&self) -> Result<()> {
         match self {
-            FieldSpec::Angle {
-                chi,
-                phi,
-                pupil_sampling,
-            } => {
+            FieldSpec::Angle { chi, phi } => {
                 if chi.is_nan() {
                     anyhow::bail!("Field chi must be a number");
                 }
@@ -136,13 +124,8 @@ impl FieldSpec {
                 if *phi <= -180.0 || *phi > 180.0 {
                     anyhow::bail!("Field phi must be in the range (-180, 180]");
                 }
-                pupil_sampling.validate()?;
             }
-            FieldSpec::PointSource {
-                x,
-                y,
-                pupil_sampling,
-            } => {
+            FieldSpec::PointSource { x, y } => {
                 if x.is_nan() || y.is_nan() {
                     anyhow::bail!("Point source field locations must be numbers");
                 }
@@ -150,7 +133,6 @@ impl FieldSpec {
                 if x.is_infinite() || y.is_infinite() {
                     anyhow::bail!("Point source field locations must be finite");
                 }
-                pupil_sampling.validate()?;
             }
         }
         Ok(())
@@ -180,257 +162,200 @@ mod test {
 
     #[test]
     fn test_field_spec_validate() {
-        // chi=5° off-axis, phi=90° (U/YZ direction)
-        let angle = FieldSpec::Angle {
-            chi: 5.0,
-            phi: 90.0,
-            pupil_sampling: PupilSampling::SquareGrid { spacing: 0.1 },
-        };
-        assert!(angle.validate().is_ok());
-
-        // chi out of range (> 90)
-        let angle = FieldSpec::Angle {
-            chi: 95.0,
-            phi: 90.0,
-            pupil_sampling: PupilSampling::SquareGrid { spacing: 0.1 },
-        };
-        assert!(angle.validate().is_err());
-
-        // negative chi is valid
-        let angle = FieldSpec::Angle {
-            chi: -5.0,
-            phi: 90.0,
-            pupil_sampling: PupilSampling::SquareGrid { spacing: 0.1 },
-        };
-        assert!(angle.validate().is_ok());
-
-        let angle = FieldSpec::Angle {
-            chi: 5.0,
-            phi: 90.0,
-            pupil_sampling: PupilSampling::SquareGrid { spacing: 1.1 },
-        };
-        assert!(angle.validate().is_err());
-
-        let angle = FieldSpec::Angle {
-            chi: 5.0,
-            phi: 90.0,
-            pupil_sampling: PupilSampling::SquareGrid { spacing: -0.1 },
-        };
-        assert!(angle.validate().is_err());
-
-        let angle = FieldSpec::Angle {
-            chi: 5.0,
-            phi: 90.0,
-            pupil_sampling: PupilSampling::SquareGrid {
-                spacing: Float::NAN,
-            },
-        };
-        assert!(angle.validate().is_err());
-
-        let height = FieldSpec::PointSource {
-            x: 0.0,
-            y: 0.1,
-            pupil_sampling: PupilSampling::SquareGrid { spacing: 0.1 },
-        };
-        assert!(height.validate().is_ok());
-
-        let height = FieldSpec::PointSource {
-            x: 0.0,
-            y: 0.1,
-            pupil_sampling: PupilSampling::SquareGrid { spacing: 1.1 },
-        };
-        assert!(height.validate().is_err());
-
-        let height = FieldSpec::PointSource {
-            x: 0.0,
-            y: 0.1,
-            pupil_sampling: PupilSampling::SquareGrid { spacing: -0.1 },
-        };
-        assert!(height.validate().is_err());
-
-        let height = FieldSpec::PointSource {
-            x: Float::NAN,
-            y: 0.1,
-            pupil_sampling: PupilSampling::SquareGrid { spacing: 1.0 },
-        };
-        assert!(height.validate().is_err());
-
-        let height = FieldSpec::PointSource {
-            x: 0.0,
-            y: Float::NAN,
-            pupil_sampling: PupilSampling::SquareGrid { spacing: 1.0 },
-        };
-        assert!(height.validate().is_err());
-
-        let height = FieldSpec::PointSource {
-            x: Float::INFINITY,
-            y: 0.1,
-            pupil_sampling: PupilSampling::SquareGrid { spacing: 1.0 },
-        };
-        assert!(height.validate().is_err());
-
-        let height = FieldSpec::PointSource {
-            x: 0.0,
-            y: Float::INFINITY,
-            pupil_sampling: PupilSampling::SquareGrid { spacing: 1.0 },
-        };
-        assert!(height.validate().is_err());
+        assert!(
+            FieldSpec::Angle {
+                chi: 5.0,
+                phi: 90.0
+            }
+            .validate()
+            .is_ok()
+        );
+        assert!(
+            FieldSpec::Angle {
+                chi: 95.0,
+                phi: 90.0
+            }
+            .validate()
+            .is_err()
+        );
+        assert!(
+            FieldSpec::Angle {
+                chi: -5.0,
+                phi: 90.0
+            }
+            .validate()
+            .is_ok()
+        );
+        assert!(
+            FieldSpec::Angle {
+                chi: 5.0,
+                phi: 90.0
+            }
+            .validate()
+            .is_ok()
+        );
+        assert!(FieldSpec::PointSource { x: 0.0, y: 0.1 }.validate().is_ok());
+        assert!(
+            FieldSpec::PointSource {
+                x: Float::NAN,
+                y: 0.1
+            }
+            .validate()
+            .is_err()
+        );
+        assert!(
+            FieldSpec::PointSource {
+                x: 0.0,
+                y: Float::NAN
+            }
+            .validate()
+            .is_err()
+        );
+        assert!(
+            FieldSpec::PointSource {
+                x: Float::INFINITY,
+                y: 0.1
+            }
+            .validate()
+            .is_err()
+        );
+        assert!(
+            FieldSpec::PointSource {
+                x: 0.0,
+                y: Float::INFINITY
+            }
+            .validate()
+            .is_err()
+        );
     }
 
     #[test]
     fn test_tangential_fan_phi() {
         use std::f64::consts::{FRAC_PI_2, PI};
 
-        // Angle field: tangential_fan_phi returns phi in radians
-        let f = FieldSpec::Angle {
-            chi: 5.0,
-            phi: 90.0,
-            pupil_sampling: PupilSampling::ChiefRay,
-        };
-        approx::assert_abs_diff_eq!(f.tangential_fan_phi(), FRAC_PI_2, epsilon = 1e-10);
-
-        // phi = 0 → R/XZ plane
-        let f = FieldSpec::Angle {
-            chi: 5.0,
-            phi: 0.0,
-            pupil_sampling: PupilSampling::ChiefRay,
-        };
-        approx::assert_abs_diff_eq!(f.tangential_fan_phi(), 0.0, epsilon = 1e-10);
-
-        // phi = 45° → diagonal
-        let f = FieldSpec::Angle {
-            chi: 5.0,
-            phi: 45.0,
-            pupil_sampling: PupilSampling::ChiefRay,
-        };
-        approx::assert_abs_diff_eq!(f.tangential_fan_phi(), PI / 4.0, epsilon = 1e-10);
-
-        // negative chi: fan phi is still just phi in radians (sign of chi doesn't flip
-        // phi)
-        let f = FieldSpec::Angle {
-            chi: -5.0,
-            phi: 90.0,
-            pupil_sampling: PupilSampling::ChiefRay,
-        };
-        approx::assert_abs_diff_eq!(f.tangential_fan_phi(), FRAC_PI_2, epsilon = 1e-10);
-
+        approx::assert_abs_diff_eq!(
+            FieldSpec::Angle {
+                chi: 5.0,
+                phi: 90.0
+            }
+            .tangential_fan_phi(),
+            FRAC_PI_2,
+            epsilon = 1e-10
+        );
+        approx::assert_abs_diff_eq!(
+            FieldSpec::Angle { chi: 5.0, phi: 0.0 }.tangential_fan_phi(),
+            0.0,
+            epsilon = 1e-10
+        );
+        approx::assert_abs_diff_eq!(
+            FieldSpec::Angle {
+                chi: 5.0,
+                phi: 45.0
+            }
+            .tangential_fan_phi(),
+            PI / 4.0,
+            epsilon = 1e-10
+        );
+        approx::assert_abs_diff_eq!(
+            FieldSpec::Angle {
+                chi: -5.0,
+                phi: 90.0
+            }
+            .tangential_fan_phi(),
+            FRAC_PI_2,
+            epsilon = 1e-10
+        );
         // sagittal is tangential + π/2
-        let f = FieldSpec::Angle {
-            chi: 5.0,
-            phi: 90.0,
-            pupil_sampling: PupilSampling::ChiefRay,
-        };
-        approx::assert_abs_diff_eq!(f.sagittal_fan_phi(), FRAC_PI_2 + FRAC_PI_2, epsilon = 1e-10);
-
+        approx::assert_abs_diff_eq!(
+            FieldSpec::Angle {
+                chi: 5.0,
+                phi: 90.0
+            }
+            .sagittal_fan_phi(),
+            FRAC_PI_2 + FRAC_PI_2,
+            epsilon = 1e-10
+        );
         // PointSource: atan2(y, x)
-        let f = FieldSpec::PointSource {
-            x: 0.0,
-            y: 1.0,
-            pupil_sampling: PupilSampling::ChiefRay,
-        };
-        approx::assert_abs_diff_eq!(f.tangential_fan_phi(), FRAC_PI_2, epsilon = 1e-10);
-
-        let f = FieldSpec::PointSource {
-            x: 1.0,
-            y: 0.0,
-            pupil_sampling: PupilSampling::ChiefRay,
-        };
-        approx::assert_abs_diff_eq!(f.tangential_fan_phi(), 0.0, epsilon = 1e-10);
-
-        // PointSource at origin: fallback to π/2 (U/YZ plane)
-        let f = FieldSpec::PointSource {
-            x: 0.0,
-            y: 0.0,
-            pupil_sampling: PupilSampling::ChiefRay,
-        };
-        approx::assert_abs_diff_eq!(f.tangential_fan_phi(), FRAC_PI_2, epsilon = 1e-10);
+        approx::assert_abs_diff_eq!(
+            FieldSpec::PointSource { x: 0.0, y: 1.0 }.tangential_fan_phi(),
+            FRAC_PI_2,
+            epsilon = 1e-10
+        );
+        approx::assert_abs_diff_eq!(
+            FieldSpec::PointSource { x: 1.0, y: 0.0 }.tangential_fan_phi(),
+            0.0,
+            epsilon = 1e-10
+        );
+        // PointSource at origin: fallback to π/2
+        approx::assert_abs_diff_eq!(
+            FieldSpec::PointSource { x: 0.0, y: 0.0 }.tangential_fan_phi(),
+            FRAC_PI_2,
+            epsilon = 1e-10
+        );
     }
 
     #[test]
     fn test_field_spec_angle_chi_phi_validate() {
-        // valid: chi=5° off-axis, phi=90° (U/YZ direction)
         assert!(
             FieldSpec::Angle {
                 chi: 5.0,
-                phi: 90.0,
-                pupil_sampling: PupilSampling::SquareGrid { spacing: 0.1 },
+                phi: 90.0
             }
             .validate()
             .is_ok()
         );
-
-        // chi out of range (+): polar angle > 90° is not allowed
         assert!(
             FieldSpec::Angle {
                 chi: 95.0,
-                phi: 90.0,
-                pupil_sampling: PupilSampling::SquareGrid { spacing: 0.1 },
+                phi: 90.0
             }
             .validate()
             .is_err()
         );
-
-        // chi out of range (-): polar angle < -90° is not allowed
         assert!(
             FieldSpec::Angle {
                 chi: -91.0,
-                phi: 90.0,
-                pupil_sampling: PupilSampling::SquareGrid { spacing: 0.1 },
+                phi: 90.0
             }
             .validate()
             .is_err()
         );
-
-        // negative chi is valid: field on the opposite side of the phi direction
         assert!(
             FieldSpec::Angle {
                 chi: -5.0,
-                phi: 90.0,
-                pupil_sampling: PupilSampling::SquareGrid { spacing: 0.1 },
+                phi: 90.0
             }
             .validate()
             .is_ok()
         );
-
-        // phi = 180° is valid (upper bound is inclusive)
         assert!(
             FieldSpec::Angle {
                 chi: 0.0,
-                phi: 180.0,
-                pupil_sampling: PupilSampling::SquareGrid { spacing: 0.1 },
+                phi: 180.0
             }
             .validate()
             .is_ok()
         );
-
-        // phi = -180° is invalid (lower bound is exclusive: range is (-180, 180])
         assert!(
             FieldSpec::Angle {
                 chi: 0.0,
-                phi: -180.0,
-                pupil_sampling: PupilSampling::SquareGrid { spacing: 0.1 },
+                phi: -180.0
             }
             .validate()
             .is_err()
         );
-
-        // chi NaN
         assert!(
             FieldSpec::Angle {
                 chi: Float::NAN,
-                phi: 90.0,
-                pupil_sampling: PupilSampling::SquareGrid { spacing: 0.1 },
+                phi: 90.0
             }
             .validate()
             .is_err()
         );
-
-        // phi NaN
         assert!(
             FieldSpec::Angle {
                 chi: 5.0,
-                phi: Float::NAN,
-                pupil_sampling: PupilSampling::SquareGrid { spacing: 0.1 },
+                phi: Float::NAN
             }
             .validate()
             .is_err()

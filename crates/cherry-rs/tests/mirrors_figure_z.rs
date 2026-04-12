@@ -1,11 +1,10 @@
 use approx::assert_abs_diff_eq;
-use cherry_rs::{Axis, FieldSpec, ParaxialView, PupilSampling, examples::mirrors_figure_z, n};
+use cherry_rs::{Axis, FieldSpec, ParaxialView, examples::mirrors_figure_z, n};
 
 const WAVELENGTHS: [f64; 1] = [0.5876];
 const FIELD_SPECS: [FieldSpec; 1] = [FieldSpec::Angle {
     chi: 0.0,
     phi: 90.0,
-    pupil_sampling: PupilSampling::TangentialRayFan { n: 3 },
 }];
 
 // Aperture stop is the first mirror (surface 1, track = 0).

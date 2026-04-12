@@ -31,8 +31,19 @@ use super::paraxial::{ParaxialSubView, ParaxialView};
 /// Increase this to avoid reallocations if you expect to have more results. The
 /// tradeoff is larger memory usage.
 ///
-/// Its current value was derived from: 3 wavelengths x 3 fields x 2 axes = 18.
-const RESULTS_CAPACITY: usize = 20;
+/// Its current value was derived from: 3 wavelengths * 3 fields * 2 (for
+/// overhead).
+const RESULTS_CAPACITY: usize = 18;
+
+/// Configuration for the pupil sampling used in a 3D ray trace.
+#[derive(Debug, Clone, Copy)]
+pub struct SamplingConfig {
+    /// Number of rays in the tangential and sagittal ray fans.
+    pub n_fan_rays: usize,
+    /// Grid spacing for the full-pupil square-grid sampling, in normalised
+    /// pupil coordinates [0, 1].
+    pub full_pupil_spacing: Float,
+}
 
 /// The distance to launch the rays before the first surface when the object is
 /// at infinity.
@@ -66,11 +77,17 @@ pub struct TraceResults {
     field_id: usize,
     axis: Axis,
 
-    /// A num_surfaces x num_rays matrix of rays traced through the system.
-    ray_bundle: RayBundle,
-
-    /// A num_surfaces x 1 chief ray trace through the system.
+    /// A single chief ray through the pupil center.
     chief_ray: RayBundle,
+
+    /// A full-pupil square-grid ray bundle.
+    full_pupil: RayBundle,
+
+    /// A tangential ray fan lying in the meridional plane.
+    tangential_fan: RayBundle,
+
+    /// A sagittal ray fan perpendicular to the meridional plane.
+    sagittal_fan: RayBundle,
 }
 
 /// Perform a 3D ray trace on a sequential model.
@@ -81,76 +98,102 @@ pub struct TraceResults {
 /// * `sequential_model` - The sequential model.
 /// * `paraxial_view` - A paraxial view. This is required for finding a system's
 ///   entrance pupil.
-/// * `pupil_sampling` - The pupil sampling method. This will override the
-///   sampling method specified in the field specs for every field if provided.
+/// * `config` - Sampling configuration for all four ray bundles computed per
+///   field/wavelength combination.
 pub fn ray_trace_3d_view(
     aperture_spec: &ApertureSpec,
     field_specs: &[FieldSpec],
     sequential_model: &SequentialModel,
     paraxial_view: &ParaxialView,
-    pupil_sampling: Option<PupilSampling>,
+    config: SamplingConfig,
 ) -> Result<TraceResultsCollection> {
     validate_field_specs(sequential_model, field_specs)?;
 
-    // Trace over all model axes. The tangential fan orientation is determined
-    // per-field via FieldSpec::tangential_fan_phi(), not by an axis override.
-    let axes: Vec<Axis> = sequential_model.axes();
-
-    let combinations = all_combinations(field_specs, sequential_model.wavelengths(), &axes);
-
+    // Use Axis::U as the canonical submodel for all field/wavelength combinations.
+    // For rotationally symmetric systems only Axis::U exists; for non-symmetric
+    // systems this is the fallback that is always present.
     let mut results: Vec<TraceResults> = Vec::with_capacity(RESULTS_CAPACITY);
 
-    for (field_id, wavelength_id, axis) in combinations {
-        let _trace_bundle_span = trace_span!("trace_bundle", field_id, wavelength_id).entered();
+    for (field_id, _) in field_specs.iter().enumerate() {
+        for (wavelength_id, _) in sequential_model.wavelengths().iter().enumerate() {
+            let _trace_bundle_span = trace_span!("trace_bundle", field_id, wavelength_id).entered();
 
-        tracing::trace!(
-            "Tracing rays for field_id={}, wavelength_id={}, axis={:?}",
-            field_id,
-            wavelength_id,
-            axis
-        );
+            tracing::trace!(
+                "Tracing rays for field_id={}, wavelength_id={}",
+                field_id,
+                wavelength_id,
+            );
 
-        let submodel_id = SubModelID(wavelength_id, axis);
-        let fallback_id = SubModelID(wavelength_id, Axis::U);
-        let sequential_submodel = sequential_model
-            .submodels()
-            .get(&submodel_id)
-            .or_else(|| sequential_model.submodels().get(&fallback_id))
-            .ok_or_else(|| anyhow!("Submodel not found"))?;
-        let paraxial_subview = paraxial_view
-            .subviews()
-            .get(&submodel_id)
-            .or_else(|| paraxial_view.subviews().get(&fallback_id))
-            .ok_or_else(|| anyhow!("Submodel not found"))?;
-        let ray_bundle = ray_trace_submodel(
-            sequential_submodel,
-            sequential_model.surfaces(),
-            aperture_spec,
-            &field_specs[field_id],
-            paraxial_subview,
-            pupil_sampling,
-        )?;
-        let chief_ray = ray_trace_submodel(
-            sequential_submodel,
-            sequential_model.surfaces(),
-            aperture_spec,
-            &field_specs[field_id],
-            paraxial_subview,
-            Some(PupilSampling::ChiefRay),
-        )?;
-        results.push(TraceResults {
-            wavelength_id,
-            field_id,
-            axis,
-            ray_bundle,
-            chief_ray,
-        });
+            let submodel_id = SubModelID(wavelength_id, Axis::U);
+            let sequential_submodel = sequential_model
+                .submodels()
+                .get(&submodel_id)
+                .ok_or_else(|| anyhow!("Submodel not found"))?;
+            let paraxial_subview = paraxial_view
+                .subviews()
+                .get(&submodel_id)
+                .ok_or_else(|| anyhow!("Submodel not found"))?;
 
-        trace!(
-            field_id, 
-            wavelength_id,
-            axis = ?axis,
-            "Finished tracing ray bundle for field {}, wavelength {}, axis {:?}", field_id, wavelength_id, axis);
+            let field_spec = &field_specs[field_id];
+            let surfaces = sequential_model.surfaces();
+
+            let chief_ray = ray_trace_submodel(
+                sequential_submodel,
+                surfaces,
+                aperture_spec,
+                field_spec,
+                paraxial_subview,
+                PupilSampling::ChiefRay,
+            )?;
+            let full_pupil = ray_trace_submodel(
+                sequential_submodel,
+                surfaces,
+                aperture_spec,
+                field_spec,
+                paraxial_subview,
+                PupilSampling::SquareGrid {
+                    spacing: config.full_pupil_spacing,
+                },
+            )?;
+            let tangential_fan = ray_trace_submodel(
+                sequential_submodel,
+                surfaces,
+                aperture_spec,
+                field_spec,
+                paraxial_subview,
+                PupilSampling::TangentialRayFan {
+                    n: config.n_fan_rays,
+                },
+            )?;
+            let sagittal_fan = ray_trace_submodel(
+                sequential_submodel,
+                surfaces,
+                aperture_spec,
+                field_spec,
+                paraxial_subview,
+                PupilSampling::SagittalRayFan {
+                    n: config.n_fan_rays,
+                },
+            )?;
+
+            results.push(TraceResults {
+                wavelength_id,
+                field_id,
+                axis: Axis::U,
+                chief_ray,
+                full_pupil,
+                tangential_fan,
+                sagittal_fan,
+            });
+
+            trace!(
+                field_id,
+                wavelength_id,
+                "Finished tracing all bundles for field {}, wavelength {}",
+                field_id,
+                wavelength_id
+            );
+        }
     }
 
     Ok(TraceResultsCollection::new(results))
@@ -161,16 +204,11 @@ impl TraceResultsCollection {
         Self { results }
     }
 
-    /// Get results for a specific field, wavelength, and axis.
-    pub fn get(&self, field_id: usize, wavelength_id: usize, axis: Axis) -> Option<&TraceResults> {
+    /// Get results for a specific field and wavelength.
+    pub fn get(&self, field_id: usize, wavelength_id: usize) -> Option<&TraceResults> {
         self.results
             .iter()
-            .find(|r| r.field_id == field_id && r.wavelength_id == wavelength_id && r.axis == axis)
-    }
-
-    /// Get all results for a given axis.
-    pub fn get_by_axis(&self, axis: Axis) -> Vec<&TraceResults> {
-        self.results.iter().filter(|r| r.axis == axis).collect()
+            .find(|r| r.field_id == field_id && r.wavelength_id == wavelength_id)
     }
 
     /// Get all results for a given wavelength.
@@ -221,14 +259,24 @@ impl TraceResults {
         self.field_id
     }
 
-    // Returns the ray bundle.
-    pub fn ray_bundle(&self) -> &RayBundle {
-        &self.ray_bundle
-    }
-
     // Returns the chief ray bundle.
     pub fn chief_ray(&self) -> &RayBundle {
         &self.chief_ray
+    }
+
+    // Returns the full-pupil ray bundle.
+    pub fn full_pupil(&self) -> &RayBundle {
+        &self.full_pupil
+    }
+
+    // Returns the tangential ray fan bundle.
+    pub fn tangential_fan(&self) -> &RayBundle {
+        &self.tangential_fan
+    }
+
+    // Returns the sagittal ray fan bundle.
+    pub fn sagittal_fan(&self) -> &RayBundle {
+        &self.sagittal_fan
     }
 
     // Returns the wavelength ID of the ray bundle.
@@ -243,7 +291,7 @@ fn ray_trace_submodel(
     aperture_spec: &ApertureSpec,
     field_spec: &FieldSpec,
     paraxial_subview: &ParaxialSubView,
-    pupil_sampling: Option<PupilSampling>,
+    pupil_sampling: PupilSampling,
 ) -> Result<RayBundle> {
     let rays = rays(
         surfaces,
@@ -266,30 +314,20 @@ fn ray_trace_submodel(
 /// * `paraxial_subview` - The paraxial subview. This is used to obtain the
 ///   pupil.
 /// * `field_spec` - The field specification.
-/// * `sampling` - The pupil sampling method. This will override the sampling
-///   method specified in the field specs for every field if provided.
+/// * `sampling` - The pupil sampling method.
 fn rays(
     surfaces: &[Surface],
     aperture_spec: &ApertureSpec,
     paraxial_subview: &ParaxialSubView,
     field_spec: &FieldSpec,
-    sampling: Option<PupilSampling>,
+    sampling: PupilSampling,
 ) -> Result<Vec<Ray>> {
     let rays: Vec<Ray> = match field_spec {
-        FieldSpec::Angle {
-            chi,
-            phi,
-            pupil_sampling,
-        } => {
+        FieldSpec::Angle { chi, phi } => {
             let chi_rad = chi.to_radians();
             let phi_rad = phi.to_radians();
 
-            let pupil_sampling = match sampling {
-                Some(sampling) => sampling,
-                None => *pupil_sampling,
-            };
-
-            match pupil_sampling {
+            match sampling {
                 PupilSampling::ChiefRay => chief_ray_from_angle(
                     surfaces,
                     aperture_spec,
@@ -329,11 +367,7 @@ fn rays(
             }
         }
 
-        FieldSpec::PointSource {
-            x,
-            y,
-            pupil_sampling,
-        } => {
+        FieldSpec::PointSource { x, y } => {
             let obj_z = surfaces
                 .first()
                 .expect("There should always be at least two surfaces")
@@ -345,13 +379,8 @@ fn rays(
                 ));
             }
 
-            let pupil_sampling = match sampling {
-                Some(sampling) => sampling,
-                None => *pupil_sampling,
-            };
-
             let origin = Vec3::new(*x, *y, obj_z);
-            match pupil_sampling {
+            match sampling {
                 PupilSampling::ChiefRay => {
                     chief_ray_from_pos(aperture_spec, paraxial_subview, &origin)?
                 }
@@ -676,25 +705,6 @@ fn parallel_ray_bundle_origin(
     Ok(Vec3::new(x, y, launch_point_z))
 }
 
-/// Determine every combination of field ID, wavelength ID, and axis.
-fn all_combinations(
-    field_specs: &[FieldSpec],
-    wavelengths: &[Float],
-    axes: &[Axis],
-) -> Vec<(usize, usize, Axis)> {
-    let mut combinations = Vec::new();
-
-    for (field_id, _field) in field_specs.iter().enumerate() {
-        for (wavelength_id, _) in wavelengths.iter().enumerate() {
-            for axis in axes {
-                combinations.push((field_id, wavelength_id, *axis));
-            }
-        }
-    }
-
-    combinations
-}
-
 #[cfg(test)]
 mod tests {
     use approx::assert_abs_diff_eq;
@@ -725,12 +735,10 @@ mod tests {
             FieldSpec::Angle {
                 chi: 0.0,
                 phi: 90.0,
-                pupil_sampling: PupilSampling::TangentialRayFan { n: 3 },
             },
             FieldSpec::Angle {
                 chi: 5.0,
                 phi: 90.0,
-                pupil_sampling: PupilSampling::TangentialRayFan { n: 3 },
             },
         ];
 
@@ -748,17 +756,52 @@ mod tests {
     fn test_ray_trace_3d_view() {
         let s = setup();
 
+        let config = SamplingConfig {
+            n_fan_rays: 3,
+            full_pupil_spacing: 0.1,
+        };
         let results = ray_trace_3d_view(
             &s.aperture_spec,
             &s.field_specs,
             &s.sequential_model,
             &s.paraxial_view,
-            None,
+            config,
         )
         .unwrap();
 
-        assert_eq!(results.len(), 2); // 2 fields x 1 wavelength x 1 axis
-        // (system is rotationally symmetric)
+        assert_eq!(results.len(), 2); // 2 fields x 1 wavelength
+    }
+
+    #[test]
+    fn test_ray_trace_3d_view_all_four_bundles() {
+        let s = setup();
+        let config = SamplingConfig {
+            n_fan_rays: 5,
+            full_pupil_spacing: 0.1,
+        };
+
+        let results = ray_trace_3d_view(
+            &s.aperture_spec,
+            &s.field_specs,
+            &s.sequential_model,
+            &s.paraxial_view,
+            config,
+        )
+        .unwrap();
+
+        assert_eq!(results.len(), 2); // 2 fields x 1 wavelength
+        let r = results.iter().next().unwrap();
+        // Each TraceResults must expose all four bundles.
+        assert_eq!(r.chief_ray().rays().len() / r.chief_ray().num_surfaces(), 1);
+        assert!(r.full_pupil().rays().len() / r.full_pupil().num_surfaces() > 1);
+        assert_eq!(
+            r.tangential_fan().rays().len() / r.tangential_fan().num_surfaces(),
+            5
+        );
+        assert_eq!(
+            r.sagittal_fan().rays().len() / r.sagittal_fan().num_surfaces(),
+            5
+        );
     }
 
     #[test]
@@ -770,7 +813,7 @@ mod tests {
             &s.aperture_spec,
             &s.paraxial_view.subviews()[&SubModelID(0, Axis::U)],
             &s.field_specs[0],
-            None,
+            PupilSampling::TangentialRayFan { n: 3 },
         )
         .unwrap();
 
@@ -791,7 +834,6 @@ mod tests {
         let field_specs = vec![FieldSpec::Angle {
             chi: 5.0,
             phi: 90.0,
-            pupil_sampling: PupilSampling::SagittalRayFan { n: 3 },
         }];
         let paraxial_view = ParaxialView::new(&seq_model, &field_specs, false).unwrap();
 
@@ -800,7 +842,7 @@ mod tests {
             &aperture_spec,
             &paraxial_view.subviews()[&SubModelID(0, Axis::U)],
             &field_specs[0],
-            None,
+            PupilSampling::SagittalRayFan { n: 3 },
         )
         .unwrap();
 
@@ -819,18 +861,14 @@ mod tests {
     fn test_rays_point_source_incompatible_with_finite_object() {
         let s = setup();
 
-        let field_spec = FieldSpec::PointSource {
-            x: 0.0,
-            y: 0.0,
-            pupil_sampling: PupilSampling::TangentialRayFan { n: 3 },
-        };
+        let field_spec = FieldSpec::PointSource { x: 0.0, y: 0.0 };
 
         let result = rays(
             s.sequential_model.surfaces(),
             &s.aperture_spec,
             &s.paraxial_view.subviews()[&SubModelID(0, Axis::U)],
             &field_spec,
-            None,
+            PupilSampling::TangentialRayFan { n: 3 },
         );
 
         assert!(
@@ -1015,7 +1053,6 @@ mod tests {
         let field_specs = vec![FieldSpec::Angle {
             chi: 0.0,
             phi: 90.0,
-            pupil_sampling: PupilSampling::TangentialRayFan { n: 3 },
         }];
 
         let result = validate_field_specs(&s.sequential_model, &field_specs);
@@ -1025,11 +1062,7 @@ mod tests {
             result
         );
 
-        let field_specs = vec![FieldSpec::PointSource {
-            x: 0.0,
-            y: 0.0,
-            pupil_sampling: PupilSampling::TangentialRayFan { n: 3 },
-        }];
+        let field_specs = vec![FieldSpec::PointSource { x: 0.0, y: 0.0 }];
 
         let result = validate_field_specs(&s.sequential_model, &field_specs);
         assert!(
@@ -1040,38 +1073,42 @@ mod tests {
     }
 
     #[test]
-    fn test_all_combinations() {
+    fn ray_trace_3d_view_result_count() {
+        // Verify that the result count is n_fields * n_wavelengths with no axis
+        // duplication.
+        let air = n!(1.0);
+        let nbk7 = n!(1.515);
+        let wavelengths: [Float; 3] = [0.4861, 0.5876, 0.6563];
+        let sequential_model = sequential_model(air, nbk7, &wavelengths);
+        let aperture_spec = ApertureSpec::EntrancePupil {
+            semi_diameter: 12.5,
+        };
         let field_specs = vec![
             FieldSpec::Angle {
                 chi: 0.0,
                 phi: 90.0,
-                pupil_sampling: PupilSampling::TangentialRayFan { n: 3 },
             },
             FieldSpec::Angle {
                 chi: 5.0,
                 phi: 90.0,
-                pupil_sampling: PupilSampling::TangentialRayFan { n: 3 },
             },
         ];
+        let paraxial_view = ParaxialView::new(&sequential_model, &field_specs, false).unwrap();
+        let config = SamplingConfig {
+            n_fan_rays: 3,
+            full_pupil_spacing: 0.1,
+        };
 
-        let wavelengths = vec![0.4861, 0.5876, 0.6563];
-        let axes = vec![Axis::R, Axis::U];
+        let results = ray_trace_3d_view(
+            &aperture_spec,
+            &field_specs,
+            &sequential_model,
+            &paraxial_view,
+            config,
+        )
+        .unwrap();
 
-        let combinations = all_combinations(&field_specs, &wavelengths, &axes);
-
-        assert_eq!(combinations.len(), 12); // 2 fields x 3 wavelengths x 2 axes
-        assert!(combinations.contains(&(0, 0, Axis::R)));
-        assert!(combinations.contains(&(0, 0, Axis::U)));
-        assert!(combinations.contains(&(0, 1, Axis::R)));
-        assert!(combinations.contains(&(0, 1, Axis::U)));
-        assert!(combinations.contains(&(0, 2, Axis::R)));
-        assert!(combinations.contains(&(0, 2, Axis::U)));
-        assert!(combinations.contains(&(1, 0, Axis::R)));
-        assert!(combinations.contains(&(1, 0, Axis::U)));
-        assert!(combinations.contains(&(1, 1, Axis::R)));
-        assert!(combinations.contains(&(1, 1, Axis::U)));
-        assert!(combinations.contains(&(1, 2, Axis::R)));
-        assert!(combinations.contains(&(1, 2, Axis::U)));
+        assert_eq!(results.len(), 6); // 2 fields * 3 wavelengths
     }
 
     /// A tangential fan at phi=45° should produce rays whose pupil positions
@@ -1083,7 +1120,6 @@ mod tests {
         let field_spec = FieldSpec::Angle {
             chi: 5.0,
             phi: 45.0, // diagonal: fan should run along (1,1)/√2
-            pupil_sampling: PupilSampling::TangentialRayFan { n: 3 },
         };
 
         let generated = rays(
@@ -1094,7 +1130,7 @@ mod tests {
                 .get(&SubModelID(0, Axis::U))
                 .unwrap(),
             &field_spec,
-            None,
+            PupilSampling::TangentialRayFan { n: 3 },
         )
         .expect("rays should be generated for diagonal field");
 

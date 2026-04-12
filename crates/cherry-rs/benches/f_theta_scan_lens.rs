@@ -2,7 +2,7 @@ use criterion::{Criterion, criterion_group, criterion_main};
 use std::hint::black_box;
 
 use cherry_rs::{
-    ApertureSpec, FieldSpec, ParaxialView, PupilSampling,
+    ApertureSpec, FieldSpec, ParaxialView, SamplingConfig,
     examples::f_theta_scan_lens::sequential_model, n, ray_trace_3d_view,
 };
 
@@ -14,7 +14,6 @@ fn benchmark(c: &mut Criterion) {
     let field_specs = vec![FieldSpec::Angle {
         chi: 20.0,
         phi: 90.0,
-        pupil_sampling: PupilSampling::TangentialRayFan { n: 9 },
     }];
     let paraxial_view = ParaxialView::new(&model, &field_specs, false).unwrap();
     let mut group = c.benchmark_group("3D ray trace, f-theta scan lens");
@@ -26,7 +25,10 @@ fn benchmark(c: &mut Criterion) {
                 black_box(&field_specs),
                 black_box(&model),
                 black_box(&paraxial_view),
-                black_box(None),
+                black_box(SamplingConfig {
+                    n_fan_rays: 9,
+                    full_pupil_spacing: 0.1,
+                }),
             )
             .unwrap();
         });

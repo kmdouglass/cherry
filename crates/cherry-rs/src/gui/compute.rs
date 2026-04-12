@@ -5,6 +5,7 @@ use std::{collections::HashMap, rc::Rc};
 
 use crate::{
     ParaxialView, SequentialModel, components_view, cross_section_view, ray_trace_3d_view,
+    views::ray_trace_3d::SamplingConfig,
 };
 
 use super::{
@@ -144,7 +145,17 @@ fn run_compute(
         }
     };
 
-    let trace = match ray_trace_3d_view(&parsed.aperture, &parsed.fields, &seq, &pv, None) {
+    let full_pupil_spacing = req
+        .specs
+        .full_pupil_spacing
+        .trim()
+        .parse::<f64>()
+        .unwrap_or(0.1);
+    let config = SamplingConfig {
+        n_fan_rays: req.specs.cross_section_n_rays as usize,
+        full_pupil_spacing,
+    };
+    let trace = match ray_trace_3d_view(&parsed.aperture, &parsed.fields, &seq, &pv, config) {
         Ok(t) => Some(t),
         Err(e) => {
             log::warn!("Ray trace failed: {e}");
@@ -152,18 +163,8 @@ fn run_compute(
         }
     };
 
-    let n = req.specs.cross_section_n_rays as usize;
-    let sampling = Some(crate::specs::fields::PupilSampling::TangentialRayFan { n });
-    let cs_trace = match ray_trace_3d_view(&parsed.aperture, &parsed.fields, &seq, &pv, sampling) {
-        Ok(t) => Some(t),
-        Err(e) => {
-            log::warn!("Cross-section ray trace failed: {e}");
-            None
-        }
-    };
-
     let components = components_view(&seq, parsed.background.clone()).unwrap_or_default();
-    let cross_section = Some(cross_section_view(&seq, cs_trace.as_ref(), &components));
+    let cross_section = Some(cross_section_view(&seq, trace.as_ref(), &components));
 
     ResultPackage {
         id: req.id,
@@ -256,17 +257,15 @@ mod tests {
 
     #[test]
     fn field_descs_angle_mode() {
-        use crate::{FieldSpec, specs::fields::PupilSampling};
+        use crate::FieldSpec;
         let fields = vec![
             FieldSpec::Angle {
                 chi: 0.0,
                 phi: 90.0,
-                pupil_sampling: PupilSampling::TangentialRayFan { n: 3 },
             },
             FieldSpec::Angle {
                 chi: 5.0,
                 phi: 90.0,
-                pupil_sampling: PupilSampling::TangentialRayFan { n: 3 },
             },
         ];
         let descs = build_field_descs(&fields);

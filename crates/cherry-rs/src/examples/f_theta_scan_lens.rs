@@ -9,8 +9,7 @@
 use std::rc::Rc;
 
 use crate::{
-    FieldSpec, GapSpec, PupilSampling, RefractiveIndexSpec, Rotation3D, SequentialModel,
-    SurfaceSpec, SurfaceType,
+    FieldSpec, GapSpec, RefractiveIndexSpec, Rotation3D, SequentialModel, SurfaceSpec, SurfaceType,
 };
 
 pub fn sequential_model(
@@ -113,6 +112,5 @@ pub fn field_specs() -> Vec<FieldSpec> {
     vec![FieldSpec::Angle {
         chi: 0.0,
         phi: 90.0,
-        pupil_sampling: PupilSampling::TangentialRayFan { n: 3 },
     }]
 }

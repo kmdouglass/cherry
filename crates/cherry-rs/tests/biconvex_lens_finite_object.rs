@@ -2,21 +2,13 @@ use approx::assert_abs_diff_eq;
 use ndarray::{Array3, arr3};
 
 use cherry_rs::examples::biconvex_lens_finite_object::sequential_model;
-use cherry_rs::{FieldSpec, ImagePlane, ParaxialView, Pupil, PupilSampling, n};
+use cherry_rs::{FieldSpec, ImagePlane, ParaxialView, Pupil, n};
 
 // Inputs
 const WAVELENGTHS: [f64; 1] = [0.5876]; // He d line
 const FIELD_SPECS: [FieldSpec; 2] = [
-    FieldSpec::PointSource {
-        x: 0.0,
-        y: 0.0,
-        pupil_sampling: PupilSampling::TangentialRayFan { n: 3 },
-    },
-    FieldSpec::PointSource {
-        x: 0.0,
-        y: 5.0,
-        pupil_sampling: PupilSampling::TangentialRayFan { n: 3 },
-    },
+    FieldSpec::PointSource { x: 0.0, y: 0.0 },
+    FieldSpec::PointSource { x: 0.0, y: 5.0 },
 ];
 
 // Paraxial property values

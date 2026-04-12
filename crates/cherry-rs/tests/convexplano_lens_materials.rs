@@ -11,7 +11,7 @@ mod test_ri_info {
     use lib_ria::Store;
 
     use cherry_rs::examples::convexplano_lens::sequential_model;
-    use cherry_rs::{Axis, FieldSpec, ParaxialView, PupilSampling};
+    use cherry_rs::{Axis, FieldSpec, ParaxialView};
 
     pub fn load_store() -> Result<Store> {
         let filename = std::path::PathBuf::from("data/rii.db");
@@ -29,12 +29,10 @@ mod test_ri_info {
         FieldSpec::Angle {
             chi: 0.0,
             phi: 90.0,
-            pupil_sampling: PupilSampling::TangentialRayFan { n: 3 },
         },
         FieldSpec::Angle {
             chi: 5.0,
             phi: 90.0,
-            pupil_sampling: PupilSampling::TangentialRayFan { n: 3 },
         },
     ];
 
