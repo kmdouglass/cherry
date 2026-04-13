@@ -1,14 +1,23 @@
 set working-directory := "crates"
 
+alias b := bench-all
+alias c := ci
 alias f := fmt
 alias g := gui
 alias l := lint
 alias s := serve
-alias t := test
+alias t := test-all
 
-[doc("Run a benchmark test. Example: 'just bench f_theta_scan_lens'")]
+[doc("Run a specific benchmark test. Example: 'just bench f_theta_scan_lens'")]
 bench bench_name:
   cargo bench --bench {{bench_name}}
+
+[doc("Run all benchmark tests")]
+bench-all:
+  cargo bench
+
+[doc("Run all CI-level checks")]
+ci: fmt lint test-all
 
 [doc("Launches the desktop GUI")]
 gui:
@@ -31,7 +40,7 @@ list-tests:
 serve:
   trunk serve
 
-test:
+test-all:
   cargo test --all-features --all-targets
 
 [doc("Run an integration test with tracing. Filter example: '[{ray_id=0}]=trace'")]

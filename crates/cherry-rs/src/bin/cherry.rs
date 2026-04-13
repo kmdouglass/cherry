@@ -33,6 +33,34 @@ pub async fn wasm_start() {
 
     use eframe::web_sys;
     use wasm_bindgen::JsCast;
+
+    // SharedArrayBuffer requires cross-origin isolation (COOP + COEP headers).
+    // If it is absent, threading cannot work at all — show a clear message
+    // rather than panicking silently.
+    let shared_array_buffer = js_sys::Reflect::get(
+        &js_sys::global(),
+        &wasm_bindgen::JsValue::from_str("SharedArrayBuffer"),
+    )
+    .unwrap_or(wasm_bindgen::JsValue::UNDEFINED);
+
+    if shared_array_buffer.is_undefined() {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let body = document.body().unwrap();
+        let div = document.create_element("div").unwrap();
+        div.set_attribute(
+            "style",
+            "font-family: sans-serif; padding: 2em; color: #c00;",
+        )
+        .unwrap();
+        div.set_text_content(Some(
+            "Cherry requires SharedArrayBuffer, which is only available in \
+             cross-origin isolated contexts. Please ensure the page is served \
+             with the required COOP and COEP headers.",
+        ));
+        body.append_child(&div).unwrap();
+        return;
+    }
+
     let canvas = web_sys::window()
         .unwrap()
         .document()
@@ -41,6 +69,15 @@ pub async fn wasm_start() {
         .unwrap()
         .dyn_into::<web_sys::HtmlCanvasElement>()
         .unwrap();
+
+    wasm_bindgen_futures::JsFuture::from(wasm_bindgen_rayon::init_thread_pool(
+        web_sys::window()
+            .unwrap()
+            .navigator()
+            .hardware_concurrency() as usize,
+    ))
+    .await
+    .expect("failed to initialize rayon thread pool");
 
     eframe::WebRunner::new()
         .start(
