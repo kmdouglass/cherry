@@ -103,7 +103,7 @@ fn mirrors_figure_z_marginal_ray_uses_projected_sd() {
         // The aperture stop is Mirror 1 (surface index 1).
         assert_eq!(*sub_view.aperture_stop(), 1usize);
         // The marginal ray height at the aperture stop should equal the projected SD.
-        let marginal_height_at_stop = sub_view.marginal_ray()[[1, 0, 0]];
+        let marginal_height_at_stop = sub_view.marginal_ray().rays_at_surface(1)[0].height;
         assert_abs_diff_eq!(marginal_height_at_stop, expected, epsilon = 1e-10);
     }
 }

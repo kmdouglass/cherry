@@ -150,8 +150,8 @@ pub use views::{
         Bounds2D, CrossSectionView, DrawElement, FlatPlaneKind, PlaneGeometry, cross_section_view,
     },
     paraxial::{
-        ImagePlane, ParaxialSubView, ParaxialSubViewDescription, ParaxialView,
-        ParaxialViewDescription, Pupil,
+        ImagePlane, ParaxialRay, ParaxialRayBundle, ParaxialSubView, ParaxialSubViewDescription,
+        ParaxialView, ParaxialViewDescription, Pupil,
     },
     ray_trace_3d::{
         Ray, RayBundle, SamplingConfig, TraceResults, TraceResultsCollection, ray_trace_3d_view,

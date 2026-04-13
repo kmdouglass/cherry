@@ -1,7 +1,6 @@
 use approx::assert_abs_diff_eq;
 use cherry_rs::examples::concave_mirror::sequential_model;
-use cherry_rs::{FieldSpec, ImagePlane, ParaxialView, Pupil, n};
-use ndarray::{Array3, arr3};
+use cherry_rs::{FieldSpec, ImagePlane, ParaxialRayBundle, ParaxialView, Pupil, n};
 
 // Inputs
 const WAVELENGTHS: [f64; 1] = [0.5876]; // He d line
@@ -38,22 +37,26 @@ const PARAXIAL_IMAGE_PLANE: ImagePlane = ImagePlane {
     semi_diameter: 8.7489,
 };
 
-// For a 5 degree field angle
-// Paraxial angle = tan(field angle)
-fn chief_ray() -> Array3<f64> {
-    arr3(&[
-        [[0.0], [0.087489]],
-        [[0.0], [-0.087489]],
-        [[8.7489], [-0.087489]],
-    ])
+// For a 5 degree field angle; expected (height, angle) per surface for first
+// ray
+fn chief_ray_expected() -> Vec<(f64, f64)> {
+    vec![(0.0, 0.087489), (0.0, -0.087489), (8.7489, -0.087489)]
 }
 
-fn marginal_ray() -> Array3<f64> {
-    arr3(&[
-        [[12.5000], [0.0]],
-        [[12.5000], [0.125]],
-        [[0.0000], [0.125]],
-    ])
+fn marginal_ray_expected() -> Vec<(f64, f64)> {
+    vec![(12.5000, 0.0), (12.5000, 0.125), (0.0000, 0.125)]
+}
+
+fn assert_ray_results_approx_eq(actual: &ParaxialRayBundle, expected: &[(f64, f64)], epsilon: f64) {
+    assert_eq!(
+        actual.num_surfaces(),
+        expected.len(),
+        "Surface count mismatch"
+    );
+    for (surface_rays, (exp_h, exp_a)) in actual.iter_surfaces().zip(expected.iter()) {
+        assert_abs_diff_eq!(surface_rays[0].height, *exp_h, epsilon = epsilon);
+        assert_abs_diff_eq!(surface_rays[0].angle, *exp_a, epsilon = epsilon);
+    }
 }
 
 #[test]
@@ -62,13 +65,10 @@ fn concave_mirror_paraxial_chief_ray() {
     let sub_models = model.submodels();
     let view =
         ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
-    let chief_ray = chief_ray();
 
     for sub_model_id in sub_models.keys() {
         let sub_view = view.subviews().get(sub_model_id).unwrap();
-        let result = sub_view.chief_ray();
-
-        assert_abs_diff_eq!(chief_ray, result, epsilon = 1e-4);
+        assert_ray_results_approx_eq(sub_view.chief_ray(), &chief_ray_expected(), 1e-4);
     }
 }
 
@@ -227,12 +227,9 @@ fn concave_mirror_paraxial_marginal_ray() {
     let sub_models = model.submodels();
     let view =
         ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
-    let marginal_ray = marginal_ray();
 
     for sub_model_id in sub_models.keys() {
         let sub_view = view.subviews().get(sub_model_id).unwrap();
-        let result = sub_view.marginal_ray();
-
-        assert_abs_diff_eq!(marginal_ray, result, epsilon = 1e-4);
+        assert_ray_results_approx_eq(sub_view.marginal_ray(), &marginal_ray_expected(), 1e-4);
     }
 }
