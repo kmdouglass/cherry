@@ -3,8 +3,9 @@ mod rays;
 mod trace;
 
 use anyhow::{Result, anyhow};
+use rayon::prelude::*;
 use serde::Serialize;
-use tracing::{trace, trace_span};
+use tracing::trace;
 
 use crate::{
     Axis, Pupil,
@@ -25,15 +26,6 @@ pub use rays::Ray;
 pub use trace::RayBundle;
 
 use super::paraxial::{ParaxialSubView, ParaxialView};
-
-/// The default capacity for the results collection.
-///
-/// Increase this to avoid reallocations if you expect to have more results. The
-/// tradeoff is larger memory usage.
-///
-/// Its current value was derived from: 3 wavelengths * 3 fields * 2 (for
-/// overhead).
-const RESULTS_CAPACITY: usize = 18;
 
 /// Configuration for the pupil sampling used in a 3D ray trace.
 #[derive(Debug, Clone, Copy)]
@@ -112,12 +104,14 @@ pub fn ray_trace_3d_view(
     // Use Axis::U as the canonical submodel for all field/wavelength combinations.
     // For rotationally symmetric systems only Axis::U exists; for non-symmetric
     // systems this is the fallback that is always present.
-    let mut results: Vec<TraceResults> = Vec::with_capacity(RESULTS_CAPACITY);
+    let n_wavelengths = sequential_model.wavelengths().len();
+    let pairs: Vec<(usize, usize)> = (0..field_specs.len())
+        .flat_map(|f| (0..n_wavelengths).map(move |w| (f, w)))
+        .collect();
 
-    for (field_id, _) in field_specs.iter().enumerate() {
-        for (wavelength_id, _) in sequential_model.wavelengths().iter().enumerate() {
-            let _trace_bundle_span = trace_span!("trace_bundle", field_id, wavelength_id).entered();
-
+    let results: Vec<TraceResults> = pairs
+        .into_par_iter()
+        .map(|(field_id, wavelength_id)| -> Result<TraceResults> {
             tracing::trace!(
                 "Tracing rays for field_id={}, wavelength_id={}",
                 field_id,
@@ -176,16 +170,6 @@ pub fn ray_trace_3d_view(
                 },
             )?;
 
-            results.push(TraceResults {
-                wavelength_id,
-                field_id,
-                axis: Axis::U,
-                chief_ray,
-                full_pupil,
-                tangential_fan,
-                sagittal_fan,
-            });
-
             trace!(
                 field_id,
                 wavelength_id,
@@ -193,8 +177,18 @@ pub fn ray_trace_3d_view(
                 field_id,
                 wavelength_id
             );
-        }
-    }
+
+            Ok(TraceResults {
+                wavelength_id,
+                field_id,
+                axis: Axis::U,
+                chief_ray,
+                full_pupil,
+                tangential_fan,
+                sagittal_fan,
+            })
+        })
+        .collect::<Result<Vec<_>>>()?;
 
     Ok(TraceResultsCollection::new(results))
 }
