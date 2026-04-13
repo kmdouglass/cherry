@@ -10,13 +10,13 @@
 use std::{borrow::Borrow, collections::HashMap};
 
 use anyhow::{Result, anyhow};
-use ndarray::{Array, Array1, Array2, Array3, ArrayView1, ArrayView2, arr2, s};
 use serde::{Deserialize, Serialize};
 
 use crate::{
     FieldSpec,
     core::{
         Float,
+        math::linalg::mat2x2::Mat2x2,
         sequential_model::{
             Axis, SequentialModel, SequentialSubModel, Step, SubModelID, Surface,
             first_physical_surface, last_physical_surface, reversed_surface_id,
@@ -27,25 +27,56 @@ use crate::{
 
 const DEFAULT_THICKNESS: Float = 0.0;
 
-/// A 2 x Nr array of paraxial rays.
+/// A single paraxial ray with height and angle components.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct ParaxialRay {
+    pub height: Float,
+    pub angle: Float,
+}
+
+/// A set of paraxial rays traced through all surfaces of an optical system.
 ///
-/// Nr is the number of rays. The first column is the height of the ray at the
-/// surface, and the second column is the paraxial angle of the ray at the
-/// surface.
-type ParaxialRays = Array2<Float>;
+/// Rays are stored in a flat [`Vec`] with a fixed number of rays per surface,
+/// laid out as `[surf_0_ray_0, …, surf_0_ray_N, surf_1_ray_0, …]`. The number
+/// of rays per surface is `rays.len() / num_surfaces`. Access rays at a given
+/// surface with [`ParaxialRayBundle::rays_at_surface`].
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ParaxialRayBundle {
+    rays: Vec<ParaxialRay>,
+    num_surfaces: usize,
+}
 
-/// A view into an array of Paraxial rays.
-type ParaxialRaysView<'a> = ArrayView2<'a, Float>;
+impl ParaxialRayBundle {
+    /// Returns the rays at the given surface index.
+    pub fn rays_at_surface(&self, surface_id: usize) -> &[ParaxialRay] {
+        let num_rays = self.rays.len() / self.num_surfaces;
+        let start = surface_id * num_rays;
+        &self.rays[start..start + num_rays]
+    }
 
-/// A Ns x 2 x Nr array of paraxial ray trace results.
-///
-/// Ns is the number of surfaces, and Nr is the number of rays. The first
-/// element of the 2nd dimension is the height of the ray at the surface, and
-/// the second element is the angle of the ray at the surface.
-type ParaxialRayTraceResults = Array3<Float>;
+    /// Returns the number of surfaces in the bundle.
+    pub fn num_surfaces(&self) -> usize {
+        self.num_surfaces
+    }
 
-/// A 2 x 2 array representing a ray transfer matrix for paraxial rays.
-type RayTransferMatrix = Array2<Float>;
+    /// Returns an iterator over the rays at each surface.
+    pub fn iter_surfaces(&self) -> impl Iterator<Item = &[ParaxialRay]> + '_ {
+        (0..self.num_surfaces).map(move |i| self.rays_at_surface(i))
+    }
+
+    /// Returns the rays at the last surface, or `None` if there are no
+    /// surfaces.
+    pub fn last_surface(&self) -> Option<&[ParaxialRay]> {
+        if self.num_surfaces == 0 {
+            None
+        } else {
+            Some(self.rays_at_surface(self.num_surfaces - 1))
+        }
+    }
+}
+
+/// A 2 x 2 ray transfer matrix for paraxial rays.
+type RayTransferMatrix = Mat2x2;
 
 /// A paraxial view into an optical system.
 ///
@@ -81,13 +112,13 @@ pub struct ParaxialSubView {
     aperture_stop: usize,
     back_focal_distance: Float,
     back_principal_plane: Float,
-    chief_ray: ParaxialRayTraceResults,
+    chief_ray: ParaxialRayBundle,
     effective_focal_length: Float,
     entrance_pupil: Pupil,
     exit_pupil: Pupil,
     front_focal_distance: Float,
     front_principal_plane: Float,
-    marginal_ray: ParaxialRayTraceResults,
+    marginal_ray: ParaxialRayBundle,
     paraxial_image_plane: ImagePlane,
 }
 
@@ -99,13 +130,13 @@ pub struct ParaxialSubViewDescription {
     aperture_stop: usize,
     back_focal_distance: Float,
     back_principal_plane: Float,
-    chief_ray: ParaxialRayTraceResults,
+    chief_ray: ParaxialRayBundle,
     effective_focal_length: Float,
     entrance_pupil: Pupil,
     exit_pupil: Pupil,
     front_focal_distance: Float,
     front_principal_plane: Float,
-    marginal_ray: ParaxialRayTraceResults,
+    marginal_ray: ParaxialRayBundle,
     paraxial_image_plane: ImagePlane,
 }
 
@@ -134,13 +165,13 @@ pub struct ImagePlane {
 }
 
 /// Propagate paraxial rays a distance along the optic axis.
-fn propagate(rays: ParaxialRaysView, distance: Float) -> ParaxialRays {
-    let mut propagated = rays.to_owned();
-    let mut ray_heights = propagated.row_mut(0);
-
-    ray_heights += &(distance * &rays.row(1));
-
-    propagated
+fn propagate(rays: &[ParaxialRay], distance: Float) -> Vec<ParaxialRay> {
+    rays.iter()
+        .map(|r| ParaxialRay {
+            height: r.height + distance * r.angle,
+            angle: r.angle,
+        })
+        .collect()
 }
 
 /// Compute the axis-intercepts of a set of paraxial rays.
@@ -151,8 +182,8 @@ fn propagate(rays: ParaxialRaysView, distance: Float) -> ParaxialRays {
 /// optical axis at each segment.
 ///
 /// This will return an error if any of the intercepts are NaNs.
-fn axis_intercepts(rays: ParaxialRaysView) -> Result<Array1<Float>> {
-    let results = (-&rays.row(0) / rays.row(1)).to_owned();
+fn axis_intercepts(rays: &[ParaxialRay]) -> Result<Vec<Float>> {
+    let results: Vec<Float> = rays.iter().map(|r| -r.height / r.angle).collect();
 
     if results.iter().any(|&x| x.is_nan()) {
         return Err(anyhow!("Some axis_intercepts are NaNs"));
@@ -367,7 +398,7 @@ impl ParaxialSubView {
         let front_principal_plane =
             Self::calc_front_principal_plane(front_focal_distance, effective_focal_length);
 
-        let chief_ray: ParaxialRayTraceResults = Self::calc_chief_ray(
+        let chief_ray = Self::calc_chief_ray(
             surfaces,
             sequential_sub_model,
             &axis,
@@ -422,7 +453,7 @@ impl ParaxialSubView {
         &self.back_principal_plane
     }
 
-    pub fn chief_ray(&self) -> &ParaxialRayTraceResults {
+    pub fn chief_ray(&self) -> &ParaxialRayBundle {
         &self.chief_ray
     }
 
@@ -450,7 +481,7 @@ impl ParaxialSubView {
         &self.is_obj_space_telecentric
     }
 
-    pub fn marginal_ray(&self) -> &ParaxialRayTraceResults {
+    pub fn marginal_ray(&self) -> &ParaxialRayBundle {
         &self.marginal_ray
     }
 
@@ -460,38 +491,33 @@ impl ParaxialSubView {
 
     fn calc_aperture_stop(
         surfaces: &[Surface],
-        pseudo_marginal_ray: &ParaxialRayTraceResults,
+        pseudo_marginal_ray: &ParaxialRayBundle,
         axis: &Axis,
     ) -> usize {
-        // Get all the projected semi-diameters of the surfaces and put them in an
-        // ndarray. For tilted surfaces, projected_semi_diameter accounts for
-        // the foreshortening of the clear aperture as seen by a paraxial ray
-        // traveling along the cursor axis.
-        let semi_diameters = Array::from_vec(
-            surfaces
-                .iter()
-                .map(|surface| surface.projected_semi_diameter(axis))
-                .collect::<Vec<Float>>(),
-        );
-
-        // Absolute value is necessary because the pseudo-marginal ray trace
-        // can result in surface intersections that are negative.
-        let ratios = (semi_diameters
-            / pseudo_marginal_ray[[pseudo_marginal_ray.shape()[0] - 1, 0, 0]])
-        .mapv(|x| x.abs());
+        // Get all the projected semi-diameters of the surfaces. For tilted surfaces,
+        // projected_semi_diameter accounts for the foreshortening of the clear aperture
+        // as seen by a paraxial ray traveling along the cursor axis.
+        //
+        // Absolute value is necessary because the pseudo-marginal ray trace can result
+        // in surface intersections that are negative.
+        let last_surface_height = pseudo_marginal_ray.last_surface().unwrap()[0].height;
+        let ratios: Vec<Float> = surfaces
+            .iter()
+            .map(|s| (s.projected_semi_diameter(axis) / last_surface_height).abs())
+            .collect();
 
         // Do not include the object or image surfaces when computing the aperture stop.
-        argmin(&ratios.slice(s![1..(ratios.len() - 1)])) + 1
+        argmin(&ratios[1..ratios.len() - 1]) + 1
     }
 
     fn calc_back_focal_distance(
         surfaces: &[Surface],
-        parallel_ray: &ParaxialRayTraceResults,
+        parallel_ray: &ParaxialRayBundle,
     ) -> Result<Float> {
         let last_physical_surface_index =
             last_physical_surface(surfaces).ok_or(anyhow!("There are no physical surfaces"))?;
         let intercepts =
-            axis_intercepts(parallel_ray.slice(s![last_physical_surface_index, .., ..]))?;
+            axis_intercepts(parallel_ray.rays_at_surface(last_physical_surface_index))?;
 
         let bfd = intercepts[0];
 
@@ -528,7 +554,7 @@ impl ParaxialSubView {
         axis: &Axis,
         field_specs: &[FieldSpec],
         entrance_pupil: &Pupil,
-    ) -> Result<ParaxialRayTraceResults> {
+    ) -> Result<ParaxialRayBundle> {
         let enp_loc = entrance_pupil.location;
         let obj_loc = surfaces
             .first()
@@ -548,17 +574,20 @@ impl ParaxialSubView {
             ));
         }
 
-        let initial_ray: ParaxialRays = arr2(&[[height], [paraxial_angle]]);
+        let initial_ray = vec![ParaxialRay {
+            height,
+            angle: paraxial_angle,
+        }];
         Self::trace(initial_ray, sequential_sub_model, surfaces, axis, false)
     }
 
-    fn calc_effective_focal_length(parallel_ray: &ParaxialRayTraceResults) -> Float {
-        let y_1 = parallel_ray.slice(s![1, 0, 0]);
-        let u_final = parallel_ray.slice(s![-2, 1, 0]);
+    fn calc_effective_focal_length(parallel_ray: &ParaxialRayBundle) -> Float {
+        let y_1 = parallel_ray.rays_at_surface(1)[0].height;
+        let u_final = parallel_ray.rays_at_surface(parallel_ray.num_surfaces() - 2)[0].angle;
 
-        // There should be a negative signe here for lens only systems, but we take abs
+        // There should be a negative sign here for lens only systems, but we take abs
         // later so it's not needed
-        let efl = y_1.into_scalar() / u_final.into_scalar();
+        let efl = y_1 / u_final;
 
         // Handle edge case for negatively infinite EFL
         if efl.is_infinite() {
@@ -575,7 +604,7 @@ impl ParaxialSubView {
         is_obj_space_telecentric: bool,
         aperture_stop: &usize,
         axis: &Axis,
-        marginal_ray: &ParaxialRayTraceResults,
+        marginal_ray: &ParaxialRayBundle,
     ) -> Result<Pupil> {
         // In case the object space is telecentric, the entrance pupil is at infinity.
         if is_obj_space_telecentric {
@@ -595,7 +624,10 @@ impl ParaxialSubView {
 
         // Trace a ray from the aperture stop to the object space to determine the
         // entrance pupil location.
-        let ray = arr2(&[[0.0], [1.0]]);
+        let ray = vec![ParaxialRay {
+            height: 0.0,
+            angle: 1.0,
+        }];
         let results = Self::trace(
             ray,
             &sequential_sub_model.slice(0..*aperture_stop),
@@ -603,13 +635,10 @@ impl ParaxialSubView {
             axis,
             true,
         )?;
-        let location = axis_intercepts(results.slice(s![-1, .., ..]))?[0];
+        let location = axis_intercepts(results.last_surface().unwrap())?[0];
 
         // Propagate the marginal ray to the entrance pupil location to determine its
-        // semi-diameter. I'm not sure, but I think the [0, .., ..1] slice on
-        // the marginal ray is required by the compiler because otherwise the
-        // dimensionality of the slice becomes incompatible with the argument of the
-        // propagate function, i.e. the slice [0, .., 0] has the wrong dimensions.
+        // semi-diameter.
         let distance = if sequential_sub_model.is_obj_at_inf() {
             location
         } else {
@@ -620,8 +649,7 @@ impl ParaxialSubView {
                 .thickness
                 + location
         };
-        let init_marginal_ray = marginal_ray.slice(s![0, .., ..1]);
-        let semi_diameter = propagate(init_marginal_ray, distance)[[0, 0]];
+        let semi_diameter = propagate(&marginal_ray.rays_at_surface(0)[..1], distance)[0].height;
 
         Ok(Pupil {
             location,
@@ -633,7 +661,7 @@ impl ParaxialSubView {
         sequential_sub_model: &impl SequentialSubModel,
         surfaces: &[Surface],
         aperture_stop: &usize,
-        marginal_ray: &ParaxialRayTraceResults,
+        marginal_ray: &ParaxialRayBundle,
     ) -> Result<Pupil> {
         let last_physical_surface_id =
             last_physical_surface(surfaces).ok_or(anyhow!("There are no physical surfaces"))?;
@@ -645,7 +673,10 @@ impl ParaxialSubView {
         }
 
         // Trace a ray through the aperture stop forwards through the system
-        let ray = arr2(&[[0.0], [1.0]]);
+        let ray = vec![ParaxialRay {
+            height: 0.0,
+            angle: 1.0,
+        }];
 
         let results = Self::trace(
             ray,
@@ -658,13 +689,14 @@ impl ParaxialSubView {
         // Distance is relative to the last physical surface
         let sliced_last_physical_surface_id = last_physical_surface_id - aperture_stop;
         let distance =
-            axis_intercepts(results.slice(s![sliced_last_physical_surface_id, .., ..]))?[0];
+            axis_intercepts(results.rays_at_surface(sliced_last_physical_surface_id))?[0];
 
         // Propagate the marginal ray to the exit pupil location and find its height
         let semi_diameter = propagate(
-            marginal_ray.slice(s![last_physical_surface_id, .., ..]),
+            marginal_ray.rays_at_surface(last_physical_surface_id),
             distance,
-        )[[0, 0]];
+        )[0]
+        .height;
 
         Ok(Pupil {
             location: distance,
@@ -674,12 +706,12 @@ impl ParaxialSubView {
 
     fn calc_front_focal_distance(
         surfaces: &[Surface],
-        reverse_parallel_ray: &ParaxialRayTraceResults,
+        reverse_parallel_ray: &ParaxialRayBundle,
     ) -> Result<Float> {
         let first_physical_surface_index =
             first_physical_surface(surfaces).ok_or(anyhow!("There are no physical surfaces"))?;
         let index = reversed_surface_id(surfaces, first_physical_surface_index);
-        let intercepts = axis_intercepts(reverse_parallel_ray.slice(s![index, .., ..]))?;
+        let intercepts = axis_intercepts(reverse_parallel_ray.rays_at_surface(index))?;
 
         let ffd = intercepts[0];
 
@@ -706,21 +738,30 @@ impl ParaxialSubView {
 
     fn calc_marginal_ray(
         surfaces: &[Surface],
-        pseudo_marginal_ray: &ParaxialRayTraceResults,
+        pseudo_marginal_ray: &ParaxialRayBundle,
         aperture_stop: &usize,
         axis: &Axis,
-    ) -> ParaxialRayTraceResults {
-        let semi_diameters = Array::from_vec(
-            surfaces
-                .iter()
-                .map(|surface| surface.projected_semi_diameter(axis))
-                .collect::<Vec<Float>>(),
-        );
-        let ratios = semi_diameters / pseudo_marginal_ray.slice(s![.., 0, 0]);
-
+    ) -> ParaxialRayBundle {
+        let ratios: Vec<Float> = surfaces
+            .iter()
+            .zip(pseudo_marginal_ray.iter_surfaces())
+            .map(|(s, rays)| s.projected_semi_diameter(axis) / rays[0].height)
+            .collect();
         let scale_factor = ratios[*aperture_stop];
 
-        pseudo_marginal_ray * scale_factor
+        let rays = pseudo_marginal_ray
+            .rays
+            .iter()
+            .map(|r| ParaxialRay {
+                height: r.height * scale_factor,
+                angle: r.angle * scale_factor,
+            })
+            .collect();
+
+        ParaxialRayBundle {
+            rays,
+            num_surfaces: pseudo_marginal_ray.num_surfaces,
+        }
     }
 
     /// Compute the parallel ray.
@@ -728,8 +769,11 @@ impl ParaxialSubView {
         sequential_sub_model: &impl SequentialSubModel,
         surfaces: &[Surface],
         axis: Axis,
-    ) -> Result<ParaxialRayTraceResults> {
-        let ray = arr2(&[[1.0], [0.0]]);
+    ) -> Result<ParaxialRayBundle> {
+        let ray = vec![ParaxialRay {
+            height: 1.0,
+            angle: 0.0,
+        }];
 
         Self::trace(ray, sequential_sub_model, surfaces, &axis, false)
     }
@@ -737,14 +781,14 @@ impl ParaxialSubView {
     /// Compute the paraxial image plane.
     fn calc_paraxial_image_plane(
         surfaces: &[Surface],
-        marginal_ray: &ParaxialRayTraceResults,
-        chief_ray: &ParaxialRayTraceResults,
+        marginal_ray: &ParaxialRayBundle,
+        chief_ray: &ParaxialRayBundle,
     ) -> Result<ImagePlane> {
         let last_physical_surface_id =
             last_physical_surface(surfaces).ok_or(anyhow!("There are no physical surfaces"))?;
         let last_surface = surfaces[last_physical_surface_id].borrow();
 
-        let d_axis = axis_intercepts(marginal_ray.slice(s![last_physical_surface_id, .., ..]))?[0];
+        let d_axis = axis_intercepts(marginal_ray.rays_at_surface(last_physical_surface_id))?[0];
         let location = if d_axis.is_infinite() {
             // Ensure positive infinity is returned for infinite image planes
             Float::INFINITY
@@ -754,9 +798,8 @@ impl ParaxialSubView {
 
         // Propagate the chief ray from the last physical surface to the image plane to
         // determine its semi-diameter.
-        let ray = chief_ray.slice(s![last_physical_surface_id, .., ..]);
-        let propagated = propagate(ray, d_axis);
-        let semi_diameter = propagated[[0, 0]].abs();
+        let propagated = propagate(chief_ray.rays_at_surface(last_physical_surface_id), d_axis);
+        let semi_diameter = propagated[0].height.abs();
 
         Ok(ImagePlane {
             location,
@@ -769,13 +812,19 @@ impl ParaxialSubView {
         sequential_sub_model: &impl SequentialSubModel,
         surfaces: &[Surface],
         axis: Axis,
-    ) -> Result<ParaxialRayTraceResults> {
+    ) -> Result<ParaxialRayBundle> {
         let ray = if sequential_sub_model.is_obj_at_inf() {
             // Ray parallel to axis at a height of 1
-            arr2(&[[1.0], [0.0]])
+            vec![ParaxialRay {
+                height: 1.0,
+                angle: 0.0,
+            }]
         } else {
             // Ray starting from the axis at an angle of 1
-            arr2(&[[0.0], [1.0]])
+            vec![ParaxialRay {
+                height: 0.0,
+                angle: 1.0,
+            }]
         };
 
         Self::trace(ray, sequential_sub_model, surfaces, &axis, false)
@@ -786,8 +835,11 @@ impl ParaxialSubView {
         sequential_sub_model: &impl SequentialSubModel,
         surfaces: &[Surface],
         axis: Axis,
-    ) -> Result<ParaxialRayTraceResults> {
-        let ray = arr2(&[[1.0], [0.0]]);
+    ) -> Result<ParaxialRayBundle> {
+        let ray = vec![ParaxialRay {
+            height: 1.0,
+            angle: 0.0,
+        }];
 
         Self::trace(ray, sequential_sub_model, surfaces, &axis, true)
     }
@@ -842,27 +894,35 @@ impl ParaxialSubView {
     }
 
     fn trace(
-        rays: ParaxialRays,
+        initial_rays: Vec<ParaxialRay>,
         sequential_sub_model: &impl SequentialSubModel,
         surfaces: &[Surface],
         axis: &Axis,
         reverse: bool,
-    ) -> Result<ParaxialRayTraceResults> {
+    ) -> Result<ParaxialRayBundle> {
         let txs = Self::rtms(sequential_sub_model, surfaces, axis, reverse)?;
+        let num_surfaces = txs.len() + 1;
+        let num_rays = initial_rays.len();
+        let mut flat: Vec<ParaxialRay> = Vec::with_capacity(num_surfaces * num_rays);
+        flat.extend_from_slice(&initial_rays);
 
-        // Initialize the results array by assigning the input rays to the first
-        // surface.
-        let mut results = Array3::zeros((txs.len() + 1, 2, rays.shape()[1]));
-        results.slice_mut(s![0, .., ..]).assign(&rays);
-
-        // Iterate over the surfaces and compute the ray trace results.
-        for (i, tx) in txs.iter().enumerate() {
-            let rays = results.slice(s![i, .., ..]);
-            let rays = tx.dot(&rays);
-            results.slice_mut(s![i + 1, .., ..]).assign(&rays);
+        let mut current = initial_rays;
+        for tx in &txs {
+            let next: Vec<ParaxialRay> = current
+                .iter()
+                .map(|r| ParaxialRay {
+                    height: tx.e[0][0] * r.height + tx.e[0][1] * r.angle,
+                    angle: tx.e[1][0] * r.height + tx.e[1][1] * r.angle,
+                })
+                .collect();
+            flat.extend_from_slice(&next);
+            current = next;
         }
 
-        Ok(results)
+        Ok(ParaxialRayBundle {
+            rays: flat,
+            num_surfaces,
+        })
     }
 }
 
@@ -875,31 +935,27 @@ fn surface_to_rtm(
     n_0: Float,
     n_1: Float,
 ) -> RayTransferMatrix {
-    let surface_type = surface.surface_type();
-
     match surface {
         // Conics and torics behave the same in paraxial subviews.
-        //Surface::Conic(_) | Surface::Toric(_) => match surface_type {
-        Surface::Conic(_) => match surface_type {
-            SurfaceType::Refracting => arr2(&[
-                [1.0, t],
-                [
-                    (n_0 - n_1) / n_1 / roc,
-                    t * (n_0 - n_1) / n_1 / roc + n_0 / n_1,
-                ],
-            ]),
+        Surface::Conic(_) => match surface.surface_type() {
+            SurfaceType::Refracting => Mat2x2::new(
+                1.0,
+                t,
+                (n_0 - n_1) / n_1 / roc,
+                t * (n_0 - n_1) / n_1 / roc + n_0 / n_1,
+            ),
 
             // -1.0 in the second row flips the angle upon reflection so that we don't have to do
             // acrobatics flipping by the +z-direction instead
-            SurfaceType::Reflecting => arr2(&[[1.0, t], [-2.0 / roc, -1.0 - 2.0 * t / roc]]),
+            SurfaceType::Reflecting => Mat2x2::new(1.0, t, -2.0 / roc, -1.0 - 2.0 * t / roc),
             SurfaceType::NoOp => panic!("Conics and torics cannot be NoOp surfaces."),
         },
-        Surface::Image(_) | Surface::Probe(_) | Surface::Stop(_) => arr2(&[[1.0, t], [0.0, 1.0]]),
-        Surface::Object(_) => arr2(&[[1.0, 0.0], [0.0, 1.0]]),
+        Surface::Image(_) | Surface::Probe(_) | Surface::Stop(_) => Mat2x2::new(1.0, t, 0.0, 1.0),
+        Surface::Object(_) => Mat2x2::identity(),
     }
 }
 
-fn argmin(ratios: &ArrayView1<Float>) -> usize {
+fn argmin(ratios: &[Float]) -> usize {
     ratios
         .iter()
         .enumerate()
@@ -918,7 +974,6 @@ fn argmin(ratios: &ArrayView1<Float>) -> usize {
 #[cfg(test)]
 mod test {
     use approx::assert_abs_diff_eq;
-    use ndarray::{arr1, arr3};
 
     use crate::examples::convexplano_lens;
     use crate::{
@@ -930,37 +985,77 @@ mod test {
 
     #[test]
     fn test_propagate() {
-        let rays = arr2(&[[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]);
-        let propagated = propagate(rays.view(), 2.0);
+        let rays = vec![
+            ParaxialRay {
+                height: 1.0,
+                angle: 4.0,
+            },
+            ParaxialRay {
+                height: 2.0,
+                angle: 5.0,
+            },
+            ParaxialRay {
+                height: 3.0,
+                angle: 6.0,
+            },
+        ];
+        let propagated = propagate(&rays, 2.0);
 
-        let expected = arr2(&[[9.0, 12.0, 15.0], [4.0, 5.0, 6.0]]);
-
-        assert_abs_diff_eq!(propagated, expected, epsilon = 1e-4);
+        assert_abs_diff_eq!(propagated[0].height, 9.0, epsilon = 1e-4);
+        assert_abs_diff_eq!(propagated[1].height, 12.0, epsilon = 1e-4);
+        assert_abs_diff_eq!(propagated[2].height, 15.0, epsilon = 1e-4);
+        assert_abs_diff_eq!(propagated[0].angle, 4.0, epsilon = 1e-4);
+        assert_abs_diff_eq!(propagated[1].angle, 5.0, epsilon = 1e-4);
+        assert_abs_diff_eq!(propagated[2].angle, 6.0, epsilon = 1e-4);
     }
 
     #[test]
     fn test_axis_intercepts() {
-        let rays = arr2(&[[1.0, 2.0, 3.0, 0.0], [4.0, 5.0, 6.0, 7.0]]);
-        let intercepts = axis_intercepts(rays.view()).unwrap();
+        let rays = vec![
+            ParaxialRay {
+                height: 1.0,
+                angle: 4.0,
+            },
+            ParaxialRay {
+                height: 2.0,
+                angle: 5.0,
+            },
+            ParaxialRay {
+                height: 3.0,
+                angle: 6.0,
+            },
+            ParaxialRay {
+                height: 0.0,
+                angle: 7.0,
+            },
+        ];
+        let intercepts = axis_intercepts(&rays).unwrap();
 
-        let expected = arr1(&[-0.25, -0.4, -0.5, 0.0]);
-
-        assert_abs_diff_eq!(intercepts, expected, epsilon = 1e-4);
+        assert_abs_diff_eq!(intercepts[0], -0.25, epsilon = 1e-4);
+        assert_abs_diff_eq!(intercepts[1], -0.4, epsilon = 1e-4);
+        assert_abs_diff_eq!(intercepts[2], -0.5, epsilon = 1e-4);
+        assert_abs_diff_eq!(intercepts[3], 0.0, epsilon = 1e-4);
     }
 
     #[test]
     fn test_axis_intercepts_divide_by_zero() {
-        let rays = arr2(&[[1.0], [0.0]]);
-        let intercepts = axis_intercepts(rays.view()).unwrap();
+        let rays = vec![ParaxialRay {
+            height: 1.0,
+            angle: 0.0,
+        }];
+        let intercepts = axis_intercepts(&rays).unwrap();
 
-        assert!(intercepts.shape() == [1]);
+        assert_eq!(intercepts.len(), 1);
         assert!(intercepts[0].is_infinite());
     }
 
     #[test]
     fn test_axis_intercepts_zero_height_divide_by_zero() {
-        let rays = arr2(&[[0.0], [0.0]]);
-        let intercepts = axis_intercepts(rays.view());
+        let rays = vec![ParaxialRay {
+            height: 0.0,
+            angle: 0.0,
+        }];
+        let intercepts = axis_intercepts(&rays);
 
         assert!(intercepts.is_err());
     }
@@ -1031,14 +1126,18 @@ mod test {
         let (view, _) = setup();
 
         let marginal_ray = view.marginal_ray();
-        let expected = arr3(&[
-            [[12.5000], [0.0]],
-            [[12.5000], [-0.1647]],
-            [[11.6271], [-0.2495]],
-            [[-0.0003], [-0.2495]],
-        ]);
+        let expected = [
+            (12.5000, 0.0),
+            (12.5000, -0.1647),
+            (11.6271, -0.2495),
+            (-0.0003, -0.2495),
+        ];
 
-        assert_abs_diff_eq!(*marginal_ray, expected, epsilon = 1e-4);
+        assert_eq!(marginal_ray.num_surfaces(), expected.len());
+        for (surface_rays, (exp_h, exp_a)) in marginal_ray.iter_surfaces().zip(expected.iter()) {
+            assert_abs_diff_eq!(surface_rays[0].height, *exp_h, epsilon = 1e-4);
+            assert_abs_diff_eq!(surface_rays[0].angle, *exp_a, epsilon = 1e-4);
+        }
     }
 
     #[test]
@@ -1058,14 +1157,20 @@ mod test {
         )
         .unwrap();
 
-        let expected = arr3(&[
-            [[1.0000], [0.0]],
-            [[1.0000], [-0.0132]],
-            [[0.9302], [-0.0200]],
-            [[0.0], [-0.0200]],
-        ]);
+        let expected = [
+            (1.0000, 0.0),
+            (1.0000, -0.0132),
+            (0.9302, -0.0200),
+            (0.0, -0.0200),
+        ];
 
-        assert_abs_diff_eq!(pseudo_marginal_ray, expected, epsilon = 1e-4);
+        assert_eq!(pseudo_marginal_ray.num_surfaces(), expected.len());
+        for (surface_rays, (exp_h, exp_a)) in
+            pseudo_marginal_ray.iter_surfaces().zip(expected.iter())
+        {
+            assert_abs_diff_eq!(surface_rays[0].height, *exp_h, epsilon = 1e-4);
+            assert_abs_diff_eq!(surface_rays[0].angle, *exp_a, epsilon = 1e-4);
+        }
     }
 
     #[test]
@@ -1085,8 +1190,14 @@ mod test {
         )
         .unwrap();
 
-        let expected = arr3(&[[[1.0000], [0.0]], [[1.0000], [0.0]], [[1.0000], [0.0200]]]);
+        let expected = [(1.0000, 0.0), (1.0000, 0.0), (1.0000, 0.0200)];
 
-        assert_abs_diff_eq!(reverse_parallel_ray, expected, epsilon = 1e-4);
+        assert_eq!(reverse_parallel_ray.num_surfaces(), expected.len());
+        for (surface_rays, (exp_h, exp_a)) in
+            reverse_parallel_ray.iter_surfaces().zip(expected.iter())
+        {
+            assert_abs_diff_eq!(surface_rays[0].height, *exp_h, epsilon = 1e-4);
+            assert_abs_diff_eq!(surface_rays[0].angle, *exp_a, epsilon = 1e-4);
+        }
     }
 }

@@ -32,7 +32,7 @@ serve:
   trunk serve
 
 test:
-  cargo test --all-features
+  cargo test --all-features --all-targets
 
 [doc("Run an integration test with tracing. Filter example: '[{ray_id=0}]=trace'")]
 [arg("filter", long, short="f")]
