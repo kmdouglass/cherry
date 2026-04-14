@@ -8,16 +8,17 @@ use serde::Serialize;
 use tracing::trace;
 
 use crate::{
-    Axis, Pupil,
+    Pupil,
     core::{
         Float, PI,
         math::vec3::Vec3,
-        sequential_model::{SequentialModel, SequentialSubModel, SubModelID, Surface},
+        sequential_model::{SequentialModel, SequentialSubModel, Surface},
     },
     specs::{
         aperture::ApertureSpec,
         fields::{FieldSpec, PupilSampling},
     },
+    views::paraxial::SubModelID,
 };
 
 use trace::trace;
@@ -60,14 +61,12 @@ pub struct TraceResultsCollection {
 /// The results of a 3D ray trace.
 ///
 /// This represents the results of a 3D ray trace for a single set of values of
-/// 1. wavelength ID,
-/// 2. field ID, and
-/// 3. axis.
+/// 1. wavelength ID and
+/// 2. field ID.
 #[derive(Debug, Serialize)]
 pub struct TraceResults {
     wavelength_id: usize,
     field_id: usize,
-    axis: Axis,
 
     /// A single chief ray through the pupil center.
     chief_ray: RayBundle,
@@ -118,14 +117,15 @@ pub fn ray_trace_3d_view(
                 wavelength_id,
             );
 
-            let submodel_id = SubModelID(wavelength_id, Axis::U);
             let sequential_submodel = sequential_model
                 .submodels()
-                .get(&submodel_id)
+                .get(&wavelength_id)
                 .ok_or_else(|| anyhow!("Submodel not found"))?;
+            let v_index = paraxial_view.v_index_for_phi(field_specs[field_id].tangential_fan_phi());
+            let paraxial_submodel_id = SubModelID(wavelength_id, v_index);
             let paraxial_subview = paraxial_view
                 .subviews()
-                .get(&submodel_id)
+                .get(&paraxial_submodel_id)
                 .ok_or_else(|| anyhow!("Submodel not found"))?;
 
             let field_spec = &field_specs[field_id];
@@ -181,7 +181,6 @@ pub fn ray_trace_3d_view(
             Ok(TraceResults {
                 wavelength_id,
                 field_id,
-                axis: Axis::U,
                 chief_ray,
                 full_pupil,
                 tangential_fan,
@@ -243,11 +242,6 @@ impl TraceResultsCollection {
 }
 
 impl TraceResults {
-    // Returns the axis of the ray bundle.
-    pub fn axis(&self) -> Axis {
-        self.axis
-    }
-
     // Returns the field ID of the ray bundle.
     pub fn field_id(&self) -> usize {
         self.field_id
@@ -805,7 +799,7 @@ mod tests {
         let rays = rays(
             s.sequential_model.surfaces(),
             &s.aperture_spec,
-            &s.paraxial_view.subviews()[&SubModelID(0, Axis::U)],
+            &s.paraxial_view.subviews()[&SubModelID(0, 0)],
             &s.field_specs[0],
             PupilSampling::TangentialRayFan { n: 3 },
         )
@@ -834,7 +828,7 @@ mod tests {
         let fan_rays = rays(
             seq_model.surfaces(),
             &aperture_spec,
-            &paraxial_view.subviews()[&SubModelID(0, Axis::U)],
+            &paraxial_view.subviews()[&SubModelID(0, 0)],
             &field_specs[0],
             PupilSampling::SagittalRayFan { n: 3 },
         )
@@ -860,7 +854,7 @@ mod tests {
         let result = rays(
             s.sequential_model.surfaces(),
             &s.aperture_spec,
-            &s.paraxial_view.subviews()[&SubModelID(0, Axis::U)],
+            &s.paraxial_view.subviews()[&SubModelID(0, 0)],
             &field_spec,
             PupilSampling::TangentialRayFan { n: 3 },
         );
@@ -879,7 +873,7 @@ mod tests {
         let rays = chief_ray_from_angle(
             s.sequential_model.surfaces(),
             &s.aperture_spec,
-            &s.paraxial_view.subviews()[&SubModelID(0, Axis::U)],
+            &s.paraxial_view.subviews()[&SubModelID(0, 0)],
             0.0,
             0.0,
         )
@@ -901,7 +895,7 @@ mod tests {
         let rays = chief_ray_from_angle(
             s.sequential_model.surfaces(),
             &s.aperture_spec,
-            &s.paraxial_view.subviews()[&SubModelID(0, Axis::U)],
+            &s.paraxial_view.subviews()[&SubModelID(0, 0)],
             PI / 2.0,
             0.08727, // 5 degrees
         )
@@ -922,7 +916,7 @@ mod tests {
 
         let rays = chief_ray_from_pos(
             &s.aperture_spec,
-            &s.paraxial_view.subviews()[&SubModelID(0, Axis::U)],
+            &s.paraxial_view.subviews()[&SubModelID(0, 0)],
             &Vec3::new(0.0, 0.0, -1.0),
         )
         .unwrap();
@@ -942,7 +936,7 @@ mod tests {
 
         let rays = chief_ray_from_pos(
             &s.aperture_spec,
-            &s.paraxial_view.subviews()[&SubModelID(0, Axis::U)],
+            &s.paraxial_view.subviews()[&SubModelID(0, 0)],
             &Vec3::new(0.0, -0.08749, -1.0),
         )
         .unwrap();
@@ -963,7 +957,7 @@ mod tests {
         let rays = parallel_ray_bundle_on_sq_grid(
             s.sequential_model.surfaces(),
             &s.aperture_spec,
-            &s.paraxial_view.subviews()[&SubModelID(0, Axis::U)],
+            &s.paraxial_view.subviews()[&SubModelID(0, 0)],
             1.0,
             0.0,
         );
@@ -975,7 +969,7 @@ mod tests {
         let rays = parallel_ray_bundle_on_sq_grid(
             s.sequential_model.surfaces(),
             &s.aperture_spec,
-            &s.paraxial_view.subviews()[&SubModelID(0, Axis::U)],
+            &s.paraxial_view.subviews()[&SubModelID(0, 0)],
             0.5,
             0.0,
         );
@@ -987,7 +981,7 @@ mod tests {
     #[test]
     fn test_point_source_ray_fan() {
         let s = setup();
-        let enp_radius = &s.paraxial_view.subviews()[&SubModelID(0, Axis::U)]
+        let enp_radius = &s.paraxial_view.subviews()[&SubModelID(0, 0)]
             .entrance_pupil()
             .semi_diameter;
         let expected_z_dir_cosines: [Float; 3] = [
@@ -998,7 +992,7 @@ mod tests {
 
         let rays = point_source_ray_fan(
             &s.aperture_spec,
-            &s.paraxial_view.subviews()[&SubModelID(0, Axis::U)],
+            &s.paraxial_view.subviews()[&SubModelID(0, 0)],
             3,
             PI / 2.0,
             &Vec3::new(0.0, 0.0, -1.0), // Point source located at z = -1.0
@@ -1020,7 +1014,7 @@ mod tests {
 
         let rays = point_source_ray_bundle_on_sq_grid(
             &s.aperture_spec,
-            &s.paraxial_view.subviews()[&SubModelID(0, Axis::U)],
+            &s.paraxial_view.subviews()[&SubModelID(0, 0)],
             1.0,
             &Vec3::new(0.0, 0.0, -1.0), // Point source located at z = -1.0
         );
@@ -1031,7 +1025,7 @@ mod tests {
 
         let rays = point_source_ray_bundle_on_sq_grid(
             &s.aperture_spec,
-            &s.paraxial_view.subviews()[&SubModelID(0, Axis::U)],
+            &s.paraxial_view.subviews()[&SubModelID(0, 0)],
             0.5,
             &Vec3::new(0.0, 0.0, -1.0), // Point source located at z = -1.0
         );
@@ -1119,10 +1113,7 @@ mod tests {
         let generated = rays(
             s.sequential_model.surfaces(),
             &s.aperture_spec,
-            s.paraxial_view
-                .subviews()
-                .get(&SubModelID(0, Axis::U))
-                .unwrap(),
+            s.paraxial_view.subviews().get(&SubModelID(0, 0)).unwrap(),
             &field_spec,
             PupilSampling::TangentialRayFan { n: 3 },
         )

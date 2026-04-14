@@ -1,9 +1,6 @@
 use std::collections::HashMap;
 
-use crate::{
-    Axis, core::sequential_model::SubModelID, gui::result_package::ResultPackage,
-    views::paraxial::ParaxialSubView,
-};
+use crate::{SubModelID, gui::result_package::ResultPackage, views::paraxial::ParaxialSubView};
 
 /// Floating paraxial summary output window.
 pub struct ParaxialWindow;
@@ -34,46 +31,47 @@ fn render_paraxial_content(ui: &mut egui::Ui, r: &ResultPackage) {
     let pv = r.paraxial.as_ref().unwrap();
     let subviews = pv.subviews();
 
-    // Collect unique axes, sorted R before U.
-    let mut axes: Vec<Axis> = subviews.keys().map(|id| id.1).collect();
-    axes.sort_by_key(|a| if *a == Axis::R { 0u8 } else { 1 });
-    axes.dedup();
-    let n_axes = axes.len();
+    // Collect unique v_indices, sorted ascending (ascending phi).
+    let mut v_indices: Vec<usize> = subviews.keys().map(|id| id.1).collect();
+    v_indices.sort_unstable();
+    v_indices.dedup();
+    let n_v = v_indices.len();
 
-    for (i, axis) in axes.iter().enumerate() {
-        if n_axes > 1 {
+    for (i, &v_idx) in v_indices.iter().enumerate() {
+        if n_v > 1 {
             if i > 0 {
                 ui.separator();
             }
-            let label = if *axis == Axis::R { "R Axis" } else { "U Axis" };
-            ui.heading(label);
+            let phi_deg = pv.phi_deg(v_idx);
+            ui.heading(format!("\u{03c6} = {phi_deg:.0}\u{00b0}"));
         }
 
-        // Subview IDs for this axis, sorted by wavelength_id.
+        // Subview IDs for this v_index, sorted by wavelength_id.
         let mut ids: Vec<SubModelID> = subviews
             .keys()
-            .filter(|id| id.1 == *axis)
+            .filter(|id| id.1 == v_idx)
             .copied()
             .collect();
         ids.sort_by_key(|id| id.0);
 
-        render_axis_table(ui, r, &ids, subviews);
+        render_v_table(ui, r, v_idx, &ids, subviews);
         ui.add_space(8.0);
     }
 
     // Primary Axial Color (only when there are multiple wavelengths).
     if r.wavelengths.len() > 1 {
         let pac = pv.primary_axial_color();
-        for axis in &axes {
-            if let Some(&color) = pac.get(axis) {
-                let axis_suffix = if n_axes > 1 {
-                    format!(" ({})", if *axis == Axis::R { "R" } else { "U" })
+        for &v_idx in &v_indices {
+            if let Some(&color) = pac.get(&v_idx) {
+                let phi_suffix = if n_v > 1 {
+                    let phi_deg = pv.phi_deg(v_idx);
+                    format!(" (\u{03c6} = {phi_deg:.0}\u{00b0})")
                 } else {
                     String::new()
                 };
                 ui.label(format!(
                     "Primary Axial Color{}: {}",
-                    axis_suffix,
+                    phi_suffix,
                     format_value(color)
                 ));
             }
@@ -82,99 +80,96 @@ fn render_paraxial_content(ui: &mut egui::Ui, r: &ResultPackage) {
     }
 }
 
-fn render_axis_table(
+fn render_v_table(
     ui: &mut egui::Ui,
     r: &ResultPackage,
+    v_idx: usize,
     ids: &[SubModelID],
     subviews: &HashMap<SubModelID, ParaxialSubView>,
 ) {
     let n_wl = ids.len();
     let n_cols = 1 + n_wl;
 
-    egui::Grid::new(format!(
-        "paraxial_{}",
-        ids.first()
-            .map_or("empty", |id| { if id.1 == Axis::R { "r" } else { "u" } })
-    ))
-    .num_columns(n_cols)
-    .spacing([20.0, 4.0])
-    .show(ui, |ui| {
-        // Wavelength header row — only when there are multiple wavelengths.
-        if n_wl > 1 {
-            ui.label(""); // empty label cell
+    egui::Grid::new(format!("paraxial_{v_idx}"))
+        .num_columns(n_cols)
+        .spacing([20.0, 4.0])
+        .show(ui, |ui| {
+            // Wavelength header row — only when there are multiple wavelengths.
+            if n_wl > 1 {
+                ui.label(""); // empty label cell
+                for id in ids {
+                    let wl_label = r
+                        .wavelengths
+                        .get(id.0)
+                        .map(|wl| format!("{wl:.4} \u{00b5}m"))
+                        .unwrap_or_else(|| format!("WL {}", id.0));
+                    ui.label(wl_label);
+                }
+                ui.end_row();
+                // Separator row.
+                for _ in 0..n_cols {
+                    ui.separator();
+                }
+                ui.end_row();
+            }
+
+            multi_row(ui, "EFL", ids, subviews, |sv| *sv.effective_focal_length());
+            multi_row(ui, "BFD", ids, subviews, |sv| *sv.back_focal_distance());
+            multi_row(ui, "FFD", ids, subviews, |sv| *sv.front_focal_distance());
+
+            sep_row(ui, n_cols);
+
+            multi_row(
+                ui,
+                "Entrance pupil dist. from first surface",
+                ids,
+                subviews,
+                |sv| sv.entrance_pupil().location,
+            );
+            multi_row(ui, "Entrance pupil semi-diameter", ids, subviews, |sv| {
+                sv.entrance_pupil().semi_diameter
+            });
+            multi_row(
+                ui,
+                "Exit pupil dist. from last surface",
+                ids,
+                subviews,
+                |sv| sv.exit_pupil().location,
+            );
+            multi_row(ui, "Exit pupil semi-diameter", ids, subviews, |sv| {
+                sv.exit_pupil().semi_diameter
+            });
+
+            sep_row(ui, n_cols);
+
+            multi_row(
+                ui,
+                "Front principal plane dist. from first surface",
+                ids,
+                subviews,
+                |sv| *sv.front_principal_plane(),
+            );
+            multi_row(
+                ui,
+                "Back principal plane dist. from last surface",
+                ids,
+                subviews,
+                |sv| *sv.back_principal_plane(),
+            );
+
+            sep_row(ui, n_cols);
+
+            // Aperture stop is an integer index; format it without decimals.
+            ui.label("Aperture stop (surface)");
             for id in ids {
-                let wl_label = r
-                    .wavelengths
-                    .get(id.0)
-                    .map(|wl| format!("{wl:.4} \u{00b5}m"))
-                    .unwrap_or_else(|| format!("WL {}", id.0));
-                ui.label(wl_label);
+                if let Some(sv) = subviews.get(id) {
+                    ui.label(sv.aperture_stop().to_string());
+                } else {
+                    ui.label("\u{2014}");
+                }
             }
             ui.end_row();
-            // Separator row.
-            for _ in 0..n_cols {
-                ui.separator();
-            }
-            ui.end_row();
-        }
-
-        multi_row(ui, "EFL", ids, subviews, |sv| *sv.effective_focal_length());
-        multi_row(ui, "BFD", ids, subviews, |sv| *sv.back_focal_distance());
-        multi_row(ui, "FFD", ids, subviews, |sv| *sv.front_focal_distance());
-
-        sep_row(ui, n_cols);
-
-        multi_row(
-            ui,
-            "Entrance pupil dist. from first surface",
-            ids,
-            subviews,
-            |sv| sv.entrance_pupil().location,
-        );
-        multi_row(ui, "Entrance pupil semi-diameter", ids, subviews, |sv| {
-            sv.entrance_pupil().semi_diameter
         });
-        multi_row(
-            ui,
-            "Exit pupil dist. from last surface",
-            ids,
-            subviews,
-            |sv| sv.exit_pupil().location,
-        );
-        multi_row(ui, "Exit pupil semi-diameter", ids, subviews, |sv| {
-            sv.exit_pupil().semi_diameter
-        });
-
-        sep_row(ui, n_cols);
-
-        multi_row(
-            ui,
-            "Front principal plane dist. from first surface",
-            ids,
-            subviews,
-            |sv| *sv.front_principal_plane(),
-        );
-        multi_row(
-            ui,
-            "Back principal plane dist. from last surface",
-            ids,
-            subviews,
-            |sv| *sv.back_principal_plane(),
-        );
-
-        sep_row(ui, n_cols);
-
-        // Aperture stop is an integer index; format it without decimals.
-        ui.label("Aperture stop (surface)");
-        for id in ids {
-            if let Some(sv) = subviews.get(id) {
-                ui.label(sv.aperture_stop().to_string());
-            } else {
-                ui.label("\u{2014}");
-            }
-        }
-        ui.end_row();
-    });
 }
 
 fn sep_row(ui: &mut egui::Ui, n_cols: usize) {

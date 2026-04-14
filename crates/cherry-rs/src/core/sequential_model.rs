@@ -4,7 +4,6 @@ use std::fmt::{Display, Formatter};
 use std::ops::Range;
 
 use anyhow::{Result, anyhow};
-use serde::{Deserialize, Serialize, Serializer};
 use tracing::trace;
 
 use crate::core::{
@@ -16,17 +15,6 @@ use crate::specs::{
     gaps::GapSpec,
     surfaces::{SurfaceSpec, SurfaceType},
 };
-
-/// The transverse direction along which system properties will be computed with
-/// respect to the cursor reference frame of the system.
-///
-/// `R` is the cursor-right (initially global X) direction; `U` is the
-/// cursor-up (initially global Y) direction.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum Axis {
-    R,
-    U,
-}
 
 /// A gap between two surfaces in a sequential system.
 #[derive(Debug)]
@@ -46,7 +34,7 @@ pub struct Gap {
 #[derive(Debug)]
 pub struct SequentialModel {
     surfaces: Vec<Surface>,
-    submodels: HashMap<SubModelID, SequentialSubModelBase>,
+    submodels: HashMap<usize, SequentialSubModelBase>,
     wavelengths: Vec<Float>,
     axis_directions: Vec<Vec3>,
 }
@@ -150,14 +138,6 @@ pub struct SequentialSubModelSlice<'a> {
     gaps: &'a [Gap],
 }
 
-/// A unique identifier for a submodel.
-///
-/// The first element is the index of the wavelength in the system's list of
-/// wavelengths. The second element is the transverse axis along which the model
-/// is computed.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct SubModelID(pub usize, pub Axis);
-
 /// An iterator over the surfaces and gaps in a submodel.
 ///
 /// Most operations in sequential modeling involve use of this iterator.
@@ -248,6 +228,37 @@ pub struct Stop {
 //    surface_type: SurfaceType,
 //}
 
+/// Propagates a tangential direction unit vector through the mirror surfaces of
+/// a system using the vector law of reflection.
+///
+/// Returns one `Vec3` per surface (same indexing as `surfaces`). Each entry is
+/// the **incident** direction at that surface (before any reflection). At a
+/// reflecting surface the returned vector is the direction arriving at the
+/// surface; subsequent surfaces receive the post-reflection direction as their
+/// incident vector. The vector is expressed in global coordinates throughout.
+pub(crate) fn propagate_tangential_vec(v_init: Vec3, surfaces: &[Surface]) -> Vec<Vec3> {
+    use crate::specs::surfaces::SurfaceType;
+    let mut v = v_init;
+    surfaces
+        .iter()
+        .map(|surf| {
+            let v_incident = v;
+            if let SurfaceType::Reflecting = surf.surface_type() {
+                // Normal in global frame: third column of inv_rotation_matrix
+                // (maps local Z to global).
+                let n = surf.inv_rot_mat() * Vec3::new(0.0, 0.0, 1.0);
+                let dot = v.x() * n.x() + v.y() * n.y() + v.z() * n.z();
+                v = Vec3::new(
+                    v.x() - 2.0 * dot * n.x(),
+                    v.y() - 2.0 * dot * n.y(),
+                    v.z() - 2.0 * dot * n.z(),
+                );
+            }
+            v_incident
+        })
+        .collect()
+}
+
 /// Returns the index of the first physical surface in the system.
 /// This is the first surface that is not an object, image, or probe surface.
 /// If no such surface exists, then the function returns None.
@@ -336,13 +347,10 @@ impl SequentialModel {
 
         let (surfaces, axis_directions) = Self::surf_specs_to_surfs(surface_specs, gap_specs);
 
-        let model_ids: Vec<SubModelID> = Self::calc_model_ids(&surfaces, wavelengths);
-        let mut models: HashMap<SubModelID, SequentialSubModelBase> = HashMap::new();
-        for model_id in model_ids.iter() {
-            let wavelength = wavelengths[model_id.0];
+        let mut models: HashMap<usize, SequentialSubModelBase> = HashMap::new();
+        for (wav_idx, &wavelength) in wavelengths.iter().enumerate() {
             let gaps = Self::gap_specs_to_gaps(gap_specs, wavelength)?;
-            let model = SequentialSubModelBase::new(gaps);
-            models.insert(*model_id, model);
+            models.insert(wav_idx, SequentialSubModelBase::new(gaps));
         }
 
         Ok(Self {
@@ -351,22 +359,6 @@ impl SequentialModel {
             wavelengths: wavelengths.to_vec(),
             axis_directions,
         })
-    }
-
-    /// Returns the axes along which the system is modeled.
-    pub fn axes(&self) -> Vec<Axis> {
-        // Loop over submodel IDs and extract all axes
-        let mut axes = Vec::new();
-        for id in self.submodels.keys() {
-            // Avoid duplicates just in case
-            if axes.contains(&id.1) {
-                continue;
-            }
-
-            axes.push(id.1);
-        }
-
-        axes
     }
 
     /// Returns the largest semi-diameter of any surface in the system.
@@ -390,8 +382,13 @@ impl SequentialModel {
         &self.surfaces
     }
 
-    /// Returns the submodels in the system.
-    pub fn submodels(&self) -> &HashMap<SubModelID, impl SequentialSubModel + use<>> {
+    /// Returns the wavelength-indexed submodels of the system.
+    ///
+    /// Each entry is keyed by the wavelength index (0-based, matching the order
+    /// passed to `new`). Tangential-direction splitting is handled by
+    /// `ParaxialView`, which builds one paraxial subview per wavelength ×
+    /// tangential-vector combination.
+    pub fn submodels(&self) -> &HashMap<usize, impl SequentialSubModel + use<>> {
         &self.submodels
     }
 
@@ -405,25 +402,6 @@ impl SequentialModel {
         &self.axis_directions
     }
 
-    /// Computes the unique IDs for each paraxial model.
-    fn calc_model_ids(surfaces: &[Surface], wavelengths: &[Float]) -> Vec<SubModelID> {
-        let mut ids = Vec::new();
-
-        let axes: Vec<Axis> = if Self::is_rotationally_symmetric(surfaces) {
-            vec![Axis::U]
-        } else {
-            vec![Axis::R, Axis::U]
-        };
-
-        for (idx, _wavelength) in wavelengths.iter().enumerate() {
-            for axis in axes.iter() {
-                let id = SubModelID(idx, *axis);
-                ids.push(id);
-            }
-        }
-        ids
-    }
-
     fn gap_specs_to_gaps(gap_specs: &[GapSpec], wavelength: Float) -> Result<Vec<Gap>> {
         let mut gaps = Vec::new();
         for gap_spec in gap_specs.iter() {
@@ -435,7 +413,7 @@ impl SequentialModel {
 
     /// Returns true if the system is rotationally symmetric about the optical
     /// axis.
-    fn is_rotationally_symmetric(surfaces: &[Surface]) -> bool {
+    pub fn is_rotationally_symmetric(surfaces: &[Surface]) -> bool {
         !surfaces.iter().any(|surf| {
             let r_surf = match surf {
                 Surface::Conic(c) => {
@@ -550,26 +528,6 @@ impl SequentialSubModel for SequentialSubModelSlice<'_> {
 
     fn try_iter<'b>(&'b self, surfaces: &'b [Surface]) -> Result<SequentialSubModelIter<'b>> {
         SequentialSubModelIter::new(surfaces, self.gaps)
-    }
-}
-
-impl Serialize for SubModelID {
-    // Serialize as a string like "0:Y" because tuples as map keys are difficult to
-    // work with in languages like Javascript.
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        // Serialize as a string like "0:Y"
-        let key = format!(
-            "{}:{}",
-            self.0,
-            match self.1 {
-                Axis::R => "R",
-                Axis::U => "U",
-            }
-        );
-        serializer.serialize_str(&key)
     }
 }
 
@@ -795,11 +753,8 @@ impl Surface {
         r_transv > r_max * r_max
     }
 
-    pub(crate) fn roc(&self, axis: &Axis) -> Float {
-        match axis {
-            Axis::R => self.rocx(),
-            Axis::U => self.rocy(),
-        }
+    pub(crate) fn roc(&self) -> Float {
+        self.rocx()
     }
 
     /// The radius of curvature in the horizontal direction.
@@ -807,15 +762,6 @@ impl Surface {
         match self {
             Self::Conic(conic) => conic.radius_of_curvature,
             //Self::Toric(toric) => toric.radius_of_curvature_x,
-            _ => Float::INFINITY,
-        }
-    }
-
-    /// The radius of curvature in the vertical direction.
-    fn rocy(&self) -> Float {
-        match self {
-            Self::Conic(conic) => conic.radius_of_curvature,
-            //Self::Toric(toric) => toric.radius_of_curvature_y,
             _ => Float::INFINITY,
         }
     }
@@ -887,16 +833,19 @@ impl Surface {
     }
 
     /// Returns the semi-diameter of the surface as seen by a paraxial ray
-    /// traveling along the cursor axis in the given transverse direction.
+    /// traveling along the cursor axis in the tangential plane defined by `v`.
+    ///
+    /// `v` is a unit vector in the global frame that lies in the transverse
+    /// (R–U) plane and defines the meridional plane of interest (e.g.
+    /// `(1, 0, 0)` for the R/XZ plane, `(0, 1, 0)` for the U/YZ plane).
     ///
     /// For a tilted surface, the clear aperture radius `r` is in the surface's
     /// local plane.  A paraxial ray at cursor height `h` intersects the surface
     /// at a transverse distance larger than `h` by a foreshortening factor, so
-    /// the effective limit on cursor height is `r · |n_F| / sqrt(n_axis² +
-    /// n_F²)` where `(n_R, n_U, n_F)` are the surface-normal components in
-    /// the cursor frame and `n_axis` is the component along the queried
-    /// axis.
-    pub(crate) fn projected_semi_diameter(&self, axis: &Axis) -> Float {
+    /// the effective limit on cursor height is `r · |n_F| / sqrt(n_φ² + n_F²)`
+    /// where `(n_R, n_U, n_F)` are the surface-normal components in the cursor
+    /// frame and `n_φ = n_R · v_x + n_U · v_y` is the component along `v`.
+    pub(crate) fn projected_semi_diameter(&self, v: Vec3) -> Float {
         let (r, rotation_matrix, rotation_matrix_global_to_cursor) = match self {
             Self::Conic(c) => (
                 c.semi_diameter,
@@ -920,10 +869,9 @@ impl Surface {
         let n_u = r_surf.e[2][1];
         let n_f = r_surf.e[2][2];
 
-        let denom = match axis {
-            Axis::U => (n_u * n_u + n_f * n_f).sqrt(),
-            Axis::R => (n_r * n_r + n_f * n_f).sqrt(),
-        };
+        // Component of the surface normal along the tangential direction v.
+        let n_phi = n_r * v.x() + n_u * v.y();
+        let denom = (n_phi * n_phi + n_f * n_f).sqrt();
 
         if denom < 1e-12 {
             return 0.0;
@@ -957,10 +905,7 @@ impl Display for Surface {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        EulerAngles, Rotation3D, core::Float, examples::convexplano_lens::sequential_model, n,
-        specs::surfaces::SurfaceType,
-    };
+    use crate::{EulerAngles, Rotation3D, core::Float, n, specs::surfaces::SurfaceType};
 
     // Helper: build a Conic surface with the given semi-diameter and rotation spec
     // in an identity cursor frame.
@@ -986,15 +931,17 @@ mod tests {
         let r = 10.0;
         let surf = conic_with_rotation(r, Rotation3D::None);
         let tol = 1e-12;
+        let v_u = Vec3::new(0.0, 1.0, 0.0);
+        let v_r = Vec3::new(1.0, 0.0, 0.0);
         assert!(
-            (surf.projected_semi_diameter(&Axis::U) - r).abs() < tol,
+            (surf.projected_semi_diameter(v_u) - r).abs() < tol,
             "U axis: expected {r}, got {}",
-            surf.projected_semi_diameter(&Axis::U)
+            surf.projected_semi_diameter(v_u)
         );
         assert!(
-            (surf.projected_semi_diameter(&Axis::R) - r).abs() < tol,
+            (surf.projected_semi_diameter(v_r) - r).abs() < tol,
             "R axis: expected {r}, got {}",
-            surf.projected_semi_diameter(&Axis::R)
+            surf.projected_semi_diameter(v_r)
         );
     }
 
@@ -1008,16 +955,18 @@ mod tests {
             Rotation3D::IntrinsicPassiveRUF(EulerAngles(theta, 0.0, 0.0)),
         );
         let tol = 1e-10;
+        let v_u = Vec3::new(0.0, 1.0, 0.0);
+        let v_r = Vec3::new(1.0, 0.0, 0.0);
         assert!(
-            (surf.projected_semi_diameter(&Axis::U) - r * theta.cos()).abs() < tol,
+            (surf.projected_semi_diameter(v_u) - r * theta.cos()).abs() < tol,
             "U axis: expected {}, got {}",
             r * theta.cos(),
-            surf.projected_semi_diameter(&Axis::U)
+            surf.projected_semi_diameter(v_u)
         );
         assert!(
-            (surf.projected_semi_diameter(&Axis::R) - r).abs() < tol,
+            (surf.projected_semi_diameter(v_r) - r).abs() < tol,
             "R axis: expected {r}, got {}",
-            surf.projected_semi_diameter(&Axis::R)
+            surf.projected_semi_diameter(v_r)
         );
     }
 
@@ -1031,16 +980,18 @@ mod tests {
             Rotation3D::IntrinsicPassiveRUF(EulerAngles(0.0, psi, 0.0)),
         );
         let tol = 1e-10;
+        let v_u = Vec3::new(0.0, 1.0, 0.0);
+        let v_r = Vec3::new(1.0, 0.0, 0.0);
         assert!(
-            (surf.projected_semi_diameter(&Axis::R) - r * psi.cos()).abs() < tol,
+            (surf.projected_semi_diameter(v_r) - r * psi.cos()).abs() < tol,
             "R axis: expected {}, got {}",
             r * psi.cos(),
-            surf.projected_semi_diameter(&Axis::R)
+            surf.projected_semi_diameter(v_r)
         );
         assert!(
-            (surf.projected_semi_diameter(&Axis::U) - r).abs() < tol,
+            (surf.projected_semi_diameter(v_u) - r).abs() < tol,
             "U axis: expected {r}, got {}",
-            surf.projected_semi_diameter(&Axis::U)
+            surf.projected_semi_diameter(v_u)
         );
     }
 
@@ -1056,21 +1007,55 @@ mod tests {
         let r = 12.7_f64;
         let expected_u = r * (30.0_f64.to_radians()).cos();
         let tol = 1e-10;
+        let v_u = Vec3::new(0.0, 1.0, 0.0);
+        let v_r = Vec3::new(1.0, 0.0, 0.0);
 
         // Surface indices: 0 = Object, 1 = Mirror 1, 2 = Mirror 2, 3 = Image
         for &mirror_idx in &[1usize, 2usize] {
             let surf = &surfaces[mirror_idx];
             assert!(
-                (surf.projected_semi_diameter(&Axis::U) - expected_u).abs() < tol,
+                (surf.projected_semi_diameter(v_u) - expected_u).abs() < tol,
                 "Mirror {mirror_idx} U: expected {expected_u}, got {}",
-                surf.projected_semi_diameter(&Axis::U)
+                surf.projected_semi_diameter(v_u)
             );
             assert!(
-                (surf.projected_semi_diameter(&Axis::R) - r).abs() < tol,
+                (surf.projected_semi_diameter(v_r) - r).abs() < tol,
                 "Mirror {mirror_idx} R: expected {r}, got {}",
-                surf.projected_semi_diameter(&Axis::R)
+                surf.projected_semi_diameter(v_r)
             );
         }
+    }
+
+    /// Each entry in the result is the *incident* direction at that surface.
+    ///
+    /// Mirror normal in global frame (30° passive rotation about X):
+    ///   n = (0, −sin30°, cos30°) = (0, −0.5, √3/2)
+    ///
+    /// Incident at Mirror 1 (surface 1): v = v_init = (0, 1, 0)
+    /// Reflected by Mirror 1: v' = Y − 2(−0.5)·n = (0, 0.5, √3/2)
+    /// Incident at Mirror 2 (surface 2): v = (0, 0.5, √3/2)
+    #[test]
+    fn propagate_tangential_vec_through_fold() {
+        use crate::examples::mirrors_figure_z;
+        use approx::assert_abs_diff_eq;
+
+        let model = mirrors_figure_z::sequential_model(n!(1.0), &[0.5876]);
+        let surfaces = model.surfaces();
+        let v_init = Vec3::new(0.0, 1.0, 0.0); // phi = 90°
+
+        let vecs = propagate_tangential_vec(v_init, surfaces);
+
+        let sqrt3_over_2 = (3.0_f64 / 4.0_f64).sqrt();
+
+        // Incident at Mirror 1 (surface 1): unchanged from v_init
+        assert_abs_diff_eq!(vecs[1].x(), 0.0, epsilon = 1e-10);
+        assert_abs_diff_eq!(vecs[1].y(), 1.0, epsilon = 1e-10);
+        assert_abs_diff_eq!(vecs[1].z(), 0.0, epsilon = 1e-10);
+
+        // Incident at Mirror 2 (surface 2): reflected from Mirror 1 = (0, 0.5, √3/2)
+        assert_abs_diff_eq!(vecs[2].x(), 0.0, epsilon = 1e-10);
+        assert_abs_diff_eq!(vecs[2].y(), 0.5, epsilon = 1e-10);
+        assert_abs_diff_eq!(vecs[2].z(), sqrt3_over_2, epsilon = 1e-10);
     }
 
     #[test]
@@ -1113,32 +1098,6 @@ mod tests {
         assert!(!SequentialModel::is_rotationally_symmetric(
             figure_z.surfaces()
         ));
-    }
-
-    #[test]
-    fn test_calc_model_ids() {
-        let air = n!(1.0);
-        let nbk7 = n!(1.515);
-        let wavelengths: [Float; 2] = [0.4, 0.6];
-        let sequential_model = sequential_model(air, nbk7, &wavelengths);
-        let surfaces = sequential_model.surfaces();
-
-        let model_ids = SequentialModel::calc_model_ids(surfaces, &wavelengths);
-
-        assert_eq!(model_ids.len(), 2); // Two wavelengths, rotationally
-        // symmetric
-    }
-
-    #[test]
-    fn test_axes() {
-        let air = n!(1.0);
-        let nbk7 = n!(1.515);
-        let wavelengths: [Float; 1] = [0.5876];
-        let sequential_model = sequential_model(air, nbk7, &wavelengths);
-        let axes = sequential_model.axes();
-
-        assert_eq!(axes.len(), 1); // Rotationally symmetric
-        assert_eq!(axes[0], Axis::U);
     }
 
     #[test]

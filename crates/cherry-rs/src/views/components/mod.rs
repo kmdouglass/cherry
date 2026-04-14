@@ -64,9 +64,7 @@ pub fn components_view(
 
     let sequential_sub_model = sequential_model
         .submodels()
-        .iter()
-        .find(|(id, _)| id.0 == 0)
-        .map(|(_, m)| m)
+        .get(&0usize)
         .ok_or(anyhow!("No submodel found for wavelength index 0."))?;
     let gaps = sequential_sub_model.gaps();
 
