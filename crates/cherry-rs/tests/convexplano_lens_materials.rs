@@ -11,7 +11,7 @@ mod test_ri_info {
     use lib_ria::Store;
 
     use cherry_rs::examples::convexplano_lens::sequential_model;
-    use cherry_rs::{Axis, FieldSpec, ParaxialView};
+    use cherry_rs::{FieldSpec, ParaxialView};
 
     pub fn load_store() -> Result<Store> {
         let filename = std::path::PathBuf::from("data/rii.db");
@@ -37,9 +37,11 @@ mod test_ri_info {
     ];
 
     // Paraxial property values
-    fn primary_axial_color() -> HashMap<Axis, f64> {
+    // primary_axial_color is keyed by v_index; for a single phi=90° field,
+    // v_index=0.
+    fn primary_axial_color() -> HashMap<usize, f64> {
         let mut primary_axial_color = HashMap::new();
-        primary_axial_color.insert(Axis::U, 0.7743);
+        primary_axial_color.insert(0usize, 0.7743);
         primary_axial_color
     }
 

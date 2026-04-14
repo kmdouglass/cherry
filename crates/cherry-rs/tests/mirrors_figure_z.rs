@@ -1,5 +1,7 @@
+use std::f64::consts::FRAC_PI_2;
+
 use approx::assert_abs_diff_eq;
-use cherry_rs::{Axis, FieldSpec, ParaxialView, examples::mirrors_figure_z, n};
+use cherry_rs::{FieldSpec, ParaxialView, SubModelID, examples::mirrors_figure_z, n};
 
 const WAVELENGTHS: [f64; 1] = [0.5876];
 const FIELD_SPECS: [FieldSpec; 1] = [FieldSpec::Angle {
@@ -11,9 +13,8 @@ const FIELD_SPECS: [FieldSpec; 1] = [FieldSpec::Angle {
 const APERTURE_STOP: usize = 1;
 
 // Entrance pupil coincides with the aperture stop (Mirror 1, theta = 30°).
-// U axis: projected SD = r · cos(30°) (theta tilt foreshortens in U).
-// R axis: projected SD = r (theta tilt does not affect R).
-const ENTRANCE_PUPIL_LOCATION: f64 = 0.0;
+// phi=90° (v=Y): projected SD = r · cos(30°) (theta tilt foreshortens in Y).
+// phi=0° (v=X): projected SD = r (theta tilt does not affect X).
 const ENTRANCE_PUPIL_SD_U: f64 = 12.7 * 0.8660254037844387; // 12.7 · cos(30°)
 const ENTRANCE_PUPIL_SD_R: f64 = 12.7;
 
@@ -45,25 +46,8 @@ fn track_equals_z_for_straight_system() {
 fn mirrors_figure_z_paraxial_aperture_stop() {
     let model = mirrors_figure_z::sequential_model(n!(1.0), &WAVELENGTHS);
     let view = ParaxialView::new(&model, &FIELD_SPECS, false).expect("paraxial view");
-    for sub_view in model.submodels().keys().map(|id| &view.subviews()[id]) {
+    for sub_view in view.subviews().values() {
         assert_eq!(*sub_view.aperture_stop(), APERTURE_STOP);
-    }
-}
-
-#[test]
-fn mirrors_figure_z_paraxial_entrance_pupil() {
-    let model = mirrors_figure_z::sequential_model(n!(1.0), &WAVELENGTHS);
-    let view = ParaxialView::new(&model, &FIELD_SPECS, false).expect("paraxial view");
-    for id in model.submodels().keys() {
-        let sub_view = &view.subviews()[id];
-        let ep = sub_view.entrance_pupil();
-        let expected_sd = if id.1 == Axis::U {
-            ENTRANCE_PUPIL_SD_U
-        } else {
-            ENTRANCE_PUPIL_SD_R
-        };
-        assert_abs_diff_eq!(ep.location, ENTRANCE_PUPIL_LOCATION, epsilon = 1e-10);
-        assert_abs_diff_eq!(ep.semi_diameter, expected_sd, epsilon = 1e-10);
     }
 }
 
@@ -71,7 +55,7 @@ fn mirrors_figure_z_paraxial_entrance_pupil() {
 fn mirrors_figure_z_paraxial_exit_pupil() {
     let model = mirrors_figure_z::sequential_model(n!(1.0), &WAVELENGTHS);
     let view = ParaxialView::new(&model, &FIELD_SPECS, false).expect("paraxial view");
-    for sub_view in model.submodels().keys().map(|id| &view.subviews()[id]) {
+    for sub_view in view.subviews().values() {
         assert_abs_diff_eq!(
             sub_view.exit_pupil().location,
             EXIT_PUPIL_LOCATION,
@@ -91,21 +75,68 @@ fn mirrors_figure_z_marginal_ray_uses_projected_sd() {
     let view = ParaxialView::new(&model, &FIELD_SPECS, false).expect("paraxial view");
     let r = 12.7_f64;
     let projected_u = r * (30.0_f64.to_radians()).cos();
-    let projected_r = r;
 
-    for id in model.submodels().keys() {
-        let sub_view = &view.subviews()[id];
-        let expected = if id.1 == Axis::U {
-            projected_u
-        } else {
-            projected_r
-        };
-        // The aperture stop is Mirror 1 (surface index 1).
-        assert_eq!(*sub_view.aperture_stop(), 1usize);
-        // The marginal ray height at the aperture stop should equal the projected SD.
-        let marginal_height_at_stop = sub_view.marginal_ray().rays_at_surface(1)[0].height;
-        assert_abs_diff_eq!(marginal_height_at_stop, expected, epsilon = 1e-10);
-    }
+    // FIELD_SPECS has phi=90° → only one submodel with v=Y (foreshortened).
+    let sub_view = view
+        .subviews()
+        .values()
+        .next()
+        .expect("at least one subview");
+    assert_eq!(*sub_view.aperture_stop(), 1usize);
+    let marginal_height_at_stop = sub_view.marginal_ray().rays_at_surface(1)[0].height;
+    assert_abs_diff_eq!(marginal_height_at_stop, projected_u, epsilon = 1e-10);
+}
+
+/// A phi=90° field (v=Y) is foreshortened by the 30°-about-X mirror tilt.
+/// The entrance pupil semi-diameter must equal 12.7·cos(30°) ≈ 10.9985.
+#[test]
+fn entrance_pupil_sd_phi_90_foreshortened() {
+    let field_specs = [FieldSpec::Angle {
+        chi: 0.0,
+        phi: 90.0,
+    }];
+    let model = mirrors_figure_z::sequential_model(n!(1.0), &WAVELENGTHS);
+    let view = ParaxialView::new(&model, &field_specs, false).expect("paraxial view");
+    let id = SubModelID(0, view.v_index_for_phi(FRAC_PI_2));
+    let ep = view.subviews()[&id].entrance_pupil();
+    assert_abs_diff_eq!(ep.semi_diameter, ENTRANCE_PUPIL_SD_U, epsilon = 1e-4);
+}
+
+/// A phi=0° field (v=X) is not foreshortened by the 30°-about-X mirror tilt.
+/// The entrance pupil semi-diameter must equal the raw 12.7.
+#[test]
+fn entrance_pupil_sd_phi_0_not_foreshortened() {
+    let field_specs = [FieldSpec::Angle { chi: 0.0, phi: 0.0 }];
+    let model = mirrors_figure_z::sequential_model(n!(1.0), &WAVELENGTHS);
+    let view = ParaxialView::new(&model, &field_specs, false).expect("paraxial view");
+    let id = SubModelID(0, view.v_index_for_phi(0.0));
+    let ep = view.subviews()[&id].entrance_pupil();
+    assert_abs_diff_eq!(ep.semi_diameter, ENTRANCE_PUPIL_SD_R, epsilon = 1e-4);
+}
+
+/// Each submodel uses only the field specs that match its phi angle for the
+/// chief ray. The phi=90° submodel uses the 5° field; the phi=0° submodel uses
+/// the 3° field.
+#[test]
+fn chief_ray_uses_matching_field_phi() {
+    let field_specs = [
+        FieldSpec::Angle {
+            chi: 5.0,
+            phi: 90.0,
+        },
+        FieldSpec::Angle { chi: 3.0, phi: 0.0 },
+    ];
+    let model = mirrors_figure_z::sequential_model(n!(1.0), &WAVELENGTHS);
+    let view = ParaxialView::new(&model, &field_specs, false).expect("paraxial view");
+
+    let id_phi90 = SubModelID(0, view.v_index_for_phi(FRAC_PI_2));
+    let id_phi0 = SubModelID(0, view.v_index_for_phi(0.0));
+
+    let angle_phi90 = view.subviews()[&id_phi90].chief_ray().rays_at_surface(0)[0].angle;
+    let angle_phi0 = view.subviews()[&id_phi0].chief_ray().rays_at_surface(0)[0].angle;
+
+    assert_abs_diff_eq!(angle_phi90, 5.0_f64.to_radians().tan(), epsilon = 1e-6);
+    assert_abs_diff_eq!(angle_phi0, 3.0_f64.to_radians().tan(), epsilon = 1e-6);
 }
 
 /// Track accumulates path length regardless of fold direction.

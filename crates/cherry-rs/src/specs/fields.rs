@@ -1,7 +1,7 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
-use crate::core::{Float, PI};
+use crate::core::{Float, PI, math::vec3::Vec3};
 
 /// Specifies a pupil sampling method.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
@@ -49,6 +49,25 @@ pub enum FieldSpec {
     ///
     /// (0, 0) corresponds to the optical axis.
     PointSource { x: Float, y: Float },
+}
+
+/// Returns the unique tangential direction vectors for a set of field specs,
+/// sorted by ascending phi (radians).
+///
+/// Each `FieldSpec` contributes one phi key via `tangential_fan_phi()`. Keys
+/// are deduplicated by exact float equality (bit-identical values share a
+/// submodel). Returns `vec![(0, 1, 0)]` (v = Y, phi = 90°) when `field_specs`
+/// is empty.
+pub fn unique_tangential_vecs(field_specs: &[FieldSpec]) -> Vec<Vec3> {
+    if field_specs.is_empty() {
+        return vec![Vec3::new(0.0, 1.0, 0.0)];
+    }
+    let mut phis: Vec<Float> = field_specs.iter().map(|f| f.tangential_fan_phi()).collect();
+    phis.sort_by(|a, b| a.total_cmp(b));
+    phis.dedup();
+    phis.iter()
+        .map(|&phi| Vec3::new(phi.cos(), phi.sin(), 0.0))
+        .collect()
 }
 
 impl PupilSampling {

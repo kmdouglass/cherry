@@ -101,8 +101,7 @@
 //! let paraxial_view = ParaxialView::new(&sequential_model, &field_specs, false).unwrap();
 //!
 //! // Compute the effective focal length of the lens for each submodel.
-//! for (sub_model_id, _) in sequential_model.submodels() {
-//!     let sub_view = paraxial_view.subviews().get(sub_model_id).unwrap();
+//! for (sub_model_id, sub_view) in paraxial_view.subviews() {
 //!     let result = sub_view.effective_focal_length();
 //!
 //!     println!("Submodel ID: {:?}, Effective focal length: {}", sub_model_id, result);
@@ -135,7 +134,7 @@ pub mod examples;
 pub use core::{
     math::linalg::rotations::{EulerAngles, Rotation3D},
     math::vec3::Vec3,
-    sequential_model::{Axis, SequentialModel, SequentialSubModel, Step, SubModelID},
+    sequential_model::{SequentialModel, SequentialSubModel, Step},
 };
 pub use specs::{
     aperture::ApertureSpec,
@@ -151,7 +150,7 @@ pub use views::{
     },
     paraxial::{
         ImagePlane, ParaxialRay, ParaxialRayBundle, ParaxialSubView, ParaxialSubViewDescription,
-        ParaxialView, ParaxialViewDescription, Pupil,
+        ParaxialView, ParaxialViewDescription, Pupil, SubModelID,
     },
     ray_trace_3d::{
         Ray, RayBundle, SamplingConfig, TraceResults, TraceResultsCollection, ray_trace_3d_view,
