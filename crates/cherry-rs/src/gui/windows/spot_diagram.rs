@@ -395,6 +395,7 @@ mod tests {
             wavelengths: seq.wavelengths().to_vec(),
             surfaces: Vec::new(),
             fields: Vec::new(),
+            field_specs: Vec::new(),
             paraxial: Some(pv),
             ray_trace: None,
             cross_section: None,
@@ -442,6 +443,7 @@ mod tests {
             &pv,
             crate::views::ray_trace_3d::SamplingConfig {
                 n_fan_rays: 3,
+                cross_section_n_fan_rays: 3,
                 full_pupil_spacing: 0.1,
             },
         )
@@ -469,6 +471,7 @@ mod tests {
                     label: "5.000\u{00b0}".into(),
                 },
             ],
+            field_specs: parsed.fields.clone(),
             paraxial: Some(pv),
             ray_trace: Some(trace),
             cross_section: None,

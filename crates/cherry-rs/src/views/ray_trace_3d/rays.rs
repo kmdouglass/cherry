@@ -269,19 +269,22 @@ impl Ray {
         self.dir.n()
     }
 
-    /// Create a fan of uniformly spaced rays in a given z-plane at an angle phi
-    /// to the z-axis.
+    /// Create a fan of uniformly spaced rays in a given z-plane at a zenith
+    /// angle chi to the z-axis.
     ///
-    /// The vectors have endpoints at an angle theta with respect to the x-axis
-    /// and extend from distances -r to r from the point (0, 0, z). The rays
-    /// are at an angle phi from the z-axis.
+    /// The vectors have endpoints at an azimuthal angle spread_phi with respect
+    /// to the x-axis and extend from distances -r to r from the point (0, 0,
+    /// z). All rays share the same direction, given by field_phi and chi.
     ///
     /// # Arguments
     /// * `n`: Number of vectors to create
     /// * `r`: Radial span of vector endpoints from [-r, r]
     /// * `z`: z-coordinate of endpoints
-    /// * `theta` : The polar angle of the ray fan in the x-y plane.
-    /// * `phi``: Angle of vectors with respect to z, the optics axis, radians
+    /// * `spread_phi`: Azimuthal angle of the fan spread in the x-y plane,
+    ///   radians.
+    /// * `field_phi`: Azimuthal angle of the field direction, radians.
+    /// * `chi`: Zenith angle of vectors with respect to z, the optics axis,
+    ///   radians.
     /// * `radial_offset_x`: Offset the radial position of the vectors by this
     ///   amount in x
     /// * `radial_offset_y`: Offset the radial position of the vectors by this
@@ -291,18 +294,19 @@ impl Ray {
         n: usize,
         r: Float,
         z: Float,
-        theta: Float,
-        phi: Float,
+        spread_phi: Float,
+        field_phi: Float,
+        chi: Float,
         radial_offset_x: Float,
         radial_offset_y: Float,
     ) -> Vec<Ray> {
-        let pos = Vec3::fan(n, r, z, theta, radial_offset_x, radial_offset_y);
+        let pos = Vec3::fan(n, r, z, spread_phi, radial_offset_x, radial_offset_y);
         let dir: Vec<Vec3> = pos
             .iter()
             .map(|_| {
-                let l = phi.sin() * theta.cos();
-                let m = phi.sin() * theta.sin();
-                let n = phi.cos();
+                let l = chi.sin() * field_phi.cos();
+                let m = chi.sin() * field_phi.sin();
+                let n = chi.cos();
                 Vec3::new(l, m, n)
             })
             .collect();

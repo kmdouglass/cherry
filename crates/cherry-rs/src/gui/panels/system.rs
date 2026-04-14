@@ -21,6 +21,28 @@ pub fn system_panel(ui: &mut egui::Ui, specs: &mut SystemSpecs) -> bool {
         changed = true;
     }
 
+    // Fan ray count (must be odd, range 3–501).
+    ui.horizontal(|ui| {
+        ui.label("Fan rays:");
+        let mut n = specs.n_fan_rays;
+        let response = ui.add(
+            egui::DragValue::new(&mut n)
+                .range(33u32..=501u32)
+                .speed(2.0),
+        );
+        if response.changed() || n.is_multiple_of(2) {
+            // Snap to nearest odd, staying in range.
+            if n.is_multiple_of(2) {
+                n = n.saturating_add(1).min(501);
+            }
+            n = n.clamp(33, 501);
+            if n != specs.n_fan_rays {
+                specs.n_fan_rays = n;
+                changed = true;
+            }
+        }
+    });
+
     ui.add_space(8.0);
     ui.label("Background");
     ui.separator();
@@ -58,4 +80,47 @@ pub fn system_panel(ui: &mut egui::Ui, specs: &mut SystemSpecs) -> bool {
     }
 
     changed
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::gui::model::SystemSpecs;
+    use egui_kittest::{Harness, kittest::Queryable};
+
+    #[test]
+    fn fan_rays_label_is_present() {
+        let mut specs = SystemSpecs::default();
+        let mut harness = Harness::new(|ctx| {
+            egui::Window::new("System").show(ctx, |ui| {
+                system_panel(ui, &mut specs);
+            });
+        });
+        harness.step();
+        harness.get_by_label_contains("Fan rays");
+    }
+
+    #[test]
+    fn fan_rays_snaps_to_odd() {
+        // Manually set an even value to test snapping.
+        let specs = SystemSpecs {
+            n_fan_rays: 64,
+            ..Default::default()
+        };
+        let mut harness = Harness::new_state(
+            |ctx, s: &mut SystemSpecs| {
+                egui::Window::new("System").show(ctx, |ui| {
+                    system_panel(ui, s);
+                });
+            },
+            specs,
+        );
+        harness.step();
+        // After one frame with an even value, it should have been snapped to odd
+        let snapped = harness.state().n_fan_rays;
+        assert!(
+            !snapped.is_multiple_of(2),
+            "n_fan_rays should be odd after snapping, got {snapped}"
+        );
+    }
 }

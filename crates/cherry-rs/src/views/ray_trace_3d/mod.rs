@@ -33,6 +33,10 @@ use super::paraxial::{ParaxialSubView, ParaxialView};
 pub struct SamplingConfig {
     /// Number of rays in the tangential and sagittal ray fans.
     pub n_fan_rays: usize,
+    /// Number of rays in the tangential fan used for the cross-section view.
+    /// May be 0 (no rays) or any positive integer up to
+    /// MAX_CROSS_SECTION_N_RAYS.
+    pub cross_section_n_fan_rays: usize,
     /// Grid spacing for the full-pupil square-grid sampling, in normalised
     /// pupil coordinates [0, 1].
     pub full_pupil_spacing: Float,
@@ -79,6 +83,9 @@ pub struct TraceResults {
 
     /// A sagittal ray fan perpendicular to the meridional plane.
     sagittal_fan: RayBundle,
+
+    /// A tangential ray fan used exclusively for the cross-section view.
+    cross_section_fan: RayBundle,
 }
 
 /// Perform a 3D ray trace on a sequential model.
@@ -169,6 +176,16 @@ pub fn ray_trace_3d_view(
                     n: config.n_fan_rays,
                 },
             )?;
+            let cross_section_fan = ray_trace_submodel(
+                sequential_submodel,
+                surfaces,
+                aperture_spec,
+                field_spec,
+                paraxial_subview,
+                PupilSampling::TangentialRayFan {
+                    n: config.cross_section_n_fan_rays,
+                },
+            )?;
 
             trace!(
                 field_id,
@@ -185,6 +202,7 @@ pub fn ray_trace_3d_view(
                 full_pupil,
                 tangential_fan,
                 sagittal_fan,
+                cross_section_fan,
             })
         })
         .collect::<Result<Vec<_>>>()?;
@@ -267,9 +285,20 @@ impl TraceResults {
         &self.sagittal_fan
     }
 
+    // Returns the tangential ray fan bundle used for the cross-section view.
+    pub fn cross_section_fan(&self) -> &RayBundle {
+        &self.cross_section_fan
+    }
+
     // Returns the wavelength ID of the ray bundle.
     pub fn wavelength_id(&self) -> usize {
         self.wavelength_id
+    }
+
+    /// Returns true if the chief ray reached the image surface without
+    /// terminating early (aperture miss, convergence failure, etc.).
+    pub fn chief_ray_reached_image(&self) -> bool {
+        self.chief_ray.terminated().first().copied().unwrap_or(0) == 0
     }
 }
 
@@ -331,24 +360,27 @@ fn rays(
                     chi_rad,
                 )?,
                 PupilSampling::TangentialRayFan { n } => {
-                    let fan_phi = field_spec.tangential_fan_phi();
+                    let tan_phi = field_spec.tangential_fan_phi();
                     parallel_ray_fan(
                         surfaces,
                         aperture_spec,
                         paraxial_subview,
                         n,
-                        fan_phi,
+                        tan_phi,
+                        tan_phi,
                         chi_rad,
                     )?
                 }
                 PupilSampling::SagittalRayFan { n } => {
-                    let fan_phi = field_spec.sagittal_fan_phi();
+                    let tan_phi = field_spec.tangential_fan_phi();
+                    let sag_phi = field_spec.sagittal_fan_phi();
                     parallel_ray_fan(
                         surfaces,
                         aperture_spec,
                         paraxial_subview,
                         n,
-                        fan_phi,
+                        tan_phi,
+                        sag_phi,
                         chi_rad,
                     )?
                 }
@@ -400,17 +432,17 @@ fn rays(
 /// * `surfaces` - The surfaces of the system.
 /// * `aperture_spec` - The aperture specification.
 /// * `paraxial_subview` - The paraxial subview.
-/// * `theta` - The polar angle of the ray in the x-y plane.
-/// * `phi` - The angle of the ray w.r.t. the z-axis.
+/// * `phi` - The azimuthal angle of the ray in the x-y plane, radians.
+/// * `chi` - The zenith angle of the ray w.r.t. the z-axis, radians.
 fn chief_ray_from_angle(
     surfaces: &[Surface],
     aperture_spec: &ApertureSpec,
     paraxial_subview: &ParaxialSubView,
-    theta: Float,
     phi: Float,
+    chi: Float,
 ) -> Result<Vec<Ray>> {
-    let origin = parallel_ray_bundle_origin(surfaces, aperture_spec, paraxial_subview, theta, phi)?;
-    let dir = Vec3::new(theta.cos() * phi.sin(), theta.sin() * phi.sin(), phi.cos()).normalize();
+    let origin = parallel_ray_bundle_origin(surfaces, aperture_spec, paraxial_subview, phi, chi)?;
+    let dir = Vec3::new(phi.cos() * chi.sin(), phi.sin() * chi.sin(), chi.cos()).normalize();
 
     Ok(vec![Ray::new(origin, dir)])
 }
@@ -443,29 +475,54 @@ fn chief_ray_from_pos(
 /// * `aperture_spec` - The aperture specification.
 /// * `paraxial_subview` - The paraxial subview.
 /// * `num_rays` - The number of rays in the fan.
-/// * `theta` - The polar angle of the ray fan in the x-y plane.
-/// * `phi` - The angle of the ray w.r.t. the z-axis.
+/// * `fan_origin_phi` - The azimuthal angle of the fan's origin point, radians.
+/// * `fan_spread_phi` - The azimuthal angle of the plane containing the ray
+///   fan, radians.
+/// * `chi` - The zenith angle of the ray w.r.t. the z-axis, radians.
 #[allow(clippy::too_many_arguments)]
 fn parallel_ray_fan(
     surfaces: &[Surface],
     aperture_spec: &ApertureSpec,
     paraxial_subview: &ParaxialSubView,
     num_rays: usize,
-    theta: Float,
-    phi: Float,
+    fan_origin_phi: Float,
+    fan_spread_phi: Float,
+    chi: Float,
 ) -> Result<Vec<Ray>> {
     let enp = entrance_pupil(aperture_spec, paraxial_subview)?;
-    let origin = parallel_ray_bundle_origin(surfaces, aperture_spec, paraxial_subview, theta, phi)?;
+    let origin = parallel_ray_bundle_origin(
+        surfaces,
+        aperture_spec,
+        paraxial_subview,
+        fan_origin_phi,
+        chi,
+    )?;
 
     let rays = Ray::parallel_ray_fan(
         num_rays,
         enp.semi_diameter,
         origin.z(),
-        theta,
-        phi,
+        fan_spread_phi,
+        fan_origin_phi,
+        chi,
         origin.x(),
         origin.y(),
     );
+
+    if let Some(center) = rays.get(num_rays / 2) {
+        trace!(
+            fan_origin_phi,
+            fan_spread_phi,
+            chi,
+            origin_x = origin.x(),
+            origin_y = origin.y(),
+            origin_z = origin.z(),
+            dir_x = center.k(),
+            dir_y = center.l(),
+            dir_z = center.m(),
+            "parallel_ray_fan: center ray (p=0) origin and direction"
+        );
+    }
 
     Ok(rays)
 }
@@ -483,24 +540,24 @@ fn parallel_ray_fan(
 ///   distances, i.e. [0, 1]. A spacing of 1.0 means that one ray will lie at
 ///   the pupil center (the chief ray) and the others will lie at the pupil edge
 ///   (marginal rays).
-/// * `phi` - The angle of the ray bundle w.r.t. the z-axis in radians.
+/// * `chi` - The zenith angle of the ray bundle w.r.t. the z-axis in radians.
 fn parallel_ray_bundle_on_sq_grid(
     surfaces: &[Surface],
     aperture_spec: &ApertureSpec,
     paraxial_subview: &ParaxialSubView,
     spacing: Float,
-    phi: Float,
+    chi: Float,
 ) -> Result<Vec<Ray>> {
     let enp = entrance_pupil(aperture_spec, paraxial_subview)?;
     let abs_spacing = enp.semi_diameter * spacing;
     let origin =
-        parallel_ray_bundle_origin(surfaces, aperture_spec, paraxial_subview, PI / 2.0, phi)?;
+        parallel_ray_bundle_origin(surfaces, aperture_spec, paraxial_subview, PI / 2.0, chi)?;
 
     let rays = Ray::parallel_ray_bundle_on_sq_grid(
         enp.semi_diameter,
         abs_spacing,
         origin.z(),
-        phi,
+        chi,
         origin.x(),
         origin.y(),
     );
@@ -666,14 +723,14 @@ fn axial_launch_point(obj_z: Float, sur_z: Float, enp_z: Float) -> Float {
 /// * `surfaces` - The surfaces of the system.
 /// * `aperture_spec` - The aperture specification.
 /// * `paraxial_subview` - The paraxial subview.
-/// * `theta` - The polar angle of the ray fan in the x-y plane.
-/// * `phi` - The angle of the ray w.r.t. the z-axis.
+/// * `phi` - The azimuthal angle of the ray fan in the x-y plane, radians.
+/// * `chi` - The zenith angle of the ray w.r.t. the z-axis, radians.
 fn parallel_ray_bundle_origin(
     surfaces: &[Surface],
     aperture_spec: &ApertureSpec,
     paraxial_subview: &ParaxialSubView,
-    theta: Float,
     phi: Float,
+    chi: Float,
 ) -> Result<Vec3> {
     let enp = entrance_pupil(aperture_spec, paraxial_subview)?;
     let obj_z = surfaces[0].pos().z();
@@ -682,13 +739,13 @@ fn parallel_ray_bundle_origin(
 
     let launch_point_z = axial_launch_point(obj_z, sur_z, enp_z);
 
-    // Determine the radial distance from the axis at the launch point for the
-    // center of the ray fan.
+    // Determine the perpendicular distance from the axis at the launch point for
+    // the center of the ray fan.
     let dz = enp_z - launch_point_z;
+    let r = -dz * chi.tan();
 
-    let r = -dz * phi.tan();
-    let x = r * theta.cos();
-    let y = r * theta.sin();
+    let x = r * phi.cos();
+    let y = r * phi.sin();
 
     Ok(Vec3::new(x, y, launch_point_z))
 }
@@ -746,6 +803,7 @@ mod tests {
 
         let config = SamplingConfig {
             n_fan_rays: 3,
+            cross_section_n_fan_rays: 3,
             full_pupil_spacing: 0.1,
         };
         let results = ray_trace_3d_view(
@@ -765,6 +823,7 @@ mod tests {
         let s = setup();
         let config = SamplingConfig {
             n_fan_rays: 5,
+            cross_section_n_fan_rays: 5,
             full_pupil_spacing: 0.1,
         };
 
@@ -836,13 +895,70 @@ mod tests {
 
         assert_eq!(fan_rays.len(), 3);
 
-        // Sagittal fan phi = tangential_fan_phi + π/2 = π/2 + π/2 = π.
-        // Vec3::fan with theta=π spreads positions along (-cos π, -sin π) = (+1, 0),
+        // fan_spread_phi = sagittal_fan_phi = tangential_fan_phi + π/2 = π/2 + π/2 = π.
+        // Vec3::fan with phi=π spreads positions along (cos π, sin π) = (-1, 0),
         // so the three ray origins differ in X and share the same Y coordinate.
         let xs: Vec<f64> = fan_rays.iter().map(|r| r.x()).collect();
         let ys: Vec<f64> = fan_rays.iter().map(|r| r.y()).collect();
         assert!(xs.iter().any(|x| (x - xs[0]).abs() > 1e-6));
         assert!(ys.windows(2).all(|w| (w[1] - w[0]).abs() < 1e-6));
+        // fan_origin_phi = tangential_fan_phi, so the center ray (index 1 of 3)
+        // is displaced in the tangential (Y) direction, not zero.
+        assert!(
+            ys[1].abs() > 1e-6,
+            "sagittal fan center should be offset in the tangential direction"
+        );
+    }
+
+    /// Regression test: The sagittal fan rays must travel in the field
+    /// direction, not in the sagittal-plane direction.  For phi=90°, chi=5°
+    /// the field direction is (0, sin 5°, cos 5°); the sagittal fan
+    /// incorrectly used fan_spread_phi for the ray direction, giving (-sin
+    /// 5°, 0, cos 5°).
+    #[test]
+    fn test_sagittal_fan_ray_direction_matches_field() {
+        let air = n!(1.0);
+        let nbk7 = n!(1.515);
+        let wavelengths: [Float; 1] = [0.5876];
+        let seq_model = sequential_model(air, nbk7, &wavelengths);
+        let aperture_spec = ApertureSpec::EntrancePupil {
+            semi_diameter: 12.5,
+        };
+        let field_spec = FieldSpec::Angle {
+            chi: 5.0,
+            phi: 90.0,
+        };
+        let paraxial_view = ParaxialView::new(&seq_model, &[field_spec], false).unwrap();
+
+        let chief = rays(
+            seq_model.surfaces(),
+            &aperture_spec,
+            &paraxial_view.subviews()[&SubModelID(0, 0)],
+            &field_spec,
+            PupilSampling::ChiefRay,
+        )
+        .unwrap();
+        let sag_fan = rays(
+            seq_model.surfaces(),
+            &aperture_spec,
+            &paraxial_view.subviews()[&SubModelID(0, 0)],
+            &field_spec,
+            PupilSampling::SagittalRayFan { n: 3 },
+        )
+        .unwrap();
+
+        let chief_dir = (chief[0].k(), chief[0].l(), chief[0].m());
+
+        // Every sagittal fan ray must travel in the same direction as the chief ray.
+        for (i, r) in sag_fan.iter().enumerate() {
+            let dir = (r.k(), r.l(), r.m());
+            assert!(
+                (dir.0 - chief_dir.0).abs() < 1e-10
+                    && (dir.1 - chief_dir.1).abs() < 1e-10
+                    && (dir.2 - chief_dir.2).abs() < 1e-10,
+                "sagittal fan ray {i} direction {dir:?} != chief ray direction {chief_dir:?}"
+            );
+        }
     }
 
     #[test]
@@ -1084,6 +1200,7 @@ mod tests {
         let paraxial_view = ParaxialView::new(&sequential_model, &field_specs, false).unwrap();
         let config = SamplingConfig {
             n_fan_rays: 3,
+            cross_section_n_fan_rays: 3,
             full_pupil_spacing: 0.1,
         };
 
@@ -1133,5 +1250,33 @@ mod tests {
 
         // For a 45° fan, dy/dx should equal tan(45°) = 1.0
         approx::assert_abs_diff_eq!(dy / dx, 1.0, epsilon = 1e-6);
+    }
+
+    #[test]
+    fn chief_ray_reached_image_on_axis() {
+        // On-axis chief ray should always reach the image surface in a standard
+        // refractive system.
+        let s = setup();
+        let config = SamplingConfig {
+            n_fan_rays: 3,
+            cross_section_n_fan_rays: 3,
+            full_pupil_spacing: 0.1,
+        };
+        let results = ray_trace_3d_view(
+            &s.aperture_spec,
+            &s.field_specs,
+            &s.sequential_model,
+            &s.paraxial_view,
+            config,
+        )
+        .unwrap();
+
+        let on_axis = results
+            .get(0, 0)
+            .expect("field 0, wavelength 0 should exist");
+        assert!(
+            on_axis.chief_ray_reached_image(),
+            "On-axis chief ray should reach the image surface"
+        );
     }
 }

@@ -21,7 +21,7 @@ path = "src/bin/gen_rii_index.rs"
 required-features = [ "ri-info" ]
 
 [features]
-gui = [ "dep:eframe", "dep:egui", "dep:egui_extras", "dep:env_logger", "dep:log", "dep:rfd", "dep:serde_json" ]
+gui = [ "dep:eframe", "dep:egui", "dep:egui_extras", "dep:egui_plot", "dep:env_logger", "dep:log", "dep:rfd", "dep:serde_json" ]
 ri-info = [ "dep:ria", "dep:bitcode", "dep:serde_json" ]
 
 [dependencies]
@@ -38,6 +38,7 @@ eframe = { version = "0.32", default-features = false, optional = true, features
 ] }
 egui = { version = "0.32", optional = true }
 egui_extras = { version = "0.32", default-features = false, optional = true }
+egui_plot = { version = "0.33", optional = true }
 log = { version = "0.4.28", optional = true }
 rfd = { version = "0.15", optional = true }
 serde_json = { version = "1", optional = true }

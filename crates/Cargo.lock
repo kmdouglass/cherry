@@ -754,6 +754,7 @@ dependencies = [
  "egui-winit",
  "egui_extras",
  "egui_kittest",
+ "egui_plot",
  "env_logger",
  "gloo-net",
  "js-sys",
@@ -1236,6 +1237,17 @@ checksum = "5bb00f16e00af09092c117515246732adba4ca4649463bdbc2ab6114a2944765"
 dependencies = [
  "egui",
  "kittest",
+]
+
+[[package]]
+name = "egui_plot"
+version = "0.33.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "524318041a8ea90c81c738e8985f8ad9e3f9bed636b03c2ff37b218113ed5121"
+dependencies = [
+ "ahash",
+ "egui",
+ "emath",
 ]
 
 [[package]]
