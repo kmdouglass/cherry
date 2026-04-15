@@ -221,7 +221,7 @@ fn build_plane_geometry(
             if wl_id >= n_wavelengths {
                 continue;
             }
-            let bundle = result.tangential_fan();
+            let bundle = result.cross_section_fan();
             let n_surf = bundle.num_surfaces();
             let total = bundle.rays().len();
             let n_rays = if n_surf > 0 { total / n_surf } else { 0 };
@@ -434,6 +434,7 @@ mod tests {
             &pv,
             SamplingConfig {
                 n_fan_rays: 5,
+                cross_section_n_fan_rays: 5,
                 full_pupil_spacing: 0.1,
             },
         )

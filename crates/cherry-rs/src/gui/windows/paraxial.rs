@@ -242,6 +242,7 @@ mod tests {
             wavelengths: wls,
             surfaces: Vec::new(),
             fields: Vec::new(),
+            field_specs: parsed.fields.clone(),
             paraxial: Some(pv),
             ray_trace: None,
             cross_section: None,

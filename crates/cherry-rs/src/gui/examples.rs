@@ -44,6 +44,7 @@ pub fn mirrors_figure_z() -> SystemSpecs {
         selected_materials: Vec::new(),
         cross_section_n_rays: 11,
         full_pupil_spacing: "0.1".into(),
+        n_fan_rays: 65,
         background_n: "1.0".into(),
         background_material_key: None,
     }
@@ -84,6 +85,7 @@ pub fn petzval_lens() -> SystemSpecs {
         selected_materials: Vec::new(),
         cross_section_n_rays: 11,
         full_pupil_spacing: "0.1".into(),
+        n_fan_rays: 65,
         background_n: "1.0".into(),
         background_material_key: None,
     }
@@ -118,6 +120,7 @@ pub fn biconvex_lens() -> SystemSpecs {
         selected_materials: Vec::new(),
         cross_section_n_rays: 11,
         full_pupil_spacing: "0.1".into(),
+        n_fan_rays: 65,
         background_n: "1.0".into(),
         background_material_key: None,
     }
@@ -185,6 +188,7 @@ pub fn convexplano_lens_with_materials() -> SystemSpecs {
         selected_materials: vec!["other:air:Ciddor".into(), "popular_glass:BK7:SCHOTT".into()],
         cross_section_n_rays: 11,
         full_pupil_spacing: "0.1".into(),
+        n_fan_rays: 65,
         background_n: "1.0".into(),
         background_material_key: Some("other:air:Ciddor".into()),
     }
@@ -310,6 +314,7 @@ pub fn f_theta_scan_lens() -> SystemSpecs {
         ],
         cross_section_n_rays: 3,
         full_pupil_spacing: "0.1".into(),
+        n_fan_rays: 65,
         background_n: "1.0".into(),
         background_material_key: Some("other:air:Ciddor".into()),
     }
@@ -353,6 +358,7 @@ pub fn concave_mirror() -> SystemSpecs {
         selected_materials: Vec::new(),
         cross_section_n_rays: 11,
         full_pupil_spacing: "0.1".into(),
+        n_fan_rays: 65,
         background_n: "1.0".into(),
         background_material_key: None,
     }

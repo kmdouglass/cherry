@@ -4,6 +4,7 @@ use crate::{
 };
 
 const VIEWPORT_HEIGHT_RATIO: f32 = 0.5;
+const MAX_CROSS_SECTION_N_RAYS: u32 = 32;
 const MIN_VIEWPORT_HEIGHT: f32 = 200.0;
 const SCALEBAR_MARGIN: f32 = 8.0;
 const SCALEBAR_HEIGHT: f32 = 4.0;
@@ -49,16 +50,16 @@ impl CrossSectionWindow {
         result: Option<&ResultPackage>,
         n_rays: &mut u32,
     ) -> bool {
-        let old = *n_rays;
+        let mut changed = false;
         egui::Window::new("Cross Section")
             .open(open)
             .default_width(700.0)
             .min_width(300.0)
             .resizable(true)
             .show(ctx, |ui| {
-                self.show_content(ui, result, n_rays);
+                changed = self.show_content(ui, result, n_rays);
             });
-        *n_rays != old
+        changed
     }
 
     fn show_content(
@@ -66,16 +67,16 @@ impl CrossSectionWindow {
         ui: &mut egui::Ui,
         result: Option<&ResultPackage>,
         n_rays: &mut u32,
-    ) {
+    ) -> bool {
         let Some(result) = result else {
             self.show_empty_viewport(ui);
-            return;
+            return false;
         };
 
         let cs_data = result.cross_section.as_ref();
 
         // Controls.
-        self.show_controls(ui, cs_data, n_rays);
+        let changed = self.show_controls(ui, cs_data, n_rays);
         ui.separator();
 
         // Viewport.
@@ -90,6 +91,8 @@ impl CrossSectionWindow {
                 self.show_empty_viewport(ui);
             }
         }
+
+        changed
     }
 
     fn show_controls(
@@ -97,7 +100,7 @@ impl CrossSectionWindow {
         ui: &mut egui::Ui,
         cs_data: Option<&CrossSectionView>,
         n_rays: &mut u32,
-    ) {
+    ) -> bool {
         // Auto-select the valid plane.
         if let Some(cs) = cs_data {
             if self.cutting_plane == CuttingPlane::YZ && !cs.yz_valid && cs.xz_valid {
@@ -110,6 +113,7 @@ impl CrossSectionWindow {
         let yz_valid = cs_data.is_none_or(|cs| cs.yz_valid);
         let xz_valid = cs_data.is_none_or(|cs| cs.xz_valid);
 
+        let mut changed = false;
         ui.horizontal(|ui| {
             ui.label("Plane:");
             ui.add_enabled_ui(yz_valid, |ui| {
@@ -120,12 +124,16 @@ impl CrossSectionWindow {
             });
             ui.separator();
             ui.label("Rays:");
-            ui.add(
+            let resp = ui.add(
                 egui::DragValue::new(n_rays)
-                    .range(0_u32..=1000_u32)
+                    .range(0_u32..=MAX_CROSS_SECTION_N_RAYS)
                     .speed(1.0),
             );
+            if resp.changed() {
+                changed = true;
+            }
         });
+        changed
     }
 
     fn show_viewport(&self, ui: &mut egui::Ui, cs: &CrossSectionView, wavelengths: &[f64]) {
@@ -769,6 +777,35 @@ mod tests {
     }
 
     #[test]
+    fn n_rays_change_does_not_signal_recompute_without_result() {
+        // show() must return false when there is no result, even if n_rays
+        // changes, because there is nothing to recompute.
+        struct State {
+            window: CrossSectionWindow,
+            n_rays: u32,
+            changed: bool,
+        }
+        let state = State {
+            window: CrossSectionWindow::default(),
+            n_rays: 3,
+            changed: false,
+        };
+        let mut harness = Harness::new_state(
+            |ctx, s: &mut State| {
+                let mut open = true;
+                s.changed = s.window.show(ctx, &mut open, None, &mut s.n_rays);
+            },
+            state,
+        );
+        harness.step();
+        harness.step();
+        assert!(
+            !harness.state().changed,
+            "show() must not signal recompute when result is None"
+        );
+    }
+
+    #[test]
     fn neither_valid_shows_message() {
         let window = CrossSectionWindow::default();
         use crate::views::cross_section::{Bounds2D, CrossSectionView, PlaneGeometry};
@@ -798,6 +835,7 @@ mod tests {
             wavelengths: vec![0.5876],
             surfaces: Vec::new(),
             fields: Vec::new(),
+            field_specs: Vec::new(),
             paraxial: None,
             ray_trace: None,
             cross_section: Some(cs),

@@ -213,6 +213,10 @@ pub struct SystemSpecs {
     /// [0, 1].
     #[serde(default = "default_full_pupil_spacing")]
     pub full_pupil_spacing: String,
+    /// Number of rays in each tangential/sagittal fan bundle. Must be odd;
+    /// range 3–501. Controls TA curve resolution in the Ray Fan Plot window.
+    #[serde(default = "default_n_fan_rays")]
+    pub n_fan_rays: u32,
     /// Refractive index of the background medium (used in constant-n mode).
     #[serde(default = "default_background_n")]
     pub background_n: String,
@@ -222,7 +226,11 @@ pub struct SystemSpecs {
 }
 
 fn default_cross_section_n_rays() -> u32 {
-    11
+    3
+}
+
+fn default_n_fan_rays() -> u32 {
+    65
 }
 
 fn default_full_pupil_spacing() -> String {
@@ -253,8 +261,9 @@ impl Default for SystemSpecs {
             field_mode: FieldMode::Angle,
             use_materials: false,
             selected_materials: Vec::new(),
-            cross_section_n_rays: 11,
+            cross_section_n_rays: 3,
             full_pupil_spacing: "0.1".into(),
+            n_fan_rays: 65,
             background_n: "1.0".into(),
             background_material_key: None,
         }

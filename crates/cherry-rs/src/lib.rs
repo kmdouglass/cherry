@@ -113,7 +113,7 @@
 //!     &aperture_spec, &field_specs,
 //!     &sequential_model,
 //!     &paraxial_view,
-//!     SamplingConfig { n_fan_rays: 9, full_pupil_spacing: 0.1 },
+//!     SamplingConfig { n_fan_rays: 9, cross_section_n_fan_rays: 3, full_pupil_spacing: 0.1 },
 //! ).unwrap();
 //!
 //! // Get all results for the second (5 degree) field point.

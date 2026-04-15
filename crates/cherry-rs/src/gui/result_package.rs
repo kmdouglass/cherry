@@ -1,5 +1,5 @@
 use crate::{
-    CrossSectionView, ParaxialView, TraceResultsCollection,
+    CrossSectionView, FieldSpec, ParaxialView, TraceResultsCollection,
     core::math::{linalg::mat3x3::Mat3x3, vec3::Vec3},
 };
 
@@ -25,6 +25,9 @@ pub struct ResultPackage {
     pub wavelengths: Vec<f64>,
     pub surfaces: Vec<SurfaceDesc>,
     pub fields: Vec<FieldDesc>,
+    /// Parsed field specs in the same order as `fields`. Used by the Ray Fan
+    /// Plot window for TA computation and the paraxial chief-ray fallback.
+    pub field_specs: Vec<FieldSpec>,
     pub paraxial: Option<ParaxialView>,
     pub ray_trace: Option<TraceResultsCollection>,
     pub cross_section: Option<CrossSectionView>,
@@ -39,6 +42,7 @@ impl ResultPackage {
             wavelengths: Vec::new(),
             surfaces: Vec::new(),
             fields: Vec::new(),
+            field_specs: Vec::new(),
             paraxial: None,
             ray_trace: None,
             cross_section: None,

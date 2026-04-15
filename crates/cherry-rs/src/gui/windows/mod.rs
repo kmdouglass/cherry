@@ -2,6 +2,7 @@ mod cross_section;
 #[cfg(feature = "ri-info")]
 mod materials;
 mod paraxial;
+mod ray_fan;
 mod specs;
 mod spot_diagram;
 mod system;
@@ -10,6 +11,7 @@ pub use cross_section::{CrossSectionWindow, CuttingPlane};
 #[cfg(feature = "ri-info")]
 pub use materials::MaterialsWindow;
 pub use paraxial::ParaxialWindow;
+pub use ray_fan::RayFanWindow;
 pub use specs::SpecsWindow;
 pub use spot_diagram::SpotDiagramWindow;
 pub use system::SystemWindow;
@@ -23,6 +25,7 @@ pub struct WindowVisibility {
     pub paraxial_summary: bool,
     pub spot_diagram: bool,
     pub cross_section: bool,
+    pub ray_fan: bool,
     pub system: bool,
 }
 
@@ -34,6 +37,7 @@ impl Default for WindowVisibility {
             paraxial_summary: false,
             spot_diagram: false,
             cross_section: false,
+            ray_fan: false,
             system: false,
         }
     }

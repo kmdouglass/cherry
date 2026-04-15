@@ -137,6 +137,7 @@ fn run_compute(
                 wavelengths,
                 surfaces,
                 fields,
+                field_specs: parsed.fields.clone(),
                 paraxial: None,
                 ray_trace: None,
                 cross_section: None,
@@ -152,7 +153,8 @@ fn run_compute(
         .parse::<f64>()
         .unwrap_or(0.1);
     let config = SamplingConfig {
-        n_fan_rays: req.specs.cross_section_n_rays as usize,
+        n_fan_rays: req.specs.n_fan_rays as usize,
+        cross_section_n_fan_rays: req.specs.cross_section_n_rays as usize,
         full_pupil_spacing,
     };
     let trace = match ray_trace_3d_view(&parsed.aperture, &parsed.fields, &seq, &pv, config) {
@@ -171,6 +173,7 @@ fn run_compute(
         wavelengths,
         surfaces,
         fields,
+        field_specs: parsed.fields.clone(),
         paraxial: Some(pv),
         ray_trace: trace,
         cross_section,

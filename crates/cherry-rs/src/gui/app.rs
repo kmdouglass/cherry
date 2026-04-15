@@ -9,8 +9,8 @@ use crate::gui::{
     model::SystemSpecs,
     result_package::ResultPackage,
     windows::{
-        CrossSectionWindow, ParaxialWindow, SpecsWindow, SpotDiagramWindow, SystemWindow,
-        WindowVisibility,
+        CrossSectionWindow, ParaxialWindow, RayFanWindow, SpecsWindow, SpotDiagramWindow,
+        SystemWindow, WindowVisibility,
     },
 };
 
@@ -46,6 +46,7 @@ pub struct CherryApp {
     specs_window: SpecsWindow,
     spot_diagram_window: SpotDiagramWindow,
     cross_section_window: CrossSectionWindow,
+    ray_fan_window: RayFanWindow,
 
     // ri-info: material browser data loaded on main thread for UI
     #[cfg(feature = "ri-info")]
@@ -188,6 +189,7 @@ impl CherryApp {
             specs_window: SpecsWindow::default(),
             spot_diagram_window: SpotDiagramWindow::default(),
             cross_section_window: CrossSectionWindow::default(),
+            ray_fan_window: RayFanWindow::default(),
             #[cfg(feature = "ri-info")]
             material_index,
             #[cfg(feature = "ri-info")]
@@ -361,6 +363,7 @@ impl CherryApp {
         ui.toggle_value(&mut self.windows.paraxial_summary, "Paraxial Summary");
         ui.toggle_value(&mut self.windows.spot_diagram, "Spot Diagram");
         ui.toggle_value(&mut self.windows.cross_section, "Cross Section");
+        ui.toggle_value(&mut self.windows.ray_fan, "Ray Fan Plot");
     }
 }
 
@@ -375,6 +378,7 @@ impl eframe::App for CherryApp {
                 paraxial_summary: self.windows.paraxial_summary,
                 spot_diagram: self.windows.spot_diagram,
                 cross_section: self.windows.cross_section,
+                ray_fan: self.windows.ray_fan,
                 system: self.windows.system,
             },
         };
@@ -583,6 +587,11 @@ impl eframe::App for CherryApp {
             if changed {
                 self.bump_input_id();
             }
+        }
+
+        if self.windows.ray_fan {
+            self.ray_fan_window
+                .show(ctx, &mut self.windows.ray_fan, self.latest_result.as_ref());
         }
 
         // Keep repainting while a compute is in flight.
