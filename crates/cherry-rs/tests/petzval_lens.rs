@@ -16,7 +16,7 @@ fn test_describe_paraxial_view() {
 fn test_paraxial_view_aperture_stop() {
     let view = paraxial_view();
 
-    for sub_view in view.subviews().values() {
+    for sub_view in view.iter() {
         let result = sub_view.aperture_stop();
 
         assert_eq!(APERTURE_STOP, *result)

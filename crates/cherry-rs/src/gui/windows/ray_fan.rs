@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{
-    FieldSpec, SubModelID, TraceResults,
+    FieldSpec, TraceResults,
     core::math::vec3::Vec3,
     gui::{
         colors::wavelength_to_color,
@@ -332,9 +332,8 @@ fn chief_ray_image_pos(
         let Some(pv) = &r.paraxial else {
             return (None, false);
         };
-        let v_index = pv.v_index_for_phi(phi);
-        let sub_id = SubModelID(wl_id, v_index);
-        let Some(sv) = pv.subviews().get(&sub_id) else {
+        let tangential_vec_id = pv.tangential_vec_id_for_phi(phi);
+        let Some(sv) = pv.get(wl_id, tangential_vec_id) else {
             return (None, false);
         };
 
@@ -351,7 +350,7 @@ fn chief_ray_image_pos(
         let y_fallback = ratio * y_max;
 
         // Lift scalar paraxial height to a 3D position along the tangential direction.
-        let tv = pv.tangential_vec(v_index);
+        let tv = pv.tangential_vec(tangential_vec_id);
         let rot_t = image_surf.rot_mat.transpose();
         let tan_global = rot_t * tv;
         let pos = image_surf.pos + tan_global * y_fallback;

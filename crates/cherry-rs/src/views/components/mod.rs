@@ -63,8 +63,7 @@ pub fn components_view(
         RefractiveIndex::try_from_spec(background.as_ref(), wavelength)?;
 
     let sequential_sub_model = sequential_model
-        .submodels()
-        .get(&0usize)
+        .submodel(0)
         .ok_or(anyhow!("No submodel found for wavelength index 0."))?;
     let gaps = sequential_sub_model.gaps();
 

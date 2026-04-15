@@ -7,10 +7,10 @@
 /// paraxial view is used to compute the paraxial parameters of an optical
 /// system, such as the entrance and exit pupils, the back and front focal
 /// distances, and the effective focal length.
-use std::{borrow::Borrow, collections::HashMap};
+use std::borrow::Borrow;
 
 use anyhow::{Result, anyhow};
-use serde::{Deserialize, Serialize, Serializer};
+use serde::{Deserialize, Serialize};
 
 use crate::{
     FieldSpec,
@@ -24,25 +24,6 @@ use crate::{
     },
     specs::{fields::unique_tangential_vecs, surfaces::SurfaceType},
 };
-
-/// A unique identifier for a paraxial submodel.
-///
-/// The first element is the index of the wavelength in the system's list of
-/// wavelengths. The second element is the index into `ParaxialView`'s
-/// tangential-vector table, which is built from the field specs at view
-/// construction time.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct SubModelID(pub usize, pub usize);
-
-impl Serialize for SubModelID {
-    // Serialize as a string like "0:0" because tuple keys are awkward in JSON.
-    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        serializer.serialize_str(&format!("{}:{}", self.0, self.1))
-    }
-}
 
 const DEFAULT_THICKNESS: Float = 0.0;
 
@@ -111,12 +92,13 @@ type RayTransferMatrix = Mat2x2;
 /// properties of an optical system, such as the entrance and exit pupils, the
 /// back and front focal distances, and the effective focal length.
 ///
-/// Subviews are indexed by `SubModelID(wavelength_idx, v_index)` where
-/// `v_index` refers to an entry in `tangential_vecs`.
+/// Subviews are stored in a flat `Vec`, ordered by wavelength index first, then
+/// by `tangential_vec_id`. Each subview carries its own `wavelength_id` and
+/// `tangential_vec_id`.
 #[derive(Debug)]
 pub struct ParaxialView {
     tangential_vecs: Vec<TangentialVector>,
-    subviews: HashMap<SubModelID, ParaxialSubView>,
+    subviews: Vec<ParaxialSubView>,
     wavelengths: Vec<Float>,
 }
 
@@ -125,18 +107,20 @@ pub struct ParaxialView {
 /// This is used primarily for serialization of data for export.
 #[derive(Debug, Serialize)]
 pub struct ParaxialViewDescription {
-    subviews: HashMap<SubModelID, ParaxialSubViewDescription>,
-    /// Keyed by v_index (index into the tangential-vector table).
-    primary_axial_color: HashMap<usize, Float>,
+    subviews: Vec<ParaxialSubViewDescription>,
+    /// Indexed by tangential_vec_id (index into the tangential-vector table).
+    primary_axial_color: Vec<Float>,
 }
 
 /// A paraxial subview of an optical system.
 ///
-/// A paraxial subview is identified by a single submodel ID that corresponds to
-/// a submodel of a sequential model. It is not created by the user, but rather
-/// by instantiating a new ParaxialView struct.
+/// A paraxial subview is identified by a wavelength index and a tangential
+/// direction index. It is not created by the user, but rather by instantiating
+/// a new ParaxialView struct.
 #[derive(Debug)]
 pub struct ParaxialSubView {
+    wavelength_id: usize,
+    tangential_vec_id: usize,
     is_obj_space_telecentric: bool,
 
     aperture_stop: usize,
@@ -157,6 +141,8 @@ pub struct ParaxialSubView {
 /// This is used primarily for serialization of data for export.
 #[derive(Debug, Serialize)]
 pub struct ParaxialSubViewDescription {
+    wavelength_id: usize,
+    tangential_vec_id: usize,
     aperture_stop: usize,
     back_focal_distance: Float,
     back_principal_plane: Float,
@@ -286,18 +272,19 @@ impl ParaxialView {
                 unique_tangential_vecs(field_specs)
             };
 
-        let mut subviews = HashMap::new();
-        for (&wav_idx, submodel) in sequential_model.submodels() {
+        let mut subviews = Vec::new();
+        for (wav_idx, submodel) in sequential_model.submodels().iter().enumerate() {
             for (v_idx, &v) in tangential_vecs.iter().enumerate() {
-                let id = SubModelID(wav_idx, v_idx);
                 let subview = ParaxialSubView::new(
+                    wav_idx,
+                    v_idx,
                     submodel,
                     surfaces,
                     v,
                     field_specs,
                     is_obj_space_telecentric,
                 )?;
-                subviews.insert(id, subview);
+                subviews.push(subview);
             }
         }
 
@@ -313,38 +300,63 @@ impl ParaxialView {
     /// This is used primarily for serialization of data for export.
     pub fn describe(&self) -> ParaxialViewDescription {
         ParaxialViewDescription {
-            subviews: self
-                .subviews
-                .iter()
-                .map(|(id, subview)| (*id, subview.describe()))
-                .collect(),
+            subviews: self.subviews.iter().map(|sv| sv.describe()).collect(),
             primary_axial_color: self.primary_axial_color(),
         }
     }
 
-    /// Returns the subviews of the paraxial view.
-    pub fn subviews(&self) -> &HashMap<SubModelID, ParaxialSubView> {
-        &self.subviews
+    /// Returns the subview for the given wavelength and tangential-direction
+    /// indices, or `None` if no such subview exists.
+    pub fn get(&self, wavelength_id: usize, tangential_vec_id: usize) -> Option<&ParaxialSubView> {
+        self.subviews.iter().find(|sv| {
+            sv.wavelength_id == wavelength_id && sv.tangential_vec_id == tangential_vec_id
+        })
     }
 
-    /// Returns the tangential direction vector for a given v_index.
-    pub fn tangential_vec(&self, v_index: usize) -> TangentialVector {
-        self.tangential_vecs[v_index]
+    /// Returns an iterator over all subviews.
+    pub fn iter(&self) -> impl Iterator<Item = &ParaxialSubView> {
+        self.subviews.iter()
     }
 
-    /// Returns the azimuthal angle in degrees for a given v_index.
-    pub fn phi_deg(&self, v_index: usize) -> Float {
-        let v = self.tangential_vecs[v_index];
+    /// Returns an iterator over all subviews for a given wavelength index.
+    pub fn get_by_wavelength_id(
+        &self,
+        wavelength_id: usize,
+    ) -> impl Iterator<Item = &ParaxialSubView> {
+        self.subviews
+            .iter()
+            .filter(move |sv| sv.wavelength_id == wavelength_id)
+    }
+
+    /// Returns an iterator over all subviews for a given tangential-direction
+    /// index.
+    pub fn get_by_tangential_vec_id(
+        &self,
+        tangential_vec_id: usize,
+    ) -> impl Iterator<Item = &ParaxialSubView> {
+        self.subviews
+            .iter()
+            .filter(move |sv| sv.tangential_vec_id == tangential_vec_id)
+    }
+
+    /// Returns the tangential direction vector for a given tangential_vec_id.
+    pub fn tangential_vec(&self, tangential_vec_id: usize) -> TangentialVector {
+        self.tangential_vecs[tangential_vec_id]
+    }
+
+    /// Returns the azimuthal angle in degrees for a given tangential_vec_id.
+    pub fn phi_deg(&self, tangential_vec_id: usize) -> Float {
+        let v = self.tangential_vecs[tangential_vec_id];
         v.y().atan2(v.x()).to_degrees()
     }
 
-    /// Returns the v_index whose tangential vector is closest (by dot product)
-    /// to the given azimuthal angle in radians.
+    /// Returns the tangential_vec_id whose tangential vector is closest (by dot
+    /// product) to the given azimuthal angle in radians.
     ///
     /// For the common case where `phi_rad` exactly matches a stored phi key
     /// (bit-identical `tangential_fan_phi()` value), this finds the exact
     /// entry. Falls back to index 0 if the table is empty.
-    pub fn v_index_for_phi(&self, phi_rad: Float) -> usize {
+    pub fn tangential_vec_id_for_phi(&self, phi_rad: Float) -> usize {
         let target: TangentialVector = Vec3::new(phi_rad.cos(), phi_rad.sin(), 0.0);
         self.tangential_vecs
             .iter()
@@ -362,15 +374,15 @@ impl ParaxialView {
     ///
     /// Primary axial color is the absolute difference in EFL between the
     /// maximum and minimum wavelengths, reported per tangential-vector index.
-    pub fn primary_axial_color(&self) -> HashMap<usize, Float> {
-        let min_wav_index = self
+    pub fn primary_axial_color(&self) -> Vec<Float> {
+        let min_watangential_vec_id = self
             .wavelengths
             .iter()
             .enumerate()
             .min_by(|(_, a), (_, b)| a.total_cmp(b))
             .map(|(index, _)| index)
             .unwrap_or_default();
-        let max_wav_index = self
+        let max_watangential_vec_id = self
             .wavelengths
             .iter()
             .enumerate()
@@ -378,24 +390,12 @@ impl ParaxialView {
             .map(|(index, _)| index)
             .unwrap_or_default();
 
-        let mut efls_min_wav: HashMap<SubModelID, Float> = HashMap::new();
-        let mut efls_max_wav: HashMap<SubModelID, Float> = HashMap::new();
-
-        for (id, subview) in &self.subviews {
-            if id.0 == min_wav_index {
-                efls_min_wav.insert(*id, *subview.effective_focal_length());
-            } else if id.0 == max_wav_index {
-                efls_max_wav.insert(*id, *subview.effective_focal_length());
-            }
-        }
-
-        // Pair entries that share the same v_index.
-        let mut primary_axial_color: HashMap<usize, Float> = HashMap::new();
-        for (id_min, efl_min) in &efls_min_wav {
-            for (id_max, efl_max) in &efls_max_wav {
-                if id_min.1 == id_max.1 {
-                    primary_axial_color.insert(id_min.1, (efl_max - efl_min).abs());
-                }
+        let mut primary_axial_color = vec![0.0; self.tangential_vecs.len()];
+        for sv_min in self.get_by_wavelength_id(min_watangential_vec_id) {
+            if let Some(sv_max) = self.get(max_watangential_vec_id, sv_min.tangential_vec_id) {
+                let diff =
+                    (sv_max.effective_focal_length() - sv_min.effective_focal_length()).abs();
+                primary_axial_color[sv_min.tangential_vec_id] = diff;
             }
         }
 
@@ -410,6 +410,8 @@ impl ParaxialSubView {
     /// plane (e.g. `(0,1,0)` for phi=90°). It is propagated through mirror
     /// surfaces internally to compute per-surface foreshortening.
     fn new(
+        wavelength_id: usize,
+        tangential_vec_id: usize,
         sequential_sub_model: &impl SequentialSubModel,
         surfaces: &[Surface],
         v: TangentialVector,
@@ -461,6 +463,8 @@ impl ParaxialSubView {
             Self::calc_paraxial_image_plane(surfaces, &marginal_ray, &chief_ray)?;
 
         Ok(Self {
+            wavelength_id,
+            tangential_vec_id,
             is_obj_space_telecentric,
 
             aperture_stop,
@@ -479,6 +483,8 @@ impl ParaxialSubView {
 
     fn describe(&self) -> ParaxialSubViewDescription {
         ParaxialSubViewDescription {
+            wavelength_id: self.wavelength_id,
+            tangential_vec_id: self.tangential_vec_id,
             aperture_stop: self.aperture_stop,
             back_focal_distance: self.back_focal_distance,
             back_principal_plane: self.back_principal_plane,
@@ -491,6 +497,14 @@ impl ParaxialSubView {
             marginal_ray: self.marginal_ray.clone(),
             paraxial_image_plane: self.paraxial_image_plane.clone(),
         }
+    }
+
+    pub fn wavelength_id(&self) -> usize {
+        self.wavelength_id
+    }
+
+    pub fn tangential_vec_id(&self) -> usize {
+        self.tangential_vec_id
     }
 
     pub fn aperture_stop(&self) -> &usize {
@@ -1121,10 +1135,7 @@ mod test {
         let nbk7 = n!(1.515);
         let wavelengths: [Float; 1] = [0.5876];
         let sequential_model = convexplano_lens::sequential_model(air, nbk7, &wavelengths);
-        let seq_sub_model = sequential_model
-            .submodels()
-            .get(&0usize)
-            .expect("Submodel not found.");
+        let seq_sub_model = sequential_model.submodel(0).expect("Submodel not found.");
         let field_specs = vec![
             FieldSpec::Angle {
                 chi: 0.0,
@@ -1138,6 +1149,8 @@ mod test {
 
         (
             ParaxialSubView::new(
+                0,
+                0,
                 seq_sub_model,
                 sequential_model.surfaces(),
                 Vec3::new(0.0, 1.0, 0.0), // v = Y (phi=90°)
@@ -1202,10 +1215,7 @@ mod test {
         let nbk7 = n!(1.515);
         let wavelengths: [Float; 1] = [0.5876];
         let sequential_model = convexplano_lens::sequential_model(air, nbk7, &wavelengths);
-        let seq_sub_model = sequential_model
-            .submodels()
-            .get(&0usize)
-            .expect("Submodel not found.");
+        let seq_sub_model = sequential_model.submodel(0).expect("Submodel not found.");
         let pseudo_marginal_ray =
             ParaxialSubView::calc_pseudo_marginal_ray(seq_sub_model, sequential_model.surfaces())
                 .unwrap();
@@ -1232,10 +1242,7 @@ mod test {
         let nbk7 = n!(1.515);
         let wavelengths: [Float; 1] = [0.5876];
         let sequential_model = convexplano_lens::sequential_model(air, nbk7, &wavelengths);
-        let seq_sub_model = sequential_model
-            .submodels()
-            .get(&0usize)
-            .expect("Submodel not found.");
+        let seq_sub_model = sequential_model.submodel(0).expect("Submodel not found.");
         let reverse_parallel_ray =
             ParaxialSubView::calc_reverse_parallel_ray(seq_sub_model, sequential_model.surfaces())
                 .unwrap();

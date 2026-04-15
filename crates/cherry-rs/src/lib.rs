@@ -101,10 +101,13 @@
 //! let paraxial_view = ParaxialView::new(&sequential_model, &field_specs, false).unwrap();
 //!
 //! // Compute the effective focal length of the lens for each submodel.
-//! for (sub_model_id, sub_view) in paraxial_view.subviews() {
+//! for sub_view in paraxial_view.iter() {
 //!     let result = sub_view.effective_focal_length();
 //!
-//!     println!("Submodel ID: {:?}, Effective focal length: {}", sub_model_id, result);
+//!     println!(
+//!         "wavelength_id={} tangential_vec_id={} EFL={}",
+//!         sub_view.wavelength_id(), sub_view.tangential_vec_id(), result
+//!     );
 //! }
 //!
 //! // Compute a 3D ray trace of the system, sampling the pupil with a square
@@ -150,7 +153,7 @@ pub use views::{
     },
     paraxial::{
         ImagePlane, ParaxialRay, ParaxialRayBundle, ParaxialSubView, ParaxialSubViewDescription,
-        ParaxialView, ParaxialViewDescription, Pupil, SubModelID,
+        ParaxialView, ParaxialViewDescription, Pupil,
     },
     ray_trace_3d::{
         Ray, RayBundle, SamplingConfig, TraceResults, TraceResultsCollection, ray_trace_3d_view,

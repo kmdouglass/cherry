@@ -1,10 +1,10 @@
 #[cfg(feature = "ri-info")]
 mod test_ri_info {
     use core::panic;
-    use std::rc::Rc;
     /// Tests the lens with material data from the refractiveindex.info
     /// database.
-    use std::{collections::HashMap, io::Read};
+    use std::io::Read;
+    use std::rc::Rc;
 
     use anyhow::Result;
     use approx::assert_abs_diff_eq;
@@ -36,15 +36,6 @@ mod test_ri_info {
         },
     ];
 
-    // Paraxial property values
-    // primary_axial_color is keyed by v_index; for a single phi=90° field,
-    // v_index=0.
-    fn primary_axial_color() -> HashMap<usize, f64> {
-        let mut primary_axial_color = HashMap::new();
-        primary_axial_color.insert(0usize, 0.7743);
-        primary_axial_color
-    }
-
     #[test]
     fn test_feature_enabled() {
         println!("Feature ri-info is enabled!");
@@ -63,13 +54,10 @@ mod test_ri_info {
         let view =
             ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
 
-        let expected = primary_axial_color();
+        // For a single phi=90° field there is one tangential direction
+        // (tangential_vec_id=0).
         let results = view.primary_axial_color();
-
-        assert_eq!(expected.len(), results.len());
-        for (axis, expected_value) in expected.iter() {
-            let result = results.get(axis).unwrap();
-            assert_abs_diff_eq!(expected_value, result, epsilon = 1e-4);
-        }
+        assert_eq!(results.len(), 1);
+        assert_abs_diff_eq!(results[0], 0.7743, epsilon = 1e-4);
     }
 }

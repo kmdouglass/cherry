@@ -1,6 +1,4 @@
-use std::collections::HashMap;
-
-use crate::{SubModelID, gui::result_package::ResultPackage, views::paraxial::ParaxialSubView};
+use crate::{gui::result_package::ResultPackage, views::paraxial::ParaxialSubView};
 
 /// Floating paraxial summary output window.
 pub struct ParaxialWindow;
@@ -29,10 +27,9 @@ impl ParaxialWindow {
 
 fn render_paraxial_content(ui: &mut egui::Ui, r: &ResultPackage) {
     let pv = r.paraxial.as_ref().unwrap();
-    let subviews = pv.subviews();
 
     // Collect unique v_indices, sorted ascending (ascending phi).
-    let mut v_indices: Vec<usize> = subviews.keys().map(|id| id.1).collect();
+    let mut v_indices: Vec<usize> = pv.iter().map(|sv| sv.tangential_vec_id()).collect();
     v_indices.sort_unstable();
     v_indices.dedup();
     let n_v = v_indices.len();
@@ -46,15 +43,15 @@ fn render_paraxial_content(ui: &mut egui::Ui, r: &ResultPackage) {
             ui.heading(format!("\u{03c6} = {phi_deg:.0}\u{00b0}"));
         }
 
-        // Subview IDs for this v_index, sorted by wavelength_id.
-        let mut ids: Vec<SubModelID> = subviews
-            .keys()
-            .filter(|id| id.1 == v_idx)
-            .copied()
+        // Subviews for this tangential_vec_id, sorted by wavelength_id.
+        let mut ids: Vec<(usize, usize)> = pv
+            .iter()
+            .filter(|sv| sv.tangential_vec_id() == v_idx)
+            .map(|sv| (sv.wavelength_id(), sv.tangential_vec_id()))
             .collect();
-        ids.sort_by_key(|id| id.0);
+        ids.sort_by_key(|&(wl_id, _)| wl_id);
 
-        render_v_table(ui, r, v_idx, &ids, subviews);
+        render_v_table(ui, r, v_idx, &ids, pv);
         ui.add_space(8.0);
     }
 
@@ -62,7 +59,7 @@ fn render_paraxial_content(ui: &mut egui::Ui, r: &ResultPackage) {
     if r.wavelengths.len() > 1 {
         let pac = pv.primary_axial_color();
         for &v_idx in &v_indices {
-            if let Some(&color) = pac.get(&v_idx) {
+            if let Some(&color) = pac.get(v_idx) {
                 let phi_suffix = if n_v > 1 {
                     let phi_deg = pv.phi_deg(v_idx);
                     format!(" (\u{03c6} = {phi_deg:.0}\u{00b0})")
@@ -84,8 +81,8 @@ fn render_v_table(
     ui: &mut egui::Ui,
     r: &ResultPackage,
     v_idx: usize,
-    ids: &[SubModelID],
-    subviews: &HashMap<SubModelID, ParaxialSubView>,
+    ids: &[(usize, usize)],
+    pv: &crate::views::paraxial::ParaxialView,
 ) {
     let n_wl = ids.len();
     let n_cols = 1 + n_wl;
@@ -97,12 +94,12 @@ fn render_v_table(
             // Wavelength header row — only when there are multiple wavelengths.
             if n_wl > 1 {
                 ui.label(""); // empty label cell
-                for id in ids {
+                for &(wl_id, _) in ids {
                     let wl_label = r
                         .wavelengths
-                        .get(id.0)
+                        .get(wl_id)
                         .map(|wl| format!("{wl:.4} \u{00b5}m"))
-                        .unwrap_or_else(|| format!("WL {}", id.0));
+                        .unwrap_or_else(|| format!("WL {wl_id}"));
                     ui.label(wl_label);
                 }
                 ui.end_row();
@@ -113,9 +110,9 @@ fn render_v_table(
                 ui.end_row();
             }
 
-            multi_row(ui, "EFL", ids, subviews, |sv| *sv.effective_focal_length());
-            multi_row(ui, "BFD", ids, subviews, |sv| *sv.back_focal_distance());
-            multi_row(ui, "FFD", ids, subviews, |sv| *sv.front_focal_distance());
+            multi_row(ui, "EFL", ids, pv, |sv| *sv.effective_focal_length());
+            multi_row(ui, "BFD", ids, pv, |sv| *sv.back_focal_distance());
+            multi_row(ui, "FFD", ids, pv, |sv| *sv.front_focal_distance());
 
             sep_row(ui, n_cols);
 
@@ -123,20 +120,16 @@ fn render_v_table(
                 ui,
                 "Entrance pupil dist. from first surface",
                 ids,
-                subviews,
+                pv,
                 |sv| sv.entrance_pupil().location,
             );
-            multi_row(ui, "Entrance pupil semi-diameter", ids, subviews, |sv| {
+            multi_row(ui, "Entrance pupil semi-diameter", ids, pv, |sv| {
                 sv.entrance_pupil().semi_diameter
             });
-            multi_row(
-                ui,
-                "Exit pupil dist. from last surface",
-                ids,
-                subviews,
-                |sv| sv.exit_pupil().location,
-            );
-            multi_row(ui, "Exit pupil semi-diameter", ids, subviews, |sv| {
+            multi_row(ui, "Exit pupil dist. from last surface", ids, pv, |sv| {
+                sv.exit_pupil().location
+            });
+            multi_row(ui, "Exit pupil semi-diameter", ids, pv, |sv| {
                 sv.exit_pupil().semi_diameter
             });
 
@@ -146,14 +139,14 @@ fn render_v_table(
                 ui,
                 "Front principal plane dist. from first surface",
                 ids,
-                subviews,
+                pv,
                 |sv| *sv.front_principal_plane(),
             );
             multi_row(
                 ui,
                 "Back principal plane dist. from last surface",
                 ids,
-                subviews,
+                pv,
                 |sv| *sv.back_principal_plane(),
             );
 
@@ -161,8 +154,8 @@ fn render_v_table(
 
             // Aperture stop is an integer index; format it without decimals.
             ui.label("Aperture stop (surface)");
-            for id in ids {
-                if let Some(sv) = subviews.get(id) {
+            for &(wl_id, tangential_vec_id) in ids {
+                if let Some(sv) = pv.get(wl_id, tangential_vec_id) {
                     ui.label(sv.aperture_stop().to_string());
                 } else {
                     ui.label("\u{2014}");
@@ -182,15 +175,15 @@ fn sep_row(ui: &mut egui::Ui, n_cols: usize) {
 fn multi_row<F>(
     ui: &mut egui::Ui,
     label: &str,
-    ids: &[SubModelID],
-    subviews: &HashMap<SubModelID, ParaxialSubView>,
+    ids: &[(usize, usize)],
+    pv: &crate::views::paraxial::ParaxialView,
     get_val: F,
 ) where
     F: Fn(&ParaxialSubView) -> f64,
 {
     ui.label(label);
-    for id in ids {
-        if let Some(sv) = subviews.get(id) {
+    for &(wl_id, tangential_vec_id) in ids {
+        if let Some(sv) = pv.get(wl_id, tangential_vec_id) {
             ui.label(format_value(get_val(sv)));
         } else {
             ui.label("\u{2014}");
