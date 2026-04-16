@@ -27,7 +27,6 @@ fn benchmark(c: &mut Criterion) {
                 black_box(&paraxial_view),
                 black_box(SamplingConfig {
                     n_fan_rays: 9,
-                    cross_section_n_fan_rays: 3,
                     full_pupil_spacing: 0.1,
                 }),
             )

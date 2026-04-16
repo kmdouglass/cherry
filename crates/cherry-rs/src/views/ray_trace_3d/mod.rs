@@ -32,10 +32,6 @@ use super::paraxial::{ParaxialSubView, ParaxialView};
 pub struct SamplingConfig {
     /// Number of rays in the tangential and sagittal ray fans.
     pub n_fan_rays: usize,
-    /// Number of rays in the tangential fan used for the cross-section view.
-    /// May be 0 (no rays) or any positive integer up to
-    /// MAX_CROSS_SECTION_N_RAYS.
-    pub cross_section_n_fan_rays: usize,
     /// Grid spacing for the full-pupil square-grid sampling, in normalised
     /// pupil coordinates [0, 1].
     pub full_pupil_spacing: Float,
@@ -82,9 +78,67 @@ pub struct TraceResults {
 
     /// A sagittal ray fan perpendicular to the meridional plane.
     sagittal_fan: RayBundle,
+}
 
-    /// A tangential ray fan used exclusively for the cross-section view.
-    cross_section_fan: RayBundle,
+/// Trace a single ray bundle type across all (field, wavelength) pairs.
+///
+/// This is the lower-level counterpart to [`ray_trace_3d_view`]. Use it when
+/// you need a specific sampling that is not one of the four canonical bundles,
+/// for example a tangential fan at a different density for a cross-section
+/// display.
+///
+/// # Arguments
+/// * `aperture_spec` - The aperture specification.
+/// * `field_specs` - The field specifications.
+/// * `sequential_model` - The sequential model.
+/// * `paraxial_view` - A paraxial view. Required for locating the entrance
+///   pupil.
+/// * `sampling` - Which pupil sampling to use for every (field, wavelength)
+///   pair.
+///
+/// # Returns
+/// A `Vec` of `(field_id, wavelength_id, RayBundle)` tuples, one per
+/// (field, wavelength) pair, in unspecified order.
+pub fn trace_ray_bundle(
+    aperture_spec: &ApertureSpec,
+    field_specs: &[FieldSpec],
+    sequential_model: &SequentialModel,
+    paraxial_view: &ParaxialView,
+    sampling: PupilSampling,
+) -> Result<Vec<(usize, usize, RayBundle)>> {
+    validate_field_specs(sequential_model, field_specs)?;
+
+    let n_wavelengths = sequential_model.wavelengths().len();
+    let pairs: Vec<(usize, usize)> = (0..field_specs.len())
+        .flat_map(|f| (0..n_wavelengths).map(move |w| (f, w)))
+        .collect();
+
+    pairs
+        .into_par_iter()
+        .map(
+            |(field_id, wavelength_id)| -> Result<(usize, usize, RayBundle)> {
+                let sequential_submodel = sequential_model
+                    .submodel(wavelength_id)
+                    .ok_or_else(|| anyhow!("Submodel not found"))?;
+                let tangential_vec_id = paraxial_view
+                    .tangential_vec_id_for_phi(field_specs[field_id].tangential_fan_phi());
+                let paraxial_subview = paraxial_view
+                    .get(wavelength_id, tangential_vec_id)
+                    .ok_or_else(|| anyhow!("Submodel not found"))?;
+
+                let bundle = ray_trace_submodel(
+                    sequential_submodel,
+                    sequential_model.surfaces(),
+                    aperture_spec,
+                    &field_specs[field_id],
+                    paraxial_subview,
+                    sampling,
+                )?;
+
+                Ok((field_id, wavelength_id, bundle))
+            },
+        )
+        .collect::<Result<Vec<_>>>()
 }
 
 /// Perform a 3D ray trace on a sequential model.
@@ -173,16 +227,6 @@ pub fn ray_trace_3d_view(
                     n: config.n_fan_rays,
                 },
             )?;
-            let cross_section_fan = ray_trace_submodel(
-                sequential_submodel,
-                surfaces,
-                aperture_spec,
-                field_spec,
-                paraxial_subview,
-                PupilSampling::TangentialRayFan {
-                    n: config.cross_section_n_fan_rays,
-                },
-            )?;
 
             trace!(
                 field_id,
@@ -199,7 +243,6 @@ pub fn ray_trace_3d_view(
                 full_pupil,
                 tangential_fan,
                 sagittal_fan,
-                cross_section_fan,
             })
         })
         .collect::<Result<Vec<_>>>()?;
@@ -280,11 +323,6 @@ impl TraceResults {
     // Returns the sagittal ray fan bundle.
     pub fn sagittal_fan(&self) -> &RayBundle {
         &self.sagittal_fan
-    }
-
-    // Returns the tangential ray fan bundle used for the cross-section view.
-    pub fn cross_section_fan(&self) -> &RayBundle {
-        &self.cross_section_fan
     }
 
     // Returns the wavelength ID of the ray bundle.
@@ -795,12 +833,37 @@ mod tests {
     }
 
     #[test]
+    fn test_trace_ray_bundle() {
+        let s = setup();
+
+        let bundles = trace_ray_bundle(
+            &s.aperture_spec,
+            &s.field_specs,
+            &s.sequential_model,
+            &s.paraxial_view,
+            PupilSampling::TangentialRayFan { n: 7 },
+        )
+        .unwrap();
+
+        // One tuple per (field, wavelength) pair: 2 fields × 1 wavelength = 2.
+        assert_eq!(bundles.len(), 2);
+        for (field_id, wavelength_id, bundle) in &bundles {
+            assert!(*field_id < s.field_specs.len());
+            assert_eq!(*wavelength_id, 0);
+            assert_eq!(
+                bundle.rays().len() / bundle.num_surfaces(),
+                7,
+                "field {field_id} bundle should have 7 rays"
+            );
+        }
+    }
+
+    #[test]
     fn test_ray_trace_3d_view() {
         let s = setup();
 
         let config = SamplingConfig {
             n_fan_rays: 3,
-            cross_section_n_fan_rays: 3,
             full_pupil_spacing: 0.1,
         };
         let results = ray_trace_3d_view(
@@ -820,7 +883,6 @@ mod tests {
         let s = setup();
         let config = SamplingConfig {
             n_fan_rays: 5,
-            cross_section_n_fan_rays: 5,
             full_pupil_spacing: 0.1,
         };
 
@@ -1200,7 +1262,6 @@ mod tests {
         let paraxial_view = ParaxialView::new(&sequential_model, &field_specs, false).unwrap();
         let config = SamplingConfig {
             n_fan_rays: 3,
-            cross_section_n_fan_rays: 3,
             full_pupil_spacing: 0.1,
         };
 
@@ -1259,7 +1320,6 @@ mod tests {
         let s = setup();
         let config = SamplingConfig {
             n_fan_rays: 3,
-            cross_section_n_fan_rays: 3,
             full_pupil_spacing: 0.1,
         };
         let results = ray_trace_3d_view(

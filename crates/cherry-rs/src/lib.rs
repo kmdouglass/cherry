@@ -37,7 +37,7 @@
 //! # Quick Start
 //! ```rust
 //! use cherry_rs::{
-//!     n, ray_trace_3d_view, ApertureSpec, FieldSpec, GapSpec, ImagePlane,
+//!     n, ray_trace_3d_view, trace_ray_bundle, ApertureSpec, FieldSpec, GapSpec, ImagePlane,
 //!     ParaxialView, Pupil, SamplingConfig, RefractiveIndexSpec, Rotation3D,
 //!     SequentialModel, SurfaceSpec, SurfaceType,
 //! };
@@ -116,7 +116,7 @@
 //!     &aperture_spec, &field_specs,
 //!     &sequential_model,
 //!     &paraxial_view,
-//!     SamplingConfig { n_fan_rays: 9, cross_section_n_fan_rays: 3, full_pupil_spacing: 0.1 },
+//!     SamplingConfig { n_fan_rays: 9, full_pupil_spacing: 0.1 },
 //! ).unwrap();
 //!
 //! // Get all results for the second (5 degree) field point.
@@ -157,6 +157,7 @@ pub use views::{
     },
     ray_trace_3d::{
         Ray, RayBundle, SamplingConfig, TraceResults, TraceResultsCollection, ray_trace_3d_view,
+        trace_ray_bundle,
     },
 };
 

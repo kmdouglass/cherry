@@ -37,7 +37,7 @@ fn test_ray_trace_3d_on_axis() {
         &paraxial_view,
         SamplingConfig {
             n_fan_rays: 9,
-            cross_section_n_fan_rays: 3,
+
             full_pupil_spacing: 0.1,
         },
     )
@@ -73,7 +73,7 @@ fn test_ray_trace_3d_off_axis() {
         &paraxial_view,
         SamplingConfig {
             n_fan_rays: 9,
-            cross_section_n_fan_rays: 3,
+
             full_pupil_spacing: 0.1,
         },
     )
@@ -99,7 +99,7 @@ fn test_ray_trace_3d_square_grid() {
         &paraxial_view,
         SamplingConfig {
             n_fan_rays: 9,
-            cross_section_n_fan_rays: 3,
+
             full_pupil_spacing: 0.5,
         },
     )
