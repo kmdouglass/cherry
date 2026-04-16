@@ -1,7 +1,7 @@
 use std::f64::consts::FRAC_PI_2;
 
 use approx::assert_abs_diff_eq;
-use cherry_rs::{FieldSpec, ParaxialView, SubModelID, examples::mirrors_figure_z, n};
+use cherry_rs::{FieldSpec, ParaxialView, examples::mirrors_figure_z, n};
 
 const WAVELENGTHS: [f64; 1] = [0.5876];
 const FIELD_SPECS: [FieldSpec; 1] = [FieldSpec::Angle {
@@ -46,7 +46,7 @@ fn track_equals_z_for_straight_system() {
 fn mirrors_figure_z_paraxial_aperture_stop() {
     let model = mirrors_figure_z::sequential_model(n!(1.0), &WAVELENGTHS);
     let view = ParaxialView::new(&model, &FIELD_SPECS, false).expect("paraxial view");
-    for sub_view in view.subviews().values() {
+    for sub_view in view.iter() {
         assert_eq!(*sub_view.aperture_stop(), APERTURE_STOP);
     }
 }
@@ -55,7 +55,7 @@ fn mirrors_figure_z_paraxial_aperture_stop() {
 fn mirrors_figure_z_paraxial_exit_pupil() {
     let model = mirrors_figure_z::sequential_model(n!(1.0), &WAVELENGTHS);
     let view = ParaxialView::new(&model, &FIELD_SPECS, false).expect("paraxial view");
-    for sub_view in view.subviews().values() {
+    for sub_view in view.iter() {
         assert_abs_diff_eq!(
             sub_view.exit_pupil().location,
             EXIT_PUPIL_LOCATION,
@@ -77,11 +77,7 @@ fn mirrors_figure_z_marginal_ray_uses_projected_sd() {
     let projected_u = r * (30.0_f64.to_radians()).cos();
 
     // FIELD_SPECS has phi=90° → only one submodel with v=Y (foreshortened).
-    let sub_view = view
-        .subviews()
-        .values()
-        .next()
-        .expect("at least one subview");
+    let sub_view = view.iter().next().expect("at least one subview");
     assert_eq!(*sub_view.aperture_stop(), 1usize);
     let marginal_height_at_stop = sub_view.marginal_ray().rays_at_surface(1)[0].height;
     assert_abs_diff_eq!(marginal_height_at_stop, projected_u, epsilon = 1e-10);
@@ -97,8 +93,8 @@ fn entrance_pupil_sd_phi_90_foreshortened() {
     }];
     let model = mirrors_figure_z::sequential_model(n!(1.0), &WAVELENGTHS);
     let view = ParaxialView::new(&model, &field_specs, false).expect("paraxial view");
-    let id = SubModelID(0, view.v_index_for_phi(FRAC_PI_2));
-    let ep = view.subviews()[&id].entrance_pupil();
+    let tangential_vec_id = view.tangential_vec_id_for_phi(FRAC_PI_2);
+    let ep = view.get(0, tangential_vec_id).unwrap().entrance_pupil();
     assert_abs_diff_eq!(ep.semi_diameter, ENTRANCE_PUPIL_SD_U, epsilon = 1e-4);
 }
 
@@ -109,8 +105,8 @@ fn entrance_pupil_sd_phi_0_not_foreshortened() {
     let field_specs = [FieldSpec::Angle { chi: 0.0, phi: 0.0 }];
     let model = mirrors_figure_z::sequential_model(n!(1.0), &WAVELENGTHS);
     let view = ParaxialView::new(&model, &field_specs, false).expect("paraxial view");
-    let id = SubModelID(0, view.v_index_for_phi(0.0));
-    let ep = view.subviews()[&id].entrance_pupil();
+    let tangential_vec_id = view.tangential_vec_id_for_phi(0.0);
+    let ep = view.get(0, tangential_vec_id).unwrap().entrance_pupil();
     assert_abs_diff_eq!(ep.semi_diameter, ENTRANCE_PUPIL_SD_R, epsilon = 1e-4);
 }
 
@@ -129,11 +125,11 @@ fn chief_ray_uses_matching_field_phi() {
     let model = mirrors_figure_z::sequential_model(n!(1.0), &WAVELENGTHS);
     let view = ParaxialView::new(&model, &field_specs, false).expect("paraxial view");
 
-    let id_phi90 = SubModelID(0, view.v_index_for_phi(FRAC_PI_2));
-    let id_phi0 = SubModelID(0, view.v_index_for_phi(0.0));
+    let v_phi90 = view.tangential_vec_id_for_phi(FRAC_PI_2);
+    let v_phi0 = view.tangential_vec_id_for_phi(0.0);
 
-    let angle_phi90 = view.subviews()[&id_phi90].chief_ray().rays_at_surface(0)[0].angle;
-    let angle_phi0 = view.subviews()[&id_phi0].chief_ray().rays_at_surface(0)[0].angle;
+    let angle_phi90 = view.get(0, v_phi90).unwrap().chief_ray().rays_at_surface(0)[0].angle;
+    let angle_phi0 = view.get(0, v_phi0).unwrap().chief_ray().rays_at_surface(0)[0].angle;
 
     assert_abs_diff_eq!(angle_phi90, 5.0_f64.to_radians().tan(), epsilon = 1e-6);
     assert_abs_diff_eq!(angle_phi0, 3.0_f64.to_radians().tan(), epsilon = 1e-6);

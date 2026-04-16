@@ -1,5 +1,4 @@
 /// Data types for modeling sequential ray tracing systems.
-use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 use std::ops::Range;
 
@@ -34,7 +33,7 @@ pub struct Gap {
 #[derive(Debug)]
 pub struct SequentialModel {
     surfaces: Vec<Surface>,
-    submodels: HashMap<usize, SequentialSubModelBase>,
+    submodels: Vec<SequentialSubModelBase>,
     wavelengths: Vec<Float>,
     axis_directions: Vec<Vec3>,
 }
@@ -347,10 +346,10 @@ impl SequentialModel {
 
         let (surfaces, axis_directions) = Self::surf_specs_to_surfs(surface_specs, gap_specs);
 
-        let mut models: HashMap<usize, SequentialSubModelBase> = HashMap::new();
-        for (wav_idx, &wavelength) in wavelengths.iter().enumerate() {
+        let mut models: Vec<SequentialSubModelBase> = Vec::new();
+        for &wavelength in wavelengths.iter() {
             let gaps = Self::gap_specs_to_gaps(gap_specs, wavelength)?;
-            models.insert(wav_idx, SequentialSubModelBase::new(gaps));
+            models.push(SequentialSubModelBase::new(gaps));
         }
 
         Ok(Self {
@@ -382,13 +381,22 @@ impl SequentialModel {
         &self.surfaces
     }
 
-    /// Returns the wavelength-indexed submodels of the system.
+    /// Returns the submodel for a given wavelength index, or `None` if the
+    /// index is out of range.
     ///
-    /// Each entry is keyed by the wavelength index (0-based, matching the order
-    /// passed to `new`). Tangential-direction splitting is handled by
+    /// Wavelength indices are 0-based and match the order of the wavelengths
+    /// slice passed to [`SequentialModel::new`].
+    pub fn submodel(&self, wavelength_id: usize) -> Option<&(impl SequentialSubModel + use<'_>)> {
+        self.submodels.get(wavelength_id)
+    }
+
+    /// Returns all wavelength submodels as a slice.
+    ///
+    /// The position in the slice is the wavelength index (0-based, matching the
+    /// order passed to `new`). Tangential-direction splitting is handled by
     /// `ParaxialView`, which builds one paraxial subview per wavelength ×
     /// tangential-vector combination.
-    pub fn submodels(&self) -> &HashMap<usize, impl SequentialSubModel + use<>> {
+    pub fn submodels(&self) -> &[impl SequentialSubModel + use<'_>] {
         &self.submodels
     }
 
