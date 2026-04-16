@@ -514,7 +514,6 @@ mod tests {
         let pv = ParaxialView::new(&seq, &parsed.fields, false).expect("paraxial");
         let config = SamplingConfig {
             n_fan_rays: 11,
-            cross_section_n_fan_rays: 3,
             full_pupil_spacing: 0.1,
         };
         let trace = ray_trace_3d_view(&parsed.aperture, &parsed.fields, &seq, &pv, config).ok();

@@ -443,7 +443,6 @@ mod tests {
             &pv,
             crate::views::ray_trace_3d::SamplingConfig {
                 n_fan_rays: 3,
-                cross_section_n_fan_rays: 3,
                 full_pupil_spacing: 0.1,
             },
         )

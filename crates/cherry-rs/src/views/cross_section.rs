@@ -5,7 +5,7 @@ use std::collections::HashSet;
 use crate::{
     SequentialModel,
     core::{Float, math::vec3::Vec3, sequential_model::Surface},
-    views::{components::Component, ray_trace_3d::TraceResultsCollection},
+    views::{components::Component, ray_trace_3d::RayBundle},
 };
 
 /// Identifies a global transverse coordinate axis for cross-section projection.
@@ -81,11 +81,13 @@ pub enum FlatPlaneKind {
 ///
 /// # Arguments
 /// * `model` - The sequential model.
-/// * `trace` - Optional ray trace results to overlay on the view.
+/// * `cross_section_rays` - Optional ray bundles to overlay on the view. Each
+///   tuple is `(field_id, wavelength_id, bundle)` as returned by
+///   [`trace_ray_bundle`](crate::trace_ray_bundle).
 /// * `components` - Pre-computed optical components (from `components_view`).
 pub fn cross_section_view(
     model: &SequentialModel,
-    trace: Option<&TraceResultsCollection>,
+    cross_section_rays: Option<&[(usize, usize, RayBundle)]>,
     components: &HashSet<Component>,
 ) -> CrossSectionView {
     let wavelengths = model.wavelengths().to_vec();
@@ -95,8 +97,8 @@ pub fn cross_section_view(
     let yz_valid = axis_dirs.iter().all(|d| d.x().abs() < EPS);
     let xz_valid = axis_dirs.iter().all(|d| d.y().abs() < EPS);
 
-    let yz = build_plane_geometry(model, trace, GlobalAxis::Y, components);
-    let xz = build_plane_geometry(model, trace, GlobalAxis::X, components);
+    let yz = build_plane_geometry(model, cross_section_rays, GlobalAxis::Y, components);
+    let xz = build_plane_geometry(model, cross_section_rays, GlobalAxis::X, components);
 
     CrossSectionView {
         wavelengths,
@@ -110,7 +112,7 @@ pub fn cross_section_view(
 /// Build the geometry for one cutting plane.
 fn build_plane_geometry(
     model: &SequentialModel,
-    trace: Option<&TraceResultsCollection>,
+    cross_section_rays: Option<&[(usize, usize, RayBundle)]>,
     axis: GlobalAxis,
     components: &HashSet<Component>,
 ) -> PlaneGeometry {
@@ -215,13 +217,12 @@ fn build_plane_geometry(
     let n_wavelengths = model.wavelengths().len();
     let mut ray_paths: Vec<Vec<Vec<[f64; 2]>>> = vec![Vec::new(); n_wavelengths];
 
-    if let Some(tc) = trace {
-        for result in tc.iter() {
-            let wl_id = result.wavelength_id();
+    if let Some(rays) = cross_section_rays {
+        for (_field_id, wl_id, bundle) in rays {
+            let wl_id = *wl_id;
             if wl_id >= n_wavelengths {
                 continue;
             }
-            let bundle = result.cross_section_fan();
             let n_surf = bundle.num_surfaces();
             let total = bundle.rays().len();
             let n_rays = if n_surf > 0 { total / n_surf } else { 0 };
@@ -407,18 +408,16 @@ mod tests {
 
     #[test]
     fn xz_rays_come_from_u_axis_results() {
-        // After removing axis-based filtering, a TangentialRayFan trace (which
-        // produces Axis::U results) should contribute ray paths to the XZ plane
-        // cross-section via projection, not just the YZ plane.
+        // A TangentialRayFan trace (phi=90°, YZ plane) should contribute ray
+        // paths to the XZ plane cross-section via projection.
         use crate::{
-            ApertureSpec, FieldSpec, ParaxialView,
-            views::ray_trace_3d::{SamplingConfig, ray_trace_3d_view},
+            ApertureSpec, FieldSpec, ParaxialView, specs::fields::PupilSampling,
+            views::ray_trace_3d::trace_ray_bundle,
         };
         let air = n!(1.0);
         let nbk7 = n!(1.515);
         let wavelengths: [Float; 1] = [0.5876];
         let model = convexplano_lens::sequential_model(air.clone(), nbk7, &wavelengths);
-        // phi=90° places the tangential fan in the YZ plane (Axis::U results).
         let fields = vec![FieldSpec::Angle {
             chi: 0.0,
             phi: 90.0,
@@ -427,25 +426,63 @@ mod tests {
             semi_diameter: 12.5,
         };
         let pv = ParaxialView::new(&model, &fields, false).unwrap();
-        let trace = ray_trace_3d_view(
+        let rays = trace_ray_bundle(
             &aperture,
             &fields,
             &model,
             &pv,
-            SamplingConfig {
-                n_fan_rays: 5,
-                cross_section_n_fan_rays: 5,
-                full_pupil_spacing: 0.1,
-            },
+            PupilSampling::TangentialRayFan { n: 5 },
         )
         .unwrap();
         let components = components_view(&model, air).unwrap();
-        let cs = cross_section_view(&model, Some(&trace), &components);
-        // XZ plane should have ray paths from the U-axis trace projected onto X.
+        let cs = cross_section_view(&model, Some(&rays), &components);
+        // XZ plane should have ray paths from the trace projected onto X.
         assert!(
             !cs.xz.ray_paths.iter().all(|w| w.is_empty()),
             "XZ plane should have ray paths from trace projection"
         );
+    }
+
+    #[test]
+    fn ray_paths_populated_per_wavelength() {
+        // Regression: tuples from trace_ray_bundle are (field_id, wavelength_id,
+        // bundle). If the destructuring order is swapped, all paths land in
+        // ray_paths[field_id] instead of ray_paths[wavelength_id], so only the
+        // first wavelength slot ever gets populated.
+        use crate::{
+            ApertureSpec, FieldSpec, ParaxialView, specs::fields::PupilSampling,
+            views::ray_trace_3d::trace_ray_bundle,
+        };
+        let air = n!(1.0);
+        let nbk7 = n!(1.515);
+        let wavelengths: [Float; 3] = [0.4861, 0.5876, 0.6563];
+        let model = convexplano_lens::sequential_model(air.clone(), nbk7, &wavelengths);
+        let fields = vec![FieldSpec::Angle {
+            chi: 0.0,
+            phi: 90.0,
+        }];
+        let aperture = ApertureSpec::EntrancePupil {
+            semi_diameter: 12.5,
+        };
+        let pv = ParaxialView::new(&model, &fields, false).unwrap();
+        let rays = trace_ray_bundle(
+            &aperture,
+            &fields,
+            &model,
+            &pv,
+            PupilSampling::TangentialRayFan { n: 3 },
+        )
+        .unwrap();
+        let components = components_view(&model, air).unwrap();
+        let cs = cross_section_view(&model, Some(&rays), &components);
+
+        // Every wavelength slot must have paths — not just the first one.
+        for (wl_idx, paths) in cs.yz.ray_paths.iter().enumerate() {
+            assert!(
+                !paths.is_empty(),
+                "wavelength {wl_idx} should have ray paths in the YZ plane"
+            );
+        }
     }
 
     #[test]

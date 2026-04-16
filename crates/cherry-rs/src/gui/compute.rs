@@ -5,7 +5,7 @@ use std::{collections::HashMap, rc::Rc};
 
 use crate::{
     ParaxialView, SequentialModel, components_view, cross_section_view, ray_trace_3d_view,
-    views::ray_trace_3d::SamplingConfig,
+    specs::fields::PupilSampling, trace_ray_bundle, views::ray_trace_3d::SamplingConfig,
 };
 
 use super::{
@@ -154,7 +154,6 @@ fn run_compute(
         .unwrap_or(0.1);
     let config = SamplingConfig {
         n_fan_rays: req.specs.n_fan_rays as usize,
-        cross_section_n_fan_rays: req.specs.cross_section_n_rays as usize,
         full_pupil_spacing,
     };
     let trace = match ray_trace_3d_view(&parsed.aperture, &parsed.fields, &seq, &pv, config) {
@@ -165,8 +164,23 @@ fn run_compute(
         }
     };
 
+    let cross_section_rays = trace_ray_bundle(
+        &parsed.aperture,
+        &parsed.fields,
+        &seq,
+        &pv,
+        PupilSampling::TangentialRayFan {
+            n: req.specs.cross_section_n_rays as usize,
+        },
+    )
+    .ok();
+
     let components = components_view(&seq, parsed.background.clone()).unwrap_or_default();
-    let cross_section = Some(cross_section_view(&seq, trace.as_ref(), &components));
+    let cross_section = Some(cross_section_view(
+        &seq,
+        cross_section_rays.as_deref(),
+        &components,
+    ));
 
     ResultPackage {
         id: req.id,
