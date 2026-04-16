@@ -451,10 +451,21 @@ impl eframe::App for CherryApp {
                             self.export_cross_section_svg(ctx);
                         }
                     });
-                    ui.separator();
-                    if ui.button("Quit").clicked() {
-                        ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                    #[cfg(not(target_arch = "wasm32"))]
+                    {
+                        ui.separator();
+                        if ui.button("Quit").clicked() {
+                            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                        }
                     }
+                });
+                ui.add_space(16.0);
+
+                ui.menu_button("View", |ui| {
+                    let mut theme = ui.ctx().options(|opt| opt.theme_preference);
+                    ui.selectable_value(&mut theme, egui::ThemePreference::Light, "☀ Light");
+                    ui.selectable_value(&mut theme, egui::ThemePreference::Dark, "🌙 Dark");
+                    ui.ctx().set_theme(theme);
                 });
                 ui.add_space(16.0);
 
@@ -493,7 +504,9 @@ impl eframe::App for CherryApp {
                 });
                 ui.add_space(16.0);
 
-                egui::widgets::global_theme_preference_buttons(ui);
+                ui.menu_button("Help", |ui| {
+                    ui.hyperlink_to("GitHub", "https://github.com/kmdouglass/cherry");
+                });
 
                 if is_computing {
                     ui.add_space(8.0);
