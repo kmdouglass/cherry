@@ -5,8 +5,8 @@
 use std::rc::Rc;
 
 use crate::{
-    EulerAngles, GapSpec, RefractiveIndexSpec, Rotation3D, SequentialModel, SurfaceSpec,
-    SurfaceType, core::Float,
+    BoundaryType, EulerAngles, GapSpec, RefractiveIndexSpec, Rotation3D, SequentialModel,
+    SurfaceSpec, core::Float,
 };
 
 pub fn sequential_model(
@@ -32,7 +32,7 @@ pub fn sequential_model(
         semi_diameter: 12.7,
         radius_of_curvature: Float::INFINITY,
         conic_constant: 0.0,
-        surf_type: SurfaceType::Reflecting,
+        surf_type: BoundaryType::Reflecting,
         rotation: Rotation3D::IntrinsicPassiveRUF(EulerAngles(
             (30 as Float).to_radians(),
             0.0,
@@ -43,7 +43,7 @@ pub fn sequential_model(
         semi_diameter: 12.7,
         radius_of_curvature: f64::INFINITY,
         conic_constant: 0.0,
-        surf_type: SurfaceType::Reflecting,
+        surf_type: BoundaryType::Reflecting,
         rotation: Rotation3D::IntrinsicPassiveRUF(EulerAngles(
             (30 as Float).to_radians(),
             0.0,

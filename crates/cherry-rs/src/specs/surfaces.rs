@@ -4,7 +4,7 @@ use crate::core::{Float, math::linalg::rotations::Rotation3D};
 
 /// Specifies the type of interaction of light with a sequential model surface.
 #[derive(Debug, Serialize, Deserialize, Clone, Copy)]
-pub enum SurfaceType {
+pub enum BoundaryType {
     Refracting,
     Reflecting,
     NoOp,
@@ -20,7 +20,7 @@ pub enum SurfaceSpec {
         semi_diameter: Float,
         radius_of_curvature: Float,
         conic_constant: Float,
-        surf_type: SurfaceType,
+        surf_type: BoundaryType,
         rotation: Rotation3D,
     },
     Image {
@@ -39,6 +39,6 @@ pub enum SurfaceSpec {
     //     radius_of_curvature_vert: Float,
     //     radius_of_curvature_horz: Float,
     //     conic_constant: Float,
-    //     surf_type: SurfaceType,
+    //     surf_type: BoundaryType,
     // },
 }

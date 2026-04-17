@@ -36,7 +36,7 @@ pub fn trace(sequential_submodel: &mut SequentialSubModelIter, mut rays: Vec<Ray
     let mut ray_bundle = initialize_bundle(&rays, num_surfaces);
 
     for (ctr, step) in sequential_submodel.enumerate() {
-        let (_, surf, _) = step;
+        let surf = step.surface;
         let surface_id = ctr + 1;
 
         // Copy the ray states into here after they have been traced through the surface
@@ -51,11 +51,11 @@ pub fn trace(sequential_submodel: &mut SequentialSubModelIter, mut rays: Vec<Ray
             }
 
             // Transform into coordinate system of the surface
-            ray.transform(surf);
+            ray.transform(step.placement);
 
             // Find the ray intersection with the surface.
             // Errors if the intersection point does not converge.
-            let (pos, norm) = match ray.intersect(surf, MAX_INTERSECTION_ITER) {
+            let (pos, norm) = match ray.intersect(step.surface, MAX_INTERSECTION_ITER) {
                 Ok((pos, norm)) => (pos, norm),
                 Err(e) => {
                     if !ray_is_terminated(ray_id, &terminated) {
@@ -88,7 +88,7 @@ pub fn trace(sequential_submodel: &mut SequentialSubModelIter, mut rays: Vec<Ray
             ray.redirect(&step, norm);
 
             // Transform back to the global coordinate system
-            ray.i_transform(surf);
+            ray.i_transform(step.placement);
 
             rays_at_surface[ray_id] = ray.clone();
         }

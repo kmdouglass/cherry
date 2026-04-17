@@ -29,14 +29,13 @@ const EXIT_PUPIL_LOCATION: f64 = 100.0;
 fn track_equals_z_for_straight_system() {
     use cherry_rs::examples::convexplano_lens;
     let model = convexplano_lens::sequential_model(n!(1.0), n!(1.515), &WAVELENGTHS);
-    let surfaces = model.surfaces();
-    for surf in surfaces {
-        if surf.z().is_finite() {
+    for p in model.placements() {
+        if p.position.z().is_finite() {
             assert!(
-                (surf.track() - surf.z()).abs() < 1e-10,
+                (p.track - p.position.z()).abs() < 1e-10,
                 "Expected track == z for straight system, got track={}, z={}",
-                surf.track(),
-                surf.z()
+                p.track,
+                p.position.z()
             );
         }
     }
@@ -139,25 +138,25 @@ fn chief_ray_uses_matching_field_phi() {
 #[test]
 fn track_coordinates_folded_system() {
     let model = mirrors_figure_z::sequential_model(n!(1.0), &WAVELENGTHS);
-    let surfaces = model.surfaces();
+    let placements = model.placements();
 
-    // surf[0] Object: cursor initialized at -inf
-    assert!(surfaces[0].track().is_infinite() && surfaces[0].track() < 0.0);
+    // placements[0] Object: cursor initialized at -inf
+    assert!(placements[0].track.is_infinite() && placements[0].track < 0.0);
 
-    // surf[1] Mirror 1: special-case advance from -inf resets track to 0
-    assert_eq!(surfaces[1].track(), 0.0);
+    // placements[1] Mirror 1: special-case advance from -inf resets track to 0
+    assert_eq!(placements[1].track, 0.0);
 
-    // surf[2] Mirror 2: 0 + gap_1 (100 mm)
+    // placements[2] Mirror 2: 0 + gap_1 (100 mm)
     assert!(
-        (surfaces[2].track() - 100.0).abs() < 1e-10,
+        (placements[2].track - 100.0).abs() < 1e-10,
         "Mirror 2 track should be 100, got {}",
-        surfaces[2].track()
+        placements[2].track
     );
 
-    // surf[3] Image: 100 + gap_2 (50 mm)
+    // placements[3] Image: 100 + gap_2 (50 mm)
     assert!(
-        (surfaces[3].track() - 150.0).abs() < 1e-10,
+        (placements[3].track - 150.0).abs() < 1e-10,
         "Image track should be 150, got {}",
-        surfaces[3].track()
+        placements[3].track
     );
 }

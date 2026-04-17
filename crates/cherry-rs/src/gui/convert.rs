@@ -3,8 +3,8 @@ use std::rc::Rc;
 use anyhow::{Context, Result, bail};
 
 use crate::{
-    ApertureSpec, ConstantRefractiveIndex, EulerAngles, FieldSpec, GapSpec, RefractiveIndexSpec,
-    Rotation3D, SurfaceSpec, SurfaceType,
+    ApertureSpec, BoundaryType, ConstantRefractiveIndex, EulerAngles, FieldSpec, GapSpec,
+    RefractiveIndexSpec, Rotation3D, SurfaceSpec,
 };
 
 use super::model::{FieldMode, SurfaceKind, SurfaceVariant, SystemSpecs};
@@ -74,10 +74,10 @@ fn convert_specs_inner(
                 let conic = parse_float(&row.conic_constant)
                     .with_context(|| format!("surface {i}: conic constant"))?;
                 let surf_type = match row.surface_kind {
-                    SurfaceKind::Refracting => SurfaceType::Refracting,
-                    SurfaceKind::Reflecting => SurfaceType::Reflecting,
+                    SurfaceKind::Refracting => BoundaryType::Refracting,
+                    SurfaceKind::Reflecting => BoundaryType::Reflecting,
                 };
-                let rotation = if matches!(surf_type, SurfaceType::Reflecting) {
+                let rotation = if matches!(surf_type, BoundaryType::Reflecting) {
                     let theta_deg =
                         parse_float(&row.theta).with_context(|| format!("surface {i}: theta"))?;
                     let psi_deg =

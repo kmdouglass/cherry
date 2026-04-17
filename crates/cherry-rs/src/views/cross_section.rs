@@ -3,8 +3,8 @@
 use std::collections::HashSet;
 
 use crate::{
-    SequentialModel,
-    core::{Float, math::vec3::Vec3, sequential_model::Surface},
+    SequentialModel, SurfaceKind,
+    core::{Float, math::vec3::Vec3, placement::Placement, surfaces::Surface},
     views::{components::Component, ray_trace_3d::RayBundle},
 };
 
@@ -117,6 +117,7 @@ fn build_plane_geometry(
     components: &HashSet<Component>,
 ) -> PlaneGeometry {
     let surfaces = model.surfaces();
+    let placements = model.placements();
     let largest_sd = model.largest_semi_diameter();
 
     let mut elements: Vec<DrawElement> = Vec::new();
@@ -134,10 +135,8 @@ fn build_plane_geometry(
     for comp in &sorted_components {
         match comp {
             Component::Element { surf_idxs: (i, j) } => {
-                let front = &surfaces[*i];
-                let back = &surfaces[*j];
-                let front_pts = sample_surface(front, axis, N_PTS);
-                let back_pts = sample_surface(back, axis, N_PTS);
+                let front_pts = sample_surface(surfaces[*i].as_ref(), &placements[*i], axis, N_PTS);
+                let back_pts = sample_surface(surfaces[*j].as_ref(), &placements[*j], axis, N_PTS);
                 if !front_pts.is_empty() && !back_pts.is_empty() {
                     elements.push(DrawElement::LensGroup {
                         front_pts,
@@ -146,9 +145,8 @@ fn build_plane_geometry(
                 }
             }
             Component::Stop { stop_idx } => {
-                let surf = &surfaces[*stop_idx];
-                let z = surf.pos().z();
-                let sd = surf.semi_diameter();
+                let z = placements[*stop_idx].position.z();
+                let sd = surfaces[*stop_idx].semi_diameter();
                 elements.push(DrawElement::Stop {
                     z,
                     half_gap: sd,
@@ -156,15 +154,23 @@ fn build_plane_geometry(
                 });
             }
             Component::Mirror { surf_idx } => {
-                let surf = &surfaces[*surf_idx];
-                let pts = sample_surface(surf, axis, N_PTS);
+                let pts = sample_surface(
+                    surfaces[*surf_idx].as_ref(),
+                    &placements[*surf_idx],
+                    axis,
+                    N_PTS,
+                );
                 if !pts.is_empty() {
                     elements.push(DrawElement::SurfaceProfile { points: pts });
                 }
             }
             Component::UnpairedSurface { surf_idx } => {
-                let surf = &surfaces[*surf_idx];
-                let pts = sample_surface(surf, axis, N_PTS);
+                let pts = sample_surface(
+                    surfaces[*surf_idx].as_ref(),
+                    &placements[*surf_idx],
+                    axis,
+                    N_PTS,
+                );
                 if !pts.is_empty() {
                     elements.push(DrawElement::SurfaceProfile { points: pts });
                 }
@@ -173,8 +179,8 @@ fn build_plane_geometry(
     }
 
     // Add flat planes (Image, Probe, Object at finite distance).
-    for surf in surfaces.iter() {
-        if surf.is_infinite() {
+    for (surf, placement) in surfaces.iter().zip(placements.iter()) {
+        if placement.is_infinite() {
             continue;
         }
         let half = if largest_sd > 0.0 {
@@ -182,24 +188,24 @@ fn build_plane_geometry(
         } else {
             1.0
         };
-        let kind = match surf {
-            Surface::Image(_) => FlatPlaneKind::Image,
-            Surface::Probe(_) => FlatPlaneKind::Probe,
-            Surface::Object(_) => FlatPlaneKind::Object,
+        let kind = match surf.surface_kind() {
+            SurfaceKind::Image => FlatPlaneKind::Image,
+            SurfaceKind::Probe => FlatPlaneKind::Probe,
+            SurfaceKind::Object => FlatPlaneKind::Object,
             _ => continue,
         };
 
         // Center of the plane in (z, transverse) plot space.
-        let center_z = surf.pos().z();
+        let center_z = placement.position.z();
         let center_t = match axis {
-            GlobalAxis::Y => surf.pos().y(),
-            GlobalAxis::X => surf.pos().x(),
+            GlobalAxis::Y => placement.position.y(),
+            GlobalAxis::X => placement.position.x(),
         };
 
         // Forward direction of the cursor at this surface in global coordinates.
-        // inv_rot_mat() maps local → global; applying to (0,0,1) gives the cursor
-        // forward direction. For Object (no rotation field) this is (0,0,1).
-        let fwd = surf.inv_rot_mat() * Vec3::new(0.0, 0.0, 1.0);
+        // inv_rotation_matrix maps local → global; applying to (0,0,1) gives the
+        // cursor forward direction.
+        let fwd = placement.inv_rotation_matrix * Vec3::new(0.0, 0.0, 1.0);
         let fwd_z = fwd.z();
         let fwd_t = match axis {
             GlobalAxis::Y => fwd.y(),
@@ -274,7 +280,12 @@ fn build_plane_geometry(
 /// For axis = Y: samples at (0, y, 0) for y in [-sd, sd], returns global (z, y)
 /// pairs. For axis = X: samples at (x, 0, 0) for x in [-sd, sd], returns global
 /// (z, x) pairs.
-fn sample_surface(surf: &Surface, axis: GlobalAxis, n_pts: usize) -> Vec<[f64; 2]> {
+fn sample_surface(
+    surf: &dyn Surface,
+    placement: &Placement,
+    axis: GlobalAxis,
+    n_pts: usize,
+) -> Vec<[f64; 2]> {
     let sd = surf.semi_diameter();
     if !sd.is_finite() || sd <= 0.0 || n_pts < 2 {
         return Vec::new();
@@ -294,7 +305,7 @@ fn sample_surface(surf: &Surface, axis: GlobalAxis, n_pts: usize) -> Vec<[f64; 2
             GlobalAxis::X => Vec3::new(transverse, 0.0, sag),
         };
         // Transform to global coordinates.
-        let global_pt = surf.inv_rot_mat() * local_surface_pt + surf.pos();
+        let global_pt = placement.inv_rotation_matrix * local_surface_pt + placement.position;
         let transverse_global = match axis {
             GlobalAxis::Y => global_pt.y(),
             GlobalAxis::X => global_pt.x(),
@@ -397,8 +408,9 @@ mod tests {
         let wavelengths: [Float; 1] = [0.5876];
         let model = convexplano_lens::sequential_model(air, nbk7, &wavelengths);
         let surfaces = model.surfaces();
+        let placements = model.placements();
         // Surface 2 is the plano (flat) back surface.
-        let pts = sample_surface(&surfaces[2], GlobalAxis::Y, 10);
+        let pts = sample_surface(surfaces[2].as_ref(), &placements[2], GlobalAxis::Y, 10);
         // All sag values should be zero for a flat surface.
         for &[_z, _t] in &pts {
             // Just ensure we got points back

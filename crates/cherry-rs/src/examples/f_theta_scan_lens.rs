@@ -9,7 +9,7 @@
 use std::rc::Rc;
 
 use crate::{
-    FieldSpec, GapSpec, RefractiveIndexSpec, Rotation3D, SequentialModel, SurfaceSpec, SurfaceType,
+    BoundaryType, FieldSpec, GapSpec, RefractiveIndexSpec, Rotation3D, SequentialModel, SurfaceSpec,
 };
 
 pub fn sequential_model(
@@ -60,42 +60,42 @@ pub fn sequential_model(
         semi_diameter: 2.0,
         radius_of_curvature: -2.2136,
         conic_constant: 0.0,
-        surf_type: SurfaceType::Refracting,
+        surf_type: BoundaryType::Refracting,
         rotation: Rotation3D::None,
     };
     let surf_3 = SurfaceSpec::Conic {
         semi_diameter: 2.0,
         radius_of_curvature: -2.6575,
         conic_constant: 0.0,
-        surf_type: SurfaceType::Refracting,
+        surf_type: BoundaryType::Refracting,
         rotation: Rotation3D::None,
     };
     let surf_4 = SurfaceSpec::Conic {
         semi_diameter: 2.0,
         radius_of_curvature: -5.5022,
         conic_constant: 0.0,
-        surf_type: SurfaceType::Refracting,
+        surf_type: BoundaryType::Refracting,
         rotation: Rotation3D::None,
     };
     let surf_5 = SurfaceSpec::Conic {
         semi_diameter: 2.0,
         radius_of_curvature: -3.8129,
         conic_constant: 0.0,
-        surf_type: SurfaceType::Refracting,
+        surf_type: BoundaryType::Refracting,
         rotation: Rotation3D::None,
     };
     let surf_6 = SurfaceSpec::Conic {
         semi_diameter: 3.0,
         radius_of_curvature: 7.9951,
         conic_constant: 0.0,
-        surf_type: SurfaceType::Refracting,
+        surf_type: BoundaryType::Refracting,
         rotation: Rotation3D::None,
     };
     let surf_7 = SurfaceSpec::Conic {
         semi_diameter: 3.0,
         radius_of_curvature: 8.3651,
         conic_constant: 0.0,
-        surf_type: SurfaceType::Refracting,
+        surf_type: BoundaryType::Refracting,
         rotation: Rotation3D::None,
     };
     let surf_8 = SurfaceSpec::Image {
