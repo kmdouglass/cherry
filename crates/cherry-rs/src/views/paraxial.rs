@@ -7,8 +7,6 @@
 /// paraxial view is used to compute the paraxial parameters of an optical
 /// system, such as the entrance and exit pupils, the back and front focal
 /// distances, and the effective focal length.
-use std::borrow::Borrow;
-
 use anyhow::{Result, anyhow};
 use serde::{Deserialize, Serialize};
 
@@ -17,12 +15,14 @@ use crate::{
     core::{
         Float,
         math::{linalg::mat2x2::Mat2x2, vec3::Vec3},
+        placement::Placement,
         sequential_model::{
-            SequentialModel, SequentialSubModel, Step, Surface, first_physical_surface,
+            SequentialModel, SequentialSubModel, Step, first_physical_surface,
             last_physical_surface, propagate_tangential_vec, reversed_surface_id,
         },
+        surfaces::Surface,
     },
-    specs::{fields::unique_tangential_vecs, surfaces::SurfaceType},
+    specs::{fields::unique_tangential_vecs, surfaces::BoundaryType},
 };
 
 const DEFAULT_THICKNESS: Float = 0.0;
@@ -265,8 +265,9 @@ impl ParaxialView {
         is_obj_space_telecentric: bool,
     ) -> Result<Self> {
         let surfaces = sequential_model.surfaces();
+        let placements = sequential_model.placements();
         let tangential_vecs: Vec<TangentialVector> =
-            if SequentialModel::is_rotationally_symmetric(surfaces) {
+            if SequentialModel::is_rotationally_symmetric(placements) {
                 vec![Vec3::new(0.0, 1.0, 0.0)]
             } else {
                 unique_tangential_vecs(field_specs)
@@ -275,15 +276,14 @@ impl ParaxialView {
         let mut subviews = Vec::new();
         for (wav_idx, submodel) in sequential_model.submodels().iter().enumerate() {
             for (v_idx, &v) in tangential_vecs.iter().enumerate() {
-                let subview = ParaxialSubView::new(
-                    wav_idx,
-                    v_idx,
-                    submodel,
+                let data = SubModelData {
+                    sequential_sub_model: submodel as &dyn SequentialSubModel,
                     surfaces,
-                    v,
+                    placements,
                     field_specs,
-                    is_obj_space_telecentric,
-                )?;
+                };
+                let subview =
+                    ParaxialSubView::new(wav_idx, v_idx, &data, v, is_obj_space_telecentric)?;
                 subviews.push(subview);
             }
         }
@@ -403,6 +403,17 @@ impl ParaxialView {
     }
 }
 
+/// Bundles the per-submodel slices that `ParaxialSubView::new` needs.
+///
+/// Grouping these avoids exceeding the clippy `too_many_arguments` limit while
+/// keeping the call sites readable.
+struct SubModelData<'a> {
+    sequential_sub_model: &'a dyn SequentialSubModel,
+    surfaces: &'a [Box<dyn Surface>],
+    placements: &'a [Placement],
+    field_specs: &'a [FieldSpec],
+}
+
 impl ParaxialSubView {
     /// Create a new paraxial subview for the given tangential direction.
     ///
@@ -412,28 +423,39 @@ impl ParaxialSubView {
     fn new(
         wavelength_id: usize,
         tangential_vec_id: usize,
-        sequential_sub_model: &impl SequentialSubModel,
-        surfaces: &[Surface],
+        data: &SubModelData<'_>,
         v: TangentialVector,
-        field_specs: &[FieldSpec],
         is_obj_space_telecentric: bool,
     ) -> Result<Self> {
+        let sequential_sub_model = data.sequential_sub_model;
+        let surfaces = data.surfaces;
+        let placements = data.placements;
+        let field_specs = data.field_specs;
         // Propagate v through mirror surfaces to get per-surface tangential vectors.
-        let per_surf_v: Vec<TangentialVector> = propagate_tangential_vec(v, surfaces);
+        let per_surf_v: Vec<TangentialVector> = propagate_tangential_vec(v, surfaces, placements);
 
-        let pseudo_marginal_ray = Self::calc_pseudo_marginal_ray(sequential_sub_model, surfaces)?;
-        let parallel_ray = Self::calc_parallel_ray(sequential_sub_model, surfaces)?;
-        let reverse_parallel_ray = Self::calc_reverse_parallel_ray(sequential_sub_model, surfaces)?;
+        let pseudo_marginal_ray =
+            Self::calc_pseudo_marginal_ray(sequential_sub_model, surfaces, placements)?;
+        let parallel_ray = Self::calc_parallel_ray(sequential_sub_model, surfaces, placements)?;
+        let reverse_parallel_ray =
+            Self::calc_reverse_parallel_ray(sequential_sub_model, surfaces, placements)?;
 
-        let aperture_stop = Self::calc_aperture_stop(surfaces, &pseudo_marginal_ray, &per_surf_v);
+        let aperture_stop =
+            Self::calc_aperture_stop(surfaces, placements, &pseudo_marginal_ray, &per_surf_v);
         let back_focal_distance = Self::calc_back_focal_distance(surfaces, &parallel_ray)?;
         let front_focal_distance =
             Self::calc_front_focal_distance(surfaces, &reverse_parallel_ray)?;
-        let marginal_ray =
-            Self::calc_marginal_ray(surfaces, &pseudo_marginal_ray, &aperture_stop, &per_surf_v);
+        let marginal_ray = Self::calc_marginal_ray(
+            surfaces,
+            placements,
+            &pseudo_marginal_ray,
+            &aperture_stop,
+            &per_surf_v,
+        );
         let entrance_pupil = Self::calc_entrance_pupil(
             sequential_sub_model,
             surfaces,
+            placements,
             is_obj_space_telecentric,
             &aperture_stop,
             &per_surf_v,
@@ -442,6 +464,7 @@ impl ParaxialSubView {
         let exit_pupil = Self::calc_exit_pupil(
             sequential_sub_model,
             surfaces,
+            placements,
             &aperture_stop,
             &marginal_ray,
         )?;
@@ -455,12 +478,13 @@ impl ParaxialSubView {
         let chief_ray = Self::calc_chief_ray(
             surfaces,
             sequential_sub_model,
+            placements,
             v,
             field_specs,
             &entrance_pupil,
         )?;
         let paraxial_image_plane =
-            Self::calc_paraxial_image_plane(surfaces, &marginal_ray, &chief_ray)?;
+            Self::calc_paraxial_image_plane(surfaces, placements, &marginal_ray, &chief_ray)?;
 
         Ok(Self {
             wavelength_id,
@@ -556,7 +580,8 @@ impl ParaxialSubView {
     }
 
     fn calc_aperture_stop(
-        surfaces: &[Surface],
+        surfaces: &[Box<dyn Surface>],
+        placements: &[Placement],
         pseudo_marginal_ray: &ParaxialRayBundle,
         per_surf_v: &[TangentialVector],
     ) -> usize {
@@ -569,8 +594,11 @@ impl ParaxialSubView {
         let last_surface_height = pseudo_marginal_ray.last_surface().unwrap()[0].height;
         let ratios: Vec<Float> = surfaces
             .iter()
+            .zip(placements.iter())
             .zip(per_surf_v.iter())
-            .map(|(s, &v)| (s.projected_semi_diameter(v) / last_surface_height).abs())
+            .map(|((s, p), &v)| {
+                (p.projected_semi_diameter(s.semi_diameter(), v) / last_surface_height).abs()
+            })
             .collect();
 
         // Do not include the object or image surfaces when computing the aperture stop.
@@ -578,7 +606,7 @@ impl ParaxialSubView {
     }
 
     fn calc_back_focal_distance(
-        surfaces: &[Surface],
+        surfaces: &[Box<dyn Surface>],
         parallel_ray: &ParaxialRayBundle,
     ) -> Result<Float> {
         let last_physical_surface_index =
@@ -620,17 +648,18 @@ impl ParaxialSubView {
     /// submodel's chief ray is computed from the fields that lie in its
     /// meridional plane.
     fn calc_chief_ray(
-        surfaces: &[Surface],
-        sequential_sub_model: &impl SequentialSubModel,
+        surfaces: &[Box<dyn Surface>],
+        sequential_sub_model: &dyn SequentialSubModel,
+        placements: &[Placement],
         v: TangentialVector,
         field_specs: &[FieldSpec],
         entrance_pupil: &Pupil,
     ) -> Result<ParaxialRayBundle> {
         let enp_loc = entrance_pupil.location;
-        let obj_loc = surfaces
+        let obj_loc = placements
             .first()
             .ok_or(anyhow!("No surfaces provided"))?
-            .track();
+            .track;
         let sep = if obj_loc.is_infinite() {
             0.0
         } else {
@@ -657,7 +686,13 @@ impl ParaxialSubView {
             height,
             angle: paraxial_angle,
         }];
-        Self::trace(initial_ray, sequential_sub_model, surfaces, false)
+        Self::trace(
+            initial_ray,
+            sequential_sub_model,
+            surfaces,
+            placements,
+            false,
+        )
     }
 
     fn calc_effective_focal_length(parallel_ray: &ParaxialRayBundle) -> Float {
@@ -678,8 +713,9 @@ impl ParaxialSubView {
     }
 
     fn calc_entrance_pupil(
-        sequential_sub_model: &impl SequentialSubModel,
-        surfaces: &[Surface],
+        sequential_sub_model: &dyn SequentialSubModel,
+        surfaces: &[Box<dyn Surface>],
+        placements: &[Placement],
         is_obj_space_telecentric: bool,
         aperture_stop: &usize,
         per_surf_v: &[TangentialVector],
@@ -697,7 +733,8 @@ impl ParaxialSubView {
         if *aperture_stop == 1usize {
             return Ok(Pupil {
                 location: 0.0,
-                semi_diameter: surfaces[1].projected_semi_diameter(per_surf_v[1]),
+                semi_diameter: placements[1]
+                    .projected_semi_diameter(surfaces[1].semi_diameter(), per_surf_v[1]),
             });
         }
 
@@ -711,6 +748,7 @@ impl ParaxialSubView {
             ray,
             &sequential_sub_model.slice(0..*aperture_stop),
             &surfaces[0..aperture_stop + 1],
+            &placements[0..aperture_stop + 1],
             true,
         )?;
         let location = axis_intercepts(results.last_surface().unwrap())?[0];
@@ -736,8 +774,9 @@ impl ParaxialSubView {
     }
 
     fn calc_exit_pupil(
-        sequential_sub_model: &impl SequentialSubModel,
-        surfaces: &[Surface],
+        sequential_sub_model: &dyn SequentialSubModel,
+        surfaces: &[Box<dyn Surface>],
+        placements: &[Placement],
         aperture_stop: &usize,
         marginal_ray: &ParaxialRayBundle,
     ) -> Result<Pupil> {
@@ -760,6 +799,7 @@ impl ParaxialSubView {
             ray,
             &sequential_sub_model.slice(*aperture_stop..sequential_sub_model.len()),
             &surfaces[*aperture_stop..],
+            &placements[*aperture_stop..],
             false,
         )?;
 
@@ -782,12 +822,12 @@ impl ParaxialSubView {
     }
 
     fn calc_front_focal_distance(
-        surfaces: &[Surface],
+        surfaces: &[Box<dyn Surface>],
         reverse_parallel_ray: &ParaxialRayBundle,
     ) -> Result<Float> {
         let first_physical_surface_index =
             first_physical_surface(surfaces).ok_or(anyhow!("There are no physical surfaces"))?;
-        let index = reversed_surface_id(surfaces, first_physical_surface_index);
+        let index = reversed_surface_id(surfaces.len(), first_physical_surface_index);
         let intercepts = axis_intercepts(reverse_parallel_ray.rays_at_surface(index))?;
 
         let ffd = intercepts[0];
@@ -814,16 +854,20 @@ impl ParaxialSubView {
     }
 
     fn calc_marginal_ray(
-        surfaces: &[Surface],
+        surfaces: &[Box<dyn Surface>],
+        placements: &[Placement],
         pseudo_marginal_ray: &ParaxialRayBundle,
         aperture_stop: &usize,
         per_surf_v: &[TangentialVector],
     ) -> ParaxialRayBundle {
         let ratios: Vec<Float> = surfaces
             .iter()
+            .zip(placements.iter())
             .zip(pseudo_marginal_ray.iter_surfaces())
             .zip(per_surf_v.iter())
-            .map(|((s, rays), &v)| s.projected_semi_diameter(v) / rays[0].height)
+            .map(|(((s, p), rays), &v)| {
+                p.projected_semi_diameter(s.semi_diameter(), v) / rays[0].height
+            })
             .collect();
         let scale_factor = ratios[*aperture_stop];
 
@@ -844,33 +888,34 @@ impl ParaxialSubView {
 
     /// Compute the parallel ray.
     fn calc_parallel_ray(
-        sequential_sub_model: &impl SequentialSubModel,
-        surfaces: &[Surface],
+        sequential_sub_model: &dyn SequentialSubModel,
+        surfaces: &[Box<dyn Surface>],
+        placements: &[Placement],
     ) -> Result<ParaxialRayBundle> {
         let ray = vec![ParaxialRay {
             height: 1.0,
             angle: 0.0,
         }];
 
-        Self::trace(ray, sequential_sub_model, surfaces, false)
+        Self::trace(ray, sequential_sub_model, surfaces, placements, false)
     }
 
     /// Compute the paraxial image plane.
     fn calc_paraxial_image_plane(
-        surfaces: &[Surface],
+        surfaces: &[Box<dyn Surface>],
+        placements: &[Placement],
         marginal_ray: &ParaxialRayBundle,
         chief_ray: &ParaxialRayBundle,
     ) -> Result<ImagePlane> {
         let last_physical_surface_id =
             last_physical_surface(surfaces).ok_or(anyhow!("There are no physical surfaces"))?;
-        let last_surface = surfaces[last_physical_surface_id].borrow();
 
         let d_axis = axis_intercepts(marginal_ray.rays_at_surface(last_physical_surface_id))?[0];
         let location = if d_axis.is_infinite() {
             // Ensure positive infinity is returned for infinite image planes
             Float::INFINITY
         } else {
-            last_surface.track() + d_axis
+            placements[last_physical_surface_id].track + d_axis
         };
 
         // Propagate the chief ray from the last physical surface to the image plane to
@@ -886,8 +931,9 @@ impl ParaxialSubView {
 
     /// Compute the pseudo-marginal ray.
     fn calc_pseudo_marginal_ray(
-        sequential_sub_model: &impl SequentialSubModel,
-        surfaces: &[Surface],
+        sequential_sub_model: &dyn SequentialSubModel,
+        surfaces: &[Box<dyn Surface>],
+        placements: &[Placement],
     ) -> Result<ParaxialRayBundle> {
         let ray = if sequential_sub_model.is_obj_at_inf() {
             // Ray parallel to axis at a height of 1
@@ -903,41 +949,51 @@ impl ParaxialSubView {
             }]
         };
 
-        Self::trace(ray, sequential_sub_model, surfaces, false)
+        Self::trace(ray, sequential_sub_model, surfaces, placements, false)
     }
 
     /// Compute the reverse parallel ray.
     fn calc_reverse_parallel_ray(
-        sequential_sub_model: &impl SequentialSubModel,
-        surfaces: &[Surface],
+        sequential_sub_model: &dyn SequentialSubModel,
+        surfaces: &[Box<dyn Surface>],
+        placements: &[Placement],
     ) -> Result<ParaxialRayBundle> {
         let ray = vec![ParaxialRay {
             height: 1.0,
             angle: 0.0,
         }];
 
-        Self::trace(ray, sequential_sub_model, surfaces, true)
+        Self::trace(ray, sequential_sub_model, surfaces, placements, true)
     }
 
     /// Compute the ray transfer matrix for each gap/surface pair.
     fn rtms(
-        sequential_sub_model: &impl SequentialSubModel,
-        surfaces: &[Surface],
+        sequential_sub_model: &dyn SequentialSubModel,
+        surfaces: &[Box<dyn Surface>],
+        placements: &[Placement],
         reverse: bool,
     ) -> Result<Vec<RayTransferMatrix>> {
         let mut txs: Vec<RayTransferMatrix> = Vec::new();
         let mut forward_iter;
         let mut reverse_iter;
         let steps: &mut dyn Iterator<Item = Step> = if reverse {
-            reverse_iter = sequential_sub_model.try_iter(surfaces)?.try_reverse()?;
+            reverse_iter = sequential_sub_model
+                .try_iter(surfaces, placements)?
+                .try_reverse()?;
             &mut reverse_iter
         } else {
-            forward_iter = sequential_sub_model.try_iter(surfaces)?;
+            forward_iter = sequential_sub_model.try_iter(surfaces, placements)?;
             &mut forward_iter
         };
         let mut reflected: i8 = 1;
 
-        for (gap_0, surface, gap_1) in steps {
+        for Step {
+            gap_before: gap_0,
+            surface,
+            gap_after: gap_1,
+            ..
+        } in steps
+        {
             let t = if gap_0.thickness.is_infinite() {
                 DEFAULT_THICKNESS
             } else if reverse {
@@ -948,8 +1004,8 @@ impl ParaxialSubView {
                 reflected as Float * gap_0.thickness
             };
 
-            let roc = surface.roc();
-            if let SurfaceType::Reflecting = surface.surface_type() {
+            let roc = surface.roc(0.0);
+            if let BoundaryType::Reflecting = surface.boundary_type() {
                 reflected *= -1;
             }
 
@@ -969,11 +1025,12 @@ impl ParaxialSubView {
 
     fn trace(
         initial_rays: Vec<ParaxialRay>,
-        sequential_sub_model: &impl SequentialSubModel,
-        surfaces: &[Surface],
+        sequential_sub_model: &dyn SequentialSubModel,
+        surfaces: &[Box<dyn Surface>],
+        placements: &[Placement],
         reverse: bool,
     ) -> Result<ParaxialRayBundle> {
-        let txs = Self::rtms(sequential_sub_model, surfaces, reverse)?;
+        let txs = Self::rtms(sequential_sub_model, surfaces, placements, reverse)?;
         let num_surfaces = txs.len() + 1;
         let num_rays = initial_rays.len();
         let mut flat: Vec<ParaxialRay> = Vec::with_capacity(num_surfaces * num_rays);
@@ -1002,29 +1059,23 @@ impl ParaxialSubView {
 /// Compute the ray transfer matrix for propagation to and interaction with a
 /// surface.
 fn surface_to_rtm(
-    surface: &Surface,
+    surface: &dyn Surface,
     t: Float,
     roc: Float,
     n_0: Float,
     n_1: Float,
 ) -> RayTransferMatrix {
-    match surface {
-        // Conics and torics behave the same in paraxial subviews.
-        Surface::Conic(_) => match surface.surface_type() {
-            SurfaceType::Refracting => Mat2x2::new(
-                1.0,
-                t,
-                (n_0 - n_1) / n_1 / roc,
-                t * (n_0 - n_1) / n_1 / roc + n_0 / n_1,
-            ),
-
-            // -1.0 in the second row flips the angle upon reflection so that we don't have to do
-            // acrobatics flipping by the +z-direction instead
-            SurfaceType::Reflecting => Mat2x2::new(1.0, t, -2.0 / roc, -1.0 - 2.0 * t / roc),
-            SurfaceType::NoOp => panic!("Conics and torics cannot be NoOp surfaces."),
-        },
-        Surface::Image(_) | Surface::Probe(_) | Surface::Stop(_) => Mat2x2::new(1.0, t, 0.0, 1.0),
-        Surface::Object(_) => Mat2x2::identity(),
+    match surface.boundary_type() {
+        BoundaryType::Refracting => Mat2x2::new(
+            1.0,
+            t,
+            (n_0 - n_1) / n_1 / roc,
+            t * (n_0 - n_1) / n_1 / roc + n_0 / n_1,
+        ),
+        // -1.0 in the second row flips the angle upon reflection so that we don't have to do
+        // acrobatics flipping by the +z-direction instead
+        BoundaryType::Reflecting => Mat2x2::new(1.0, t, -2.0 / roc, -1.0 - 2.0 * t / roc),
+        BoundaryType::NoOp => Mat2x2::new(1.0, t, 0.0, 1.0),
     }
 }
 
@@ -1147,14 +1198,18 @@ mod test {
             },
         ];
 
+        let data = SubModelData {
+            sequential_sub_model: seq_sub_model as &dyn SequentialSubModel,
+            surfaces: sequential_model.surfaces(),
+            placements: sequential_model.placements(),
+            field_specs: &field_specs,
+        };
         (
             ParaxialSubView::new(
                 0,
                 0,
-                seq_sub_model,
-                sequential_model.surfaces(),
+                &data,
                 Vec3::new(0.0, 1.0, 0.0), // v = Y (phi=90°)
-                &field_specs,
                 false,
             )
             .unwrap(),
@@ -1216,9 +1271,12 @@ mod test {
         let wavelengths: [Float; 1] = [0.5876];
         let sequential_model = convexplano_lens::sequential_model(air, nbk7, &wavelengths);
         let seq_sub_model = sequential_model.submodel(0).expect("Submodel not found.");
-        let pseudo_marginal_ray =
-            ParaxialSubView::calc_pseudo_marginal_ray(seq_sub_model, sequential_model.surfaces())
-                .unwrap();
+        let pseudo_marginal_ray = ParaxialSubView::calc_pseudo_marginal_ray(
+            seq_sub_model,
+            sequential_model.surfaces(),
+            sequential_model.placements(),
+        )
+        .unwrap();
 
         let expected = [
             (1.0000, 0.0),
@@ -1243,9 +1301,12 @@ mod test {
         let wavelengths: [Float; 1] = [0.5876];
         let sequential_model = convexplano_lens::sequential_model(air, nbk7, &wavelengths);
         let seq_sub_model = sequential_model.submodel(0).expect("Submodel not found.");
-        let reverse_parallel_ray =
-            ParaxialSubView::calc_reverse_parallel_ray(seq_sub_model, sequential_model.surfaces())
-                .unwrap();
+        let reverse_parallel_ray = ParaxialSubView::calc_reverse_parallel_ray(
+            seq_sub_model,
+            sequential_model.surfaces(),
+            sequential_model.placements(),
+        )
+        .unwrap();
 
         let expected = [(1.0000, 0.0), (1.0000, 0.0), (1.0000, 0.0200)];
 

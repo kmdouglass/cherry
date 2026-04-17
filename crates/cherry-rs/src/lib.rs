@@ -39,7 +39,7 @@
 //! use cherry_rs::{
 //!     n, ray_trace_3d_view, trace_ray_bundle, ApertureSpec, FieldSpec, GapSpec, ImagePlane,
 //!     ParaxialView, Pupil, SamplingConfig, RefractiveIndexSpec, Rotation3D,
-//!     SequentialModel, SurfaceSpec, SurfaceType,
+//!     SequentialModel, SurfaceSpec, BoundaryType,
 //! };
 //!
 //! // Create a convexplano lens with an object at infinity.
@@ -69,14 +69,14 @@
 //!         semi_diameter: 12.5,
 //!         radius_of_curvature: 25.8,
 //!         conic_constant: 0.0,
-//!         surf_type: SurfaceType::Refracting,
+//!         surf_type: BoundaryType::Refracting,
 //!         rotation: Rotation3D::None,
 //!     },
 //!     SurfaceSpec::Conic {
 //!         semi_diameter: 12.5,
 //!         radius_of_curvature: f64::INFINITY,
 //!         conic_constant: 0.0,
-//!         surf_type: SurfaceType::Refracting,
+//!         surf_type: BoundaryType::Refracting,
 //!         rotation: Rotation3D::None,
 //!     },
 //!     SurfaceSpec::Image { rotation: Rotation3D::None },
@@ -137,14 +137,16 @@ pub mod examples;
 pub use core::{
     math::linalg::rotations::{EulerAngles, Rotation3D},
     math::vec3::Vec3,
+    placement::Placement,
     sequential_model::{SequentialModel, SequentialSubModel, Step},
+    surfaces::{Conic, Image, Object, Probe, Stop, Surface, SurfaceKind},
 };
 pub use specs::{
     aperture::ApertureSpec,
     fields::{FieldSpec, PupilSampling},
     gaps::{ConstantRefractiveIndex, GapSpec, RefractiveIndexSpec},
+    surfaces::BoundaryType,
     surfaces::SurfaceSpec,
-    surfaces::SurfaceType,
 };
 pub use views::{
     components::{Component, components_view},

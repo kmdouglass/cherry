@@ -12,7 +12,9 @@ use crate::{
     core::{
         Float, PI,
         math::vec3::Vec3,
-        sequential_model::{SequentialModel, SequentialSubModel, Surface},
+        placement::Placement,
+        sequential_model::{SequentialModel, SequentialSubModel},
+        surfaces::Surface,
     },
     specs::{
         aperture::ApertureSpec,
@@ -129,6 +131,7 @@ pub fn trace_ray_bundle(
                 let bundle = ray_trace_submodel(
                     sequential_submodel,
                     sequential_model.surfaces(),
+                    sequential_model.placements(),
                     aperture_spec,
                     &field_specs[field_id],
                     paraxial_subview,
@@ -188,10 +191,12 @@ pub fn ray_trace_3d_view(
 
             let field_spec = &field_specs[field_id];
             let surfaces = sequential_model.surfaces();
+            let placements = sequential_model.placements();
 
             let chief_ray = ray_trace_submodel(
                 sequential_submodel,
                 surfaces,
+                placements,
                 aperture_spec,
                 field_spec,
                 paraxial_subview,
@@ -200,6 +205,7 @@ pub fn ray_trace_3d_view(
             let full_pupil = ray_trace_submodel(
                 sequential_submodel,
                 surfaces,
+                placements,
                 aperture_spec,
                 field_spec,
                 paraxial_subview,
@@ -210,6 +216,7 @@ pub fn ray_trace_3d_view(
             let tangential_fan = ray_trace_submodel(
                 sequential_submodel,
                 surfaces,
+                placements,
                 aperture_spec,
                 field_spec,
                 paraxial_subview,
@@ -220,6 +227,7 @@ pub fn ray_trace_3d_view(
             let sagittal_fan = ray_trace_submodel(
                 sequential_submodel,
                 surfaces,
+                placements,
                 aperture_spec,
                 field_spec,
                 paraxial_subview,
@@ -339,21 +347,22 @@ impl TraceResults {
 
 fn ray_trace_submodel(
     sequential_submodel: &impl SequentialSubModel,
-    surfaces: &[Surface],
+    surfaces: &[Box<dyn Surface>],
+    placements: &[Placement],
     aperture_spec: &ApertureSpec,
     field_spec: &FieldSpec,
     paraxial_subview: &ParaxialSubView,
     pupil_sampling: PupilSampling,
 ) -> Result<RayBundle> {
     let rays = rays(
-        surfaces,
+        placements,
         aperture_spec,
         paraxial_subview,
         field_spec,
         pupil_sampling,
     )?;
 
-    let mut sequential_sub_model_iter = sequential_submodel.try_iter(surfaces)?;
+    let mut sequential_sub_model_iter = sequential_submodel.try_iter(surfaces, placements)?;
     Ok(trace(&mut sequential_sub_model_iter, rays))
 }
 
@@ -368,7 +377,7 @@ fn ray_trace_submodel(
 /// * `field_spec` - The field specification.
 /// * `sampling` - The pupil sampling method.
 fn rays(
-    surfaces: &[Surface],
+    placements: &[Placement],
     aperture_spec: &ApertureSpec,
     paraxial_subview: &ParaxialSubView,
     field_spec: &FieldSpec,
@@ -381,14 +390,14 @@ fn rays(
 
             match sampling {
                 PupilSampling::ChiefRay => chief_ray_from_angle(
-                    surfaces,
+                    placements,
                     aperture_spec,
                     paraxial_subview,
                     phi_rad,
                     chi_rad,
                 )?,
                 PupilSampling::SquareGrid { spacing } => parallel_ray_bundle_on_sq_grid(
-                    surfaces,
+                    placements,
                     aperture_spec,
                     paraxial_subview,
                     spacing,
@@ -397,7 +406,7 @@ fn rays(
                 PupilSampling::TangentialRayFan { n } => {
                     let tan_phi = field_spec.tangential_fan_phi();
                     parallel_ray_fan(
-                        surfaces,
+                        placements,
                         aperture_spec,
                         paraxial_subview,
                         n,
@@ -410,7 +419,7 @@ fn rays(
                     let tan_phi = field_spec.tangential_fan_phi();
                     let sag_phi = field_spec.sagittal_fan_phi();
                     parallel_ray_fan(
-                        surfaces,
+                        placements,
                         aperture_spec,
                         paraxial_subview,
                         n,
@@ -423,10 +432,9 @@ fn rays(
         }
 
         FieldSpec::PointSource { x, y } => {
-            let obj_z = surfaces
+            let obj_z = placements
                 .first()
                 .expect("There should always be at least two surfaces")
-                .pos()
                 .z();
             if obj_z.is_infinite() {
                 return Err(anyhow!(
@@ -470,13 +478,13 @@ fn rays(
 /// * `phi` - The azimuthal angle of the ray in the x-y plane, radians.
 /// * `chi` - The zenith angle of the ray w.r.t. the z-axis, radians.
 fn chief_ray_from_angle(
-    surfaces: &[Surface],
+    placements: &[Placement],
     aperture_spec: &ApertureSpec,
     paraxial_subview: &ParaxialSubView,
     phi: Float,
     chi: Float,
 ) -> Result<Vec<Ray>> {
-    let origin = parallel_ray_bundle_origin(surfaces, aperture_spec, paraxial_subview, phi, chi)?;
+    let origin = parallel_ray_bundle_origin(placements, aperture_spec, paraxial_subview, phi, chi)?;
     let dir = Vec3::new(phi.cos() * chi.sin(), phi.sin() * chi.sin(), chi.cos()).normalize();
 
     Ok(vec![Ray::new(origin, dir)])
@@ -516,7 +524,7 @@ fn chief_ray_from_pos(
 /// * `chi` - The zenith angle of the ray w.r.t. the z-axis, radians.
 #[allow(clippy::too_many_arguments)]
 fn parallel_ray_fan(
-    surfaces: &[Surface],
+    placements: &[Placement],
     aperture_spec: &ApertureSpec,
     paraxial_subview: &ParaxialSubView,
     num_rays: usize,
@@ -526,7 +534,7 @@ fn parallel_ray_fan(
 ) -> Result<Vec<Ray>> {
     let enp = entrance_pupil(aperture_spec, paraxial_subview)?;
     let origin = parallel_ray_bundle_origin(
-        surfaces,
+        placements,
         aperture_spec,
         paraxial_subview,
         fan_origin_phi,
@@ -577,7 +585,7 @@ fn parallel_ray_fan(
 ///   (marginal rays).
 /// * `chi` - The zenith angle of the ray bundle w.r.t. the z-axis in radians.
 fn parallel_ray_bundle_on_sq_grid(
-    surfaces: &[Surface],
+    placements: &[Placement],
     aperture_spec: &ApertureSpec,
     paraxial_subview: &ParaxialSubView,
     spacing: Float,
@@ -586,7 +594,7 @@ fn parallel_ray_bundle_on_sq_grid(
     let enp = entrance_pupil(aperture_spec, paraxial_subview)?;
     let abs_spacing = enp.semi_diameter * spacing;
     let origin =
-        parallel_ray_bundle_origin(surfaces, aperture_spec, paraxial_subview, PI / 2.0, chi)?;
+        parallel_ray_bundle_origin(placements, aperture_spec, paraxial_subview, PI / 2.0, chi)?;
 
     let rays = Ray::parallel_ray_bundle_on_sq_grid(
         enp.semi_diameter,
@@ -761,15 +769,15 @@ fn axial_launch_point(obj_z: Float, sur_z: Float, enp_z: Float) -> Float {
 /// * `phi` - The azimuthal angle of the ray fan in the x-y plane, radians.
 /// * `chi` - The zenith angle of the ray w.r.t. the z-axis, radians.
 fn parallel_ray_bundle_origin(
-    surfaces: &[Surface],
+    placements: &[Placement],
     aperture_spec: &ApertureSpec,
     paraxial_subview: &ParaxialSubView,
     phi: Float,
     chi: Float,
 ) -> Result<Vec3> {
     let enp = entrance_pupil(aperture_spec, paraxial_subview)?;
-    let obj_z = surfaces[0].pos().z();
-    let sur_z = surfaces[1].pos().z();
+    let obj_z = placements[0].z();
+    let sur_z = placements[1].z();
     let enp_z = enp.location;
 
     let launch_point_z = axial_launch_point(obj_z, sur_z, enp_z);
@@ -915,7 +923,7 @@ mod tests {
         let s = setup();
 
         let rays = rays(
-            s.sequential_model.surfaces(),
+            s.sequential_model.placements(),
             &s.aperture_spec,
             s.paraxial_view.get(0, 0).unwrap(),
             &s.field_specs[0],
@@ -944,7 +952,7 @@ mod tests {
         let paraxial_view = ParaxialView::new(&seq_model, &field_specs, false).unwrap();
 
         let fan_rays = rays(
-            seq_model.surfaces(),
+            seq_model.placements(),
             &aperture_spec,
             paraxial_view.get(0, 0).unwrap(),
             &field_specs[0],
@@ -990,7 +998,7 @@ mod tests {
         let paraxial_view = ParaxialView::new(&seq_model, &[field_spec], false).unwrap();
 
         let chief = rays(
-            seq_model.surfaces(),
+            seq_model.placements(),
             &aperture_spec,
             paraxial_view.get(0, 0).unwrap(),
             &field_spec,
@@ -998,7 +1006,7 @@ mod tests {
         )
         .unwrap();
         let sag_fan = rays(
-            seq_model.surfaces(),
+            seq_model.placements(),
             &aperture_spec,
             paraxial_view.get(0, 0).unwrap(),
             &field_spec,
@@ -1027,7 +1035,7 @@ mod tests {
         let field_spec = FieldSpec::PointSource { x: 0.0, y: 0.0 };
 
         let result = rays(
-            s.sequential_model.surfaces(),
+            s.sequential_model.placements(),
             &s.aperture_spec,
             s.paraxial_view.get(0, 0).unwrap(),
             &field_spec,
@@ -1046,7 +1054,7 @@ mod tests {
         let s = setup();
 
         let rays = chief_ray_from_angle(
-            s.sequential_model.surfaces(),
+            s.sequential_model.placements(),
             &s.aperture_spec,
             s.paraxial_view.get(0, 0).unwrap(),
             0.0,
@@ -1068,7 +1076,7 @@ mod tests {
         let s = setup();
 
         let rays = chief_ray_from_angle(
-            s.sequential_model.surfaces(),
+            s.sequential_model.placements(),
             &s.aperture_spec,
             s.paraxial_view.get(0, 0).unwrap(),
             PI / 2.0,
@@ -1130,7 +1138,7 @@ mod tests {
         let s = setup();
 
         let rays = parallel_ray_bundle_on_sq_grid(
-            s.sequential_model.surfaces(),
+            s.sequential_model.placements(),
             &s.aperture_spec,
             s.paraxial_view.get(0, 0).unwrap(),
             1.0,
@@ -1142,7 +1150,7 @@ mod tests {
         assert_eq!(rays.unwrap().len(), 5);
 
         let rays = parallel_ray_bundle_on_sq_grid(
-            s.sequential_model.surfaces(),
+            s.sequential_model.placements(),
             &s.aperture_spec,
             s.paraxial_view.get(0, 0).unwrap(),
             0.5,
@@ -1289,7 +1297,7 @@ mod tests {
         };
 
         let generated = rays(
-            s.sequential_model.surfaces(),
+            s.sequential_model.placements(),
             &s.aperture_spec,
             s.paraxial_view.get(0, 0).unwrap(),
             &field_spec,

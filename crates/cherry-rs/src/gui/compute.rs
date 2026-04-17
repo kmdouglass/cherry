@@ -196,23 +196,25 @@ fn run_compute(
 }
 
 fn build_surface_descs(seq: &SequentialModel) -> Vec<SurfaceDesc> {
-    use crate::core::sequential_model::Surface;
+    use crate::SurfaceKind;
     seq.surfaces()
         .iter()
+        .zip(seq.placements().iter())
         .enumerate()
-        .map(|(i, s)| {
-            let name = match s {
-                Surface::Conic(_) => "Conic",
-                Surface::Image(_) => "Image",
-                Surface::Object(_) => "Object",
-                Surface::Probe(_) => "Probe",
-                Surface::Stop(_) => "Stop",
+        .map(|(i, (s, p))| {
+            let name = match s.surface_kind() {
+                SurfaceKind::Conic => "Conic",
+                SurfaceKind::Image => "Image",
+                SurfaceKind::Object => "Object",
+                SurfaceKind::Probe => "Probe",
+                SurfaceKind::Stop => "Stop",
+                SurfaceKind::Custom => "Custom",
             };
             SurfaceDesc {
                 index: i,
                 label: format!("{name} [{i}]"),
-                pos: s.pos(),
-                rot_mat: s.rot_mat(),
+                pos: p.position,
+                rot_mat: p.rotation_matrix,
             }
         })
         .collect()

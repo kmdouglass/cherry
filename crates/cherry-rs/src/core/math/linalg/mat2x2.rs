@@ -12,10 +12,6 @@ impl Mat2x2 {
             e: [[e00, e01], [e10, e11]],
         }
     }
-
-    pub fn identity() -> Self {
-        Self::new(1.0, 0.0, 0.0, 1.0)
-    }
 }
 
 impl std::ops::Mul<Mat2x2> for Mat2x2 {
@@ -44,15 +40,10 @@ mod test {
     }
 
     #[test]
-    fn mat2_identity() {
-        let mat = Mat2x2::identity();
-        assert_eq!(mat, Mat2x2::new(1.0, 0.0, 0.0, 1.0));
-    }
-
-    #[test]
     fn mat2_identity_mul() {
+        let identity = Mat2x2::new(1.0, 0.0, 0.0, 1.0);
         let mat = Mat2x2::new(1.0, 2.0, 3.0, 4.0);
-        assert_eq!(mat * Mat2x2::identity(), mat);
-        assert_eq!(Mat2x2::identity() * mat, mat);
+        assert_eq!(mat * identity, mat);
+        assert_eq!(identity * mat, mat);
     }
 }

@@ -454,12 +454,13 @@ mod tests {
             surfaces: seq
                 .surfaces()
                 .iter()
+                .zip(seq.placements().iter())
                 .enumerate()
-                .map(|(i, s)| crate::gui::result_package::SurfaceDesc {
+                .map(|(i, (_s, p))| crate::gui::result_package::SurfaceDesc {
                     index: i,
                     label: format!("S{i}"),
-                    pos: s.pos(),
-                    rot_mat: s.rot_mat(),
+                    pos: p.position,
+                    rot_mat: p.rotation_matrix,
                 })
                 .collect(),
             fields: vec![
