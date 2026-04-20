@@ -7,7 +7,7 @@ use crate::core::{Float, math::linalg::mat3x3::Mat3x3};
 ///
 /// The angles are in the order of the rotation that is applied; the exact
 /// rotation sequence is specified in the [Rotation] enum.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EulerAngles(pub Float, pub Float, pub Float);
 
 /// 3D rotation sequences represented by Euler angles.
@@ -16,7 +16,7 @@ pub struct EulerAngles(pub Float, pub Float, pub Float);
 /// - Coordinate systems are right-handed
 /// - Counterclockwise rotations are positive
 /// - Angles are in radians
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Rotation3D {
     /// No rotation is applied.
     None,

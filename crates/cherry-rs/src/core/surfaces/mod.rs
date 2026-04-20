@@ -8,12 +8,14 @@ pub mod image;
 pub mod object;
 pub mod probe;
 pub mod stop;
+pub mod surface_registry;
 
 pub use conic::Conic;
 pub use image::Image;
 pub use object::Object;
 pub use probe::Probe;
 pub use stop::Stop;
+pub use surface_registry::{SurfaceConstructor, SurfaceRegistry};
 
 /// The role of a surface in the optical system.
 ///
