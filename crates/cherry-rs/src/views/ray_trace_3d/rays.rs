@@ -84,7 +84,8 @@ impl Ray {
             p = self.pos + self.dir * s;
 
             // Update the distance s using the Newton-Raphson method
-            (sag, norm) = surf.sag_norm(p);
+            sag = surf.sag(p);
+            norm = surf.norm(p);
 
             // sag can be NaN for points outside the clear aperture due to sqrt of a
             // negative number Bisect s backwards until we find a point where
@@ -93,7 +94,8 @@ impl Ray {
             while sag.is_nan() {
                 s /= 2.0;
                 p = self.pos + self.dir * s;
-                (sag, norm) = surf.sag_norm(p);
+                sag = surf.sag(p);
+                norm = surf.norm(p);
 
                 trace!(
                     ctr,
@@ -167,7 +169,7 @@ impl Ray {
 
         // Compute the final intersection point and surface normal
         p = self.pos + self.dir * s;
-        (_, norm) = surf.sag_norm(p);
+        norm = surf.norm(p);
 
         Ok((p, norm))
     }

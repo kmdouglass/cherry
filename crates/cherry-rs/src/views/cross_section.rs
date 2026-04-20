@@ -299,7 +299,7 @@ fn sample_surface(
             GlobalAxis::Y => Vec3::new(0.0, transverse, 0.0),
             GlobalAxis::X => Vec3::new(transverse, 0.0, 0.0),
         };
-        let (sag, _) = surf.sag_norm(local_pt);
+        let sag = surf.sag(local_pt);
         let local_surface_pt = match axis {
             GlobalAxis::Y => Vec3::new(0.0, transverse, sag),
             GlobalAxis::X => Vec3::new(transverse, 0.0, sag),

@@ -73,15 +73,15 @@ pub trait Surface: std::fmt::Debug + Send + Sync {
         Float::INFINITY
     }
 
-    /// Returns the surface sag and normal vector at a given position.
-    ///
-    /// The position is given in the surface's local coordinate system.
-    /// Use [`crate::core::placement::Placement`] to transform a global-frame
-    /// position into local coordinates before calling this method.
+    /// Returns the surface sag at a given position in local coordinates.
+    fn sag(&self, pos: Vec3) -> Float;
+
+    /// Returns the surface normal vector at a given position in local
+    /// coordinates.
     ///
     /// The normal vector is not normalized. Its magnitude is important for
     /// Newton-Raphson ray tracing calculations.
-    fn sag_norm(&self, pos: Vec3) -> (Float, Vec3);
+    fn norm(&self, pos: Vec3) -> Vec3;
 
     /// Returns the semi-diameter of the surface's clear aperture.
     fn semi_diameter(&self) -> Float;
