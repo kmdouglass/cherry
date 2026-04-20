@@ -18,8 +18,12 @@ impl Stop {
 }
 
 impl Surface for Stop {
-    fn sag_norm(&self, _pos: Vec3) -> (Float, Vec3) {
-        (0.0, Vec3::new(0.0, 0.0, 1.0))
+    fn sag(&self, _pos: Vec3) -> Float {
+        0.0
+    }
+
+    fn norm(&self, _pos: Vec3) -> Vec3 {
+        Vec3::new(0.0, 0.0, 1.0)
     }
 
     fn semi_diameter(&self) -> Float {
@@ -41,15 +45,15 @@ mod tests {
     use approx::assert_abs_diff_eq;
 
     #[test]
-    fn sag_norm_is_always_flat() {
+    fn sag_and_norm_are_always_flat() {
         let stop = Stop::new(5.0);
         for pos in [
             Vec3::new(0.0, 0.0, 0.0),
             Vec3::new(3.0, 4.0, 0.0),
             Vec3::new(-1.0, 2.5, 0.0),
         ] {
-            let (sag, norm) = stop.sag_norm(pos);
-            assert_abs_diff_eq!(sag, 0.0);
+            assert_abs_diff_eq!(stop.sag(pos), 0.0);
+            let norm = stop.norm(pos);
             assert_abs_diff_eq!(norm.x(), 0.0);
             assert_abs_diff_eq!(norm.y(), 0.0);
             assert_abs_diff_eq!(norm.z(), 1.0);

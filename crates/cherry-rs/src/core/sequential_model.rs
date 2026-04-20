@@ -471,7 +471,7 @@ impl SequentialModel {
             // Flip the cursor upon reflection. Evaluate the normal at the
             // vertex (local origin = (0,0,0)) and transform to global frame.
             if let BoundaryType::Reflecting = surf.boundary_type() {
-                let (_, mut norm) = surf.sag_norm(Vec3::new(0.0, 0.0, 0.0));
+                let mut norm = surf.norm(Vec3::new(0.0, 0.0, 0.0));
                 norm = (placement.inv_rotation_matrix * norm).normalize();
                 cursor.reflect(&norm);
             }

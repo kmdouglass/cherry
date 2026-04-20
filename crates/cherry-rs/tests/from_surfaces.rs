@@ -8,8 +8,12 @@ impl Surface for FlatNoOp {
         BoundaryType::NoOp
     }
 
-    fn sag_norm(&self, _pos: Vec3) -> (f64, Vec3) {
-        (0.0, Vec3::new(0.0, 0.0, 1.0))
+    fn sag(&self, _pos: Vec3) -> f64 {
+        0.0
+    }
+
+    fn norm(&self, _pos: Vec3) -> Vec3 {
+        Vec3::new(0.0, 0.0, 1.0)
     }
 
     fn semi_diameter(&self) -> f64 {

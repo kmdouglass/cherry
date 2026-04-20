@@ -35,22 +35,25 @@ impl Surface for Conic {
         self.radius_of_curvature
     }
 
-    fn sag_norm(&self, pos: Vec3) -> (Float, Vec3) {
+    fn sag(&self, pos: Vec3) -> Float {
         if self.radius_of_curvature.is_infinite() {
-            return (0.0, Vec3::new(0.0, 0.0, 1.0));
+            return 0.0;
         }
 
-        // Convert to polar coordinates in the xy-plane
+        let r_sq = pos.x().powi(2) + pos.y().powi(2);
+        let a = r_sq / self.radius_of_curvature;
+        a / (1.0 + (1.0 - (1.0 + self.conic_constant) * a / self.radius_of_curvature).sqrt())
+    }
+
+    fn norm(&self, pos: Vec3) -> Vec3 {
+        if self.radius_of_curvature.is_infinite() {
+            return Vec3::new(0.0, 0.0, 1.0);
+        }
+
         let r = (pos.x().powi(2) + pos.y().powi(2)).sqrt();
         let theta = pos.y().atan2(pos.x());
 
-        // Compute surface sag using the standard conic equation
-        let a = r.powi(2) / self.radius_of_curvature;
-        let sag =
-            a / (1.0 + (1.0 - (1.0 + self.conic_constant) * a / self.radius_of_curvature).sqrt());
-
-        // Compute surface normal (not normalized — magnitude matters for
-        // Newton-Raphson)
+        // Not normalized — magnitude matters for Newton-Raphson
         let denom = (self.radius_of_curvature.powi(4)
             - (1.0 + self.conic_constant) * (r * self.radius_of_curvature).powi(2))
         .sqrt();
@@ -58,7 +61,7 @@ impl Surface for Conic {
         let dfdy = -r * self.radius_of_curvature * theta.sin() / denom;
         let dfdz = 1.0_f64 as Float;
 
-        (sag, Vec3::new(dfdx, dfdy, dfdz))
+        Vec3::new(dfdx, dfdy, dfdz)
     }
 
     fn semi_diameter(&self) -> Float {
@@ -86,8 +89,8 @@ mod tests {
     #[test]
     fn flat_surface_sag_is_zero() {
         let conic = Conic::new(10.0, Float::INFINITY, 0.0, BoundaryType::Refracting);
-        let (sag, norm) = conic.sag_norm(Vec3::new(3.0, 4.0, 0.0));
-        assert_eq!(sag, 0.0);
+        assert_eq!(conic.sag(Vec3::new(3.0, 4.0, 0.0)), 0.0);
+        let norm = conic.norm(Vec3::new(3.0, 4.0, 0.0));
         assert_abs_diff_eq!(norm.x(), 0.0);
         assert_abs_diff_eq!(norm.y(), 0.0);
         assert_abs_diff_eq!(norm.z(), 1.0);
@@ -96,16 +99,14 @@ mod tests {
     #[test]
     fn flat_surface_at_origin_sag_is_zero() {
         let conic = Conic::new(10.0, Float::INFINITY, 0.0, BoundaryType::Refracting);
-        let (sag, norm) = conic.sag_norm(Vec3::new(0.0, 0.0, 0.0));
-        assert_eq!(sag, 0.0);
-        assert_abs_diff_eq!(norm.z(), 1.0);
+        assert_eq!(conic.sag(Vec3::new(0.0, 0.0, 0.0)), 0.0);
+        assert_abs_diff_eq!(conic.norm(Vec3::new(0.0, 0.0, 0.0)).z(), 1.0);
     }
 
     #[test]
     fn sphere_sag_at_vertex_is_zero() {
         let conic = sphere(100.0, 10.0);
-        let (sag, _) = conic.sag_norm(Vec3::new(0.0, 0.0, 0.0));
-        assert_abs_diff_eq!(sag, 0.0, epsilon = 1e-12);
+        assert_abs_diff_eq!(conic.sag(Vec3::new(0.0, 0.0, 0.0)), 0.0, epsilon = 1e-12);
     }
 
     #[test]
@@ -114,7 +115,7 @@ mod tests {
         let roc = 50.0;
         let conic = sphere(roc, 10.0);
         let r = 5.0;
-        let (sag, _) = conic.sag_norm(Vec3::new(r, 0.0, 0.0));
+        let sag = conic.sag(Vec3::new(r, 0.0, 0.0));
         let expected_sag = roc - (roc * roc - r * r).sqrt();
         assert_abs_diff_eq!(sag, expected_sag, epsilon = 1e-10);
     }
@@ -123,15 +124,15 @@ mod tests {
     fn sphere_sag_is_symmetric_in_xy() {
         let conic = sphere(50.0, 15.0);
         let r = 5.0;
-        let (sag_x, _) = conic.sag_norm(Vec3::new(r, 0.0, 0.0));
-        let (sag_y, _) = conic.sag_norm(Vec3::new(0.0, r, 0.0));
+        let sag_x = conic.sag(Vec3::new(r, 0.0, 0.0));
+        let sag_y = conic.sag(Vec3::new(0.0, r, 0.0));
         assert_abs_diff_eq!(sag_x, sag_y, epsilon = 1e-12);
     }
 
     #[test]
     fn sphere_normal_at_vertex_points_along_z() {
         let conic = sphere(50.0, 10.0);
-        let (_, norm) = conic.sag_norm(Vec3::new(0.001, 0.0, 0.0));
+        let norm = conic.norm(Vec3::new(0.001, 0.0, 0.0));
         // Near the vertex the normal should be nearly (0, 0, 1)
         assert_abs_diff_eq!(norm.x() / norm.z(), 0.0, epsilon = 1e-3);
         assert_abs_diff_eq!(norm.y() / norm.z(), 0.0, epsilon = 1e-3);
