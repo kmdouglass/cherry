@@ -560,9 +560,9 @@ fn parallel_ray_fan(
             origin_x = origin.x(),
             origin_y = origin.y(),
             origin_z = origin.z(),
-            dir_x = center.k(),
-            dir_y = center.l(),
-            dir_z = center.m(),
+            dir_x = center.l(),
+            dir_y = center.m(),
+            dir_z = center.n(),
             "parallel_ray_fan: center ray (p=0) origin and direction"
         );
     }
@@ -1014,11 +1014,11 @@ mod tests {
         )
         .unwrap();
 
-        let chief_dir = (chief[0].k(), chief[0].l(), chief[0].m());
+        let chief_dir = (chief[0].l(), chief[0].m(), chief[0].n());
 
         // Every sagittal fan ray must travel in the same direction as the chief ray.
         for (i, r) in sag_fan.iter().enumerate() {
-            let dir = (r.k(), r.l(), r.m());
+            let dir = (r.l(), r.m(), r.n());
             assert!(
                 (dir.0 - chief_dir.0).abs() < 1e-10
                     && (dir.1 - chief_dir.1).abs() < 1e-10
@@ -1066,9 +1066,9 @@ mod tests {
         assert_abs_diff_eq!(rays[0].x(), 0.0, epsilon = 1e-4);
         assert_abs_diff_eq!(rays[0].y(), 0.0, epsilon = 1e-4);
         assert_abs_diff_eq!(rays[0].z(), -LAUNCH_POINT_BEFORE_SURFACE, epsilon = 1e-4);
-        assert_abs_diff_eq!(rays[0].k(), 0.0, epsilon = 1e-4);
         assert_abs_diff_eq!(rays[0].l(), 0.0, epsilon = 1e-4);
-        assert_abs_diff_eq!(rays[0].m(), 1.0, epsilon = 1e-4);
+        assert_abs_diff_eq!(rays[0].m(), 0.0, epsilon = 1e-4);
+        assert_abs_diff_eq!(rays[0].n(), 1.0, epsilon = 1e-4);
     }
 
     #[test]
@@ -1088,9 +1088,9 @@ mod tests {
         assert_abs_diff_eq!(rays[0].x(), 0.0, epsilon = 1e-4);
         assert_abs_diff_eq!(rays[0].y(), -0.8749, epsilon = 1e-4);
         assert_abs_diff_eq!(rays[0].z(), -LAUNCH_POINT_BEFORE_SURFACE, epsilon = 1e-4);
-        assert_abs_diff_eq!(rays[0].k(), 0.0, epsilon = 1e-4);
-        assert_abs_diff_eq!(rays[0].l(), 0.08716, epsilon = 1e-4);
-        assert_abs_diff_eq!(rays[0].m(), 0.9962, epsilon = 1e-4);
+        assert_abs_diff_eq!(rays[0].l(), 0.0, epsilon = 1e-4);
+        assert_abs_diff_eq!(rays[0].m(), 0.08716, epsilon = 1e-4);
+        assert_abs_diff_eq!(rays[0].n(), 0.9962, epsilon = 1e-4);
     }
 
     #[test]
@@ -1108,9 +1108,9 @@ mod tests {
         assert_abs_diff_eq!(rays[0].x(), 0.0, epsilon = 1e-4);
         assert_abs_diff_eq!(rays[0].y(), 0.0, epsilon = 1e-4);
         assert_abs_diff_eq!(rays[0].z(), -1.0, epsilon = 1e-4);
-        assert_abs_diff_eq!(rays[0].k(), 0.0, epsilon = 1e-4);
         assert_abs_diff_eq!(rays[0].l(), 0.0, epsilon = 1e-4);
-        assert_abs_diff_eq!(rays[0].m(), 1.0, epsilon = 1e-4);
+        assert_abs_diff_eq!(rays[0].m(), 0.0, epsilon = 1e-4);
+        assert_abs_diff_eq!(rays[0].n(), 1.0, epsilon = 1e-4);
     }
 
     #[test]
@@ -1128,9 +1128,9 @@ mod tests {
         assert_abs_diff_eq!(rays[0].x(), 0.0, epsilon = 1e-4);
         assert_abs_diff_eq!(rays[0].y(), -0.08749, epsilon = 1e-4);
         assert_abs_diff_eq!(rays[0].z(), -1.0, epsilon = 1e-4);
-        assert_abs_diff_eq!(rays[0].k(), 0.0, epsilon = 1e-4);
-        assert_abs_diff_eq!(rays[0].l(), 0.08716, epsilon = 1e-4);
-        assert_abs_diff_eq!(rays[0].m(), 0.9962, epsilon = 1e-4);
+        assert_abs_diff_eq!(rays[0].l(), 0.0, epsilon = 1e-4);
+        assert_abs_diff_eq!(rays[0].m(), 0.08716, epsilon = 1e-4);
+        assert_abs_diff_eq!(rays[0].n(), 0.9962, epsilon = 1e-4);
     }
 
     #[test]
@@ -1190,7 +1190,7 @@ mod tests {
 
         // Check the directions of the rays.
         for (dir, ray) in expected_z_dir_cosines.iter().zip(rays.iter()) {
-            assert_abs_diff_eq!(*dir, ray.m(), epsilon = 1e-4);
+            assert_abs_diff_eq!(*dir, ray.n(), epsilon = 1e-4);
         }
     }
 
