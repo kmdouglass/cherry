@@ -8,11 +8,10 @@
 /// [`Surface`]: crate::core::surfaces::Surface
 use crate::core::{
     Float,
-    math::{linalg::mat3x3::Mat3x3, vec3::Vec3},
+    math::{linalg::mat3x3::Mat3x3, linalg::rotations::Rotation3D, vec3::Vec3},
 };
 
 use crate::core::math::geometry::reference_frames::Cursor;
-use crate::specs::surfaces::SurfaceSpec;
 
 /// Position and orientation of a surface in the global coordinate system.
 #[derive(Debug, Clone)]
@@ -43,22 +42,13 @@ pub struct Placement {
 }
 
 impl Placement {
-    /// Build a [`Placement`] from a surface spec and the current cursor state.
+    /// Build a [`Placement`] from a rotation and the current cursor state.
     ///
-    /// The cursor holds the current position and optical-axis orientation.
-    /// The spec may carry an additional surface-tilt rotation that is composed
-    /// on top of the cursor orientation.
-    pub(crate) fn from_spec(spec: &SurfaceSpec, cursor: &Cursor) -> Self {
+    /// `rotation` is the surface-tilt rotation composed on top of the cursor
+    /// orientation. Pass [`Rotation3D::None`] for surfaces with no tilt.
+    pub(crate) fn from_rotation(rotation: &Rotation3D, cursor: &Cursor) -> Self {
         let cursor_rotation_matrix = cursor.rotation_matrix();
-        let rotation_matrix = match spec {
-            SurfaceSpec::Conic { rotation, .. }
-            | SurfaceSpec::Image { rotation }
-            | SurfaceSpec::Probe { rotation }
-            | SurfaceSpec::Stop { rotation, .. } => {
-                rotation.rotation_matrix() * cursor_rotation_matrix
-            }
-            SurfaceSpec::Object => cursor_rotation_matrix,
-        };
+        let rotation_matrix = rotation.rotation_matrix() * cursor_rotation_matrix;
         Self::new(
             cursor.pos(),
             cursor.track(),

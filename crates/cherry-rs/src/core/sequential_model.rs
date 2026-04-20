@@ -1,14 +1,20 @@
 /// Data types for modeling sequential ray tracing systems.
 use std::ops::Range;
 
+type SurfsPlacementsDirs = (Vec<Box<dyn Surface>>, Vec<Placement>, Vec<Vec3>);
+
 use anyhow::{Result, anyhow};
 
 use crate::core::{
     Float,
-    math::{geometry::reference_frames::Cursor, linalg::mat3x3::Mat3x3, vec3::Vec3},
+    math::{
+        geometry::reference_frames::Cursor,
+        linalg::{mat3x3::Mat3x3, rotations::Rotation3D},
+        vec3::Vec3,
+    },
     placement::Placement,
     refractive_index::RefractiveIndex,
-    surfaces::{Conic, Image, Object, Probe, Stop, Surface},
+    surfaces::{Conic, Image, Object, Probe, Stop, Surface, SurfaceRegistry},
 };
 use crate::specs::{
     gaps::GapSpec,
@@ -265,7 +271,84 @@ impl SequentialModel {
         Self::validate_specs(gap_specs, wavelengths)?;
 
         let (surfaces, placements, axis_directions) =
-            Self::surf_specs_to_surfs(surface_specs, gap_specs);
+            Self::surf_specs_to_surfs(surface_specs, gap_specs, None)?;
+
+        let mut models: Vec<SequentialSubModelBase> = Vec::new();
+        for &wavelength in wavelengths.iter() {
+            let gaps = Self::gap_specs_to_gaps(gap_specs, wavelength)?;
+            models.push(SequentialSubModelBase::new(gaps));
+        }
+
+        Ok(Self {
+            surfaces,
+            placements,
+            submodels: models,
+            wavelengths: wavelengths.to_vec(),
+            axis_directions,
+        })
+    }
+
+    /// Creates a new sequential model from pre-built surface trait objects.
+    ///
+    /// Use this when constructing a model programmatically in Rust without
+    /// going through the spec/serialization layer. Each element of `surfaces`
+    /// pairs a surface implementation with its tilt rotation; pass
+    /// [`Rotation3D::None`] for untilted surfaces.
+    ///
+    /// # Arguments
+    /// * `surfaces` - Pre-built surfaces paired with their tilt rotations.
+    /// * `gap_specs` - Gaps between surfaces (`surfaces.len() - 1` elements).
+    /// * `wavelengths` - Wavelengths at which to model the system.
+    pub fn from_surfaces(
+        surfaces: Vec<(Box<dyn Surface>, Rotation3D)>,
+        gap_specs: &[GapSpec],
+        wavelengths: &[Float],
+    ) -> Result<Self> {
+        if surfaces.len() != gap_specs.len() + 1 {
+            return Err(anyhow!(
+                "Expected {} gap(s) for {} surface(s), got {}.",
+                surfaces.len() - 1,
+                surfaces.len(),
+                gap_specs.len()
+            ));
+        }
+        Self::validate_specs(gap_specs, wavelengths)?;
+
+        let (surfs, rotations): (Vec<_>, Vec<_>) = surfaces.into_iter().unzip();
+        let (placements, axis_directions) =
+            Self::build_placements_and_directions(&surfs, &rotations, gap_specs);
+
+        let mut models: Vec<SequentialSubModelBase> = Vec::new();
+        for &wavelength in wavelengths.iter() {
+            let gaps = Self::gap_specs_to_gaps(gap_specs, wavelength)?;
+            models.push(SequentialSubModelBase::new(gaps));
+        }
+
+        Ok(Self {
+            surfaces: surfs,
+            placements,
+            submodels: models,
+            wavelengths: wavelengths.to_vec(),
+            axis_directions,
+        })
+    }
+
+    /// Creates a new sequential model using a [`SurfaceRegistry`] to resolve
+    /// [`SurfaceSpec::Custom`] variants.
+    ///
+    /// Identical to [`new`](Self::new) except that `registry` is consulted
+    /// when a [`SurfaceSpec::Custom`] spec is encountered. Built-in surface
+    /// types do not use the registry.
+    pub fn new_with_registry(
+        gap_specs: &[GapSpec],
+        surface_specs: &[SurfaceSpec],
+        wavelengths: &[Float],
+        registry: &SurfaceRegistry,
+    ) -> Result<Self> {
+        Self::validate_specs(gap_specs, wavelengths)?;
+
+        let (surfaces, placements, axis_directions) =
+            Self::surf_specs_to_surfs(surface_specs, gap_specs, Some(registry))?;
 
         let mut models: Vec<SequentialSubModelBase> = Vec::new();
         for &wavelength in wavelengths.iter() {
@@ -364,23 +447,26 @@ impl SequentialModel {
         })
     }
 
-    fn surf_specs_to_surfs(
-        surf_specs: &[SurfaceSpec],
+    /// Walks the cursor through the system, building placements and axis
+    /// directions from pre-built surfaces and their rotations.
+    ///
+    /// `surfaces` and `rotations` must have the same length N.
+    /// `gap_specs` must have length N - 1.
+    fn build_placements_and_directions(
+        surfaces: &[Box<dyn Surface>],
+        rotations: &[Rotation3D],
         gap_specs: &[GapSpec],
-    ) -> (Vec<Box<dyn Surface>>, Vec<Placement>, Vec<Vec3>) {
-        let mut surfaces: Vec<Box<dyn Surface>> = Vec::new();
+    ) -> (Vec<Placement>, Vec<Vec3>) {
         let mut placements = Vec::new();
         let mut axis_directions = Vec::new();
-
-        // The first surface is an object surface.
-        // The second surface is at z=0 by convention.
         let mut cursor = Cursor::new(-gap_specs[0].thickness);
 
-        // Create surfaces 0 to n-1
-        for (surf_spec, gap_spec) in surf_specs.iter().zip(gap_specs.iter()) {
+        // Surfaces 0 to N-2 (each paired with a gap that follows it).
+        for ((surf, rotation), gap_spec) in
+            surfaces.iter().zip(rotations.iter()).zip(gap_specs.iter())
+        {
             axis_directions.push(cursor.forward());
-            let placement = Placement::from_spec(surf_spec, &cursor);
-            let surf = surface_from_spec(surf_spec);
+            let placement = Placement::from_rotation(rotation, &cursor);
 
             // Flip the cursor upon reflection. Evaluate the normal at the
             // vertex (local origin = (0,0,0)) and transform to global frame.
@@ -391,18 +477,32 @@ impl SequentialModel {
             }
 
             placements.push(placement);
-            surfaces.push(surf);
             cursor.advance(gap_spec.thickness);
         }
 
-        // Add the last surface
+        // Last surface — no gap after it.
         axis_directions.push(cursor.forward());
-        let last_spec = surf_specs
-            .last()
-            .expect("There should always be one last surface.");
-        placements.push(Placement::from_spec(last_spec, &cursor));
-        surfaces.push(surface_from_spec(last_spec));
-        (surfaces, placements, axis_directions)
+        placements.push(Placement::from_rotation(
+            rotations.last().expect("at least one surface"),
+            &cursor,
+        ));
+
+        (placements, axis_directions)
+    }
+
+    fn surf_specs_to_surfs(
+        surf_specs: &[SurfaceSpec],
+        gap_specs: &[GapSpec],
+        registry: Option<&SurfaceRegistry>,
+    ) -> Result<SurfsPlacementsDirs> {
+        let surfaces: Vec<Box<dyn Surface>> = surf_specs
+            .iter()
+            .map(|s| surface_from_spec(s, registry))
+            .collect::<Result<Vec<_>>>()?;
+        let rotations: Vec<Rotation3D> = surf_specs.iter().map(rotation_from_spec).collect();
+        let (placements, axis_directions) =
+            Self::build_placements_and_directions(&surfaces, &rotations, gap_specs);
+        Ok((surfaces, placements, axis_directions))
     }
 
     fn validate_gaps(gaps: &[GapSpec]) -> Result<()> {
@@ -584,8 +684,26 @@ impl<'a> Iterator for SequentialSubModelReverseIter<'a> {
     }
 }
 
+/// Extract the tilt [`Rotation3D`] from a surface specification.
+fn rotation_from_spec(spec: &SurfaceSpec) -> Rotation3D {
+    match spec {
+        SurfaceSpec::Conic { rotation, .. }
+        | SurfaceSpec::Custom { rotation, .. }
+        | SurfaceSpec::Image { rotation }
+        | SurfaceSpec::Probe { rotation }
+        | SurfaceSpec::Stop { rotation, .. } => rotation.clone(),
+        SurfaceSpec::Object => Rotation3D::None,
+    }
+}
+
 /// Build a [`Surface`] trait object from a surface specification.
-pub(crate) fn surface_from_spec(spec: &SurfaceSpec) -> Box<dyn Surface> {
+///
+/// Pass `Some(registry)` to resolve [`SurfaceSpec::Custom`] variants.
+/// Passing `None` when a `Custom` spec is encountered returns an error.
+pub(crate) fn surface_from_spec(
+    spec: &SurfaceSpec,
+    registry: Option<&SurfaceRegistry>,
+) -> Result<Box<dyn Surface>> {
     match spec {
         SurfaceSpec::Conic {
             semi_diameter,
@@ -593,16 +711,26 @@ pub(crate) fn surface_from_spec(spec: &SurfaceSpec) -> Box<dyn Surface> {
             conic_constant,
             surf_type,
             ..
-        } => Box::new(Conic::new(
+        } => Ok(Box::new(Conic::new(
             *semi_diameter,
             *radius_of_curvature,
             *conic_constant,
             *surf_type,
-        )),
-        SurfaceSpec::Image { .. } => Box::new(Image),
-        SurfaceSpec::Object => Box::new(Object),
-        SurfaceSpec::Probe { .. } => Box::new(Probe),
-        SurfaceSpec::Stop { semi_diameter, .. } => Box::new(Stop::new(*semi_diameter)),
+        ))),
+        SurfaceSpec::Custom {
+            type_id, params, ..
+        } => registry
+            .ok_or_else(|| {
+                anyhow!(
+                    "a SurfaceRegistry is required to build custom surface '{type_id}'; \
+                     use SequentialModel::new_with_registry"
+                )
+            })?
+            .build(type_id, params),
+        SurfaceSpec::Image { .. } => Ok(Box::new(Image)),
+        SurfaceSpec::Object => Ok(Box::new(Object)),
+        SurfaceSpec::Probe { .. } => Ok(Box::new(Probe)),
+        SurfaceSpec::Stop { semi_diameter, .. } => Ok(Box::new(Stop::new(*semi_diameter))),
     }
 }
 

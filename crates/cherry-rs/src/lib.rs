@@ -139,7 +139,10 @@ pub use core::{
     math::vec3::Vec3,
     placement::Placement,
     sequential_model::{SequentialModel, SequentialSubModel, Step},
-    surfaces::{Conic, Image, Object, Probe, Stop, Surface, SurfaceKind},
+    surfaces::{
+        Conic, Image, Object, Probe, Stop, Surface, SurfaceConstructor, SurfaceKind,
+        SurfaceRegistry,
+    },
 };
 pub use specs::{
     aperture::ApertureSpec,

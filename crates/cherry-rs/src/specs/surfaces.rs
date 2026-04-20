@@ -23,6 +23,19 @@ pub enum SurfaceSpec {
         surf_type: BoundaryType,
         rotation: Rotation3D,
     },
+    /// A user-defined surface type registered with a [`SurfaceRegistry`].
+    ///
+    /// `type_id` must match a key registered via
+    /// [`SurfaceRegistry::register`]. `params` is forwarded verbatim to the
+    /// registered constructor.
+    ///
+    /// [`SurfaceRegistry`]: crate::core::surfaces::SurfaceRegistry
+    /// [`SurfaceRegistry::register`]: crate::core::surfaces::SurfaceRegistry::register
+    Custom {
+        type_id: String,
+        params: serde_json::Value,
+        rotation: Rotation3D,
+    },
     Image {
         rotation: Rotation3D,
     },
