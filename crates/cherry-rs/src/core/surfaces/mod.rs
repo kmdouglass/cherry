@@ -1,5 +1,7 @@
 /// Surface logic and traits used by sequential models.
-use crate::core::{Float, math::vec3::Vec3};
+use anyhow::Result;
+
+use crate::core::{Float, math::vec3::Vec3, ray::Ray};
 
 use crate::specs::surfaces::BoundaryType;
 
@@ -7,6 +9,7 @@ pub mod conic;
 pub mod image;
 pub mod object;
 pub mod probe;
+pub mod solvers;
 pub mod stop;
 pub mod surface_registry;
 
@@ -45,6 +48,24 @@ pub enum SurfaceKind {
 pub trait Surface: std::fmt::Debug + Send + Sync {
     /// Returns the boundary type (refracting, reflecting, etc.).
     fn boundary_type(&self) -> BoundaryType;
+
+    /// Finds the intersection of a ray with the surface using Newton-Raphson
+    /// iteration.
+    ///
+    /// Returns the intersection point and surface normal in the surface's local
+    /// coordinate system. Returns an error if the iteration does not converge.
+    ///
+    /// Custom surface implementations may override this method to use a
+    /// different intersection algorithm.
+    ///
+    /// # Arguments
+    /// - `ray`: The ray to intersect with the surface, in the surface's local
+    ///   coordinate system
+    /// - `max_iter`: The maximum number of iterations to perform before giving
+    ///   up
+    fn intersect(&self, ray: &Ray, max_iter: usize) -> Result<(Vec3, Vec3)> {
+        solvers::newton_raphson(ray, self, max_iter)
+    }
 
     /// Determines whether a transverse point is outside the clear aperture of
     /// the surface.
@@ -89,8 +110,7 @@ pub trait Surface: std::fmt::Debug + Send + Sync {
     /// Returns the role of this surface in the optical system.
     ///
     /// Used by rendering and analysis code to distinguish Object, Image, Probe,
-    /// Conic, and Stop surfaces, which cannot all be differentiated from
-    /// `boundary_type()` and `semi_diameter()` alone.
+    /// Conic, Stop, and Custom surfaces.
     ///
     /// User-defined surfaces should return [`SurfaceKind::Custom`].
     fn surface_kind(&self) -> SurfaceKind {

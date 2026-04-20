@@ -55,7 +55,7 @@ pub fn trace(sequential_submodel: &mut SequentialSubModelIter, mut rays: Vec<Ray
 
             // Find the ray intersection with the surface.
             // Errors if the intersection point does not converge.
-            let (pos, norm) = match ray.intersect(step.surface, MAX_INTERSECTION_ITER) {
+            let (pos, norm) = match step.surface.intersect(ray, MAX_INTERSECTION_ITER) {
                 Ok((pos, norm)) => (pos, norm),
                 Err(e) => {
                     if !ray_is_terminated(ray_id, &terminated) {
@@ -200,9 +200,9 @@ mod test {
             assert_eq!(ray.x(), 1.0);
             assert_eq!(ray.y(), 1.0);
             assert_eq!(ray.z(), 1.0);
-            assert_eq!(ray.k(), 0.0);
-            assert_eq!(ray.l(), 1.0);
-            assert_eq!(ray.m(), 0.0);
+            assert_eq!(ray.l(), 0.0);
+            assert_eq!(ray.m(), 1.0);
+            assert_eq!(ray.n(), 0.0);
         }
     }
 }
