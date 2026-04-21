@@ -106,4 +106,84 @@ pub trait Surface: std::fmt::Debug + Send + Sync {
     fn surface_kind(&self) -> SurfaceKind {
         SurfaceKind::Custom
     }
+
+    /// Modifies the ray after it intersects this surface.
+    ///
+    /// The default implementation applies Snell's law for refracting surfaces,
+    /// the law of reflection for reflecting surfaces, and is a no-op for NoOp
+    /// surfaces. Custom surface implementations may override this method to
+    /// also displace the ray (e.g., a cardinal lens that displaces rays between
+    /// principal planes).
+    ///
+    /// All vectors are in the surface's **local** coordinate system.
+    ///
+    /// # Arguments
+    /// - `ray`: The ray to modify, already displaced to the intersection point
+    /// - `n_0`: Refractive index of the medium before the surface
+    /// - `n_1`: Refractive index of the medium after the surface
+    /// - `norm`: Surface normal at the intersection point (need not be
+    ///   normalized)
+    fn interact(&self, ray: &mut Ray, n_0: Float, n_1: Float, norm: Vec3) {
+        let norm = norm.normalize();
+        match self.boundary_type() {
+            BoundaryType::Refracting => {
+                let mu = n_0 / n_1;
+                let cos_theta_1 = ray.dir().dot(&norm);
+                let term_1 = norm * (1.0 - mu * mu * (1.0 - cos_theta_1 * cos_theta_1)).sqrt();
+                let term_2 = (ray.dir() - norm * cos_theta_1) * mu;
+                ray.set_dir(term_1 + term_2);
+            }
+            BoundaryType::Reflecting => {
+                let cos_theta_1 = ray.dir().dot(&norm);
+                ray.set_dir(ray.dir() - norm * (2.0 * cos_theta_1));
+            }
+            BoundaryType::NoOp => {}
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::math::vec3::Vec3;
+    use crate::core::surfaces::Conic;
+    use crate::specs::surfaces::BoundaryType;
+
+    fn make_ray(dir: Vec3) -> Ray {
+        Ray::new(Vec3::new(0.0, 0.0, 0.0), dir)
+    }
+
+    #[test]
+    fn test_interact_noop_leaves_direction_unchanged() {
+        let surf = Conic::new(4.0, Float::INFINITY, 0.0, BoundaryType::NoOp);
+        let dir = Vec3::new(0.0, 0.0, 1.0);
+        let mut ray = make_ray(dir);
+        let norm = Vec3::new(0.0, 0.0, 1.0);
+        surf.interact(&mut ray, 1.0, 1.5, norm);
+        assert_eq!(ray.dir(), dir);
+    }
+
+    #[test]
+    fn test_interact_refracting_normal_incidence() {
+        // Normal incidence: direction should not change (Snell's law, theta_i = 0)
+        let surf = Conic::new(4.0, Float::INFINITY, 0.0, BoundaryType::Refracting);
+        let dir = Vec3::new(0.0, 0.0, 1.0);
+        let mut ray = make_ray(dir);
+        let norm = Vec3::new(0.0, 0.0, 1.0);
+        surf.interact(&mut ray, 1.0, 1.5, norm);
+        assert!((ray.dir().x() - 0.0).abs() < 1e-10);
+        assert!((ray.dir().y() - 0.0).abs() < 1e-10);
+        assert!((ray.dir().z() - 1.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_interact_reflecting_reverses_normal_component() {
+        let surf = Conic::new(4.0, Float::INFINITY, 0.0, BoundaryType::Reflecting);
+        // Ray travelling in +z, flat surface normal in +z — reflected back in -z
+        let dir = Vec3::new(0.0, 0.0, 1.0);
+        let mut ray = make_ray(dir);
+        let norm = Vec3::new(0.0, 0.0, 1.0);
+        surf.interact(&mut ray, 1.0, 1.0, norm);
+        assert!((ray.dir().z() - (-1.0)).abs() < 1e-10);
+    }
 }

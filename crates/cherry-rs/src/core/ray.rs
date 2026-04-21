@@ -1,9 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    BoundaryType,
-    core::{Float, PI, math::vec3::Vec3, placement::Placement, sequential_model::Step},
-};
+use crate::core::{Float, PI, math::vec3::Vec3, placement::Placement};
 
 /// A single ray to be traced through an optical system.
 ///
@@ -34,50 +31,14 @@ impl Ray {
         ]
     }
 
-    // Redirect the ray by computing the direction cosines of the ray after
-    // interaction with a surface.
-    //
-    // This function accepts the surface normal at the intersection point as an
-    // argument to avoid recomputing it.
-    pub fn redirect(&mut self, step: &Step, norm: Vec3) {
-        // Do not match on the wildcard "_" to ensure that this function is updated when
-        // new surfaces are added
-        let Step {
-            gap_before: gap_0,
-            surface: surf,
-            gap_after: gap_1,
-            ..
-        } = step;
-        let n_0 = gap_0.refractive_index.n();
-        let n_1 = if let Some(gap_1) = gap_1 {
-            gap_1.refractive_index.n()
-        } else {
-            n_0
-        };
-
-        // Ensure the normal vector is normalized for the redirect calculations.
-        let norm = norm.normalize();
-
-        match surf.boundary_type() {
-            BoundaryType::Refracting => {
-                let mu = n_0 / n_1;
-                let cos_theta_1 = self.dir.dot(&norm);
-                let term_1 = norm * (1.0 - mu * mu * (1.0 - cos_theta_1 * cos_theta_1)).sqrt();
-                let term_2 = (self.dir - norm * cos_theta_1) * mu;
-
-                self.dir = term_1 + term_2;
-            }
-            BoundaryType::Reflecting => {
-                let cos_theta_1 = self.dir.dot(&norm);
-                self.dir = self.dir - norm * (2.0 * cos_theta_1);
-            }
-            BoundaryType::NoOp => {}
-        }
-    }
-
     /// Displace a ray to the given location.
     pub fn displace(&mut self, pos: Vec3) {
         self.pos = pos;
+    }
+
+    /// Set the direction vector of the ray.
+    pub fn set_dir(&mut self, dir: Vec3) {
+        self.dir = dir;
     }
 
     /// Transform a ray into the local coordinate system of a surface from the
