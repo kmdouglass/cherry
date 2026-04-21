@@ -1,12 +1,12 @@
 use cherry_rs::{
-    BoundaryType, GapSpec, Rotation3D, SequentialModel, Surface, SurfaceRegistry, SurfaceSpec,
-    Vec3, n,
+    BoundaryType, GapSpec, Mask, Rotation3D, SequentialModel, Surface, SurfaceRegistry,
+    SurfaceSpec, Vec3, n,
 };
 use serde_json::json;
 
 #[derive(Debug)]
 struct FlatNoOp {
-    semi_diameter: f64,
+    mask: Mask,
 }
 
 impl Surface for FlatNoOp {
@@ -22,8 +22,8 @@ impl Surface for FlatNoOp {
         Vec3::new(0.0, 0.0, 1.0)
     }
 
-    fn semi_diameter(&self) -> f64 {
-        self.semi_diameter
+    fn mask(&self) -> &Mask {
+        &self.mask
     }
 }
 
@@ -38,7 +38,9 @@ fn flat_no_op_constructor(params: &serde_json::Value) -> anyhow::Result<Box<dyn 
     let sd = params["semi_diameter"]
         .as_f64()
         .ok_or_else(|| anyhow::anyhow!("missing semi_diameter"))?;
-    Ok(Box::new(FlatNoOp { semi_diameter: sd }))
+    Ok(Box::new(FlatNoOp {
+        mask: Mask::Circular { semi_diameter: sd },
+    }))
 }
 
 #[test]
@@ -123,5 +125,5 @@ fn params_are_forwarded_to_constructor() {
         .expect("model should build");
 
     // The custom surface is at index 1.
-    assert_eq!(model.surfaces()[1].semi_diameter(), 7.5);
+    assert_eq!(model.surfaces()[1].mask().semi_diameter(), 7.5);
 }

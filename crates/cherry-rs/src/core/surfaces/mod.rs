@@ -3,7 +3,7 @@ use anyhow::Result;
 
 use crate::core::{Float, math::vec3::Vec3, ray::Ray};
 
-use crate::specs::surfaces::BoundaryType;
+use crate::specs::surfaces::{BoundaryType, Mask};
 
 pub mod conic;
 pub mod image;
@@ -46,7 +46,7 @@ pub enum SurfaceKind {
 /// vector. By convention, the vertex of a curved surface lies at the origin of
 /// its local coordinate system. A flat surface lies in the local xy-plane.
 pub trait Surface: std::fmt::Debug + Send + Sync {
-    /// Returns the boundary type (refracting, reflecting, etc.).
+    /// Returns the surface boundary type (refracting, reflecting, etc.).
     fn boundary_type(&self) -> BoundaryType;
 
     /// Finds the intersection of a ray with the surface using Newton-Raphson
@@ -67,15 +67,8 @@ pub trait Surface: std::fmt::Debug + Send + Sync {
         solvers::newton_raphson(ray, self, max_iter)
     }
 
-    /// Determines whether a transverse point is outside the clear aperture of
-    /// the surface.
-    ///
-    /// The axial z-position is ignored.
-    fn outside_clear_aperture(&self, pos: Vec3) -> bool {
-        let r_transv = pos.x() * pos.x() + pos.y() * pos.y();
-        let r_max = self.semi_diameter();
-        r_transv > r_max * r_max
-    }
+    /// Returns a reference to the surface's clear-aperture mask.
+    fn mask(&self) -> &Mask;
 
     /// Returns the radius of curvature of the base sphere of the surface.
     ///
@@ -103,9 +96,6 @@ pub trait Surface: std::fmt::Debug + Send + Sync {
     /// The normal vector is not normalized. Its magnitude is important for
     /// Newton-Raphson ray tracing calculations.
     fn norm(&self, pos: Vec3) -> Vec3;
-
-    /// Returns the semi-diameter of the surface's clear aperture.
-    fn semi_diameter(&self) -> Float;
 
     /// Returns the role of this surface in the optical system.
     ///

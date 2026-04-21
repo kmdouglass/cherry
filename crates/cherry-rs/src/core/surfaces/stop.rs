@@ -1,6 +1,6 @@
 use crate::{
     core::{Float, math::vec3::Vec3},
-    specs::surfaces::BoundaryType,
+    specs::surfaces::{BoundaryType, Mask},
 };
 
 use super::{Surface, SurfaceKind};
@@ -8,12 +8,14 @@ use super::{Surface, SurfaceKind};
 /// An aperture stop — a flat surface that limits the beam.
 #[derive(Debug, Clone)]
 pub struct Stop {
-    pub semi_diameter: Float,
+    mask: Mask,
 }
 
 impl Stop {
     pub fn new(semi_diameter: Float) -> Self {
-        Self { semi_diameter }
+        Self {
+            mask: Mask::Circular { semi_diameter },
+        }
     }
 }
 
@@ -26,8 +28,8 @@ impl Surface for Stop {
         Vec3::new(0.0, 0.0, 1.0)
     }
 
-    fn semi_diameter(&self) -> Float {
-        self.semi_diameter
+    fn mask(&self) -> &Mask {
+        &self.mask
     }
 
     fn boundary_type(&self) -> BoundaryType {
@@ -61,12 +63,6 @@ mod tests {
     }
 
     #[test]
-    fn semi_diameter_round_trips() {
-        let stop = Stop::new(7.5);
-        assert_abs_diff_eq!(stop.semi_diameter(), 7.5);
-    }
-
-    #[test]
     fn boundary_type_is_noop() {
         let stop = Stop::new(5.0);
         assert!(matches!(stop.boundary_type(), BoundaryType::NoOp));
@@ -79,9 +75,15 @@ mod tests {
     }
 
     #[test]
-    fn outside_clear_aperture_default_impl() {
+    fn mask_blocks_ray_outside_aperture() {
         let stop = Stop::new(5.0);
-        assert!(!stop.outside_clear_aperture(Vec3::new(4.9, 0.0, 0.0)));
-        assert!(stop.outside_clear_aperture(Vec3::new(5.1, 0.0, 0.0)));
+        assert!(!stop.mask().outside_clear_aperture(Vec3::new(4.9, 0.0, 0.0)));
+        assert!(stop.mask().outside_clear_aperture(Vec3::new(5.1, 0.0, 0.0)));
+    }
+
+    #[test]
+    fn mask_preserves_semi_diameter() {
+        let stop = Stop::new(7.5);
+        assert_abs_diff_eq!(stop.mask().semi_diameter(), 7.5);
     }
 }

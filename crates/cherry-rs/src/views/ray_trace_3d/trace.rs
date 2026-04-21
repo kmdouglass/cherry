@@ -68,7 +68,7 @@ pub fn trace(sequential_submodel: &mut SequentialSubModelIter, mut rays: Vec<Ray
             };
 
             // Terminate ray if intersection is outside the clear aperture of surface
-            if surf.outside_clear_aperture(pos) {
+            if surf.mask().outside_clear_aperture(pos) {
                 terminated[ray_id] = surface_id;
                 reason_for_termination.insert(ray_id, "Ray outside clear aperture".to_string());
                 warn!(
