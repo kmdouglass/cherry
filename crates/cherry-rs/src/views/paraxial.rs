@@ -591,13 +591,13 @@ impl ParaxialSubView {
         //
         // Absolute value is necessary because the pseudo-marginal ray trace can result
         // in surface intersections that are negative.
-        let last_surface_height = pseudo_marginal_ray.last_surface().unwrap()[0].height;
         let ratios: Vec<Float> = surfaces
             .iter()
             .zip(placements.iter())
+            .zip(pseudo_marginal_ray.iter_surfaces())
             .zip(per_surf_v.iter())
-            .map(|((s, p), &v)| {
-                (p.projected_semi_diameter(s.mask().semi_diameter(), v) / last_surface_height).abs()
+            .map(|(((s, p), rays), &v)| {
+                (p.projected_semi_diameter(s.mask().semi_diameter(), v) / rays[0].height).abs()
             })
             .collect();
 
@@ -1100,7 +1100,10 @@ mod test {
     use approx::assert_abs_diff_eq;
 
     use crate::examples::convexplano_lens;
-    use crate::{core::Float, n};
+    use crate::{
+        GapSpec, Rotation3D, SequentialModel, SurfaceSpec, core::Float, n,
+        specs::surfaces::BoundaryType,
+    };
 
     use super::*;
 
@@ -1317,5 +1320,76 @@ mod test {
             assert_abs_diff_eq!(surface_rays[0].height, *exp_h, epsilon = 1e-4);
             assert_abs_diff_eq!(surface_rays[0].angle, *exp_a, epsilon = 1e-4);
         }
+    }
+
+    /// Regression test: aperture stop when the minimum a_k/y_k ratio is NOT at
+    /// the surface with the smallest semi-diameter.
+    ///
+    /// Two flat refracting surfaces, finite object 10 mm away:
+    ///   - Surface 1: air→glass (n=1.5), semi-diameter = 10 mm
+    ///   - 15 mm glass gap
+    ///   - Surface 2: glass→air,         semi-diameter = 14 mm
+    ///
+    /// Pseudo-marginal ray heights (h=0, u=1 at object):
+    ///   y₁ = 10 mm  →  ratio = 10/10 = 1.00
+    ///   y₂ = 20 mm  →  ratio = 14/20 = 0.70  ← aperture stop
+    ///
+    /// Surface 1 has the smaller semi-diameter, so an algorithm that simply
+    /// finds the minimum semi-diameter would incorrectly return surface 1.
+    #[test]
+    fn test_aperture_stop_minimum_ratio_not_minimum_semi_diameter() {
+        let air = n!(1.0);
+        let glass = n!(1.5);
+        let wavelengths = [0.5876];
+
+        let gaps = vec![
+            GapSpec {
+                thickness: 10.0,
+                refractive_index: air.clone(),
+            },
+            GapSpec {
+                thickness: 15.0,
+                refractive_index: glass,
+            },
+            GapSpec {
+                thickness: 10.0,
+                refractive_index: air,
+            },
+        ];
+        let surfaces = vec![
+            SurfaceSpec::Object,
+            SurfaceSpec::Conic {
+                semi_diameter: 10.0,
+                radius_of_curvature: Float::INFINITY,
+                conic_constant: 0.0,
+                surf_type: BoundaryType::Refracting,
+                rotation: Rotation3D::None,
+            },
+            SurfaceSpec::Conic {
+                semi_diameter: 14.0,
+                radius_of_curvature: Float::INFINITY,
+                conic_constant: 0.0,
+                surf_type: BoundaryType::Refracting,
+                rotation: Rotation3D::None,
+            },
+            SurfaceSpec::Image {
+                rotation: Rotation3D::None,
+            },
+        ];
+
+        let sequential_model = SequentialModel::new(&gaps, &surfaces, &wavelengths).unwrap();
+        let seq_sub_model = sequential_model.submodel(0).expect("Submodel not found.");
+        let field_specs = vec![crate::FieldSpec::PointSource { x: 0.0, y: 0.0 }];
+
+        let data = SubModelData {
+            sequential_sub_model: seq_sub_model as &dyn SequentialSubModel,
+            surfaces: sequential_model.surfaces(),
+            placements: sequential_model.placements(),
+            field_specs: &field_specs,
+        };
+
+        let view = ParaxialSubView::new(0, 0, &data, Vec3::new(0.0, 1.0, 0.0), false).unwrap();
+
+        assert_eq!(*view.aperture_stop(), 2);
     }
 }
