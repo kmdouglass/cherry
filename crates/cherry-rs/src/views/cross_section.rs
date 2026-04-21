@@ -146,7 +146,7 @@ fn build_plane_geometry(
             }
             Component::Stop { stop_idx } => {
                 let z = placements[*stop_idx].position.z();
-                let sd = surfaces[*stop_idx].semi_diameter();
+                let sd = surfaces[*stop_idx].mask().semi_diameter();
                 elements.push(DrawElement::Stop {
                     z,
                     half_gap: sd,
@@ -286,7 +286,7 @@ fn sample_surface(
     axis: GlobalAxis,
     n_pts: usize,
 ) -> Vec<[f64; 2]> {
-    let sd = surf.semi_diameter();
+    let sd = surf.mask().semi_diameter();
     if !sd.is_finite() || sd <= 0.0 || n_pts < 2 {
         return Vec::new();
     }

@@ -239,12 +239,7 @@ mod tests {
     #[test]
     fn test_ray_intersection_flat_surface() {
         let ray = Ray::new(Vec3::new(0.0, 0.0, -1.0), Vec3::new(0.0, 0.0, 1.0));
-        let surf = Conic {
-            semi_diameter: 4.0,
-            radius_of_curvature: Float::INFINITY,
-            conic_constant: 0.0,
-            boundary_type: BoundaryType::Refracting,
-        };
+        let surf = Conic::new(4.0, Float::INFINITY, 0.0, BoundaryType::Refracting);
 
         let (p, _) = surf.intersect(&ray, 1000).unwrap();
 
@@ -256,12 +251,7 @@ mod tests {
         let l = (std::f64::consts::PI as Float / 4.0).sin();
         let m = (std::f64::consts::PI as Float / 4.0).cos();
         let ray = Ray::new(Vec3::new(0.0, 0.0, -1.0), Vec3::new(0.0, l, m));
-        let surf = Conic {
-            semi_diameter: 4.0,
-            radius_of_curvature: -1.0,
-            conic_constant: 0.0,
-            boundary_type: BoundaryType::Refracting,
-        };
+        let surf = Conic::new(4.0, -1.0, 0.0, BoundaryType::Refracting);
 
         let (p, _) = surf.intersect(&ray, 1000).unwrap();
 

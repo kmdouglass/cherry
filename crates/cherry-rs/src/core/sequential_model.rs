@@ -222,7 +222,7 @@ pub(crate) fn propagate_tangential_vec(
 pub(crate) fn first_physical_surface(surfaces: &[Box<dyn Surface>]) -> Option<usize> {
     surfaces
         .iter()
-        .position(|surf| surf.semi_diameter().is_finite())
+        .position(|surf| surf.mask().semi_diameter().is_finite())
 }
 
 /// Returns the index of the last physical surface in the system.
@@ -232,7 +232,7 @@ pub(crate) fn first_physical_surface(surfaces: &[Box<dyn Surface>]) -> Option<us
 pub fn last_physical_surface(surfaces: &[Box<dyn Surface>]) -> Option<usize> {
     surfaces
         .iter()
-        .rposition(|surf| surf.semi_diameter().is_finite())
+        .rposition(|surf| surf.mask().semi_diameter().is_finite())
 }
 
 /// Returns the id of a surface in a reversed system.
@@ -373,7 +373,7 @@ impl SequentialModel {
         self.surfaces
             .iter()
             .filter_map(|surf| {
-                let sd = surf.semi_diameter();
+                let sd = surf.mask().semi_diameter();
                 if sd.is_finite() { Some(sd) } else { None }
             })
             .fold(0.0, |acc, x| acc.max(x))
@@ -727,9 +727,9 @@ pub(crate) fn surface_from_spec(
                 )
             })?
             .build(type_id, params),
-        SurfaceSpec::Image { .. } => Ok(Box::new(Image)),
-        SurfaceSpec::Object => Ok(Box::new(Object)),
-        SurfaceSpec::Probe { .. } => Ok(Box::new(Probe)),
+        SurfaceSpec::Image { .. } => Ok(Box::new(Image::new())),
+        SurfaceSpec::Object => Ok(Box::new(Object::new())),
+        SurfaceSpec::Probe { .. } => Ok(Box::new(Probe::new())),
         SurfaceSpec::Stop { semi_diameter, .. } => Ok(Box::new(Stop::new(*semi_diameter))),
     }
 }
@@ -836,7 +836,7 @@ mod tests {
 
         // Surface indices: 0 = Object, 1 = Mirror 1, 2 = Mirror 2, 3 = Image
         for &mirror_idx in &[1usize, 2usize] {
-            let sd = surfaces[mirror_idx].semi_diameter();
+            let sd = surfaces[mirror_idx].mask().semi_diameter();
             let placement = &placements[mirror_idx];
             assert!(
                 (placement.projected_semi_diameter(sd, v_u) - expected_u).abs() < tol,
@@ -907,11 +907,11 @@ mod tests {
         // Object(0), Probe(1), Conic(2), Conic(3), Image(4) — first physical is index
         // 2.
         let surfaces: Vec<Box<dyn Surface>> = vec![
-            Box::new(Object),
-            Box::new(Probe),
+            Box::new(Object::new()),
+            Box::new(Probe::new()),
             Box::new(Conic::new(1.0, 1.0, 0.0, BoundaryType::Refracting)),
             Box::new(Conic::new(1.0, 1.0, 0.0, BoundaryType::Refracting)),
-            Box::new(Image),
+            Box::new(Image::new()),
         ];
 
         let result = first_physical_surface(&surfaces);
@@ -922,11 +922,11 @@ mod tests {
     fn test_last_physical_surface() {
         // Object(0), Conic(1), Conic(2), Probe(3), Image(4) — last physical is index 2.
         let surfaces: Vec<Box<dyn Surface>> = vec![
-            Box::new(Object),
+            Box::new(Object::new()),
             Box::new(Conic::new(1.0, 1.0, 0.0, BoundaryType::Refracting)),
             Box::new(Conic::new(1.0, 1.0, 0.0, BoundaryType::Refracting)),
-            Box::new(Probe),
-            Box::new(Image),
+            Box::new(Probe::new()),
+            Box::new(Image::new()),
         ];
 
         let result = last_physical_surface(&surfaces);

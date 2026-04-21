@@ -597,7 +597,7 @@ impl ParaxialSubView {
             .zip(placements.iter())
             .zip(per_surf_v.iter())
             .map(|((s, p), &v)| {
-                (p.projected_semi_diameter(s.semi_diameter(), v) / last_surface_height).abs()
+                (p.projected_semi_diameter(s.mask().semi_diameter(), v) / last_surface_height).abs()
             })
             .collect();
 
@@ -734,7 +734,7 @@ impl ParaxialSubView {
             return Ok(Pupil {
                 location: 0.0,
                 semi_diameter: placements[1]
-                    .projected_semi_diameter(surfaces[1].semi_diameter(), per_surf_v[1]),
+                    .projected_semi_diameter(surfaces[1].mask().semi_diameter(), per_surf_v[1]),
             });
         }
 
@@ -785,7 +785,7 @@ impl ParaxialSubView {
         if last_physical_surface_id == *aperture_stop {
             return Ok(Pupil {
                 location: 0.0,
-                semi_diameter: surfaces[last_physical_surface_id].semi_diameter(),
+                semi_diameter: surfaces[last_physical_surface_id].mask().semi_diameter(),
             });
         }
 
@@ -866,7 +866,7 @@ impl ParaxialSubView {
             .zip(pseudo_marginal_ray.iter_surfaces())
             .zip(per_surf_v.iter())
             .map(|(((s, p), rays), &v)| {
-                p.projected_semi_diameter(s.semi_diameter(), v) / rays[0].height
+                p.projected_semi_diameter(s.mask().semi_diameter(), v) / rays[0].height
             })
             .collect();
         let scale_factor = ratios[*aperture_stop];

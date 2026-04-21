@@ -1,6 +1,6 @@
 use crate::{
     core::{Float, math::vec3::Vec3},
-    specs::surfaces::BoundaryType,
+    specs::surfaces::{BoundaryType, Mask},
 };
 
 use super::{Surface, SurfaceKind};
@@ -8,10 +8,10 @@ use super::{Surface, SurfaceKind};
 /// A conic surface (sphere, paraboloid, hyperboloid, etc.).
 #[derive(Debug, Clone)]
 pub struct Conic {
-    pub semi_diameter: Float,
     pub radius_of_curvature: Float,
     pub conic_constant: Float,
     pub boundary_type: BoundaryType,
+    mask: Mask,
 }
 
 impl Conic {
@@ -22,10 +22,10 @@ impl Conic {
         boundary_type: BoundaryType,
     ) -> Self {
         Self {
-            semi_diameter,
             radius_of_curvature,
             conic_constant,
             boundary_type,
+            mask: Mask::Circular { semi_diameter },
         }
     }
 }
@@ -64,8 +64,8 @@ impl Surface for Conic {
         Vec3::new(dfdx, dfdy, dfdz)
     }
 
-    fn semi_diameter(&self) -> Float {
-        self.semi_diameter
+    fn mask(&self) -> &Mask {
+        &self.mask
     }
 
     fn boundary_type(&self) -> BoundaryType {
@@ -153,12 +153,6 @@ mod tests {
     }
 
     #[test]
-    fn semi_diameter_round_trips() {
-        let conic = Conic::new(12.5, 50.0, 0.0, BoundaryType::Refracting);
-        assert_abs_diff_eq!(conic.semi_diameter(), 12.5);
-    }
-
-    #[test]
     fn boundary_type_round_trips() {
         let r = Conic::new(5.0, 30.0, 0.0, BoundaryType::Refracting);
         let m = Conic::new(5.0, 30.0, 0.0, BoundaryType::Reflecting);
@@ -167,9 +161,23 @@ mod tests {
     }
 
     #[test]
-    fn outside_clear_aperture_default_impl() {
+    fn mask_blocks_ray_outside_aperture() {
         let conic = Conic::new(10.0, Float::INFINITY, 0.0, BoundaryType::Refracting);
-        assert!(!conic.outside_clear_aperture(Vec3::new(5.0, 0.0, 0.0)));
-        assert!(conic.outside_clear_aperture(Vec3::new(11.0, 0.0, 0.0)));
+        assert!(
+            !conic
+                .mask()
+                .outside_clear_aperture(Vec3::new(5.0, 0.0, 0.0))
+        );
+        assert!(
+            conic
+                .mask()
+                .outside_clear_aperture(Vec3::new(11.0, 0.0, 0.0))
+        );
+    }
+
+    #[test]
+    fn mask_preserves_semi_diameter() {
+        let conic = Conic::new(12.5, 50.0, 0.0, BoundaryType::Refracting);
+        assert_abs_diff_eq!(conic.mask().semi_diameter(), 12.5);
     }
 }
