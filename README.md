@@ -55,7 +55,7 @@ Cherry was designed primarily for microscopists and researchers working in optic
 - If you want non-sequential ray tracing for graphics rendering, then Cherry (and probably optical design software in general) is not for you.
 - If you want professional lens and system design capabilities, consider industry standards such as [CODE V](https://www.keysight.com/us/en/products/software/optical-solutions-software/optical-design-solutions/codev.html), [Zemax OpticStudio](https://www.ansys.com/products/optics/ansys-zemax-opticstudio), [OSLO](https://lambdares.com/oslo), or [FRED](https://photonengr.com/).
 
-If you want an interactive tool that performs basic optical system calculations to visualize designs and allows you to easily share them with others, then Cherry might be for you. And if you code in Rust and want a library for optical systems design, then again Cherry might be for you.
+If you want an interactive tool that performs basic optical system calculations, produces real-time visualizations, and allows you to easily share designs with others, then Cherry might be for you. And if you code in Rust and want a library for optical systems design, then again Cherry might be for you.
 
 ## Roadmap
 
