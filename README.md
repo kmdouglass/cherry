@@ -11,6 +11,7 @@ Interactive and accessible optical system design for tabletop optics.
 1. [Quickstart](#quickstart)
 1. [Getting Help](#getting-help)
 1. [Project Description](#project-description)
+1. [Roadmap](#roadmap)
 1. [License](#license)
 
 ## Quickstart
@@ -55,6 +56,29 @@ Cherry was designed primarily for microscopists and researchers working in optic
 - If you want professional lens and system design capabilities, consider industry standards such as [CODE V](https://www.keysight.com/us/en/products/software/optical-solutions-software/optical-design-solutions/codev.html), [Zemax OpticStudio](https://www.ansys.com/products/optics/ansys-zemax-opticstudio), [OSLO](https://lambdares.com/oslo), or [FRED](https://photonengr.com/).
 
 If you want an interactive tool that performs basic optical system calculations to visualize designs and allows you to easily share them with others, then Cherry might be for you. And if you code in Rust and want a library for optical systems design, then again Cherry might be for you.
+
+## Roadmap
+
+### Now
+
+- [ ] Refactor the core to support the next set of features
+- [ ] Add a solve system to enforce active constraints on a design
+
+### Next
+
+- [ ] Add a lens view for manipulating systems by lens instead of by surface
+- [ ] Add tip/tilts/decenters to individual lenses
+- [ ] Encode designs into URLs and enable sharing via tiny URLs
+- [ ] **Help Wanted** Write a mdbook to serve as the app's user documentation
+- [ ] **Help Wanted** Add coordinate axes, the optical axis, and other guides to the cross-section view
+
+### Later
+
+- [ ] Lens library/explorer
+- [ ] Paraxial Gaussian beam propagation
+- [ ] Ensure backwards compatibility with saved designs
+- [ ] **Help Wanted** 3D views
+- [ ] **Help Wanted** Fuzzy search for materials
 
 ## License
 
