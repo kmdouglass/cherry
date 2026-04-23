@@ -16,12 +16,20 @@ bench bench_name:
 bench-all:
   cargo bench
 
+[doc("Build the WASM release package")]
+[working-directory: "../www/egui"]
+build-wasm:
+  trunk build --release
+
+check:
+  cargo check
+
 [doc("Run all CI-level checks")]
 ci: fmt lint test-all
 
 [doc("Launches the desktop GUI")]
 gui:
-  cargo run -p cherry-rs --bin cherry --features gui
+  cargo run -p cherry-rs --bin cherry --features gui,ri-info
 
 fmt:
   cargo fmt

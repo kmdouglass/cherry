@@ -1,45 +1,60 @@
 # Cherry Ray Tracer
 
-Optical system design in the browser
+Interactive and accessible optical system design for tabletop optics.
 
-*This software has not yet stabilized. Do not expect backwards compatibility with previously-saved designs.*
+*This software is in development and has not yet stabilized. Do not expect backwards compatibility with previously-saved designs.*
+
+<img src=".github/images/cherry_screenshot.png" alt="An f-theta scan lens as viewed in Cherry" width="800">
+
+## Table of Contents
+
+1. [Quickstart](#quickstart)
+1. [Getting Help](#getting-help)
+1. [Project Description](#project-description)
+1. [License](#license)
 
 ## Quickstart
 
-1. Go to https://kmdouglass.github.io/cherry/
-2. Start designing!
+1. Go to <https://kmdouglass.github.io/cherry/>.
+1. Select one of the examples from the menu at the top of the screen.
+1. Open one or more of the output windows such as the spot diagram or paraxial summary.
+1. Vary any of the specs, such as surface radius of curvature, and watch the outputs change.
 
-## Development
+## Getting Help
 
-See [crates/cherry-rs/README.md](crates/cherry-rs/README.md) for information about the cherry-rs library.
+### Q&A, Feature Requests, and Bug Reports
 
-### Prerequisites
+If you have a question about how to use Cherry, then please do not hesitate to [start a Q&A discussion](https://github.com/kmdouglass/cherry/discussions/new?category=q-a). [Feature requests](https://github.com/kmdouglass/cherry/discussions/new?category=ideas) can be made through the discussions space as well.
 
-- Rust compiler (see [rust-toolchain.toml](rust-toolchain.toml) for the version)
-- [trunk](https://trunk-rs.github.io/trunk/) (for the WASM frontend)
-- [binaryen](https://github.com/WebAssembly/binaryen) (optional — trunk will use `wasm-opt` for WASM optimization if it is on your PATH)
-- [rii.db](https://github.com/kmdouglass/refractiveindex.info-adapters/releases) (the materials database)
+To report a bug, please [open an issue](https://github.com/kmdouglass/cherry/issues/new?labels=bug) with the `Bug` label.
 
-Place the `rii.db` materials database in
+### Development
 
-1. `crates/cherry-rs/data` for desktop development and testing, and
-2. in `www/egui/assets` for web app development.
+Instructions for developing the app and library may be found in [CONTRIBUTING.md](./CONTRIBUTING.md#development).
 
-### Build
+## Project Description
 
-```console
-cd www/egui
-trunk build --release
-```
+### What is the Cherry Ray Tracer?
 
-### Serve Locally
+Cherry is a tool for researchers, experimentalists and optical designers working on tabletop setups that answers the following questions:
 
-Launch the development server:
+1. What is the effect of changing/rotating/tilting a component in an optical assembly such as a microscope?
+1. What are the basic parameters of this lens or system, such as focal length and system size?
+1. How can I easily share a design with others?
 
-```console
-cd www/egui
-trunk serve
-```
+Cherry focuses on accessibility and interactivity to answer these questions effectively and within a research laboratory setting. The software is accessible on any device with a browser, including a smartphone. Calculations are performed and their results displayed immediately whenever a system parameter changes. 
+
+### Is Cherry for me?
+
+Cherry was designed primarily for microscopists and researchers working in optics labs on tabletop setups. As such, its goals are different from other optics software packages.
+
+- If you want an open source and comprehensive Python tool for general purpose optical design, including non-sequential ray tracing, consider using [Optiland](https://github.com/optiland/optiland).
+- If you want an open source, practical, and lightweight ray tracing system in Python, consider [RayOptics](https://github.com/mjhoptics/ray-optics), which heavily inspired Cherry's initial design.
+- If you want to perform physical optics propagation using an open source Python tool focused on telescope design, consider [POPPY](https://github.com/spacetelescope/poppy).
+- If you want non-sequential ray tracing for graphics rendering, then Cherry (and probably optical design software in general) is not for you.
+- If you want professional lens and system design capabilities, consider industry standards such as [CODE V](https://www.keysight.com/us/en/products/software/optical-solutions-software/optical-design-solutions/codev.html), [Zemax OpticStudio](https://www.ansys.com/products/optics/ansys-zemax-opticstudio), [OSLO](https://lambdares.com/oslo), or [FRED](https://photonengr.com/).
+
+If you want an interactive tool that performs basic optical system calculations to visualize designs and allows you to easily share them with others, then Cherry might be for you. And if you code in Rust and want a library for optical systems design, then again Cherry might be for you.
 
 ## License
 
