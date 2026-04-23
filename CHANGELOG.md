@@ -1,1 +1,0 @@
-- cherry-rs crate: [crates/CHANGELOG.md](crates/CHANGELOG.md)
