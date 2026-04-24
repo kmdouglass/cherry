@@ -47,7 +47,7 @@ fn from_surfaces_constructs_minimal_model() {
     let gaps = vec![air_gap(10.0)];
     let wavelengths = vec![0.587];
 
-    assert!(SequentialModel::from_surfaces(surfaces, &gaps, &wavelengths).is_ok());
+    assert!(SequentialModel::from_surfaces(surfaces, &gaps, &wavelengths, None).is_ok());
 }
 
 #[test]
@@ -59,7 +59,7 @@ fn from_surfaces_wrong_gap_count_errors() {
     let gaps = vec![air_gap(10.0), air_gap(5.0)]; // one too many
     let wavelengths = vec![0.587];
 
-    assert!(SequentialModel::from_surfaces(surfaces, &gaps, &wavelengths).is_err());
+    assert!(SequentialModel::from_surfaces(surfaces, &gaps, &wavelengths, None).is_err());
 }
 
 #[test]
@@ -71,8 +71,8 @@ fn from_surfaces_wavelengths_are_preserved() {
     let gaps = vec![air_gap(10.0)];
     let wavelengths = vec![0.486, 0.587, 0.656];
 
-    let model =
-        SequentialModel::from_surfaces(surfaces, &gaps, &wavelengths).expect("model should build");
+    let model = SequentialModel::from_surfaces(surfaces, &gaps, &wavelengths, None)
+        .expect("model should build");
 
     assert_eq!(model.wavelengths(), wavelengths.as_slice());
 }

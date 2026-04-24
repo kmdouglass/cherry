@@ -69,7 +69,7 @@ pub fn sequential_model() -> SequentialModel {
         surf_type: BoundaryType::Refracting,
         rotation: Rotation3D::None,
     };
-    let surf_4 = SurfaceSpec::Stop {
+    let surf_4 = SurfaceSpec::Iris {
         semi_diameter: 16.631,
         rotation: Rotation3D::None,
     };
@@ -117,7 +117,7 @@ pub fn sequential_model() -> SequentialModel {
 
     let wavelengths: Vec<f64> = vec![0.567];
 
-    SequentialModel::new(&gaps, &surfaces, &wavelengths).unwrap()
+    SequentialModel::new(&gaps, &surfaces, &wavelengths, None).unwrap()
 }
 
 pub fn field_specs() -> Vec<FieldSpec> {

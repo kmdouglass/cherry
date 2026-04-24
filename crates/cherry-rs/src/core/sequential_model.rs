@@ -14,7 +14,7 @@ use crate::core::{
     },
     placement::Placement,
     refractive_index::RefractiveIndex,
-    surfaces::{Conic, Image, Object, Probe, Stop, Surface, SurfaceRegistry},
+    surfaces::{Conic, Image, Iris, Object, Probe, Surface, SurfaceKind, SurfaceRegistry},
 };
 use crate::specs::{
     gaps::GapSpec,
@@ -45,6 +45,9 @@ pub struct SequentialModel {
 
     // The cursor forward direction at each surface vertex.
     axis_directions: Vec<Vec3>,
+
+    /// User-specified aperture stop surface index, or `None` for auto-derived.
+    stop_surface: Option<usize>,
 }
 
 /// A submodel of a sequential optical system.
@@ -218,7 +221,7 @@ pub(crate) fn propagate_tangential_vec(
 /// Returns the index of the first physical surface in the system.
 ///
 /// A physical surface is one that has a finite semi-diameter,
-/// i.e., a Conic or Stop. Object, Image, and Probe surfaces are excluded.
+/// i.e., a Conic or Iris. Object, Image, and Probe surfaces are excluded.
 pub(crate) fn first_physical_surface(surfaces: &[Box<dyn Surface>]) -> Option<usize> {
     surfaces
         .iter()
@@ -228,7 +231,7 @@ pub(crate) fn first_physical_surface(surfaces: &[Box<dyn Surface>]) -> Option<us
 /// Returns the index of the last physical surface in the system.
 ///
 /// A physical surface is one that limits the has a finite semi-diameter,
-/// i.e., a Conic or Stop. Object, Image, and Probe surfaces are excluded.
+/// i.e., a Conic or Iris. Object, Image, and Probe surfaces are excluded.
 pub fn last_physical_surface(surfaces: &[Box<dyn Surface>]) -> Option<usize> {
     surfaces
         .iter()
@@ -260,18 +263,24 @@ impl SequentialModel {
     /// * `gap_specs` - The specifications for the gaps between the surfaces.
     /// * `surface_specs` - The specifications for the surfaces in the system.
     /// * `wavelengths` - The wavelengths at which to model the system.
-    ///
-    /// # Returns
-    /// A new sequential model.
+    /// * `stop_surface` - Optional index of the user-designated aperture stop.
+    ///   `None` uses the paraxial heuristic. `Some(i)` requires `i` to refer to
+    ///   a `Conic` or `Iris` surface that is neither the object nor the image
+    ///   surface; otherwise an error is returned.
     pub fn new(
         gap_specs: &[GapSpec],
         surface_specs: &[SurfaceSpec],
         wavelengths: &[Float],
+        stop_surface: Option<usize>,
     ) -> Result<Self> {
         Self::validate_specs(gap_specs, wavelengths)?;
 
         let (surfaces, placements, axis_directions) =
             Self::surf_specs_to_surfs(surface_specs, gap_specs, None)?;
+
+        if let Some(i) = stop_surface {
+            Self::validate_stop_surface(&surfaces, i)?;
+        }
 
         let mut models: Vec<SequentialSubModelBase> = Vec::new();
         for &wavelength in wavelengths.iter() {
@@ -285,6 +294,7 @@ impl SequentialModel {
             submodels: models,
             wavelengths: wavelengths.to_vec(),
             axis_directions,
+            stop_surface,
         })
     }
 
@@ -303,6 +313,7 @@ impl SequentialModel {
         surfaces: Vec<(Box<dyn Surface>, Rotation3D)>,
         gap_specs: &[GapSpec],
         wavelengths: &[Float],
+        stop_surface: Option<usize>,
     ) -> Result<Self> {
         if surfaces.len() != gap_specs.len() + 1 {
             return Err(anyhow!(
@@ -318,6 +329,10 @@ impl SequentialModel {
         let (placements, axis_directions) =
             Self::build_placements_and_directions(&surfs, &rotations, gap_specs);
 
+        if let Some(i) = stop_surface {
+            Self::validate_stop_surface(&surfs, i)?;
+        }
+
         let mut models: Vec<SequentialSubModelBase> = Vec::new();
         for &wavelength in wavelengths.iter() {
             let gaps = Self::gap_specs_to_gaps(gap_specs, wavelength)?;
@@ -330,6 +345,7 @@ impl SequentialModel {
             submodels: models,
             wavelengths: wavelengths.to_vec(),
             axis_directions,
+            stop_surface,
         })
     }
 
@@ -362,7 +378,33 @@ impl SequentialModel {
             submodels: models,
             wavelengths: wavelengths.to_vec(),
             axis_directions,
+            stop_surface: None,
         })
+    }
+
+    /// Validates that index `i` is an eligible aperture stop surface.
+    fn validate_stop_surface(surfaces: &[Box<dyn Surface>], i: usize) -> Result<()> {
+        let last = surfaces.len().saturating_sub(1);
+        if i == 0 || i >= last {
+            return Err(anyhow!(
+                "stop surface index {i} is out of range; \
+                 must be between 1 and {} (inclusive)",
+                last - 1
+            ));
+        }
+        match surfaces[i].surface_kind() {
+            SurfaceKind::Conic | SurfaceKind::Iris => Ok(()),
+            kind => Err(anyhow!(
+                "surface {i} ({kind:?}) is not eligible as the aperture stop; \
+                 only Conic and Iris surfaces are allowed"
+            )),
+        }
+    }
+
+    /// Returns the user-specified aperture stop surface index, or `None` if the
+    /// stop is derived automatically from the paraxial ray trace.
+    pub fn stop_surface(&self) -> Option<usize> {
+        self.stop_surface
     }
 
     /// Returns the largest semi-diameter of any surface in the system.
@@ -691,7 +733,7 @@ fn rotation_from_spec(spec: &SurfaceSpec) -> Rotation3D {
         | SurfaceSpec::Custom { rotation, .. }
         | SurfaceSpec::Image { rotation }
         | SurfaceSpec::Probe { rotation }
-        | SurfaceSpec::Stop { rotation, .. } => rotation.clone(),
+        | SurfaceSpec::Iris { rotation, .. } => rotation.clone(),
         SurfaceSpec::Object => Rotation3D::None,
     }
 }
@@ -730,7 +772,7 @@ pub(crate) fn surface_from_spec(
         SurfaceSpec::Image { .. } => Ok(Box::new(Image::new())),
         SurfaceSpec::Object => Ok(Box::new(Object::new())),
         SurfaceSpec::Probe { .. } => Ok(Box::new(Probe::new())),
-        SurfaceSpec::Stop { semi_diameter, .. } => Ok(Box::new(Stop::new(*semi_diameter))),
+        SurfaceSpec::Iris { semi_diameter, .. } => Ok(Box::new(Iris::new(*semi_diameter))),
     }
 }
 
@@ -995,5 +1037,93 @@ mod tests {
             assert_abs_diff_eq!(axis.y(), 0.0, epsilon = 1e-12);
             assert_abs_diff_eq!(axis.z(), 1.0, epsilon = 1e-12);
         }
+    }
+
+    // --- stop_surface validation tests ---
+    //
+    // System layout for these tests:
+    //   0: Object
+    //   1: Conic   (eligible)
+    //   2: Probe   (ineligible)
+    //   3: Iris    (eligible)
+    //   4: Image
+    fn stop_validation_specs() -> (Vec<GapSpec>, Vec<SurfaceSpec>) {
+        let air = n!(1.0);
+        let glass = n!(1.5);
+        let gaps = vec![
+            GapSpec {
+                thickness: f64::INFINITY,
+                refractive_index: air.clone(),
+            },
+            GapSpec {
+                thickness: 5.0,
+                refractive_index: glass,
+            },
+            GapSpec {
+                thickness: 1.0,
+                refractive_index: air.clone(),
+            },
+            GapSpec {
+                thickness: 5.0,
+                refractive_index: air,
+            },
+        ];
+        let surfaces = vec![
+            SurfaceSpec::Object,
+            SurfaceSpec::Conic {
+                semi_diameter: 10.0,
+                radius_of_curvature: 50.0,
+                conic_constant: 0.0,
+                surf_type: BoundaryType::Refracting,
+                rotation: Rotation3D::None,
+            },
+            SurfaceSpec::Probe {
+                rotation: Rotation3D::None,
+            },
+            SurfaceSpec::Iris {
+                semi_diameter: 5.0,
+                rotation: Rotation3D::None,
+            },
+            SurfaceSpec::Image {
+                rotation: Rotation3D::None,
+            },
+        ];
+        (gaps, surfaces)
+    }
+
+    #[test]
+    fn stop_surface_conic_is_accepted() {
+        let (gaps, surfaces) = stop_validation_specs();
+        assert!(SequentialModel::new(&gaps, &surfaces, &[0.5876], Some(1)).is_ok());
+    }
+
+    #[test]
+    fn stop_surface_iris_is_accepted() {
+        let (gaps, surfaces) = stop_validation_specs();
+        assert!(SequentialModel::new(&gaps, &surfaces, &[0.5876], Some(3)).is_ok());
+    }
+
+    #[test]
+    fn stop_surface_object_is_rejected() {
+        let (gaps, surfaces) = stop_validation_specs();
+        assert!(SequentialModel::new(&gaps, &surfaces, &[0.5876], Some(0)).is_err());
+    }
+
+    #[test]
+    fn stop_surface_image_is_rejected() {
+        let (gaps, surfaces) = stop_validation_specs();
+        assert!(SequentialModel::new(&gaps, &surfaces, &[0.5876], Some(4)).is_err());
+    }
+
+    #[test]
+    fn stop_surface_out_of_range_is_rejected() {
+        let (gaps, surfaces) = stop_validation_specs();
+        assert!(SequentialModel::new(&gaps, &surfaces, &[0.5876], Some(99)).is_err());
+    }
+
+    #[test]
+    fn stop_surface_probe_is_rejected() {
+        let (gaps, surfaces) = stop_validation_specs();
+        assert!(SequentialModel::new(&gaps, &surfaces, &[0.5876], Some(2)).is_err());
     }
 }

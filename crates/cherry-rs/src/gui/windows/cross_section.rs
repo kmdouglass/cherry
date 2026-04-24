@@ -309,7 +309,7 @@ fn draw_element(
         DrawElement::SurfaceProfile { points } => {
             draw_surface_profile(painter, points, w2s);
         }
-        DrawElement::Stop {
+        DrawElement::Iris {
             z,
             half_gap,
             extent,
@@ -589,7 +589,7 @@ fn render_svg(geom: &PlaneGeometry, wavelengths: &[f64], dark_mode: bool) -> Str
             DrawElement::SurfaceProfile { points } => {
                 svg_polyline(&mut s, points, &w2s, profile_color, 1.5);
             }
-            DrawElement::Stop {
+            DrawElement::Iris {
                 z,
                 half_gap,
                 extent,

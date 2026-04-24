@@ -7,17 +7,17 @@ use crate::specs::surfaces::{BoundaryType, Mask};
 
 pub mod conic;
 pub mod image;
+pub mod iris;
 pub mod object;
 pub mod probe;
 pub mod solvers;
-pub mod stop;
 pub mod surface_registry;
 
 pub use conic::Conic;
 pub use image::Image;
+pub use iris::Iris;
 pub use object::Object;
 pub use probe::Probe;
-pub use stop::Stop;
 pub use surface_registry::{SurfaceConstructor, SurfaceRegistry};
 
 /// The role of a surface in the optical system.
@@ -32,9 +32,9 @@ pub use surface_registry::{SurfaceConstructor, SurfaceRegistry};
 pub enum SurfaceKind {
     Conic,
     Image,
+    Iris,
     Object,
     Probe,
-    Stop,
     Custom,
 }
 
@@ -100,7 +100,7 @@ pub trait Surface: std::fmt::Debug + Send + Sync {
     /// Returns the role of this surface in the optical system.
     ///
     /// Used by rendering and analysis code to distinguish Object, Image, Probe,
-    /// Conic, Stop, and Custom surfaces.
+    /// Conic, Iris, and Custom surfaces.
     ///
     /// User-defined surfaces should return [`SurfaceKind::Custom`].
     fn surface_kind(&self) -> SurfaceKind {

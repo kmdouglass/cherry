@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 pub enum SurfaceVariant {
     Object,
     Conic,
-    Stop,
+    Iris,
     Probe,
     Image,
 }
@@ -15,7 +15,7 @@ impl SurfaceVariant {
     /// are fixed).
     pub const SELECTABLE: &[SurfaceVariant] = &[
         SurfaceVariant::Conic,
-        SurfaceVariant::Stop,
+        SurfaceVariant::Iris,
         SurfaceVariant::Probe,
     ];
 }
@@ -25,7 +25,7 @@ impl std::fmt::Display for SurfaceVariant {
         match self {
             SurfaceVariant::Object => write!(f, "Object"),
             SurfaceVariant::Conic => write!(f, "Conic"),
-            SurfaceVariant::Stop => write!(f, "Stop"),
+            SurfaceVariant::Iris => write!(f, "Iris"),
             SurfaceVariant::Probe => write!(f, "Probe"),
             SurfaceVariant::Image => write!(f, "Image"),
         }
@@ -114,9 +114,9 @@ impl SurfaceRow {
         }
     }
 
-    pub fn new_stop(semi_diameter: &str, thickness: &str, refractive_index: &str) -> Self {
+    pub fn new_iris(semi_diameter: &str, thickness: &str, refractive_index: &str) -> Self {
         Self {
-            variant: SurfaceVariant::Stop,
+            variant: SurfaceVariant::Iris,
             surface_kind: SurfaceKind::Refracting,
             refractive_index: refractive_index.into(),
             thickness: thickness.into(),
@@ -223,6 +223,36 @@ pub struct SystemSpecs {
     /// Material key for the background medium (used in materials mode).
     #[serde(default)]
     pub background_material_key: Option<String>,
+    /// User-designated aperture stop surface index. `None` = auto-derived.
+    #[serde(default)]
+    pub stop_surface: Option<usize>,
+}
+
+impl SystemSpecs {
+    /// Insert a default surface after index `idx` and adjust `stop_surface`.
+    pub fn insert_surface_after(&mut self, idx: usize) {
+        self.surfaces.insert(idx + 1, SurfaceRow::new_default());
+        if let Some(stop) = self.stop_surface
+            && idx < stop
+        {
+            self.stop_surface = Some(stop + 1);
+        }
+    }
+
+    /// Remove the surface at index `idx` and adjust `stop_surface`.
+    ///
+    /// Does nothing if fewer than 3 surfaces remain (must keep object + image).
+    pub fn delete_surface(&mut self, idx: usize) {
+        if self.surfaces.len() <= 2 {
+            return;
+        }
+        self.surfaces.remove(idx);
+        self.stop_surface = match self.stop_surface {
+            Some(stop) if stop == idx => None,
+            Some(stop) if idx < stop => Some(stop - 1),
+            other => other,
+        };
+    }
 }
 
 fn default_cross_section_n_rays() -> u32 {
@@ -266,6 +296,95 @@ impl Default for SystemSpecs {
             n_fan_rays: 65,
             background_n: "1.0".into(),
             background_material_key: None,
+            stop_surface: None,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Layout used by mutation tests:
+    //   0: Object, 1: Conic, 2: Conic, 3: Iris, 4: Image
+    fn five_surface_specs() -> SystemSpecs {
+        SystemSpecs {
+            surfaces: vec![
+                SurfaceRow::new_object("Infinity"),
+                SurfaceRow::new_conic("10.0", "50.0", "0.0", "5.0", "1.5"),
+                SurfaceRow::new_conic("10.0", "Infinity", "0.0", "5.0", "1.0"),
+                SurfaceRow::new_iris("5.0", "1.0", "1.0"),
+                SurfaceRow::new_image(),
+            ],
+            ..Default::default()
+        }
+    }
+
+    // --- insert_surface_after ---
+
+    #[test]
+    fn insert_before_stop_increments_stop() {
+        let mut specs = five_surface_specs();
+        specs.stop_surface = Some(3);
+        specs.insert_surface_after(1); // inserts at index 2, stop was 3 → becomes 4
+        assert_eq!(specs.stop_surface, Some(4));
+    }
+
+    #[test]
+    fn insert_at_stop_index_increments_stop() {
+        let mut specs = five_surface_specs();
+        specs.stop_surface = Some(2);
+        specs.insert_surface_after(2); // inserts at index 3, stop was 2 → unchanged
+        assert_eq!(specs.stop_surface, Some(2));
+    }
+
+    #[test]
+    fn insert_after_stop_leaves_stop_unchanged() {
+        let mut specs = five_surface_specs();
+        specs.stop_surface = Some(2);
+        specs.insert_surface_after(3); // inserts after stop → unchanged
+        assert_eq!(specs.stop_surface, Some(2));
+    }
+
+    #[test]
+    fn insert_with_no_stop_stays_none() {
+        let mut specs = five_surface_specs();
+        specs.stop_surface = None;
+        specs.insert_surface_after(1);
+        assert_eq!(specs.stop_surface, None);
+    }
+
+    // --- delete_surface ---
+
+    #[test]
+    fn delete_at_stop_clears_stop() {
+        let mut specs = five_surface_specs();
+        specs.stop_surface = Some(2);
+        specs.delete_surface(2);
+        assert_eq!(specs.stop_surface, None);
+    }
+
+    #[test]
+    fn delete_before_stop_decrements_stop() {
+        let mut specs = five_surface_specs();
+        specs.stop_surface = Some(3);
+        specs.delete_surface(1); // delete before stop → stop was 3, becomes 2
+        assert_eq!(specs.stop_surface, Some(2));
+    }
+
+    #[test]
+    fn delete_after_stop_leaves_stop_unchanged() {
+        let mut specs = five_surface_specs();
+        specs.stop_surface = Some(2);
+        specs.delete_surface(3);
+        assert_eq!(specs.stop_surface, Some(2));
+    }
+
+    #[test]
+    fn delete_with_no_stop_stays_none() {
+        let mut specs = five_surface_specs();
+        specs.stop_surface = None;
+        specs.delete_surface(2);
+        assert_eq!(specs.stop_surface, None);
     }
 }

@@ -52,7 +52,7 @@ pub fn sequential_model(
     let gaps = vec![gap_0, gap_1, gap_2, gap_3, gap_4, gap_5, gap_6, gap_7];
 
     let surf_0 = SurfaceSpec::Object;
-    let surf_1 = SurfaceSpec::Stop {
+    let surf_1 = SurfaceSpec::Iris {
         semi_diameter: 0.5,
         rotation: Rotation3D::None,
     };
@@ -105,7 +105,7 @@ pub fn sequential_model(
         surf_0, surf_1, surf_2, surf_3, surf_4, surf_5, surf_6, surf_7, surf_8,
     ];
 
-    SequentialModel::new(&gaps, &surfaces, wavelengths).unwrap()
+    SequentialModel::new(&gaps, &surfaces, wavelengths, None).unwrap()
 }
 
 pub fn field_specs() -> Vec<FieldSpec> {

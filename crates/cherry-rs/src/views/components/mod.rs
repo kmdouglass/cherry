@@ -23,7 +23,7 @@ const TOL: Float = 1e-6;
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Component {
     Element { surf_idxs: (usize, usize) },
-    Stop { stop_idx: usize },
+    Iris { stop_idx: usize },
     Mirror { surf_idx: usize },
     UnpairedSurface { surf_idx: usize },
 }
@@ -31,8 +31,8 @@ pub enum Component {
 /// Determine the components of an optical system.
 ///
 /// Components are the basic building blocks of an optical system. They are
-/// either elements or stops. Elements are pairs of surfaces that interact with
-/// light rays. Stops are hard stops that block light rays.
+/// either elements or irises. Elements are pairs of surfaces that interact with
+/// light rays. Irises are hard stops that clip rays.
 ///
 /// Components serve to group surfaces together into individual lenses.
 ///
@@ -89,14 +89,13 @@ pub fn components_view(
             continue;
         }
 
-        if surf_pair.0.surface_kind() == SurfaceKind::Stop {
-            // Stops are special, so be sure that they're added before anything else.
-            components.insert(Component::Stop { stop_idx: i });
+        if surf_pair.0.surface_kind() == SurfaceKind::Iris {
+            components.insert(Component::Iris { stop_idx: i });
             continue;
         }
 
-        if surf_pair.1.surface_kind() == SurfaceKind::Stop {
-            // Ensure that stops following surfaces are NOT added as a component
+        if surf_pair.1.surface_kind() == SurfaceKind::Iris {
+            // Ensure that irises following surfaces are not added as a component.
             continue;
         }
 
@@ -159,7 +158,7 @@ mod tests {
         let gaps = vec![gap_0];
         let wavelengths = vec![0.567];
 
-        SequentialModel::new(&gaps, &surfaces, &wavelengths).unwrap()
+        SequentialModel::new(&gaps, &surfaces, &wavelengths, None).unwrap()
     }
 
     pub fn silly_unpaired_surface() -> SequentialModel {
@@ -213,7 +212,7 @@ mod tests {
         let gaps = vec![gap_0, gap_1, gap_2, gap_3];
         let wavelengths = vec![0.567];
 
-        SequentialModel::new(&gaps, &surfaces, &wavelengths).unwrap()
+        SequentialModel::new(&gaps, &surfaces, &wavelengths, None).unwrap()
     }
 
     pub fn silly_single_surface_and_stop() -> SequentialModel {
@@ -237,7 +236,7 @@ mod tests {
             thickness: 10.0,
             refractive_index: nbk7,
         };
-        let surf_2 = SurfaceSpec::Stop {
+        let surf_2 = SurfaceSpec::Iris {
             semi_diameter: 12.5,
             rotation: Rotation3D::None,
         };
@@ -253,7 +252,7 @@ mod tests {
         let gaps = vec![gap_0, gap_1, gap_2];
         let wavelengths = vec![0.567];
 
-        SequentialModel::new(&gaps, &surfaces, &wavelengths).unwrap()
+        SequentialModel::new(&gaps, &surfaces, &wavelengths, None).unwrap()
     }
 
     pub fn wollaston_landscape_lens() -> SequentialModel {
@@ -268,7 +267,7 @@ mod tests {
             thickness: Float::INFINITY,
             refractive_index: air.clone(),
         };
-        let surf_1 = SurfaceSpec::Stop {
+        let surf_1 = SurfaceSpec::Iris {
             semi_diameter: 5.0,
             rotation: Rotation3D::None,
         };
@@ -306,7 +305,7 @@ mod tests {
         let gaps = vec![gap_0, gap_1, gap_2, gap_3];
         let wavelengths = vec![0.5876];
 
-        SequentialModel::new(&gaps, &surfaces, &wavelengths).unwrap()
+        SequentialModel::new(&gaps, &surfaces, &wavelengths, None).unwrap()
     }
 
     // pub fn petzval_lens() -> SequentialModel {
@@ -330,7 +329,7 @@ mod tests {
     //             conic_constant: 0.0,
     //             surf_type: crate::BoundaryType::Refracting,
     //         },
-    //         SurfaceSpec::Stop {
+    //         SurfaceSpec::Iris {
     //             semi_diameter: 33.262,
     //         },
     //         SurfaceSpec::Conic {
@@ -379,7 +378,7 @@ mod tests {
     // 87179, 1.0),     ];
     //     let wavelengths = vec![0.5876];
 
-    //     SequentialModel::new(&gaps, &surfaces, &wavelengths).unwrap()
+    //     SequentialModel::new(&gaps, &surfaces, &wavelengths, None).unwrap()
     // }
 
     #[test]
@@ -421,7 +420,7 @@ mod tests {
         let components = components_view(&sequential_model, n!(1.0)).unwrap();
 
         assert_eq!(components.len(), 1);
-        assert!(components.contains(&Component::Stop { stop_idx: 2 })); // Hard stop
+        assert!(components.contains(&Component::Iris { stop_idx: 2 })); // Hard stop
     }
 
     #[test]
@@ -443,7 +442,7 @@ mod tests {
         let components = components_view(&sequential_model, n!(1.0)).unwrap();
 
         assert_eq!(components.len(), 2);
-        assert!(components.contains(&Component::Stop { stop_idx: 1 })); // Hard stop
+        assert!(components.contains(&Component::Iris { stop_idx: 1 })); // Hard stop
         assert!(components.contains(&Component::Element { surf_idxs: (2, 3) }));
         // Lens
     }
@@ -480,7 +479,7 @@ mod tests {
                 refractive_index: air.clone(),
             },
         ];
-        SequentialModel::new(&gaps, &surfaces, &[0.5876]).unwrap()
+        SequentialModel::new(&gaps, &surfaces, &[0.5876], None).unwrap()
     }
 
     #[test]
@@ -503,7 +502,7 @@ mod tests {
         let model = f_theta_scan_lens::sequential_model(air.clone(), glass, &[0.5876]);
         let components = components_view(&model, air).unwrap();
         assert_eq!(components.len(), 4); // 1 stop + 3 elements
-        assert!(components.contains(&Component::Stop { stop_idx: 1 }));
+        assert!(components.contains(&Component::Iris { stop_idx: 1 }));
         assert!(components.contains(&Component::Element { surf_idxs: (2, 3) }));
         assert!(components.contains(&Component::Element { surf_idxs: (4, 5) }));
         assert!(components.contains(&Component::Element { surf_idxs: (6, 7) }));

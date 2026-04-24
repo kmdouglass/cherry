@@ -102,10 +102,10 @@ fn convert_specs_inner(
                     rotation,
                 }
             }
-            SurfaceVariant::Stop => {
+            SurfaceVariant::Iris => {
                 let semi_diameter = parse_float(&row.semi_diameter)
                     .with_context(|| format!("surface {i}: semi-diameter"))?;
-                SurfaceSpec::Stop {
+                SurfaceSpec::Iris {
                     semi_diameter,
                     rotation: Rotation3D::None,
                 }

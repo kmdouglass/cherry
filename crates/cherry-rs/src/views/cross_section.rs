@@ -56,7 +56,7 @@ pub enum DrawElement {
     SurfaceProfile {
         points: Vec<[f64; 2]>,
     },
-    Stop {
+    Iris {
         z: f64,
         half_gap: f64,
         extent: f64,
@@ -127,7 +127,7 @@ fn build_plane_geometry(
     let mut sorted_components: Vec<Component> = components.iter().cloned().collect();
     sorted_components.sort_by_key(|c| match c {
         Component::Element { surf_idxs: (i, _) } => *i,
-        Component::Stop { stop_idx } => *stop_idx,
+        Component::Iris { stop_idx } => *stop_idx,
         Component::Mirror { surf_idx } => *surf_idx,
         Component::UnpairedSurface { surf_idx } => *surf_idx,
     });
@@ -144,10 +144,10 @@ fn build_plane_geometry(
                     });
                 }
             }
-            Component::Stop { stop_idx } => {
+            Component::Iris { stop_idx } => {
                 let z = placements[*stop_idx].position.z();
                 let sd = surfaces[*stop_idx].mask().semi_diameter();
-                elements.push(DrawElement::Stop {
+                elements.push(DrawElement::Iris {
                     z,
                     half_gap: sd,
                     extent: largest_sd * 1.5,
@@ -349,7 +349,7 @@ fn compute_bounds(elements: &[DrawElement], ray_paths: &[Vec<Vec<[f64; 2]>>]) ->
                     update(z, t, &mut z_min, &mut z_max, &mut t_min, &mut t_max);
                 }
             }
-            DrawElement::Stop { z, extent, .. } => {
+            DrawElement::Iris { z, extent, .. } => {
                 update(*z, *extent, &mut z_min, &mut z_max, &mut t_min, &mut t_max);
                 update(*z, -extent, &mut z_min, &mut z_max, &mut t_min, &mut t_max);
             }

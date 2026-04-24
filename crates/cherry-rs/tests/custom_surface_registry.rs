@@ -98,7 +98,7 @@ fn new_without_registry_rejects_custom_spec() {
     let gaps = vec![air_gap(f64::INFINITY), air_gap(10.0)];
     let wavelengths = vec![0.587];
 
-    let result = SequentialModel::new(&gaps, &surface_specs, &wavelengths);
+    let result = SequentialModel::new(&gaps, &surface_specs, &wavelengths, None);
     assert!(result.is_err());
 }
 

@@ -5,11 +5,18 @@ Thank you so much for considering a contribution to Cherry. I really appreciate 
 ## Table of Contents
 
 1. [Before Opening a Pull Request](#before-opening-a-pull-request)
-2. [Development](#development)
+2. [Can I use AI?](#can-i-use-ai)
+3. [Development](#development)
 
 ## Before Opening a Pull Request
 
 Your ideas and suggestions are always welcome! Before working on a new feature, I would first like to know whether it fits within the scope of Cherry. I ask that contributors [create a feature request](https://github.com/kmdouglass/cherry/discussions/new?category=ideas) so that we can discuss your idea.
+
+## Can I use AI?
+
+Yes! You are welcome to use AI tools such as Claude Code to implement a feature or bug fix. All changes, whether written by human or AI, must still be reviewed by a human in a pull request, and I expect you to have followed best practices: format the code, run the linter, and ensure that all tests are passing. I also expect that the changes fit into the overall architecture of the codebase itself with minimal friction.
+
+If you are unsure about an implementation detail, please [start a discussion](https://github.com/kmdouglass/cherry/discussions/new?category=q-a) and ask.
 
 ## Development
 

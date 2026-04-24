@@ -273,6 +273,7 @@ impl ParaxialView {
                 unique_tangential_vecs(field_specs)
             };
 
+        let stop_surface = sequential_model.stop_surface();
         let mut subviews = Vec::new();
         for (wav_idx, submodel) in sequential_model.submodels().iter().enumerate() {
             for (v_idx, &v) in tangential_vecs.iter().enumerate() {
@@ -281,6 +282,7 @@ impl ParaxialView {
                     surfaces,
                     placements,
                     field_specs,
+                    stop_surface,
                 };
                 let subview =
                     ParaxialSubView::new(wav_idx, v_idx, &data, v, is_obj_space_telecentric)?;
@@ -412,6 +414,7 @@ struct SubModelData<'a> {
     surfaces: &'a [Box<dyn Surface>],
     placements: &'a [Placement],
     field_specs: &'a [FieldSpec],
+    stop_surface: Option<usize>,
 }
 
 impl ParaxialSubView {
@@ -440,8 +443,12 @@ impl ParaxialSubView {
         let reverse_parallel_ray =
             Self::calc_reverse_parallel_ray(sequential_sub_model, surfaces, placements)?;
 
-        let aperture_stop =
-            Self::calc_aperture_stop(surfaces, placements, &pseudo_marginal_ray, &per_surf_v);
+        let aperture_stop = match data.stop_surface {
+            Some(i) => i,
+            None => {
+                Self::calc_aperture_stop(surfaces, placements, &pseudo_marginal_ray, &per_surf_v)
+            }
+        };
         let back_focal_distance = Self::calc_back_focal_distance(surfaces, &parallel_ray)?;
         let front_focal_distance =
             Self::calc_front_focal_distance(surfaces, &reverse_parallel_ray)?;
@@ -1206,6 +1213,7 @@ mod test {
             surfaces: sequential_model.surfaces(),
             placements: sequential_model.placements(),
             field_specs: &field_specs,
+            stop_surface: None,
         };
         (
             ParaxialSubView::new(
@@ -1377,7 +1385,7 @@ mod test {
             },
         ];
 
-        let sequential_model = SequentialModel::new(&gaps, &surfaces, &wavelengths).unwrap();
+        let sequential_model = SequentialModel::new(&gaps, &surfaces, &wavelengths, None).unwrap();
         let seq_sub_model = sequential_model.submodel(0).expect("Submodel not found.");
         let field_specs = vec![crate::FieldSpec::PointSource { x: 0.0, y: 0.0 }];
 
@@ -1386,10 +1394,63 @@ mod test {
             surfaces: sequential_model.surfaces(),
             placements: sequential_model.placements(),
             field_specs: &field_specs,
+            stop_surface: None,
         };
 
         let view = ParaxialSubView::new(0, 0, &data, Vec3::new(0.0, 1.0, 0.0), false).unwrap();
 
         assert_eq!(*view.aperture_stop(), 2);
+    }
+
+    /// When a user-specified stop surface is set on the model, ParaxialView
+    /// must use it instead of the auto-derived heuristic result.
+    #[test]
+    fn user_specified_stop_overrides_auto() {
+        // Convexplano lens: auto-derived stop is surface 1 (see test_aperture_stop).
+        // Explicitly designate surface 2 and verify the paraxial view honours it.
+        let air = n!(1.0);
+        let nbk7 = n!(1.515);
+        let gaps = vec![
+            GapSpec {
+                thickness: Float::INFINITY,
+                refractive_index: air.clone(),
+            },
+            GapSpec {
+                thickness: 5.3,
+                refractive_index: nbk7,
+            },
+            GapSpec {
+                thickness: 46.6,
+                refractive_index: air,
+            },
+        ];
+        let surfaces = vec![
+            SurfaceSpec::Object,
+            SurfaceSpec::Conic {
+                semi_diameter: 12.5,
+                radius_of_curvature: 25.8,
+                conic_constant: 0.0,
+                surf_type: BoundaryType::Refracting,
+                rotation: Rotation3D::None,
+            },
+            SurfaceSpec::Conic {
+                semi_diameter: 12.5,
+                radius_of_curvature: Float::INFINITY,
+                conic_constant: 0.0,
+                surf_type: BoundaryType::Refracting,
+                rotation: Rotation3D::None,
+            },
+            SurfaceSpec::Image {
+                rotation: Rotation3D::None,
+            },
+        ];
+        let seq = SequentialModel::new(&gaps, &surfaces, &[0.5876], Some(2)).unwrap();
+        let field = vec![FieldSpec::Angle {
+            chi: 0.0,
+            phi: 90.0,
+        }];
+        let pv = ParaxialView::new(&seq, &field, false).unwrap();
+        let sub = pv.get(0, 0).unwrap();
+        assert_eq!(*sub.aperture_stop(), 2);
     }
 }

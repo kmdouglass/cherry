@@ -86,7 +86,7 @@
 //! let wavelengths: Vec<f64> = vec![0.567];
 //!
 //! // Create a sequential model from the gaps, surfaces, and wavelengths.
-//! let sequential_model = SequentialModel::new(&gaps, &surfaces, &wavelengths).unwrap();
+//! let sequential_model = SequentialModel::new(&gaps, &surfaces, &wavelengths, None).unwrap();
 //!
 //! // Define a user-defined system aperture.
 //! let aperture_spec = ApertureSpec::EntrancePupil { semi_diameter: 5.0 };
@@ -140,7 +140,7 @@ pub use core::{
     placement::Placement,
     sequential_model::{SequentialModel, SequentialSubModel, Step},
     surfaces::{
-        Conic, Image, Object, Probe, Stop, Surface, SurfaceConstructor, SurfaceKind,
+        Conic, Image, Iris, Object, Probe, Surface, SurfaceConstructor, SurfaceKind,
         SurfaceRegistry,
     },
 };

@@ -1,6 +1,6 @@
 use egui_extras::{Column, TableBuilder};
 
-use super::super::model::{SurfaceKind, SurfaceRow, SurfaceVariant, SystemSpecs};
+use super::super::model::{SurfaceKind, SurfaceVariant, SystemSpecs};
 use super::{format_display_float, inf_formatter, inf_parser, parse_display_float};
 
 /// Draw the surfaces editor panel. Returns true if any spec was modified.
@@ -93,6 +93,9 @@ pub fn surfaces_panel(ui: &mut egui::Ui, specs: &mut SystemSpecs) -> bool {
 
                 for row_idx in 0..num_surfaces {
                     body.row(22.0, |mut row| {
+                        if specs.stop_surface == Some(row_idx) {
+                            row.set_selected(true);
+                        }
                         let surf = &mut specs.surfaces[row_idx];
                         let is_object = surf.variant == SurfaceVariant::Object;
                         let is_image = surf.variant == SurfaceVariant::Image;
@@ -124,6 +127,17 @@ pub fn surfaces_panel(ui: &mut egui::Ui, specs: &mut SystemSpecs) -> bool {
                                                 .changed()
                                             {
                                                 changed = true;
+                                                // If this row was the designated stop and
+                                                // the new variant is ineligible, clear it.
+                                                if specs.stop_surface == Some(row_idx)
+                                                    && !matches!(
+                                                        v,
+                                                        SurfaceVariant::Conic
+                                                            | SurfaceVariant::Iris
+                                                    )
+                                                {
+                                                    specs.stop_surface = None;
+                                                }
                                             }
                                         }
                                     });
@@ -306,13 +320,11 @@ pub fn surfaces_panel(ui: &mut egui::Ui, specs: &mut SystemSpecs) -> bool {
 
                 // Apply deferred mutations
                 if let Some(idx) = insert_after {
-                    specs.surfaces.insert(idx + 1, SurfaceRow::new_default());
+                    specs.insert_surface_after(idx);
                     changed = true;
                 }
-                if let Some(idx) = delete_at
-                    && specs.surfaces.len() > 2
-                {
-                    specs.surfaces.remove(idx);
+                if let Some(idx) = delete_at {
+                    specs.delete_surface(idx);
                     changed = true;
                 }
             });

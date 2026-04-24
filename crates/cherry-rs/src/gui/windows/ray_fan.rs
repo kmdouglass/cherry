@@ -509,7 +509,7 @@ mod tests {
         let parsed = convert::convert_specs(&specs).expect("convert");
         #[cfg(feature = "ri-info")]
         let parsed = convert::convert_specs(&specs, &Default::default()).expect("convert");
-        let seq = SequentialModel::new(&parsed.gaps, &parsed.surfaces, &parsed.wavelengths)
+        let seq = SequentialModel::new(&parsed.gaps, &parsed.surfaces, &parsed.wavelengths, None)
             .expect("model");
         let pv = ParaxialView::new(&seq, &parsed.fields, false).expect("paraxial");
         let config = SamplingConfig {
@@ -532,7 +532,7 @@ mod tests {
                     SurfaceKind::Image => "Image",
                     SurfaceKind::Object => "Object",
                     SurfaceKind::Probe => "Probe",
-                    SurfaceKind::Stop => "Stop",
+                    SurfaceKind::Iris => "Iris",
                     SurfaceKind::Custom => "Custom",
                 };
                 SurfaceDesc {
