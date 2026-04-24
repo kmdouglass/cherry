@@ -56,7 +56,7 @@ pub enum SurfaceSpec {
     Probe {
         rotation: Rotation3D,
     },
-    Stop {
+    Iris {
         semi_diameter: Float,
         rotation: Rotation3D,
     },

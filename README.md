@@ -47,7 +47,7 @@ Cherry focuses on accessibility and interactivity to answer these questions effe
 
 ### Is Cherry for me?
 
-Cherry was designed primarily for microscopists and researchers working in optics labs on tabletop setups. As such, its goals are different from other optics software packages.
+Cherry was designed primarily for microscopists, researchers, and educators working in optics labs on tabletop setups. As such, its goals are different from other optics software packages.
 
 - If you want an open source and comprehensive Python tool for general purpose optical design, including non-sequential ray tracing, consider using [Optiland](https://github.com/optiland/optiland).
 - If you want an open source, practical, and lightweight ray tracing system in Python, consider [RayOptics](https://github.com/mjhoptics/ray-optics), which heavily inspired Cherry's initial design.
@@ -55,22 +55,29 @@ Cherry was designed primarily for microscopists and researchers working in optic
 - If you want non-sequential ray tracing for graphics rendering, then Cherry (and probably optical design software in general) is not for you.
 - If you want professional lens and system design capabilities, consider industry standards such as [CODE V](https://www.keysight.com/us/en/products/software/optical-solutions-software/optical-design-solutions/codev.html), [Zemax OpticStudio](https://www.ansys.com/products/optics/ansys-zemax-opticstudio), [OSLO](https://lambdares.com/oslo), or [FRED](https://photonengr.com/).
 
-If you want an interactive tool that performs basic optical system calculations, produces real-time visualizations, and allows you to easily share designs with others, then Cherry might be for you. And if you code in Rust and want a library for optical systems design, then again Cherry might be for you.
+Cherry might be for you if:
+
+- you want an interactive tool that performs basic optical system calculations, produces real-time visualizations, and allows you to easily share designs with others,
+- you are an educator and want a free application for teaching optical engineering concepts, or
+- you code in Rust and want a library for optical systems design.
 
 ## Roadmap
 
 ### Now
 
-- [ ] Refactor the core to support the next set of features
-- [ ] Add a solve system to enforce active constraints on a design
+- [ ] Refactor the core to support the next set of features and better future-proof the API
+  - [X] User-specified stop
+  - [ ] Serialization layer moved into a crate feature
+  - [ ] Flat and spherical ray-surface intersection solvers
+- [ ] Solve system to enforce active constraints on a design
 
 ### Next
 
-- [ ] Add a lens view for manipulating systems by lens instead of by surface
-- [ ] Add tip/tilts/decenters to individual lenses
+- [ ] Lens view for manipulating systems by lens instead of by surface
+- [ ] Tip/tilts/decenters on individual surfaces and lenses
 - [ ] Encode designs into URLs and enable sharing via tiny URLs
-- [ ] **Help Wanted** Write a mdbook to serve as the app's user documentation
-- [ ] **Help Wanted** Add coordinate axes, the optical axis, and other guides to the cross-section view
+- [ ] **Help Wanted** mdbook to serve as the app's user documentation
+- [ ] **Help Wanted** Annotate coordinate axes, the optical axis, and other elements in the cross-section view
 
 ### Later
 

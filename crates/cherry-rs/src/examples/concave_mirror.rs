@@ -30,5 +30,5 @@ pub fn sequential_model(
     };
     let surfaces = vec![surf_0, surf_1, surf_2];
 
-    SequentialModel::new(&gaps, &surfaces, wavelengths).unwrap()
+    SequentialModel::new(&gaps, &surfaces, wavelengths, None).unwrap()
 }

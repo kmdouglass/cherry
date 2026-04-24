@@ -120,7 +120,12 @@ fn run_compute(
         Err(e) => return ResultPackage::error(req.id, format!("Specs error: {e}")),
     };
 
-    let seq = match SequentialModel::new(&parsed.gaps, &parsed.surfaces, &parsed.wavelengths) {
+    let seq = match SequentialModel::new(
+        &parsed.gaps,
+        &parsed.surfaces,
+        &parsed.wavelengths,
+        req.specs.stop_surface,
+    ) {
         Ok(s) => s,
         Err(e) => return ResultPackage::error(req.id, format!("Model error: {e}")),
     };
@@ -207,7 +212,7 @@ fn build_surface_descs(seq: &SequentialModel) -> Vec<SurfaceDesc> {
                 SurfaceKind::Image => "Image",
                 SurfaceKind::Object => "Object",
                 SurfaceKind::Probe => "Probe",
-                SurfaceKind::Stop => "Stop",
+                SurfaceKind::Iris => "Iris",
                 SurfaceKind::Custom => "Custom",
             };
             SurfaceDesc {
@@ -250,7 +255,7 @@ mod tests {
         let parsed = convert::convert_specs(&specs).expect("convert");
         #[cfg(feature = "ri-info")]
         let parsed = convert::convert_specs(&specs, &Default::default()).expect("convert");
-        let seq = SequentialModel::new(&parsed.gaps, &parsed.surfaces, &parsed.wavelengths)
+        let seq = SequentialModel::new(&parsed.gaps, &parsed.surfaces, &parsed.wavelengths, None)
             .expect("model");
         let descs = build_surface_descs(&seq);
 

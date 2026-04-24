@@ -5,13 +5,13 @@ use crate::{
 
 use super::{Surface, SurfaceKind};
 
-/// An aperture stop — a flat surface that limits the beam.
+/// A physical iris — a flat surface that clips rays by a circular aperture.
 #[derive(Debug, Clone)]
-pub struct Stop {
+pub struct Iris {
     mask: Mask,
 }
 
-impl Stop {
+impl Iris {
     pub fn new(semi_diameter: Float) -> Self {
         Self {
             mask: Mask::Circular { semi_diameter },
@@ -19,7 +19,7 @@ impl Stop {
     }
 }
 
-impl Surface for Stop {
+impl Surface for Iris {
     fn sag(&self, _pos: Vec3) -> Float {
         0.0
     }
@@ -37,7 +37,7 @@ impl Surface for Stop {
     }
 
     fn surface_kind(&self) -> SurfaceKind {
-        SurfaceKind::Stop
+        SurfaceKind::Iris
     }
 }
 
@@ -48,14 +48,14 @@ mod tests {
 
     #[test]
     fn sag_and_norm_are_always_flat() {
-        let stop = Stop::new(5.0);
+        let iris = Iris::new(5.0);
         for pos in [
             Vec3::new(0.0, 0.0, 0.0),
             Vec3::new(3.0, 4.0, 0.0),
             Vec3::new(-1.0, 2.5, 0.0),
         ] {
-            assert_abs_diff_eq!(stop.sag(pos), 0.0);
-            let norm = stop.norm(pos);
+            assert_abs_diff_eq!(iris.sag(pos), 0.0);
+            let norm = iris.norm(pos);
             assert_abs_diff_eq!(norm.x(), 0.0);
             assert_abs_diff_eq!(norm.y(), 0.0);
             assert_abs_diff_eq!(norm.z(), 1.0);
@@ -64,26 +64,26 @@ mod tests {
 
     #[test]
     fn boundary_type_is_noop() {
-        let stop = Stop::new(5.0);
-        assert!(matches!(stop.boundary_type(), BoundaryType::NoOp));
+        let iris = Iris::new(5.0);
+        assert!(matches!(iris.boundary_type(), BoundaryType::NoOp));
     }
 
     #[test]
     fn roc_default_is_infinity() {
-        let stop = Stop::new(5.0);
-        assert!(stop.roc(0.0).is_infinite());
+        let iris = Iris::new(5.0);
+        assert!(iris.roc(0.0).is_infinite());
     }
 
     #[test]
     fn mask_blocks_ray_outside_aperture() {
-        let stop = Stop::new(5.0);
-        assert!(!stop.mask().outside_clear_aperture(Vec3::new(4.9, 0.0, 0.0)));
-        assert!(stop.mask().outside_clear_aperture(Vec3::new(5.1, 0.0, 0.0)));
+        let iris = Iris::new(5.0);
+        assert!(!iris.mask().outside_clear_aperture(Vec3::new(4.9, 0.0, 0.0)));
+        assert!(iris.mask().outside_clear_aperture(Vec3::new(5.1, 0.0, 0.0)));
     }
 
     #[test]
     fn mask_preserves_semi_diameter() {
-        let stop = Stop::new(7.5);
-        assert_abs_diff_eq!(stop.mask().semi_diameter(), 7.5);
+        let iris = Iris::new(7.5);
+        assert_abs_diff_eq!(iris.mask().semi_diameter(), 7.5);
     }
 }

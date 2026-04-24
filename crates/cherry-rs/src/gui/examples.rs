@@ -47,6 +47,7 @@ pub fn mirrors_figure_z() -> SystemSpecs {
         n_fan_rays: 65,
         background_n: "1.0".into(),
         background_material_key: None,
+        stop_surface: None,
     }
 }
 
@@ -58,7 +59,7 @@ pub fn petzval_lens() -> SystemSpecs {
             SurfaceRow::new_conic("28.478", "99.56266", "0.0", "13.0", "1.5168"),
             SurfaceRow::new_conic("26.276", "-86.84002", "0.0", "4.0", "1.6645"),
             SurfaceRow::new_conic("21.02", "-1187.63858", "0.0", "40.0", "1.0"),
-            SurfaceRow::new_stop("16.631", "40.0", "1.0"),
+            SurfaceRow::new_iris("16.631", "40.0", "1.0"),
             SurfaceRow::new_conic("20.543", "57.47491", "0.0", "12.0", "1.6074"),
             SurfaceRow::new_conic("20.074", "-54.61685", "0.0", "3.0", "1.6727"),
             SurfaceRow::new_conic("20.074", "-614.68633", "0.0", "46.8221", "1.0"),
@@ -88,6 +89,7 @@ pub fn petzval_lens() -> SystemSpecs {
         n_fan_rays: 65,
         background_n: "1.0".into(),
         background_material_key: None,
+        stop_surface: None,
     }
 }
 
@@ -123,6 +125,7 @@ pub fn biconvex_lens() -> SystemSpecs {
         n_fan_rays: 65,
         background_n: "1.0".into(),
         background_material_key: None,
+        stop_surface: None,
     }
 }
 
@@ -191,6 +194,7 @@ pub fn convexplano_lens_with_materials() -> SystemSpecs {
         n_fan_rays: 65,
         background_n: "1.0".into(),
         background_material_key: Some("other:air:Ciddor".into()),
+        stop_surface: None,
     }
 }
 
@@ -214,7 +218,7 @@ pub fn f_theta_scan_lens() -> SystemSpecs {
                 material_key: Some("other:air:Ciddor".into()),
             },
             SurfaceRow {
-                variant: SurfaceVariant::Stop,
+                variant: SurfaceVariant::Iris,
                 surface_kind: SurfaceKind::Refracting,
                 refractive_index: "1.0".into(),
                 thickness: "5".into(),
@@ -317,6 +321,7 @@ pub fn f_theta_scan_lens() -> SystemSpecs {
         n_fan_rays: 65,
         background_n: "1.0".into(),
         background_material_key: Some("other:air:Ciddor".into()),
+        stop_surface: None,
     }
 }
 
@@ -361,5 +366,6 @@ pub fn concave_mirror() -> SystemSpecs {
         n_fan_rays: 65,
         background_n: "1.0".into(),
         background_material_key: None,
+        stop_surface: None,
     }
 }
