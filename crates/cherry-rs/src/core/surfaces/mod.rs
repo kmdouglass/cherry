@@ -11,6 +11,7 @@ pub mod iris;
 pub mod object;
 pub mod probe;
 pub mod solvers;
+#[cfg(feature = "serde")]
 pub mod surface_registry;
 
 pub use conic::Conic;
@@ -18,6 +19,7 @@ pub use image::Image;
 pub use iris::Iris;
 pub use object::Object;
 pub use probe::Probe;
+#[cfg(feature = "serde")]
 pub use surface_registry::{SurfaceConstructor, SurfaceRegistry};
 
 /// The role of a surface in the optical system.

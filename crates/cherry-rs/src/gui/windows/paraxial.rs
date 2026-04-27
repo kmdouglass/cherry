@@ -226,8 +226,13 @@ mod tests {
         let parsed = convert::convert_specs(&specs).expect("convert");
         #[cfg(feature = "ri-info")]
         let parsed = convert::convert_specs(&specs, &Default::default()).expect("convert");
-        let seq = SequentialModel::new(&parsed.gaps, &parsed.surfaces, &parsed.wavelengths, None)
-            .expect("model");
+        let seq = SequentialModel::from_surface_specs(
+            &parsed.gaps,
+            &parsed.surfaces,
+            &parsed.wavelengths,
+            None,
+        )
+        .expect("model");
         let pv = ParaxialView::new(&seq, &parsed.fields, false).expect("paraxial");
         let wls = seq.wavelengths().to_vec();
         ResultPackage {

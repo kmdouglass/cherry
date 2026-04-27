@@ -86,7 +86,7 @@
 //! let wavelengths: Vec<f64> = vec![0.567];
 //!
 //! // Create a sequential model from the gaps, surfaces, and wavelengths.
-//! let sequential_model = SequentialModel::new(&gaps, &surfaces, &wavelengths, None).unwrap();
+//! let sequential_model = SequentialModel::from_surface_specs(&gaps, &surfaces, &wavelengths, None).unwrap();
 //!
 //! // Define a user-defined system aperture.
 //! let aperture_spec = ApertureSpec::EntrancePupil { semi_diameter: 5.0 };
@@ -134,15 +134,14 @@ pub mod gui;
 
 // API
 pub mod examples;
+#[cfg(feature = "serde")]
+pub use core::surfaces::{SurfaceConstructor, SurfaceRegistry};
 pub use core::{
     math::linalg::rotations::{EulerAngles, Rotation3D},
     math::vec3::Vec3,
     placement::Placement,
     sequential_model::{SequentialModel, SequentialSubModel, Step},
-    surfaces::{
-        Conic, Image, Iris, Object, Probe, Surface, SurfaceConstructor, SurfaceKind,
-        SurfaceRegistry,
-    },
+    surfaces::{Conic, Image, Iris, Object, Probe, Surface, SurfaceKind},
 };
 pub use specs::{
     aperture::ApertureSpec,

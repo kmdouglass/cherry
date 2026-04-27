@@ -67,7 +67,7 @@ Cherry might be for you if:
 
 - [ ] Refactor the core to support the next set of features and better future-proof the API
   - [X] User-specified stop
-  - [ ] Serialization layer moved into a crate feature
+  - [X] Serialization layer moved into a crate feature
   - [ ] Flat and spherical ray-surface intersection solvers
 - [ ] Solve system to enforce active constraints on a design
 

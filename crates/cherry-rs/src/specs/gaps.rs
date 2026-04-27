@@ -1,6 +1,7 @@
 use std::rc::Rc;
 
 use anyhow::Result;
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
 use crate::core::Float;
@@ -50,7 +51,8 @@ pub trait RefractiveIndexSpec: std::fmt::Debug {
     fn k(&self, wavelength: Float) -> Result<Float>;
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct ConstantRefractiveIndex {
     n: Float,
     k: Float,

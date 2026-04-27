@@ -1,9 +1,11 @@
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
 use crate::core::{Float, math::linalg::rotations::Rotation3D, math::vec3::Vec3};
 
 /// Specifies the type of interaction of light with a sequential model surface.
-#[derive(Debug, Serialize, Deserialize, Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum BoundaryType {
     Refracting,
     Reflecting,
@@ -27,7 +29,8 @@ pub enum Mask {
 ///
 /// Rotations are optional and specify the active rotation sequence to orient
 /// the surface in 3D.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum SurfaceSpec {
     Conic {
         semi_diameter: Float,
@@ -44,6 +47,7 @@ pub enum SurfaceSpec {
     ///
     /// [`SurfaceRegistry`]: crate::core::surfaces::SurfaceRegistry
     /// [`SurfaceRegistry::register`]: crate::core::surfaces::SurfaceRegistry::register
+    #[cfg(feature = "serde")]
     Custom {
         type_id: String,
         params: serde_json::Value,

@@ -3,15 +3,33 @@
 [![docs.rs](https://img.shields.io/docsrs/cherry-rs)](https://docs.rs/cherry-rs/latest/cherry_rs/)
 [![Crates.io Version](https://img.shields.io/crates/v/cherry-rs)](https://crates.io/crates/cherry-rs)
 
-Tools for designing sequential optical systems.
+Rust library for designing sequential optical systems.
 
 ## Features
 
+### serde
+
+Enables [serde](https://serde.rs) serialization and deserialization for all public types, plus `serde_json` support for the `SurfaceSpec::Custom` variant and `SurfaceRegistry`. Pure Rust library users who build models programmatically via `SequentialModel::from_surfaces` can omit this feature to avoid the serde dependency.
+
+```toml
+cherry-rs = { version = "*", features = [ "serde" ] }
+```
+
+### gui
+
+Enables the egui-based desktop and WASM GUI. Implies `serde`.
+
+```toml
+cherry-rs = { version = "*", features = [ "gui" ] }
+```
+
 ### ri-info
 
-This feature includes material refractive index data from [refractiveindex.info](https://refractiveindex.info).
+Includes material refractive index data from [refractiveindex.info](https://refractiveindex.info). Implies `serde`.
 
-Install this feature by adding the following to your Cargo.toml: `cherry-rs = { version = "*", features = [ "ri-info" ]}`
+```toml
+cherry-rs = { version = "*", features = [ "ri-info" ] }
+```
 
 #### Testing
 
