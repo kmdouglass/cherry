@@ -2,6 +2,7 @@ use std::collections::HashSet;
 use std::rc::Rc;
 
 use anyhow::{Result, anyhow};
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -20,7 +21,8 @@ const TOL: Float = 1e-6;
 ///
 /// To avoid copying data, only indexes are stored from the surface models are
 /// stored.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum Component {
     Element { surf_idxs: (usize, usize) },
     Iris { stop_idx: usize },
@@ -158,7 +160,7 @@ mod tests {
         let gaps = vec![gap_0];
         let wavelengths = vec![0.567];
 
-        SequentialModel::new(&gaps, &surfaces, &wavelengths, None).unwrap()
+        SequentialModel::from_surface_specs(&gaps, &surfaces, &wavelengths, None).unwrap()
     }
 
     pub fn silly_unpaired_surface() -> SequentialModel {
@@ -212,7 +214,7 @@ mod tests {
         let gaps = vec![gap_0, gap_1, gap_2, gap_3];
         let wavelengths = vec![0.567];
 
-        SequentialModel::new(&gaps, &surfaces, &wavelengths, None).unwrap()
+        SequentialModel::from_surface_specs(&gaps, &surfaces, &wavelengths, None).unwrap()
     }
 
     pub fn silly_single_surface_and_stop() -> SequentialModel {
@@ -252,7 +254,7 @@ mod tests {
         let gaps = vec![gap_0, gap_1, gap_2];
         let wavelengths = vec![0.567];
 
-        SequentialModel::new(&gaps, &surfaces, &wavelengths, None).unwrap()
+        SequentialModel::from_surface_specs(&gaps, &surfaces, &wavelengths, None).unwrap()
     }
 
     pub fn wollaston_landscape_lens() -> SequentialModel {
@@ -305,7 +307,7 @@ mod tests {
         let gaps = vec![gap_0, gap_1, gap_2, gap_3];
         let wavelengths = vec![0.5876];
 
-        SequentialModel::new(&gaps, &surfaces, &wavelengths, None).unwrap()
+        SequentialModel::from_surface_specs(&gaps, &surfaces, &wavelengths, None).unwrap()
     }
 
     // pub fn petzval_lens() -> SequentialModel {
@@ -378,8 +380,8 @@ mod tests {
     // 87179, 1.0),     ];
     //     let wavelengths = vec![0.5876];
 
-    //     SequentialModel::new(&gaps, &surfaces, &wavelengths, None).unwrap()
-    // }
+    //     SequentialModel::from_surface_specs(&gaps, &surfaces, &wavelengths,
+    // None).unwrap() }
 
     #[test]
     fn test_concave_mirror() {
@@ -479,7 +481,7 @@ mod tests {
                 refractive_index: air.clone(),
             },
         ];
-        SequentialModel::new(&gaps, &surfaces, &[0.5876], None).unwrap()
+        SequentialModel::from_surface_specs(&gaps, &surfaces, &[0.5876], None).unwrap()
     }
 
     #[test]

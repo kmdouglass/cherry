@@ -4,6 +4,7 @@ mod trace;
 
 use anyhow::{Result, anyhow};
 use rayon::prelude::*;
+#[cfg(feature = "serde")]
 use serde::Serialize;
 use tracing::trace;
 
@@ -54,7 +55,8 @@ const LAUNCH_POINT_BEFORE_PUPIL: Float = 10.0;
 /// results are stored internally as a Vec and not a HashMap because the O(1)
 /// lookup time is not likely to outweigth the overhead of the HashMap in these
 /// conditions.
-#[derive(Debug, Serialize)]
+#[derive(Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize))]
 pub struct TraceResultsCollection {
     results: Vec<TraceResults>,
 }
@@ -64,7 +66,8 @@ pub struct TraceResultsCollection {
 /// This represents the results of a 3D ray trace for a single set of values of
 /// 1. wavelength ID and
 /// 2. field ID.
-#[derive(Debug, Serialize)]
+#[derive(Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize))]
 pub struct TraceResults {
     wavelength_id: usize,
     field_id: usize,

@@ -1,12 +1,14 @@
 /// A 3D vector
-use serde::{Deserialize, Serialize};
+#[cfg(feature = "serde")]
+use serde::Serialize;
 
 use crate::core::{EPSILON, Float, PI};
 
 const TOL: Float = (1 as Float) * EPSILON;
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-#[serde(into = "[Float; 3]")]
+#[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize))]
+#[cfg_attr(feature = "serde", serde(into = "[Float; 3]"))]
 pub struct Vec3 {
     pub e: [Float; 3],
 }

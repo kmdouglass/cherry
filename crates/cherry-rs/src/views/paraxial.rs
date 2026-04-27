@@ -8,6 +8,7 @@
 /// system, such as the entrance and exit pupils, the back and front focal
 /// distances, and the effective focal length.
 use anyhow::{Result, anyhow};
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -36,7 +37,8 @@ const DEFAULT_THICKNESS: Float = 0.0;
 type TangentialVector = Vec3;
 
 /// A single paraxial ray with height and angle components.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct ParaxialRay {
     pub height: Float,
     pub angle: Float,
@@ -48,7 +50,8 @@ pub struct ParaxialRay {
 /// laid out as `[surf_0_ray_0, …, surf_0_ray_N, surf_1_ray_0, …]`. The number
 /// of rays per surface is `rays.len() / num_surfaces`. Access rays at a given
 /// surface with [`ParaxialRayBundle::rays_at_surface`].
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct ParaxialRayBundle {
     rays: Vec<ParaxialRay>,
     num_surfaces: usize,
@@ -105,7 +108,8 @@ pub struct ParaxialView {
 /// A description of a paraxial optical system.
 ///
 /// This is used primarily for serialization of data for export.
-#[derive(Debug, Serialize)]
+#[derive(Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize))]
 pub struct ParaxialViewDescription {
     subviews: Vec<ParaxialSubViewDescription>,
     /// Indexed by tangential_vec_id (index into the tangential-vector table).
@@ -139,7 +143,8 @@ pub struct ParaxialSubView {
 /// A paraxial description of a submodel of an optical system.
 ///
 /// This is used primarily for serialization of data for export.
-#[derive(Debug, Serialize)]
+#[derive(Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize))]
 pub struct ParaxialSubViewDescription {
     wavelength_id: usize,
     tangential_vec_id: usize,
@@ -162,7 +167,8 @@ pub struct ParaxialSubViewDescription {
 /// * `location` - The location of the pupil relative to the first non-object
 ///   surface.
 /// * `semi_diameter` - The semi-diameter of the pupil.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Pupil {
     pub location: Float,
     pub semi_diameter: Float,
@@ -174,7 +180,8 @@ pub struct Pupil {
 /// * `location` - The location of the image plane relative to the first
 ///   physical surface
 /// * `semi_diameter` - The semi-diameter of the image plane
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct ImagePlane {
     pub location: Float,
     pub semi_diameter: Float,
@@ -1385,7 +1392,8 @@ mod test {
             },
         ];
 
-        let sequential_model = SequentialModel::new(&gaps, &surfaces, &wavelengths, None).unwrap();
+        let sequential_model =
+            SequentialModel::from_surface_specs(&gaps, &surfaces, &wavelengths, None).unwrap();
         let seq_sub_model = sequential_model.submodel(0).expect("Submodel not found.");
         let field_specs = vec![crate::FieldSpec::PointSource { x: 0.0, y: 0.0 }];
 
@@ -1444,7 +1452,8 @@ mod test {
                 rotation: Rotation3D::None,
             },
         ];
-        let seq = SequentialModel::new(&gaps, &surfaces, &[0.5876], Some(2)).unwrap();
+        let seq =
+            SequentialModel::from_surface_specs(&gaps, &surfaces, &[0.5876], Some(2)).unwrap();
         let field = vec![FieldSpec::Angle {
             chi: 0.0,
             phi: 90.0,

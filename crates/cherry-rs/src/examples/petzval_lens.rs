@@ -117,7 +117,7 @@ pub fn sequential_model() -> SequentialModel {
 
     let wavelengths: Vec<f64> = vec![0.567];
 
-    SequentialModel::new(&gaps, &surfaces, &wavelengths, None).unwrap()
+    SequentialModel::from_surface_specs(&gaps, &surfaces, &wavelengths, None).unwrap()
 }
 
 pub fn field_specs() -> Vec<FieldSpec> {

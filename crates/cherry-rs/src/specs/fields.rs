@@ -1,10 +1,12 @@
 use anyhow::Result;
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
 use crate::core::{Float, PI, math::vec3::Vec3};
 
 /// Specifies a pupil sampling method.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum PupilSampling {
     /// A pupil consisting of only a chief ray that pierces the pupil center.
     ChiefRay,
@@ -30,7 +32,8 @@ pub enum PupilSampling {
 }
 
 /// Specifies an object field.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum FieldSpec {
     /// The 2D direction of the field, specified in spherical coordinates.
     ///

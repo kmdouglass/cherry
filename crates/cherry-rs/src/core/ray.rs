@@ -1,4 +1,5 @@
-use serde::{Deserialize, Serialize};
+#[cfg(feature = "serde")]
+use serde::Serialize;
 
 use crate::core::{Float, PI, math::vec3::Vec3, placement::Placement};
 
@@ -7,7 +8,8 @@ use crate::core::{Float, PI, math::vec3::Vec3, placement::Placement};
 /// # Attributes
 /// - pos: Position of the ray
 /// - dir: Direction of the ray (direction cosines)
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize))]
 pub struct Ray {
     pos: Vec3,
     dir: Vec3,

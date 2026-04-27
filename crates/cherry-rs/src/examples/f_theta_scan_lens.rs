@@ -105,7 +105,7 @@ pub fn sequential_model(
         surf_0, surf_1, surf_2, surf_3, surf_4, surf_5, surf_6, surf_7, surf_8,
     ];
 
-    SequentialModel::new(&gaps, &surfaces, wavelengths, None).unwrap()
+    SequentialModel::from_surface_specs(&gaps, &surfaces, wavelengths, None).unwrap()
 }
 
 pub fn field_specs() -> Vec<FieldSpec> {

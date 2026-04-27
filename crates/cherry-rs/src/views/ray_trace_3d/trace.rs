@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+#[cfg(feature = "serde")]
 use serde::Serialize;
 use tracing::{error, trace_span, warn};
 
@@ -17,7 +18,8 @@ const MAX_INTERSECTION_ITER: usize = 100;
 ///   any rays have terminated. `0` means the ray has not terminated.
 /// - *reason_for_termination*: A hashmap containing the reason for termination.
 /// - *num_surfaces*: The number of surfaces in the optical system.
-#[derive(Debug, Serialize)]
+#[derive(Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize))]
 pub struct RayBundle {
     rays: Vec<Ray>,
     terminated: Vec<usize>,

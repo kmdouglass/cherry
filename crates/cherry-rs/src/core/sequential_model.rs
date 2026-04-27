@@ -5,6 +5,8 @@ type SurfsPlacementsDirs = (Vec<Box<dyn Surface>>, Vec<Placement>, Vec<Vec3>);
 
 use anyhow::{Result, anyhow};
 
+#[cfg(feature = "serde")]
+use crate::core::surfaces::SurfaceRegistry;
 use crate::core::{
     Float,
     math::{
@@ -14,7 +16,7 @@ use crate::core::{
     },
     placement::Placement,
     refractive_index::RefractiveIndex,
-    surfaces::{Conic, Image, Iris, Object, Probe, Surface, SurfaceKind, SurfaceRegistry},
+    surfaces::{Conic, Image, Iris, Object, Probe, Surface, SurfaceKind},
 };
 use crate::specs::{
     gaps::GapSpec,
@@ -267,7 +269,7 @@ impl SequentialModel {
     ///   `None` uses the paraxial heuristic. `Some(i)` requires `i` to refer to
     ///   a `Conic` or `Iris` surface that is neither the object nor the image
     ///   surface; otherwise an error is returned.
-    pub fn new(
+    pub fn from_surface_specs(
         gap_specs: &[GapSpec],
         surface_specs: &[SurfaceSpec],
         wavelengths: &[Float],
@@ -275,8 +277,12 @@ impl SequentialModel {
     ) -> Result<Self> {
         Self::validate_specs(gap_specs, wavelengths)?;
 
+        #[cfg(feature = "serde")]
         let (surfaces, placements, axis_directions) =
             Self::surf_specs_to_surfs(surface_specs, gap_specs, None)?;
+        #[cfg(not(feature = "serde"))]
+        let (surfaces, placements, axis_directions) =
+            Self::surf_specs_to_surfs(surface_specs, gap_specs)?;
 
         if let Some(i) = stop_surface {
             Self::validate_stop_surface(&surfaces, i)?;
@@ -355,6 +361,7 @@ impl SequentialModel {
     /// Identical to [`new`](Self::new) except that `registry` is consulted
     /// when a [`SurfaceSpec::Custom`] spec is encountered. Built-in surface
     /// types do not use the registry.
+    #[cfg(feature = "serde")]
     pub fn new_with_registry(
         gap_specs: &[GapSpec],
         surface_specs: &[SurfaceSpec],
@@ -441,7 +448,7 @@ impl SequentialModel {
     /// index is out of range.
     ///
     /// Wavelength indices are 0-based and match the order of the wavelengths
-    /// slice passed to [`SequentialModel::new`].
+    /// slice passed to [`SequentialModel::from_surface_specs`].
     pub fn submodel(&self, wavelength_id: usize) -> Option<&(impl SequentialSubModel + use<'_>)> {
         self.submodels.get(wavelength_id)
     }
@@ -532,6 +539,7 @@ impl SequentialModel {
         (placements, axis_directions)
     }
 
+    #[cfg(feature = "serde")]
     fn surf_specs_to_surfs(
         surf_specs: &[SurfaceSpec],
         gap_specs: &[GapSpec],
@@ -540,6 +548,21 @@ impl SequentialModel {
         let surfaces: Vec<Box<dyn Surface>> = surf_specs
             .iter()
             .map(|s| surface_from_spec(s, registry))
+            .collect::<Result<Vec<_>>>()?;
+        let rotations: Vec<Rotation3D> = surf_specs.iter().map(rotation_from_spec).collect();
+        let (placements, axis_directions) =
+            Self::build_placements_and_directions(&surfaces, &rotations, gap_specs);
+        Ok((surfaces, placements, axis_directions))
+    }
+
+    #[cfg(not(feature = "serde"))]
+    fn surf_specs_to_surfs(
+        surf_specs: &[SurfaceSpec],
+        gap_specs: &[GapSpec],
+    ) -> Result<SurfsPlacementsDirs> {
+        let surfaces: Vec<Box<dyn Surface>> = surf_specs
+            .iter()
+            .map(surface_from_spec)
             .collect::<Result<Vec<_>>>()?;
         let rotations: Vec<Rotation3D> = surf_specs.iter().map(rotation_from_spec).collect();
         let (placements, axis_directions) =
@@ -730,18 +753,17 @@ impl<'a> Iterator for SequentialSubModelReverseIter<'a> {
 fn rotation_from_spec(spec: &SurfaceSpec) -> Rotation3D {
     match spec {
         SurfaceSpec::Conic { rotation, .. }
-        | SurfaceSpec::Custom { rotation, .. }
         | SurfaceSpec::Image { rotation }
         | SurfaceSpec::Probe { rotation }
         | SurfaceSpec::Iris { rotation, .. } => rotation.clone(),
         SurfaceSpec::Object => Rotation3D::None,
+        #[cfg(feature = "serde")]
+        SurfaceSpec::Custom { rotation, .. } => rotation.clone(),
     }
 }
 
 /// Build a [`Surface`] trait object from a surface specification.
-///
-/// Pass `Some(registry)` to resolve [`SurfaceSpec::Custom`] variants.
-/// Passing `None` when a `Custom` spec is encountered returns an error.
+#[cfg(feature = "serde")]
 pub(crate) fn surface_from_spec(
     spec: &SurfaceSpec,
     registry: Option<&SurfaceRegistry>,
@@ -769,6 +791,29 @@ pub(crate) fn surface_from_spec(
                 )
             })?
             .build(type_id, params),
+        SurfaceSpec::Image { .. } => Ok(Box::new(Image::new())),
+        SurfaceSpec::Object => Ok(Box::new(Object::new())),
+        SurfaceSpec::Probe { .. } => Ok(Box::new(Probe::new())),
+        SurfaceSpec::Iris { semi_diameter, .. } => Ok(Box::new(Iris::new(*semi_diameter))),
+    }
+}
+
+/// Build a [`Surface`] trait object from a surface specification.
+#[cfg(not(feature = "serde"))]
+pub(crate) fn surface_from_spec(spec: &SurfaceSpec) -> Result<Box<dyn Surface>> {
+    match spec {
+        SurfaceSpec::Conic {
+            semi_diameter,
+            radius_of_curvature,
+            conic_constant,
+            surf_type,
+            ..
+        } => Ok(Box::new(Conic::new(
+            *semi_diameter,
+            *radius_of_curvature,
+            *conic_constant,
+            *surf_type,
+        ))),
         SurfaceSpec::Image { .. } => Ok(Box::new(Image::new())),
         SurfaceSpec::Object => Ok(Box::new(Object::new())),
         SurfaceSpec::Probe { .. } => Ok(Box::new(Probe::new())),
@@ -1094,36 +1139,38 @@ mod tests {
     #[test]
     fn stop_surface_conic_is_accepted() {
         let (gaps, surfaces) = stop_validation_specs();
-        assert!(SequentialModel::new(&gaps, &surfaces, &[0.5876], Some(1)).is_ok());
+        assert!(SequentialModel::from_surface_specs(&gaps, &surfaces, &[0.5876], Some(1)).is_ok());
     }
 
     #[test]
     fn stop_surface_iris_is_accepted() {
         let (gaps, surfaces) = stop_validation_specs();
-        assert!(SequentialModel::new(&gaps, &surfaces, &[0.5876], Some(3)).is_ok());
+        assert!(SequentialModel::from_surface_specs(&gaps, &surfaces, &[0.5876], Some(3)).is_ok());
     }
 
     #[test]
     fn stop_surface_object_is_rejected() {
         let (gaps, surfaces) = stop_validation_specs();
-        assert!(SequentialModel::new(&gaps, &surfaces, &[0.5876], Some(0)).is_err());
+        assert!(SequentialModel::from_surface_specs(&gaps, &surfaces, &[0.5876], Some(0)).is_err());
     }
 
     #[test]
     fn stop_surface_image_is_rejected() {
         let (gaps, surfaces) = stop_validation_specs();
-        assert!(SequentialModel::new(&gaps, &surfaces, &[0.5876], Some(4)).is_err());
+        assert!(SequentialModel::from_surface_specs(&gaps, &surfaces, &[0.5876], Some(4)).is_err());
     }
 
     #[test]
     fn stop_surface_out_of_range_is_rejected() {
         let (gaps, surfaces) = stop_validation_specs();
-        assert!(SequentialModel::new(&gaps, &surfaces, &[0.5876], Some(99)).is_err());
+        assert!(
+            SequentialModel::from_surface_specs(&gaps, &surfaces, &[0.5876], Some(99)).is_err()
+        );
     }
 
     #[test]
     fn stop_surface_probe_is_rejected() {
         let (gaps, surfaces) = stop_validation_specs();
-        assert!(SequentialModel::new(&gaps, &surfaces, &[0.5876], Some(2)).is_err());
+        assert!(SequentialModel::from_surface_specs(&gaps, &surfaces, &[0.5876], Some(2)).is_err());
     }
 }

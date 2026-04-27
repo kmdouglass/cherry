@@ -1,3 +1,5 @@
+#![cfg(feature = "serde")]
+
 use cherry_rs::{
     BoundaryType, GapSpec, Mask, Rotation3D, SequentialModel, Surface, SurfaceRegistry,
     SurfaceSpec, Vec3, n,
@@ -98,7 +100,7 @@ fn new_without_registry_rejects_custom_spec() {
     let gaps = vec![air_gap(f64::INFINITY), air_gap(10.0)];
     let wavelengths = vec![0.587];
 
-    let result = SequentialModel::new(&gaps, &surface_specs, &wavelengths, None);
+    let result = SequentialModel::from_surface_specs(&gaps, &surface_specs, &wavelengths, None);
     assert!(result.is_err());
 }
 

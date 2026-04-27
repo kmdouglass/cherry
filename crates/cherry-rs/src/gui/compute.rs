@@ -120,7 +120,7 @@ fn run_compute(
         Err(e) => return ResultPackage::error(req.id, format!("Specs error: {e}")),
     };
 
-    let seq = match SequentialModel::new(
+    let seq = match SequentialModel::from_surface_specs(
         &parsed.gaps,
         &parsed.surfaces,
         &parsed.wavelengths,
@@ -255,8 +255,13 @@ mod tests {
         let parsed = convert::convert_specs(&specs).expect("convert");
         #[cfg(feature = "ri-info")]
         let parsed = convert::convert_specs(&specs, &Default::default()).expect("convert");
-        let seq = SequentialModel::new(&parsed.gaps, &parsed.surfaces, &parsed.wavelengths, None)
-            .expect("model");
+        let seq = SequentialModel::from_surface_specs(
+            &parsed.gaps,
+            &parsed.surfaces,
+            &parsed.wavelengths,
+            None,
+        )
+        .expect("model");
         let descs = build_surface_descs(&seq);
 
         assert!(
