@@ -65,17 +65,15 @@
 //! // Define a set of surfaces in the system.
 //! let surfaces = vec![
 //!     SurfaceSpec::Object,
-//!     SurfaceSpec::Conic {
+//!     SurfaceSpec::Sphere {
 //!         semi_diameter: 12.5,
 //!         radius_of_curvature: 25.8,
-//!         conic_constant: 0.0,
 //!         surf_type: BoundaryType::Refracting,
 //!         rotation: Rotation3D::None,
 //!     },
-//!     SurfaceSpec::Conic {
+//!     SurfaceSpec::Sphere {
 //!         semi_diameter: 12.5,
 //!         radius_of_curvature: f64::INFINITY,
-//!         conic_constant: 0.0,
 //!         surf_type: BoundaryType::Refracting,
 //!         rotation: Rotation3D::None,
 //!     },
@@ -142,7 +140,7 @@ pub use core::{
     placement::Placement,
     ray::Ray,
     sequential_model::{SequentialModel, SequentialSubModel, Step},
-    surfaces::{Conic, Image, Iris, Object, Probe, Surface, SurfaceKind},
+    surfaces::{Conic, Image, Iris, Object, Probe, Sphere, Surface, SurfaceKind},
 };
 pub use specs::{
     aperture::ApertureSpec,

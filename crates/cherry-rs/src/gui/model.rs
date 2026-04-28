@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum SurfaceVariant {
     Object,
+    Sphere,
     Conic,
     Iris,
     Probe,
@@ -14,6 +15,7 @@ impl SurfaceVariant {
     /// Variants available for user selection (excludes Object and Image which
     /// are fixed).
     pub const SELECTABLE: &[SurfaceVariant] = &[
+        SurfaceVariant::Sphere,
         SurfaceVariant::Conic,
         SurfaceVariant::Iris,
         SurfaceVariant::Probe,
@@ -24,6 +26,7 @@ impl std::fmt::Display for SurfaceVariant {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             SurfaceVariant::Object => write!(f, "Object"),
+            SurfaceVariant::Sphere => write!(f, "Sphere"),
             SurfaceVariant::Conic => write!(f, "Conic"),
             SurfaceVariant::Iris => write!(f, "Iris"),
             SurfaceVariant::Probe => write!(f, "Probe"),
@@ -114,6 +117,26 @@ impl SurfaceRow {
         }
     }
 
+    pub fn new_sphere(
+        semi_diameter: &str,
+        radius_of_curvature: &str,
+        thickness: &str,
+        refractive_index: &str,
+    ) -> Self {
+        Self {
+            variant: SurfaceVariant::Sphere,
+            surface_kind: SurfaceKind::Refracting,
+            refractive_index: refractive_index.into(),
+            thickness: thickness.into(),
+            semi_diameter: semi_diameter.into(),
+            radius_of_curvature: radius_of_curvature.into(),
+            conic_constant: String::new(),
+            theta: "0".into(),
+            psi: "0".into(),
+            material_key: None,
+        }
+    }
+
     pub fn new_iris(semi_diameter: &str, thickness: &str, refractive_index: &str) -> Self {
         Self {
             variant: SurfaceVariant::Iris,
@@ -146,7 +169,7 @@ impl SurfaceRow {
 
     /// Create a default new surface for insertion.
     pub fn new_default() -> Self {
-        Self::new_conic("10.0", "Infinity", "0.0", "1.0", "1.0")
+        Self::new_sphere("10.0", "Infinity", "1.0", "1.0")
     }
 }
 
@@ -277,8 +300,8 @@ impl Default for SystemSpecs {
         Self {
             surfaces: vec![
                 SurfaceRow::new_object("Infinity"),
-                SurfaceRow::new_conic("12.5", "25.8", "0.0", "5.3", "1.515"),
-                SurfaceRow::new_conic("12.5", "Infinity", "0.0", "46.6", "1.0"),
+                SurfaceRow::new_sphere("12.5", "25.8", "5.3", "1.515"),
+                SurfaceRow::new_sphere("12.5", "Infinity", "46.6", "1.0"),
                 SurfaceRow::new_image(),
             ],
             fields: vec![FieldRow {
@@ -306,13 +329,13 @@ mod tests {
     use super::*;
 
     // Layout used by mutation tests:
-    //   0: Object, 1: Conic, 2: Conic, 3: Iris, 4: Image
+    //   0: Object, 1: Sphere, 2: Sphere, 3: Iris, 4: Image
     fn five_surface_specs() -> SystemSpecs {
         SystemSpecs {
             surfaces: vec![
                 SurfaceRow::new_object("Infinity"),
-                SurfaceRow::new_conic("10.0", "50.0", "0.0", "5.0", "1.5"),
-                SurfaceRow::new_conic("10.0", "Infinity", "0.0", "5.0", "1.0"),
+                SurfaceRow::new_sphere("10.0", "50.0", "5.0", "1.5"),
+                SurfaceRow::new_sphere("10.0", "Infinity", "5.0", "1.0"),
                 SurfaceRow::new_iris("5.0", "1.0", "1.0"),
                 SurfaceRow::new_image(),
             ],

@@ -11,6 +11,7 @@ pub mod iris;
 pub mod object;
 pub mod probe;
 pub mod solvers;
+pub mod sphere;
 #[cfg(feature = "serde")]
 pub mod surface_registry;
 
@@ -19,6 +20,7 @@ pub use image::Image;
 pub use iris::Iris;
 pub use object::Object;
 pub use probe::Probe;
+pub use sphere::Sphere;
 #[cfg(feature = "serde")]
 pub use surface_registry::{SurfaceConstructor, SurfaceRegistry};
 
@@ -37,6 +39,7 @@ pub enum SurfaceKind {
     Iris,
     Object,
     Probe,
+    Sphere,
     Custom,
 }
 

@@ -28,10 +28,9 @@ pub fn sequential_model(
     let gaps = vec![gap_0, gap_1, gap_2];
 
     let surf_0 = SurfaceSpec::Object;
-    let surf_1 = SurfaceSpec::Conic {
+    let surf_1 = SurfaceSpec::Sphere {
         semi_diameter: 12.7,
         radius_of_curvature: Float::INFINITY,
-        conic_constant: 0.0,
         surf_type: BoundaryType::Reflecting,
         rotation: Rotation3D::IntrinsicPassiveRUF(EulerAngles(
             (30 as Float).to_radians(),
@@ -39,10 +38,9 @@ pub fn sequential_model(
             0.0,
         )),
     };
-    let surf_2 = SurfaceSpec::Conic {
+    let surf_2 = SurfaceSpec::Sphere {
         semi_diameter: 12.7,
         radius_of_curvature: f64::INFINITY,
-        conic_constant: 0.0,
         surf_type: BoundaryType::Reflecting,
         rotation: Rotation3D::IntrinsicPassiveRUF(EulerAngles(
             (30 as Float).to_radians(),
