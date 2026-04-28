@@ -11,6 +11,24 @@ pub(crate) const TOL: Float = 10.0 * Float::EPSILON;
 /// during ray intersection
 pub(crate) const MAX_BISECT: usize = 64;
 
+/// Finds the intersection of a ray with a flat surface.
+///
+/// By convention, a flat surface lies in the z=0 plane of the surface's local
+/// coordinate system. Its normal vector points in the positive z-direction.
+///
+/// Returns the intersection point and the surface normal at that point, both in
+/// the surface's local coordinate system.
+pub fn flat_surface<S: Surface + ?Sized>(
+    ray: &Ray,
+    surf: &S,
+    _max_iter: usize,
+) -> Result<(Vec3, Vec3)> {
+    let s = -ray.z() / ray.n();
+    let r = ray.pos_at(s);
+    let norm = surf.norm(r);
+    Ok((r, norm))
+}
+
 /// Finds the intersection of a ray with a surface using Newton-Raphson
 /// iteration.
 ///
@@ -129,13 +147,32 @@ pub fn newton_raphson<S: Surface + ?Sized>(
 
 #[cfg(test)]
 mod tests {
-    use crate::core::{Float, math::vec3::Vec3, ray::Ray, surfaces::Conic};
+    use crate::core::{
+        Float,
+        math::vec3::Vec3,
+        ray::Ray,
+        surfaces::{Conic, Probe},
+    };
     use crate::specs::surfaces::BoundaryType;
 
     use super::*;
 
     #[test]
-    fn flat_surface() {
+    fn analytical_flat_surface() {
+        let ray = Ray::new(
+            Vec3::new(0.0, 0.0, -10.0),
+            Vec3::new(0.0, Float::sqrt(2.0) / 2.0, Float::sqrt(2.0) / 2.0),
+        );
+        let surf = Probe::new();
+
+        let (p, norm) = flat_surface(&ray, &surf, 0).unwrap();
+
+        assert_eq!(p, Vec3::new(0.0, 10.0, 0.0));
+        assert_eq!(norm, Vec3::new(0.0, 0.0, 1.0));
+    }
+
+    #[test]
+    fn newton_raphson_flat_surface() {
         let ray = Ray::new(Vec3::new(0.0, 0.0, -1.0), Vec3::new(0.0, 0.0, 1.0));
         let surf = Conic::new(4.0, Float::INFINITY, 0.0, BoundaryType::Refracting);
 
