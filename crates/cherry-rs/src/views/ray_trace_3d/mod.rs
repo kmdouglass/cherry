@@ -1,5 +1,4 @@
 /// Performs a 3D ray trace on the system.
-mod rays;
 mod trace;
 
 use anyhow::{Result, anyhow};
@@ -14,6 +13,7 @@ use crate::{
         Float, PI,
         math::vec3::Vec3,
         placement::Placement,
+        ray::Ray,
         sequential_model::{SequentialModel, SequentialSubModel},
         surfaces::Surface,
     },
@@ -25,7 +25,6 @@ use crate::{
 
 use trace::trace;
 
-pub use rays::Ray;
 pub use trace::RayBundle;
 
 use super::paraxial::{ParaxialSubView, ParaxialView};

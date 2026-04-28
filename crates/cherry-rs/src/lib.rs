@@ -140,6 +140,7 @@ pub use core::{
     math::linalg::rotations::{EulerAngles, Rotation3D},
     math::vec3::Vec3,
     placement::Placement,
+    ray::Ray,
     sequential_model::{SequentialModel, SequentialSubModel, Step},
     surfaces::{Conic, Image, Iris, Object, Probe, Surface, SurfaceKind},
 };
@@ -159,7 +160,7 @@ pub use views::{
         ParaxialView, ParaxialViewDescription, Pupil,
     },
     ray_trace_3d::{
-        Ray, RayBundle, SamplingConfig, TraceResults, TraceResultsCollection, ray_trace_3d_view,
+        RayBundle, SamplingConfig, TraceResults, TraceResultsCollection, ray_trace_3d_view,
         trace_ray_bundle,
     },
 };

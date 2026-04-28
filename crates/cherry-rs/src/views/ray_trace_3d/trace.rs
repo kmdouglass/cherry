@@ -4,8 +4,7 @@ use std::collections::HashMap;
 use serde::Serialize;
 use tracing::{error, trace_span, warn};
 
-use super::rays::Ray;
-use crate::core::sequential_model::SequentialSubModelIter;
+use crate::core::{ray::Ray, sequential_model::SequentialSubModelIter};
 
 const MAX_INTERSECTION_ITER: usize = 100;
 

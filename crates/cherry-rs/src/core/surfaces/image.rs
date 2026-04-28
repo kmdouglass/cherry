@@ -1,9 +1,11 @@
+use anyhow::Result;
+
 use crate::{
-    core::{Float, math::vec3::Vec3},
+    core::{Float, math::vec3::Vec3, ray::Ray},
     specs::surfaces::{BoundaryType, Mask},
 };
 
-use super::{Surface, SurfaceKind};
+use super::{Surface, SurfaceKind, solvers::flat_surface};
 
 /// The image plane — a flat surface with no optical effect on rays.
 #[derive(Debug, Clone)]
@@ -26,6 +28,10 @@ impl Default for Image {
 }
 
 impl Surface for Image {
+    fn intersect(&self, ray: &Ray, _max_iter: usize) -> Result<(Vec3, Vec3)> {
+        flat_surface(ray, self, 0)
+    }
+
     fn sag(&self, _pos: Vec3) -> Float {
         0.0
     }
