@@ -39,6 +39,12 @@ pub enum SurfaceSpec {
         surf_type: BoundaryType,
         rotation: Rotation3D,
     },
+    Sphere {
+        semi_diameter: Float,
+        radius_of_curvature: Float,
+        surf_type: BoundaryType,
+        rotation: Rotation3D,
+    },
     /// A user-defined surface type registered with a [`SurfaceRegistry`].
     ///
     /// `type_id` must match a key registered via

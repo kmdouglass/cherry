@@ -16,7 +16,7 @@ use crate::core::{
     },
     placement::Placement,
     refractive_index::RefractiveIndex,
-    surfaces::{Conic, Image, Iris, Object, Probe, Surface, SurfaceKind},
+    surfaces::{Conic, Image, Iris, Object, Probe, Sphere, Surface, SurfaceKind},
 };
 use crate::specs::{
     gaps::GapSpec,
@@ -400,7 +400,7 @@ impl SequentialModel {
             ));
         }
         match surfaces[i].surface_kind() {
-            SurfaceKind::Conic | SurfaceKind::Iris => Ok(()),
+            SurfaceKind::Conic | SurfaceKind::Sphere | SurfaceKind::Iris => Ok(()),
             kind => Err(anyhow!(
                 "surface {i} ({kind:?}) is not eligible as the aperture stop; \
                  only Conic and Iris surfaces are allowed"
@@ -753,6 +753,7 @@ impl<'a> Iterator for SequentialSubModelReverseIter<'a> {
 fn rotation_from_spec(spec: &SurfaceSpec) -> Rotation3D {
     match spec {
         SurfaceSpec::Conic { rotation, .. }
+        | SurfaceSpec::Sphere { rotation, .. }
         | SurfaceSpec::Image { rotation }
         | SurfaceSpec::Probe { rotation }
         | SurfaceSpec::Iris { rotation, .. } => rotation.clone(),
@@ -779,6 +780,16 @@ pub(crate) fn surface_from_spec(
             *semi_diameter,
             *radius_of_curvature,
             *conic_constant,
+            *surf_type,
+        ))),
+        SurfaceSpec::Sphere {
+            semi_diameter,
+            radius_of_curvature,
+            surf_type,
+            ..
+        } => Ok(Box::new(Sphere::new(
+            *semi_diameter,
+            *radius_of_curvature,
             *surf_type,
         ))),
         SurfaceSpec::Custom {
@@ -814,6 +825,16 @@ pub(crate) fn surface_from_spec(spec: &SurfaceSpec) -> Result<Box<dyn Surface>> 
             *conic_constant,
             *surf_type,
         ))),
+        SurfaceSpec::Sphere {
+            semi_diameter,
+            radius_of_curvature,
+            surf_type,
+            ..
+        } => Ok(Box::new(Sphere::new(
+            *semi_diameter,
+            *radius_of_curvature,
+            *surf_type,
+        ))),
         SurfaceSpec::Image { .. } => Ok(Box::new(Image::new())),
         SurfaceSpec::Object => Ok(Box::new(Object::new())),
         SurfaceSpec::Probe { .. } => Ok(Box::new(Probe::new())),
@@ -824,7 +845,10 @@ pub(crate) fn surface_from_spec(spec: &SurfaceSpec) -> Result<Box<dyn Surface>> 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{EulerAngles, Rotation3D, core::Float, n, specs::surfaces::BoundaryType};
+    use crate::{
+        EulerAngles, Rotation3D, core::Float, core::surfaces::Sphere, n,
+        specs::surfaces::BoundaryType,
+    };
 
     // Helper: build a Placement for a surface with the given rotation, in an
     // identity cursor frame (cursor aligned with global axes, origin at (0,0,0)).
@@ -991,13 +1015,13 @@ mod tests {
 
     #[test]
     fn test_first_physical_surface() {
-        // Object(0), Probe(1), Conic(2), Conic(3), Image(4) — first physical is index
+        // Object(0), Probe(1), Sphere(2), Sphere(3), Image(4) — first physical is index
         // 2.
         let surfaces: Vec<Box<dyn Surface>> = vec![
             Box::new(Object::new()),
             Box::new(Probe::new()),
-            Box::new(Conic::new(1.0, 1.0, 0.0, BoundaryType::Refracting)),
-            Box::new(Conic::new(1.0, 1.0, 0.0, BoundaryType::Refracting)),
+            Box::new(Sphere::new(1.0, 1.0, BoundaryType::Refracting)),
+            Box::new(Sphere::new(1.0, 1.0, BoundaryType::Refracting)),
             Box::new(Image::new()),
         ];
 
@@ -1007,11 +1031,12 @@ mod tests {
 
     #[test]
     fn test_last_physical_surface() {
-        // Object(0), Conic(1), Conic(2), Probe(3), Image(4) — last physical is index 2.
+        // Object(0), Sphere(1), Sphere(2), Probe(3), Image(4) — last physical is index
+        // 2.
         let surfaces: Vec<Box<dyn Surface>> = vec![
             Box::new(Object::new()),
-            Box::new(Conic::new(1.0, 1.0, 0.0, BoundaryType::Refracting)),
-            Box::new(Conic::new(1.0, 1.0, 0.0, BoundaryType::Refracting)),
+            Box::new(Sphere::new(1.0, 1.0, BoundaryType::Refracting)),
+            Box::new(Sphere::new(1.0, 1.0, BoundaryType::Refracting)),
             Box::new(Probe::new()),
             Box::new(Image::new()),
         ];
@@ -1088,7 +1113,7 @@ mod tests {
     //
     // System layout for these tests:
     //   0: Object
-    //   1: Conic   (eligible)
+    //   1: Sphere  (eligible)
     //   2: Probe   (ineligible)
     //   3: Iris    (eligible)
     //   4: Image
@@ -1115,10 +1140,9 @@ mod tests {
         ];
         let surfaces = vec![
             SurfaceSpec::Object,
-            SurfaceSpec::Conic {
+            SurfaceSpec::Sphere {
                 semi_diameter: 10.0,
                 radius_of_curvature: 50.0,
-                conic_constant: 0.0,
                 surf_type: BoundaryType::Refracting,
                 rotation: Rotation3D::None,
             },
@@ -1137,7 +1161,7 @@ mod tests {
     }
 
     #[test]
-    fn stop_surface_conic_is_accepted() {
+    fn stop_surface_sphere_is_accepted() {
         let (gaps, surfaces) = stop_validation_specs();
         assert!(SequentialModel::from_surface_specs(&gaps, &surfaces, &[0.5876], Some(1)).is_ok());
     }

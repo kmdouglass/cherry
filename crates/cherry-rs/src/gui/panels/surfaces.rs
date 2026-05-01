@@ -17,10 +17,14 @@ pub fn surfaces_panel(ui: &mut egui::Ui, specs: &mut SystemSpecs) -> bool {
 
     let n_col_width = if use_materials { 140.0 } else { 80.0 };
 
-    let has_reflecting = specs
+    let has_reflecting = specs.surfaces.iter().any(|s| {
+        matches!(s.variant, SurfaceVariant::Conic | SurfaceVariant::Sphere)
+            && s.surface_kind == SurfaceKind::Reflecting
+    });
+    let has_conic = specs
         .surfaces
         .iter()
-        .any(|s| s.variant == SurfaceVariant::Conic && s.surface_kind == SurfaceKind::Reflecting);
+        .any(|s| s.variant == SurfaceVariant::Conic);
 
     egui::ScrollArea::horizontal().show(ui, |ui| {
         let table = TableBuilder::new(ui)
@@ -31,8 +35,15 @@ pub fn surfaces_panel(ui: &mut egui::Ui, specs: &mut SystemSpecs) -> bool {
             .column(Column::auto().at_least(70.0)) // Variant
             .column(Column::auto().at_least(60.0)) // Kind
             .column(Column::initial(80.0).resizable(true)) // Semi-Diam
-            .column(Column::initial(80.0).resizable(true)) // RoC
-            .column(Column::initial(80.0).resizable(true)) // Conic
+            .column(Column::initial(80.0).resizable(true)); // RoC
+
+        let table = if has_conic {
+            table.column(Column::initial(80.0).resizable(true)) // Conic
+        } else {
+            table
+        };
+
+        let table = table
             .column(Column::initial(80.0).resizable(true)) // Thickness
             .column(Column::initial(n_col_width).resizable(true)); // n / Material
 
@@ -63,9 +74,11 @@ pub fn surfaces_panel(ui: &mut egui::Ui, specs: &mut SystemSpecs) -> bool {
                 header.col(|ui| {
                     ui.strong("RoC");
                 });
-                header.col(|ui| {
-                    ui.strong("Conic");
-                });
+                if has_conic {
+                    header.col(|ui| {
+                        ui.strong("Conic");
+                    });
+                }
                 header.col(|ui| {
                     ui.strong("Thickness");
                 });
@@ -100,6 +113,8 @@ pub fn surfaces_panel(ui: &mut egui::Ui, specs: &mut SystemSpecs) -> bool {
                         let is_object = surf.variant == SurfaceVariant::Object;
                         let is_image = surf.variant == SurfaceVariant::Image;
                         let is_conic = surf.variant == SurfaceVariant::Conic;
+                        let is_sphere = surf.variant == SurfaceVariant::Sphere;
+                        let is_curved = is_conic || is_sphere;
                         let is_locked = is_object || is_image;
 
                         // # column
@@ -133,6 +148,7 @@ pub fn surfaces_panel(ui: &mut egui::Ui, specs: &mut SystemSpecs) -> bool {
                                                     && !matches!(
                                                         v,
                                                         SurfaceVariant::Conic
+                                                            | SurfaceVariant::Sphere
                                                             | SurfaceVariant::Iris
                                                     )
                                                 {
@@ -144,9 +160,9 @@ pub fn surfaces_panel(ui: &mut egui::Ui, specs: &mut SystemSpecs) -> bool {
                             }
                         });
 
-                        // Kind column (only for Conic)
+                        // Kind column (Sphere and Conic)
                         row.col(|ui| {
-                            if is_conic {
+                            if is_curved {
                                 let id = ui.make_persistent_id(format!("kind_{row_idx}"));
                                 egui::ComboBox::from_id_salt(id)
                                     .selected_text(surf.surface_kind.to_string())
@@ -186,7 +202,7 @@ pub fn surfaces_panel(ui: &mut egui::Ui, specs: &mut SystemSpecs) -> bool {
 
                         // Radius of Curvature
                         row.col(|ui| {
-                            if is_conic {
+                            if is_curved {
                                 changed |= drag_inf(
                                     ui,
                                     &mut surf.radius_of_curvature,
@@ -198,19 +214,27 @@ pub fn surfaces_panel(ui: &mut egui::Ui, specs: &mut SystemSpecs) -> bool {
                             }
                         });
 
-                        // Conic Constant
-                        row.col(|ui| {
-                            if is_conic {
-                                changed |= drag_value(
-                                    ui,
-                                    &mut surf.conic_constant,
-                                    row_idx,
-                                    "cc",
-                                    -10.0..=10.0,
-                                    0.01,
-                                );
-                            }
-                        });
+                        // Conic Constant (only when the system has Conic surfaces)
+                        if has_conic {
+                            row.col(|ui| {
+                                if is_conic {
+                                    // Normalize empty string to "0" so the stored value
+                                    // is always in sync with what the widget displays.
+                                    if surf.conic_constant.is_empty() {
+                                        surf.conic_constant = "0".into();
+                                        changed = true;
+                                    }
+                                    changed |= drag_value(
+                                        ui,
+                                        &mut surf.conic_constant,
+                                        row_idx,
+                                        "cc",
+                                        -10.0..=10.0,
+                                        0.01,
+                                    );
+                                }
+                            });
+                        }
 
                         // Thickness
                         row.col(|ui| {
@@ -271,10 +295,10 @@ pub fn surfaces_panel(ui: &mut egui::Ui, specs: &mut SystemSpecs) -> bool {
 
                         // θ / ψ columns (only shown when system has reflecting surfaces)
                         if has_reflecting {
-                            let is_reflecting_conic =
-                                is_conic && surf.surface_kind == SurfaceKind::Reflecting;
+                            let is_reflecting_curved =
+                                is_curved && surf.surface_kind == SurfaceKind::Reflecting;
                             row.col(|ui| {
-                                if is_reflecting_conic {
+                                if is_reflecting_curved {
                                     changed |= drag_value(
                                         ui,
                                         &mut surf.theta,
@@ -286,7 +310,7 @@ pub fn surfaces_panel(ui: &mut egui::Ui, specs: &mut SystemSpecs) -> bool {
                                 }
                             });
                             row.col(|ui| {
-                                if is_reflecting_conic {
+                                if is_reflecting_curved {
                                     changed |= drag_value(
                                         ui,
                                         &mut surf.psi,
@@ -391,7 +415,7 @@ mod tests {
     use crate::gui::model::{SurfaceKind, SurfaceRow, SurfaceVariant, SystemSpecs};
 
     fn specs_with_reflecting_surface() -> SystemSpecs {
-        let mut mirror = SurfaceRow::new_conic("12.7", "Infinity", "0.0", "100.0", "1.0");
+        let mut mirror = SurfaceRow::new_sphere("12.7", "Infinity", "100.0", "1.0");
         mirror.surface_kind = SurfaceKind::Reflecting;
         SystemSpecs {
             surfaces: vec![
@@ -440,7 +464,7 @@ mod tests {
             3,
             "clicking + on the object row should insert a surface"
         );
-        assert_eq!(specs.surfaces[1].variant, SurfaceVariant::Conic);
+        assert_eq!(specs.surfaces[1].variant, SurfaceVariant::Sphere);
     }
 
     /// The actions (+/-) column must always be the last column, appearing to

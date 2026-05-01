@@ -57,6 +57,11 @@ impl Ray {
         self.dir = placement.inv_rotation_matrix * self.dir;
     }
 
+    /// Returns the position of the ray.
+    pub fn pos(&self) -> Vec3 {
+        self.pos
+    }
+
     /// Returns the point along the ray at parameter `s`: `pos + dir * s`.
     pub fn pos_at(&self, s: Float) -> Vec3 {
         self.pos + self.dir * s

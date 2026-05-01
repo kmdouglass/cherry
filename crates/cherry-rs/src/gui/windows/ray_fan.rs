@@ -538,6 +538,7 @@ mod tests {
                     SurfaceKind::Object => "Object",
                     SurfaceKind::Probe => "Probe",
                     SurfaceKind::Iris => "Iris",
+                    SurfaceKind::Sphere => "Sphere",
                     SurfaceKind::Custom => "Custom",
                 };
                 SurfaceDesc {

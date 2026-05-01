@@ -23,17 +23,15 @@ pub fn sequential_model(
     let gaps = vec![gap_0, gap_1, gap_2];
 
     let surf_0 = SurfaceSpec::Object;
-    let surf_1 = SurfaceSpec::Conic {
+    let surf_1 = SurfaceSpec::Sphere {
         semi_diameter: 12.5,
         radius_of_curvature: 25.8,
-        conic_constant: 0.0,
         surf_type: BoundaryType::Refracting,
         rotation: Rotation3D::None,
     };
-    let surf_2 = SurfaceSpec::Conic {
+    let surf_2 = SurfaceSpec::Sphere {
         semi_diameter: 12.5,
         radius_of_curvature: f64::INFINITY,
-        conic_constant: 0.0,
         surf_type: BoundaryType::Refracting,
         rotation: Rotation3D::None,
     };

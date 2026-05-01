@@ -29,6 +29,50 @@ pub fn flat_surface<S: Surface + ?Sized>(
     Ok((r, norm))
 }
 
+/// Finds the intersection of a ray with the surface of a sphere.
+///
+/// Returns the intersection point and the surface normal at that point, both in
+/// the surface's local coordinate system.
+pub fn spherical_surface<S: Surface + ?Sized>(
+    ray: &Ray,
+    surf: &S,
+    _max_iter: usize,
+) -> Result<(Vec3, Vec3)> {
+    // Fallback to flat surface if ROC is infinite
+    if surf.roc(0.0).is_infinite() {
+        return flat_surface(ray, surf, 0);
+    }
+
+    let p = ray.pos();
+    let dir = ray.dir();
+
+    // Solve the quadratic equation for ray-sphere intersection using Vieta's
+    // formulas to improve numerical stability.
+    let b = p.dot(&dir) - surf.roc(0.0) * dir.z();
+    let c = p.dot(&p) - 2.0 * surf.roc(0.0) * p.z();
+
+    // TODO: Use fused multiply-add on desktop
+    let discriminant = b * b - c;
+
+    if discriminant < 0.0 {
+        error!(b, c, discriminant, "Ray does not intersect the sphere");
+        bail!("Ray does not intersect the sphere");
+    };
+
+    let s_1 = -b - b.signum() * Float::sqrt(discriminant);
+    let s_2 = c / s_1;
+
+    let s = if surf.roc(0.0) > 0.0 {
+        s_1.min(s_2)
+    } else {
+        s_1.max(s_2)
+    };
+
+    let r = ray.pos_at(s);
+    let norm = surf.norm(r);
+    Ok((r, norm))
+}
+
 /// Finds the intersection of a ray with a surface using Newton-Raphson
 /// iteration.
 ///
@@ -151,7 +195,7 @@ mod tests {
         Float,
         math::vec3::Vec3,
         ray::Ray,
-        surfaces::{Conic, Probe},
+        surfaces::{Conic, Probe, Sphere},
     };
     use crate::specs::surfaces::BoundaryType;
 
@@ -174,7 +218,7 @@ mod tests {
     #[test]
     fn newton_raphson_flat_surface() {
         let ray = Ray::new(Vec3::new(0.0, 0.0, -1.0), Vec3::new(0.0, 0.0, 1.0));
-        let surf = Conic::new(4.0, Float::INFINITY, 0.0, BoundaryType::Refracting);
+        let surf = Sphere::new(4.0, Float::INFINITY, BoundaryType::Refracting);
 
         let (p, _) = newton_raphson(&ray, &surf, 1000).unwrap();
 
@@ -194,5 +238,104 @@ mod tests {
         assert!((p.x() - 0.0).abs() < 1e-4);
         assert!((p.y() - (PI / 4.0).sin()).abs() < 1e-4);
         assert!((p.z() - ((PI / 4.0).cos() - 1.0)).abs() < 1e-4);
+    }
+
+    #[test]
+    fn spherical_surface_infinite_roc_is_flat() {
+        let surf = Sphere::new(12.5, Float::INFINITY, BoundaryType::Refracting);
+        let ray = Ray::new(
+            Vec3::new(0.0, 3.0, -10.0),
+            Vec3::new(0.0, Float::sqrt(2.0) / 2.0, Float::sqrt(2.0) / 2.0),
+        );
+        let (p, norm) = spherical_surface(&ray, &surf, 0).unwrap();
+        assert!((p.z()).abs() < 1e-12, "z should be 0, got {}", p.z());
+        assert!((norm.z() - 1.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn spherical_surface_positive_roc_matches_newton_raphson() {
+        let roc = 102.4;
+        let surf = Sphere::new(12.7, roc, BoundaryType::Refracting);
+        let ray = Ray::new(Vec3::new(0.0, 5.0, -200.0), Vec3::new(0.0, 0.0, 1.0));
+
+        let (p_analytical, _) = spherical_surface(&ray, &surf, 0).unwrap();
+        let (p_nr, _) = newton_raphson(&ray, &surf, 1000).unwrap();
+
+        assert!(
+            (p_analytical.x() - p_nr.x()).abs() < 1e-8,
+            "x: {} vs {}",
+            p_analytical.x(),
+            p_nr.x()
+        );
+        assert!(
+            (p_analytical.y() - p_nr.y()).abs() < 1e-8,
+            "y: {} vs {}",
+            p_analytical.y(),
+            p_nr.y()
+        );
+        assert!(
+            (p_analytical.z() - p_nr.z()).abs() < 1e-8,
+            "z: {} vs {}",
+            p_analytical.z(),
+            p_nr.z()
+        );
+    }
+
+    #[test]
+    fn spherical_surface_negative_roc_matches_newton_raphson() {
+        let roc = -102.4;
+        let surf = Sphere::new(12.7, roc, BoundaryType::Refracting);
+        let ray = Ray::new(Vec3::new(0.0, 5.0, -3.6), Vec3::new(0.0, 0.0, 1.0));
+
+        let (p_analytical, _) = spherical_surface(&ray, &surf, 0).unwrap();
+        let (p_nr, _) = newton_raphson(&ray, &surf, 1000).unwrap();
+
+        assert!(
+            (p_analytical.x() - p_nr.x()).abs() < 1e-8,
+            "x: {} vs {}",
+            p_analytical.x(),
+            p_nr.x()
+        );
+        assert!(
+            (p_analytical.y() - p_nr.y()).abs() < 1e-8,
+            "y: {} vs {}",
+            p_analytical.y(),
+            p_nr.y()
+        );
+        assert!(
+            (p_analytical.z() - p_nr.z()).abs() < 1e-8,
+            "z: {} vs {}",
+            p_analytical.z(),
+            p_nr.z()
+        );
+    }
+
+    #[test]
+    fn spherical_surface_on_axis_matches_newton_raphson() {
+        let roc = 50.0;
+        let surf = Sphere::new(10.0, roc, BoundaryType::Refracting);
+        let ray = Ray::new(Vec3::new(0.0, 0.0, -100.0), Vec3::new(0.0, 0.0, 1.0));
+
+        let (p_analytical, _) = spherical_surface(&ray, &surf, 0).unwrap();
+        let (p_nr, _) = newton_raphson(&ray, &surf, 1000).unwrap();
+
+        assert!(
+            (p_analytical.x() - p_nr.x()).abs() < 1e-8,
+            "x: {} vs {}",
+            p_analytical.x(),
+            p_nr.x()
+        );
+        assert!(
+            (p_analytical.y() - p_nr.y()).abs() < 1e-8,
+            "y: {} vs {}",
+            p_analytical.y(),
+            p_nr.y()
+        );
+        assert!(
+            (p_analytical.z() - p_nr.z()).abs() < 1e-8,
+            "z: {} vs {}",
+            p_analytical.z(),
+            p_nr.z()
+        );
     }
 }

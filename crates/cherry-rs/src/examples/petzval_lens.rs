@@ -48,24 +48,21 @@ pub fn sequential_model() -> SequentialModel {
     ];
 
     let surf_0 = SurfaceSpec::Object;
-    let surf_1 = SurfaceSpec::Conic {
+    let surf_1 = SurfaceSpec::Sphere {
         semi_diameter: 28.478,
         radius_of_curvature: 99.56266,
-        conic_constant: 0.0,
         surf_type: BoundaryType::Refracting,
         rotation: Rotation3D::None,
     };
-    let surf_2 = SurfaceSpec::Conic {
+    let surf_2 = SurfaceSpec::Sphere {
         semi_diameter: 26.276,
         radius_of_curvature: -86.84002,
-        conic_constant: 0.0,
         surf_type: BoundaryType::Refracting,
         rotation: Rotation3D::None,
     };
-    let surf_3 = SurfaceSpec::Conic {
+    let surf_3 = SurfaceSpec::Sphere {
         semi_diameter: 21.02,
         radius_of_curvature: -1187.63858,
-        conic_constant: 0.0,
         surf_type: BoundaryType::Refracting,
         rotation: Rotation3D::None,
     };
@@ -73,38 +70,33 @@ pub fn sequential_model() -> SequentialModel {
         semi_diameter: 16.631,
         rotation: Rotation3D::None,
     };
-    let surf_5 = SurfaceSpec::Conic {
+    let surf_5 = SurfaceSpec::Sphere {
         semi_diameter: 20.543,
         radius_of_curvature: 57.47491,
-        conic_constant: 0.0,
         surf_type: BoundaryType::Refracting,
         rotation: Rotation3D::None,
     };
-    let surf_6 = SurfaceSpec::Conic {
+    let surf_6 = SurfaceSpec::Sphere {
         semi_diameter: 20.074,
         radius_of_curvature: -54.61685,
-        conic_constant: 0.0,
         surf_type: BoundaryType::Refracting,
         rotation: Rotation3D::None,
     };
-    let surf_7 = SurfaceSpec::Conic {
+    let surf_7 = SurfaceSpec::Sphere {
         semi_diameter: 20.074,
         radius_of_curvature: -614.68633,
-        conic_constant: 0.0,
         surf_type: BoundaryType::Refracting,
         rotation: Rotation3D::None,
     };
-    let surf_8 = SurfaceSpec::Conic {
+    let surf_8 = SurfaceSpec::Sphere {
         semi_diameter: 17.297,
         radius_of_curvature: -38.17110,
-        conic_constant: 0.0,
         surf_type: BoundaryType::Refracting,
         rotation: Rotation3D::None,
     };
-    let surf_9 = SurfaceSpec::Conic {
+    let surf_9 = SurfaceSpec::Sphere {
         semi_diameter: 18.94,
         radius_of_curvature: f64::INFINITY,
-        conic_constant: 0.0,
         surf_type: BoundaryType::Refracting,
         rotation: Rotation3D::None,
     };
