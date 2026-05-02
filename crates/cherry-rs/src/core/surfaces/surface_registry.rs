@@ -10,11 +10,12 @@ pub type SurfaceConstructor = fn(&Value) -> Result<Box<dyn Surface>>;
 
 /// A registry that maps surface type identifiers to constructor functions.
 ///
-/// Used with [`SequentialModel::new_with_registry`] to build models containing
+/// Used with [`SequentialModelBuilder`] to build models containing
 /// [`SurfaceSpec::Custom`] variants defined outside the cherry-rs crate.
 ///
-/// [`SequentialModel::new_with_registry`]: crate::core::sequential_model::SequentialModel::new_with_registry
+/// [`SequentialModelBuilder`]: crate::core::sequential_model::builder::SequentialModelBuilder
 /// [`SurfaceSpec::Custom`]: crate::specs::surfaces::SurfaceSpec::Custom
+#[derive(Clone)]
 pub struct SurfaceRegistry {
     constructors: HashMap<String, SurfaceConstructor>,
 }
