@@ -65,11 +65,10 @@ Cherry might be for you if:
 
 ### Now
 
-- [ ] Refactor the core to support the next set of features and better future-proof the API
+- [X] Refactor the core to support the next set of features and better future-proof the API
   - [X] User-specified stop
   - [X] Serialization layer moved into a crate feature
   - [X] Flat and spherical ray-surface intersection solvers
-  - [ ] Flat surface types
 - [ ] Solve system to enforce active constraints on a design
 
 ### Next
@@ -77,6 +76,7 @@ Cherry might be for you if:
 - [ ] Lens view for manipulating systems by lens instead of by surface
 - [ ] Tip/tilts/decenters on individual surfaces and lenses
 - [ ] Encode designs into URLs and enable sharing via tiny URLs
+- [ ] **Help Wanted** Cooke triplet template crate
 - [ ] **Help Wanted** mdbook to serve as the app's user documentation
 - [ ] **Help Wanted** Annotate coordinate axes, the optical axis, and other elements in the cross-section view
 

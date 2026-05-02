@@ -1,7 +1,8 @@
 /// Data types for modeling sequential ray tracing systems.
-use std::ops::Range;
+pub mod builder;
+pub mod solves;
 
-type SurfsPlacementsDirs = (Vec<Box<dyn Surface>>, Vec<Placement>, Vec<Vec3>);
+use std::ops::Range;
 
 use anyhow::{Result, anyhow};
 
@@ -22,6 +23,8 @@ use crate::specs::{
     gaps::GapSpec,
     surfaces::{BoundaryType, SurfaceSpec},
 };
+
+type SurfsPlacementsDirs = (Vec<Box<dyn Surface>>, Vec<Placement>, Vec<Vec3>);
 
 /// A gap between two surfaces in a sequential system.
 #[derive(Debug)]
@@ -275,25 +278,61 @@ impl SequentialModel {
         wavelengths: &[Float],
         stop_surface: Option<usize>,
     ) -> Result<Self> {
-        Self::validate_specs(gap_specs, wavelengths)?;
-
         #[cfg(feature = "serde")]
-        let (surfaces, placements, axis_directions) =
-            Self::surf_specs_to_surfs(surface_specs, gap_specs, None)?;
+        return Self::from_surface_specs_with_registry(
+            gap_specs,
+            surface_specs,
+            wavelengths,
+            stop_surface,
+            None,
+        );
         #[cfg(not(feature = "serde"))]
-        let (surfaces, placements, axis_directions) =
-            Self::surf_specs_to_surfs(surface_specs, gap_specs)?;
+        {
+            Self::validate_specs(gap_specs, wavelengths)?;
+            let (surfaces, placements, axis_directions) =
+                Self::surf_specs_to_surfs(surface_specs, gap_specs)?;
+            if let Some(i) = stop_surface {
+                Self::validate_stop_surface(&surfaces, i)?;
+            }
+            let mut models: Vec<SequentialSubModelBase> = Vec::new();
+            for &wavelength in wavelengths.iter() {
+                let gaps = Self::gap_specs_to_gaps(gap_specs, wavelength)?;
+                models.push(SequentialSubModelBase::new(gaps));
+            }
+            Ok(Self {
+                surfaces,
+                placements,
+                submodels: models,
+                wavelengths: wavelengths.to_vec(),
+                axis_directions,
+                stop_surface,
+            })
+        }
+    }
 
+    /// Like [`from_surface_specs`](Self::from_surface_specs) but also accepts
+    /// an optional [`SurfaceRegistry`] for resolving [`SurfaceSpec::Custom`]
+    /// variants. Pass `None` to skip registry lookup (equivalent to
+    /// `from_surface_specs`).
+    #[cfg(feature = "serde")]
+    pub(crate) fn from_surface_specs_with_registry(
+        gap_specs: &[GapSpec],
+        surface_specs: &[SurfaceSpec],
+        wavelengths: &[Float],
+        stop_surface: Option<usize>,
+        registry: Option<&SurfaceRegistry>,
+    ) -> Result<Self> {
+        Self::validate_specs(gap_specs, wavelengths)?;
+        let (surfaces, placements, axis_directions) =
+            Self::surf_specs_to_surfs(surface_specs, gap_specs, registry)?;
         if let Some(i) = stop_surface {
             Self::validate_stop_surface(&surfaces, i)?;
         }
-
         let mut models: Vec<SequentialSubModelBase> = Vec::new();
         for &wavelength in wavelengths.iter() {
             let gaps = Self::gap_specs_to_gaps(gap_specs, wavelength)?;
             models.push(SequentialSubModelBase::new(gaps));
         }
-
         Ok(Self {
             surfaces,
             placements,
@@ -352,40 +391,6 @@ impl SequentialModel {
             wavelengths: wavelengths.to_vec(),
             axis_directions,
             stop_surface,
-        })
-    }
-
-    /// Creates a new sequential model using a [`SurfaceRegistry`] to resolve
-    /// [`SurfaceSpec::Custom`] variants.
-    ///
-    /// Identical to [`new`](Self::new) except that `registry` is consulted
-    /// when a [`SurfaceSpec::Custom`] spec is encountered. Built-in surface
-    /// types do not use the registry.
-    #[cfg(feature = "serde")]
-    pub fn new_with_registry(
-        gap_specs: &[GapSpec],
-        surface_specs: &[SurfaceSpec],
-        wavelengths: &[Float],
-        registry: &SurfaceRegistry,
-    ) -> Result<Self> {
-        Self::validate_specs(gap_specs, wavelengths)?;
-
-        let (surfaces, placements, axis_directions) =
-            Self::surf_specs_to_surfs(surface_specs, gap_specs, Some(registry))?;
-
-        let mut models: Vec<SequentialSubModelBase> = Vec::new();
-        for &wavelength in wavelengths.iter() {
-            let gaps = Self::gap_specs_to_gaps(gap_specs, wavelength)?;
-            models.push(SequentialSubModelBase::new(gaps));
-        }
-
-        Ok(Self {
-            surfaces,
-            placements,
-            submodels: models,
-            wavelengths: wavelengths.to_vec(),
-            axis_directions,
-            stop_surface: None,
         })
     }
 

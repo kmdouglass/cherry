@@ -139,7 +139,9 @@ pub use core::{
     math::vec3::Vec3,
     placement::Placement,
     ray::Ray,
-    sequential_model::{SequentialModel, SequentialSubModel, Step},
+    sequential_model::{
+        SequentialModel, SequentialSubModel, Step, builder::SequentialModelBuilder,
+    },
     surfaces::{Conic, Image, Iris, Object, Probe, Sphere, Surface, SurfaceKind},
 };
 pub use specs::{

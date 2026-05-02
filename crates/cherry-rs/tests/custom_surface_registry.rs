@@ -1,8 +1,8 @@
 #![cfg(feature = "serde")]
 
 use cherry_rs::{
-    BoundaryType, GapSpec, Mask, Rotation3D, SequentialModel, Surface, SurfaceRegistry,
-    SurfaceSpec, Vec3, n,
+    BoundaryType, GapSpec, Mask, Rotation3D, SequentialModel, SequentialModelBuilder, Surface,
+    SurfaceRegistry, SurfaceSpec, Vec3, n,
 };
 use serde_json::json;
 
@@ -62,7 +62,7 @@ fn registry_errors_on_unknown_type() {
 }
 
 #[test]
-fn new_with_registry_accepts_custom_spec() {
+fn builder_with_registry_accepts_custom_spec() {
     let mut registry = SurfaceRegistry::new();
     registry.register("flat_no_op", flat_no_op_constructor);
 
@@ -80,12 +80,17 @@ fn new_with_registry_accepts_custom_spec() {
     let gaps = vec![air_gap(f64::INFINITY), air_gap(10.0)];
     let wavelengths = vec![0.587];
 
-    let result = SequentialModel::new_with_registry(&gaps, &surface_specs, &wavelengths, &registry);
+    let result = SequentialModelBuilder::new()
+        .gap_specs(gaps)
+        .surface_specs(surface_specs)
+        .wavelengths(wavelengths)
+        .registry(registry)
+        .build();
     assert!(result.is_ok());
 }
 
 #[test]
-fn new_without_registry_rejects_custom_spec() {
+fn without_registry_rejects_custom_spec() {
     let surface_specs = vec![
         SurfaceSpec::Object,
         SurfaceSpec::Custom {
@@ -123,7 +128,12 @@ fn params_are_forwarded_to_constructor() {
     let gaps = vec![air_gap(f64::INFINITY), air_gap(10.0)];
     let wavelengths = vec![0.587];
 
-    let model = SequentialModel::new_with_registry(&gaps, &surface_specs, &wavelengths, &registry)
+    let model = SequentialModelBuilder::new()
+        .gap_specs(gaps)
+        .surface_specs(surface_specs)
+        .wavelengths(wavelengths)
+        .registry(registry)
+        .build()
         .expect("model should build");
 
     // The custom surface is at index 1.
