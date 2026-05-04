@@ -75,7 +75,9 @@ impl SequentialModelBuilder {
 
         let mut model = build(&gap_specs, &surface_specs)?;
 
-        for solve in solves {
+        let mut solves = solves;
+        solves.sort_by_key(|s| s.surface_index());
+        for solve in &solves {
             solve.apply(&model, &mut gap_specs, &mut surface_specs)?;
             model = build(&gap_specs, &surface_specs)?;
         }
@@ -137,6 +139,7 @@ impl SequentialModelBuilder {
 mod tests {
     use super::*;
     use crate::{
+        core::Float,
         core::math::linalg::rotations::Rotation3D,
         core::sequential_model::SequentialSubModel,
         n,
@@ -195,6 +198,7 @@ mod tests {
     /// Sets `gap_specs[gap_index].thickness` to `value` unconditionally.
     struct SetThickness {
         gap_index: usize,
+        surface_index: usize,
         value: f64,
     }
 
@@ -207,6 +211,10 @@ mod tests {
         ) -> Result<()> {
             gap_specs[self.gap_index].thickness = self.value;
             Ok(())
+        }
+
+        fn surface_index(&self) -> usize {
+            self.surface_index
         }
     }
 
@@ -235,6 +243,25 @@ mod tests {
         let result = SequentialModelBuilder::new()
             .gap_specs(minimal_gaps())
             .surface_specs(minimal_surfaces())
+            .build();
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn build_fails_with_negative_gap_thickness() {
+        let result = SequentialModelBuilder::new()
+            .gap_specs(vec![
+                GapSpec {
+                    thickness: Float::INFINITY,
+                    refractive_index: n!(1.0),
+                },
+                GapSpec {
+                    thickness: -1.0,
+                    refractive_index: n!(1.0),
+                },
+            ])
+            .surface_specs(lens_surfaces())
+            .wavelengths(vec![0.587])
             .build();
         assert!(result.is_err());
     }
@@ -283,6 +310,7 @@ mod tests {
             .wavelengths(vec![0.587])
             .solves(vec![Box::new(SetThickness {
                 gap_index: 1,
+                surface_index: 1,
                 value: 99.0,
             })])
             .build()
@@ -291,6 +319,73 @@ mod tests {
         // Gap index 1 in the submodel corresponds to gap_specs[1].
         let thickness = model.submodel(0).unwrap().gaps()[1].thickness;
         assert_eq!(thickness, 99.0);
+    }
+
+    /// A four-surface system with two physical surfaces and two finite gaps.
+    fn two_lens_gaps() -> Vec<GapSpec> {
+        vec![
+            GapSpec {
+                thickness: Float::INFINITY,
+                refractive_index: n!(1.0),
+            },
+            GapSpec {
+                thickness: 5.0,
+                refractive_index: n!(1.5),
+            },
+            GapSpec {
+                thickness: 10.0,
+                refractive_index: n!(1.0),
+            },
+        ]
+    }
+
+    fn two_lens_surfaces() -> Vec<SurfaceSpec> {
+        vec![
+            SurfaceSpec::Object,
+            SurfaceSpec::Sphere {
+                semi_diameter: 12.5,
+                radius_of_curvature: 25.8,
+                surf_type: BoundaryType::Refracting,
+                rotation: Rotation3D::None,
+            },
+            SurfaceSpec::Sphere {
+                semi_diameter: 12.5,
+                radius_of_curvature: Float::INFINITY,
+                surf_type: BoundaryType::Refracting,
+                rotation: Rotation3D::None,
+            },
+            SurfaceSpec::Image {
+                rotation: Rotation3D::None,
+            },
+        ]
+    }
+
+    #[test]
+    fn solves_sorted_by_surface_index() {
+        // Supply two SetThickness solves in reverse surface order (gap 2 before gap 1).
+        // After sort_by_key(surface_index), gap 1 must be applied first so that gap 2
+        // sees the correct model state.
+        let model = SequentialModelBuilder::new()
+            .gap_specs(two_lens_gaps())
+            .surface_specs(two_lens_surfaces())
+            .wavelengths(vec![0.587])
+            .solves(vec![
+                Box::new(SetThickness {
+                    gap_index: 2,
+                    surface_index: 2,
+                    value: 55.0,
+                }),
+                Box::new(SetThickness {
+                    gap_index: 1,
+                    surface_index: 1,
+                    value: 33.0,
+                }),
+            ])
+            .build()
+            .expect("build should succeed");
+
+        assert_eq!(model.submodel(0).unwrap().gaps()[1].thickness, 33.0);
+        assert_eq!(model.submodel(0).unwrap().gaps()[2].thickness, 55.0);
     }
 
     #[test]
@@ -303,10 +398,12 @@ mod tests {
             .solves(vec![
                 Box::new(SetThickness {
                     gap_index: 1,
+                    surface_index: 1,
                     value: 42.0,
                 }),
                 Box::new(SetThickness {
                     gap_index: 1,
+                    surface_index: 1,
                     value: 77.0,
                 }),
             ])

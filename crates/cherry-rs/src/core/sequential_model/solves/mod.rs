@@ -1,8 +1,12 @@
+pub mod marginal_ray;
+
 use anyhow::Result;
 
 use crate::specs::{gaps::GapSpec, surfaces::SurfaceSpec};
 
 use super::SequentialModel;
+
+pub use marginal_ray::MarginalRaySolve;
 
 /// A solve that modifies optical system specs to satisfy a constraint.
 ///
@@ -18,4 +22,13 @@ pub trait Solve {
         gap_specs: &mut Vec<GapSpec>,
         surface_specs: &mut Vec<SurfaceSpec>,
     ) -> Result<()>;
+
+    /// Returns the index of the surface whose parameter this solve modifies.
+    ///
+    /// The builder sorts solves by this value in ascending order before
+    /// applying them, ensuring each solve sees a model that reflects all
+    /// earlier solves' changes. The convention matches Zemax: the thickness
+    /// of gap k is the "thickness of surface k", so a thickness solve on
+    /// gap k returns k here.
+    fn surface_index(&self) -> usize;
 }

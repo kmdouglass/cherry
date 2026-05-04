@@ -140,7 +140,9 @@ pub use core::{
     placement::Placement,
     ray::Ray,
     sequential_model::{
-        SequentialModel, SequentialSubModel, Step, builder::SequentialModelBuilder,
+        SequentialModel, SequentialSubModel, Step,
+        builder::SequentialModelBuilder,
+        solves::{MarginalRaySolve, Solve},
     },
     surfaces::{Conic, Image, Iris, Object, Probe, Sphere, Surface, SurfaceKind},
 };
