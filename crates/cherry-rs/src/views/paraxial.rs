@@ -599,24 +599,7 @@ impl ParaxialSubView {
         pseudo_marginal_ray: &ParaxialRayBundle,
         per_surf_v: &[TangentialVector],
     ) -> usize {
-        // Get all the projected semi-diameters of the surfaces. For tilted surfaces,
-        // projected_semi_diameter accounts for the foreshortening of the clear aperture
-        // as seen by a paraxial ray traveling along the cursor axis.
-        //
-        // Absolute value is necessary because the pseudo-marginal ray trace can result
-        // in surface intersections that are negative.
-        let ratios: Vec<Float> = surfaces
-            .iter()
-            .zip(placements.iter())
-            .zip(pseudo_marginal_ray.iter_surfaces())
-            .zip(per_surf_v.iter())
-            .map(|(((s, p), rays), &v)| {
-                (p.projected_semi_diameter(s.mask().semi_diameter(), v) / rays[0].height).abs()
-            })
-            .collect();
-
-        // Do not include the object or image surfaces when computing the aperture stop.
-        argmin(&ratios[1..ratios.len() - 1]) + 1
+        calc_aperture_stop(surfaces, placements, pseudo_marginal_ray, per_surf_v)
     }
 
     fn calc_back_focal_distance(
@@ -874,30 +857,13 @@ impl ParaxialSubView {
         aperture_stop: &usize,
         per_surf_v: &[TangentialVector],
     ) -> ParaxialRayBundle {
-        let ratios: Vec<Float> = surfaces
-            .iter()
-            .zip(placements.iter())
-            .zip(pseudo_marginal_ray.iter_surfaces())
-            .zip(per_surf_v.iter())
-            .map(|(((s, p), rays), &v)| {
-                p.projected_semi_diameter(s.mask().semi_diameter(), v) / rays[0].height
-            })
-            .collect();
-        let scale_factor = ratios[*aperture_stop];
-
-        let rays = pseudo_marginal_ray
-            .rays
-            .iter()
-            .map(|r| ParaxialRay {
-                height: r.height * scale_factor,
-                angle: r.angle * scale_factor,
-            })
-            .collect();
-
-        ParaxialRayBundle {
-            rays,
-            num_surfaces: pseudo_marginal_ray.num_surfaces,
-        }
+        calc_marginal_ray(
+            surfaces,
+            placements,
+            pseudo_marginal_ray,
+            aperture_stop,
+            per_surf_v,
+        )
     }
 
     /// Compute the parallel ray.
@@ -949,21 +915,7 @@ impl ParaxialSubView {
         surfaces: &[Box<dyn Surface>],
         placements: &[Placement],
     ) -> Result<ParaxialRayBundle> {
-        let ray = if sequential_sub_model.is_obj_at_inf() {
-            // Ray parallel to axis at a height of 1
-            vec![ParaxialRay {
-                height: 1.0,
-                angle: 0.0,
-            }]
-        } else {
-            // Ray starting from the axis at an angle of 1
-            vec![ParaxialRay {
-                height: 0.0,
-                angle: 1.0,
-            }]
-        };
-
-        Self::trace(ray, sequential_sub_model, surfaces, placements, false)
+        calc_pseudo_marginal_ray(sequential_sub_model, surfaces, placements)
     }
 
     /// Compute the reverse parallel ray.
@@ -1091,6 +1043,110 @@ fn surface_to_rtm(
         BoundaryType::Reflecting => Mat2x2::new(1.0, t, -2.0 / roc, -1.0 - 2.0 * t / roc),
         BoundaryType::NoOp => Mat2x2::new(1.0, t, 0.0, 1.0),
     }
+}
+
+/// Compute the pseudo-marginal ray for a submodel.
+pub(crate) fn calc_pseudo_marginal_ray(
+    sequential_sub_model: &dyn SequentialSubModel,
+    surfaces: &[Box<dyn Surface>],
+    placements: &[Placement],
+) -> Result<ParaxialRayBundle> {
+    let ray = if sequential_sub_model.is_obj_at_inf() {
+        vec![ParaxialRay {
+            height: 1.0,
+            angle: 0.0,
+        }]
+    } else {
+        vec![ParaxialRay {
+            height: 0.0,
+            angle: 1.0,
+        }]
+    };
+    ParaxialSubView::trace(ray, sequential_sub_model, surfaces, placements, false)
+}
+
+/// Compute the aperture stop surface index using the minimum aperture-ratio
+/// heuristic.
+pub(crate) fn calc_aperture_stop(
+    surfaces: &[Box<dyn Surface>],
+    placements: &[Placement],
+    pseudo_marginal_ray: &ParaxialRayBundle,
+    per_surf_v: &[TangentialVector],
+) -> usize {
+    let ratios: Vec<Float> = surfaces
+        .iter()
+        .zip(placements.iter())
+        .zip(pseudo_marginal_ray.iter_surfaces())
+        .zip(per_surf_v.iter())
+        .map(|(((s, p), rays), &v)| {
+            (p.projected_semi_diameter(s.mask().semi_diameter(), v) / rays[0].height).abs()
+        })
+        .collect();
+    argmin(&ratios[1..ratios.len() - 1]) + 1
+}
+
+/// Scale the pseudo-marginal ray to match the aperture stop semi-diameter.
+pub(crate) fn calc_marginal_ray(
+    surfaces: &[Box<dyn Surface>],
+    placements: &[Placement],
+    pseudo_marginal_ray: &ParaxialRayBundle,
+    aperture_stop: &usize,
+    per_surf_v: &[TangentialVector],
+) -> ParaxialRayBundle {
+    let ratios: Vec<Float> = surfaces
+        .iter()
+        .zip(placements.iter())
+        .zip(pseudo_marginal_ray.iter_surfaces())
+        .zip(per_surf_v.iter())
+        .map(|(((s, p), rays), &v)| {
+            p.projected_semi_diameter(s.mask().semi_diameter(), v) / rays[0].height
+        })
+        .collect();
+    let scale_factor = ratios[*aperture_stop];
+
+    let rays = pseudo_marginal_ray
+        .rays
+        .iter()
+        .map(|r| ParaxialRay {
+            height: r.height * scale_factor,
+            angle: r.angle * scale_factor,
+        })
+        .collect();
+
+    ParaxialRayBundle {
+        rays,
+        num_surfaces: pseudo_marginal_ray.num_surfaces,
+    }
+}
+
+/// Compute the paraxial marginal ray bundle for a given wavelength.
+///
+/// Uses the first tangential direction `(0, 1, 0)`, valid for all rotationally
+/// symmetric systems.
+pub(crate) fn marginal_ray_bundle(
+    model: &SequentialModel,
+    wavelength_id: usize,
+) -> Result<ParaxialRayBundle> {
+    let submodel = model
+        .submodel(wavelength_id)
+        .ok_or_else(|| anyhow!("wavelength_id {wavelength_id} out of range"))?;
+    let surfaces = model.surfaces();
+    let placements = model.placements();
+
+    let v = Vec3::new(0.0, 1.0, 0.0);
+    let per_surf_v = propagate_tangential_vec(v, surfaces, placements);
+    let pseudo = calc_pseudo_marginal_ray(submodel, surfaces, placements)?;
+    let stop = match model.stop_surface() {
+        Some(i) => i,
+        None => calc_aperture_stop(surfaces, placements, &pseudo, &per_surf_v),
+    };
+    Ok(calc_marginal_ray(
+        surfaces,
+        placements,
+        &pseudo,
+        &stop,
+        &per_surf_v,
+    ))
 }
 
 fn argmin(ratios: &[Float]) -> usize {
@@ -1289,7 +1345,7 @@ mod test {
         let wavelengths: [Float; 1] = [0.5876];
         let sequential_model = convexplano_lens::sequential_model(air, nbk7, &wavelengths);
         let seq_sub_model = sequential_model.submodel(0).expect("Submodel not found.");
-        let pseudo_marginal_ray = ParaxialSubView::calc_pseudo_marginal_ray(
+        let pseudo_marginal_ray = calc_pseudo_marginal_ray(
             seq_sub_model,
             sequential_model.surfaces(),
             sequential_model.placements(),

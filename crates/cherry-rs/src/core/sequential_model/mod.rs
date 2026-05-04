@@ -252,6 +252,11 @@ pub fn reversed_surface_id(num_surfaces: usize, surf_id: usize) -> usize {
 impl Gap {
     pub(crate) fn try_from_spec(spec: &GapSpec, wavelength: Float) -> Result<Self> {
         let thickness = spec.thickness;
+        if thickness < 0.0 {
+            return Err(anyhow!(
+                "gap thickness must be non-negative, got {thickness}"
+            ));
+        }
         let refractive_index =
             RefractiveIndex::try_from_spec(spec.refractive_index.as_ref(), wavelength)?;
         Ok(Self {
