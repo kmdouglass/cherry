@@ -1,7 +1,19 @@
+use std::collections::HashMap;
+
 use crate::{
     CrossSectionView, FieldSpec, ParaxialView, TraceResultsCollection,
     core::math::{linalg::mat3x3::Mat3x3, vec3::Vec3},
 };
+
+/// Post-solve parameter values keyed by their index in the surfaces table.
+/// Only cells with an active solve are populated.
+#[derive(Default)]
+pub struct SolvedValues {
+    /// gap_index → solved thickness (mm).
+    pub gap_thicknesses: HashMap<usize, f64>,
+    /// surface_index → solved radius of curvature (mm).
+    pub surface_rocs: HashMap<usize, f64>,
+}
 
 /// Lightweight description of a surface for display in dropdowns.
 pub struct SurfaceDesc {
@@ -32,6 +44,7 @@ pub struct ResultPackage {
     pub ray_trace: Option<TraceResultsCollection>,
     pub cross_section: Option<CrossSectionView>,
     pub error: Option<String>,
+    pub solved_values: SolvedValues,
 }
 
 impl ResultPackage {
@@ -47,6 +60,7 @@ impl ResultPackage {
             ray_trace: None,
             cross_section: None,
             error: Some(msg),
+            solved_values: SolvedValues::default(),
         }
     }
 }

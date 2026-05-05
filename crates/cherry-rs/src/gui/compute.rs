@@ -4,14 +4,17 @@ use std::sync::mpsc::{Receiver, Sender};
 use std::{collections::HashMap, rc::Rc};
 
 use crate::{
-    ParaxialView, SequentialModel, components_view, cross_section_view, ray_trace_3d_view,
-    specs::fields::PupilSampling, trace_ray_bundle, views::ray_trace_3d::SamplingConfig,
+    ParaxialView, SequentialModel, SequentialModelBuilder, components_view, cross_section_view,
+    ray_trace_3d_view,
+    specs::{fields::PupilSampling, gaps::GapSpec, surfaces::SurfaceSpec},
+    trace_ray_bundle,
+    views::ray_trace_3d::SamplingConfig,
 };
 
 use super::{
     convert,
-    model::SystemSpecs,
-    result_package::{ResultPackage, SurfaceDesc},
+    model::{SolveSpec, SystemSpecs},
+    result_package::{ResultPackage, SolvedValues, SurfaceDesc},
 };
 
 pub struct ComputeRequest {
@@ -120,15 +123,28 @@ fn run_compute(
         Err(e) => return ResultPackage::error(req.id, format!("Specs error: {e}")),
     };
 
-    let seq = match SequentialModel::from_surface_specs(
-        &parsed.gaps,
-        &parsed.surfaces,
-        &parsed.wavelengths,
-        req.specs.stop_surface,
-    ) {
-        Ok(s) => s,
-        Err(e) => return ResultPackage::error(req.id, format!("Model error: {e}")),
+    let build_result = {
+        let mut builder = SequentialModelBuilder::new()
+            .gap_specs(parsed.gaps)
+            .surface_specs(parsed.surfaces)
+            .wavelengths(parsed.wavelengths.clone())
+            .solves(parsed.solves);
+        if let Some(stop) = req.specs.stop_surface {
+            builder = builder.stop_surface(stop);
+        }
+        match builder.build() {
+            Ok(r) => r,
+            Err(e) => return ResultPackage::error(req.id, format!("Model error: {e}")),
+        }
     };
+
+    let solved_values = extract_solved_values(
+        &req.specs.solves,
+        &build_result.gap_specs,
+        &build_result.surface_specs,
+    );
+
+    let seq = build_result.model;
 
     let wavelengths = seq.wavelengths().to_vec();
     let surfaces = build_surface_descs(&seq);
@@ -147,6 +163,7 @@ fn run_compute(
                 ray_trace: None,
                 cross_section: None,
                 error: Some(format!("Paraxial error: {e}")),
+                solved_values,
             };
         }
     };
@@ -197,6 +214,44 @@ fn run_compute(
         ray_trace: trace,
         cross_section,
         error: None,
+        solved_values,
+    }
+}
+
+fn extract_solved_values(
+    solves: &[SolveSpec],
+    gap_specs: &[GapSpec],
+    surface_specs: &[SurfaceSpec],
+) -> SolvedValues {
+    let mut sv = SolvedValues::default();
+    for solve in solves {
+        match solve {
+            SolveSpec::MarginalRayHeight { gap_index, .. } => {
+                if let Some(gap) = gap_specs.get(*gap_index) {
+                    sv.gap_thicknesses.insert(*gap_index, gap.thickness);
+                }
+            }
+            SolveSpec::FNumber { surface_index, .. } => {
+                if let Some(roc) = roc_from_spec(surface_specs.get(*surface_index)) {
+                    sv.surface_rocs.insert(*surface_index, roc);
+                }
+            }
+        }
+    }
+    sv
+}
+
+fn roc_from_spec(spec: Option<&SurfaceSpec>) -> Option<f64> {
+    match spec? {
+        SurfaceSpec::Conic {
+            radius_of_curvature,
+            ..
+        } => Some(*radius_of_curvature),
+        SurfaceSpec::Sphere {
+            radius_of_curvature,
+            ..
+        } => Some(*radius_of_curvature),
+        _ => None,
     }
 }
 

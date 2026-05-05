@@ -141,8 +141,8 @@ pub use core::{
     ray::Ray,
     sequential_model::{
         SequentialModel, SequentialSubModel, Step,
-        builder::SequentialModelBuilder,
-        solves::{FNumberSolve, MarginalRaySolve, Solve},
+        builder::{BuildResult, SequentialModelBuilder},
+        solves::{FNumberSolve, MarginalRaySolve, Solve, SolveKind},
     },
     surfaces::{Conic, Image, Iris, Object, Probe, Sphere, Surface, SurfaceKind},
 };

@@ -545,9 +545,12 @@ impl eframe::App for CherryApp {
 
         // Floating windows
         if self.windows.specs {
-            let changed = self
-                .specs_window
-                .show(ctx, &mut self.windows.specs, &mut self.specs);
+            let changed = self.specs_window.show(
+                ctx,
+                &mut self.windows.specs,
+                &mut self.specs,
+                self.latest_result.as_ref(),
+            );
             if changed {
                 self.bump_input_id();
             }

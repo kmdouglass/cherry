@@ -1,4 +1,140 @@
+use std::fmt;
+
 use serde::{Deserialize, Serialize};
+
+/// Which table parameter a solve controls.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SolveParameter {
+    Thickness,
+    RadiusOfCurvature,
+}
+
+impl fmt::Display for SolveParameter {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Thickness => write!(f, "Thickness"),
+            Self::RadiusOfCurvature => write!(f, "Curvature"),
+        }
+    }
+}
+
+/// Serializable description of one active solve on the system.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub enum SolveSpec {
+    MarginalRayHeight {
+        gap_index: usize,
+        target_height: f64,
+        wavelength_id: usize,
+    },
+    FNumber {
+        surface_index: usize,
+        target_fno: f64,
+        wavelength_id: usize,
+    },
+}
+
+impl SolveSpec {
+    pub(crate) fn surface_index(&self) -> usize {
+        match self {
+            Self::MarginalRayHeight { gap_index, .. } => *gap_index,
+            Self::FNumber { surface_index, .. } => *surface_index,
+        }
+    }
+
+    pub(crate) fn set_surface_index(&mut self, idx: usize) {
+        match self {
+            Self::MarginalRayHeight { gap_index, .. } => *gap_index = idx,
+            Self::FNumber { surface_index, .. } => *surface_index = idx,
+        }
+    }
+
+    pub(crate) fn parameter(&self) -> SolveParameter {
+        match self {
+            Self::MarginalRayHeight { .. } => SolveParameter::Thickness,
+            Self::FNumber { .. } => SolveParameter::RadiusOfCurvature,
+        }
+    }
+
+    pub(crate) fn is_paraxial(&self) -> bool {
+        match self {
+            Self::MarginalRayHeight { .. } | Self::FNumber { .. } => true,
+        }
+    }
+}
+
+/// Transient UI state for the solve-configuration popup. Lives in `model.rs`
+/// so both the window and panel can reference it without a circular dependency.
+#[derive(Clone, Debug)]
+pub struct SolvePopupState {
+    pub surface_index: usize,
+    pub parameter: SolveParameter,
+    pub type_str: String,
+    pub target: String,
+    pub wavelength_id: usize,
+    pub error: Option<String>,
+}
+
+impl SolvePopupState {
+    pub fn open(
+        surface_index: usize,
+        parameter: SolveParameter,
+        existing: Option<&SolveSpec>,
+    ) -> Self {
+        match existing {
+            None => Self {
+                surface_index,
+                parameter,
+                type_str: "None".to_owned(),
+                target: String::new(),
+                wavelength_id: 0,
+                error: None,
+            },
+            Some(SolveSpec::MarginalRayHeight {
+                target_height,
+                wavelength_id,
+                ..
+            }) => Self {
+                surface_index,
+                parameter,
+                type_str: "Marginal ray height".to_owned(),
+                target: target_height.to_string(),
+                wavelength_id: *wavelength_id,
+                error: None,
+            },
+            Some(SolveSpec::FNumber {
+                target_fno,
+                wavelength_id,
+                ..
+            }) => Self {
+                surface_index,
+                parameter,
+                type_str: "F/#".to_owned(),
+                target: target_fno.to_string(),
+                wavelength_id: *wavelength_id,
+                error: None,
+            },
+        }
+    }
+
+    /// Returns true if the currently selected solve type is a paraxial solve.
+    pub fn is_paraxial(&self) -> bool {
+        match self.type_str.as_str() {
+            "Marginal ray height" => SolveSpec::MarginalRayHeight {
+                gap_index: 0,
+                target_height: 0.0,
+                wavelength_id: 0,
+            }
+            .is_paraxial(),
+            "F/#" => SolveSpec::FNumber {
+                surface_index: 0,
+                target_fno: 1.0,
+                wavelength_id: 0,
+            }
+            .is_paraxial(),
+            _ => false,
+        }
+    }
+}
 
 /// Which surface variant this row represents.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -249,10 +385,14 @@ pub struct SystemSpecs {
     /// User-designated aperture stop surface index. `None` = auto-derived.
     #[serde(default)]
     pub stop_surface: Option<usize>,
+    /// Active solves on the system, serialized as part of system state.
+    #[serde(default)]
+    pub solves: Vec<SolveSpec>,
 }
 
 impl SystemSpecs {
-    /// Insert a default surface after index `idx` and adjust `stop_surface`.
+    /// Insert a default surface after index `idx` and adjust `stop_surface` and
+    /// solves.
     pub fn insert_surface_after(&mut self, idx: usize) {
         self.surfaces.insert(idx + 1, SurfaceRow::new_default());
         if let Some(stop) = self.stop_surface
@@ -260,9 +400,14 @@ impl SystemSpecs {
         {
             self.stop_surface = Some(stop + 1);
         }
+        for solve in &mut self.solves {
+            if solve.surface_index() > idx {
+                solve.set_surface_index(solve.surface_index() + 1);
+            }
+        }
     }
 
-    /// Remove the surface at index `idx` and adjust `stop_surface`.
+    /// Remove the surface at index `idx` and adjust `stop_surface` and solves.
     ///
     /// Does nothing if fewer than 3 surfaces remain (must keep object + image).
     pub fn delete_surface(&mut self, idx: usize) {
@@ -275,6 +420,19 @@ impl SystemSpecs {
             Some(stop) if idx < stop => Some(stop - 1),
             other => other,
         };
+        self.solves.retain(|s| s.surface_index() != idx);
+        for solve in &mut self.solves {
+            if solve.surface_index() > idx {
+                solve.set_surface_index(solve.surface_index() - 1);
+            }
+        }
+    }
+
+    /// Return the active solve for a given cell, if any.
+    pub fn solve_for(&self, surface_index: usize, parameter: SolveParameter) -> Option<&SolveSpec> {
+        self.solves
+            .iter()
+            .find(|s| s.surface_index() == surface_index && s.parameter() == parameter)
     }
 }
 
@@ -320,6 +478,7 @@ impl Default for SystemSpecs {
             background_n: "1.0".into(),
             background_material_key: None,
             stop_surface: None,
+            solves: Vec::new(),
         }
     }
 }
@@ -409,5 +568,111 @@ mod tests {
         specs.stop_surface = None;
         specs.delete_surface(2);
         assert_eq!(specs.stop_surface, None);
+    }
+
+    // --- SolveSpec serde ---
+
+    #[test]
+    fn solve_spec_serde_roundtrip() {
+        let specs = vec![
+            SolveSpec::MarginalRayHeight {
+                gap_index: 2,
+                target_height: 0.0,
+                wavelength_id: 0,
+            },
+            SolveSpec::FNumber {
+                surface_index: 1,
+                target_fno: 4.0,
+                wavelength_id: 1,
+            },
+        ];
+        let json = serde_json::to_string(&specs).unwrap();
+        let roundtripped: Vec<SolveSpec> = serde_json::from_str(&json).unwrap();
+        assert_eq!(specs, roundtripped);
+    }
+
+    // --- insert_surface_after renumbers solves ---
+
+    #[test]
+    fn insert_surface_after_renumbers_solves() {
+        let mut specs = five_surface_specs();
+        specs.solves = vec![SolveSpec::MarginalRayHeight {
+            gap_index: 2,
+            target_height: 0.0,
+            wavelength_id: 0,
+        }];
+        specs.insert_surface_after(1); // insert at idx 2, solve was at 2 → becomes 3
+        assert_eq!(specs.solves[0].surface_index(), 3);
+    }
+
+    #[test]
+    fn insert_surface_after_does_not_renumber_solves_at_or_before_insert() {
+        let mut specs = five_surface_specs();
+        specs.solves = vec![SolveSpec::MarginalRayHeight {
+            gap_index: 1,
+            target_height: 0.0,
+            wavelength_id: 0,
+        }];
+        specs.insert_surface_after(1); // solve at idx 1, insert after 1 → unchanged
+        assert_eq!(specs.solves[0].surface_index(), 1);
+    }
+
+    // --- delete_surface removes and renumbers solves ---
+
+    #[test]
+    fn delete_surface_removes_matching_solve() {
+        let mut specs = five_surface_specs();
+        specs.solves = vec![SolveSpec::MarginalRayHeight {
+            gap_index: 2,
+            target_height: 0.0,
+            wavelength_id: 0,
+        }];
+        specs.delete_surface(2);
+        assert!(specs.solves.is_empty());
+    }
+
+    #[test]
+    fn delete_surface_renumbers_higher_solves() {
+        let mut specs = five_surface_specs();
+        specs.solves = vec![SolveSpec::MarginalRayHeight {
+            gap_index: 3,
+            target_height: 0.0,
+            wavelength_id: 0,
+        }];
+        specs.delete_surface(2); // delete surface 2 → solve at 3 becomes 2
+        assert_eq!(specs.solves[0].surface_index(), 2);
+    }
+
+    // --- solve_for ---
+
+    #[test]
+    fn solve_for_returns_matching_solve() {
+        let mut specs = five_surface_specs();
+        specs.solves = vec![SolveSpec::MarginalRayHeight {
+            gap_index: 2,
+            target_height: 5.0,
+            wavelength_id: 0,
+        }];
+        let found = specs.solve_for(2, SolveParameter::Thickness);
+        assert!(found.is_some());
+        assert_eq!(found.unwrap().surface_index(), 2);
+    }
+
+    #[test]
+    fn solve_for_returns_none_for_unmatched() {
+        let mut specs = five_surface_specs();
+        specs.solves = vec![SolveSpec::MarginalRayHeight {
+            gap_index: 2,
+            target_height: 5.0,
+            wavelength_id: 0,
+        }];
+        // Wrong parameter type
+        assert!(
+            specs
+                .solve_for(2, SolveParameter::RadiusOfCurvature)
+                .is_none()
+        );
+        // Wrong index
+        assert!(specs.solve_for(3, SolveParameter::Thickness).is_none());
     }
 }
