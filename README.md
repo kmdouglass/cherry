@@ -69,7 +69,7 @@ Cherry might be for you if:
   - [X] User-specified stop
   - [X] Serialization layer moved into a crate feature
   - [X] Flat and spherical ray-surface intersection solvers
-- [ ] Solve system to enforce active constraints on a design
+- [X] Solve system to enforce active constraints on a design
 
 ### Next
 
