@@ -142,7 +142,7 @@ pub use core::{
     sequential_model::{
         SequentialModel, SequentialSubModel, Step,
         builder::SequentialModelBuilder,
-        solves::{MarginalRaySolve, Solve},
+        solves::{FNumberSolve, MarginalRaySolve, Solve},
     },
     surfaces::{Conic, Image, Iris, Object, Probe, Sphere, Surface, SurfaceKind},
 };

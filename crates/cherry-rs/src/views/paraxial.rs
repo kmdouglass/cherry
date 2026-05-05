@@ -136,7 +136,9 @@ pub struct ParaxialSubView {
     exit_pupil: Pupil,
     front_focal_distance: Float,
     front_principal_plane: Float,
+    image_space_fno: Float,
     marginal_ray: ParaxialRayBundle,
+    paraxial_fno: Float,
     paraxial_image_plane: ImagePlane,
 }
 
@@ -157,7 +159,9 @@ pub struct ParaxialSubViewDescription {
     exit_pupil: Pupil,
     front_focal_distance: Float,
     front_principal_plane: Float,
+    image_space_fno: Float,
     marginal_ray: ParaxialRayBundle,
+    paraxial_fno: Float,
     paraxial_image_plane: ImagePlane,
 }
 
@@ -500,6 +504,18 @@ impl ParaxialSubView {
         let paraxial_image_plane =
             Self::calc_paraxial_image_plane(surfaces, placements, &marginal_ray, &chief_ray)?;
 
+        let last_phys_id = last_physical_surface(surfaces)
+            .ok_or_else(|| anyhow!("There are no physical surfaces"))?;
+        let n_image = sequential_sub_model
+            .gaps()
+            .last()
+            .expect("submodel must have at least one gap")
+            .refractive_index
+            .n();
+        let u_last = marginal_ray.rays_at_surface(last_phys_id)[0].angle;
+        let paraxial_fno = 1.0 / (2.0 * n_image * u_last.abs());
+        let image_space_fno = effective_focal_length / (2.0 * entrance_pupil.semi_diameter);
+
         Ok(Self {
             wavelength_id,
             tangential_vec_id,
@@ -514,7 +530,9 @@ impl ParaxialSubView {
             exit_pupil,
             front_focal_distance,
             front_principal_plane,
+            image_space_fno,
             marginal_ray,
+            paraxial_fno,
             paraxial_image_plane,
         })
     }
@@ -532,7 +550,9 @@ impl ParaxialSubView {
             exit_pupil: self.exit_pupil.clone(),
             front_focal_distance: self.front_focal_distance,
             front_principal_plane: self.front_principal_plane,
+            image_space_fno: self.image_space_fno,
             marginal_ray: self.marginal_ray.clone(),
+            paraxial_fno: self.paraxial_fno,
             paraxial_image_plane: self.paraxial_image_plane.clone(),
         }
     }
@@ -591,6 +611,14 @@ impl ParaxialSubView {
 
     pub fn paraxial_image_plane(&self) -> &ImagePlane {
         &self.paraxial_image_plane
+    }
+
+    pub fn paraxial_fno(&self) -> Float {
+        self.paraxial_fno
+    }
+
+    pub fn image_space_fno(&self) -> Float {
+        self.image_space_fno
     }
 
     fn calc_aperture_stop(
@@ -1517,5 +1545,21 @@ mod test {
         let pv = ParaxialView::new(&seq, &field, false).unwrap();
         let sub = pv.get(0, 0).unwrap();
         assert_eq!(*sub.aperture_stop(), 2);
+    }
+
+    #[test]
+    fn paraxial_fno_equals_reciprocal_of_marginal_angle() {
+        let (sub, _) = setup();
+        // Last physical surface is index 2 (plano surface); n_image = 1.0 (air).
+        let u_last = sub.marginal_ray().rays_at_surface(2)[0].angle;
+        let expected = 1.0 / (2.0 * u_last.abs());
+        assert_abs_diff_eq!(sub.paraxial_fno(), expected, epsilon = 1e-6);
+    }
+
+    #[test]
+    fn image_space_fno_equals_efl_over_epd() {
+        let (sub, _) = setup();
+        let expected = *sub.effective_focal_length() / (2.0 * sub.entrance_pupil().semi_diameter);
+        assert_abs_diff_eq!(sub.image_space_fno(), expected, epsilon = 1e-6);
     }
 }

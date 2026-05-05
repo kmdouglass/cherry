@@ -113,6 +113,8 @@ fn render_v_table(
             multi_row(ui, "EFL", ids, pv, |sv| *sv.effective_focal_length());
             multi_row(ui, "BFD", ids, pv, |sv| *sv.back_focal_distance());
             multi_row(ui, "FFD", ids, pv, |sv| *sv.front_focal_distance());
+            multi_row(ui, "Paraxial F/#", ids, pv, |sv| sv.paraxial_fno());
+            multi_row(ui, "Image space F/#", ids, pv, |sv| sv.image_space_fno());
 
             sep_row(ui, n_cols);
 
@@ -320,6 +322,18 @@ mod tests {
         });
         harness.step();
         harness.get_by_label_contains("Primary Axial Color");
+    }
+
+    #[test]
+    fn paraxial_data_shows_fno_rows() {
+        let result = make_result(&["0.567"]);
+        let mut harness = Harness::new(|ctx| {
+            let mut open = true;
+            ParaxialWindow::show(ctx, &mut open, Some(&result));
+        });
+        harness.step();
+        harness.get_by_label("Paraxial F/#");
+        harness.get_by_label("Image space F/#");
     }
 
     #[test]
