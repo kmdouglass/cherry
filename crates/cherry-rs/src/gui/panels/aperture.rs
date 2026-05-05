@@ -31,7 +31,12 @@ pub fn aperture_panel(ui: &mut egui::Ui, specs: &mut SystemSpecs) -> bool {
         .surfaces
         .iter()
         .enumerate()
-        .filter(|(_, row)| matches!(row.variant, SurfaceVariant::Conic | SurfaceVariant::Iris))
+        .filter(|(_, row)| {
+            matches!(
+                row.variant,
+                SurfaceVariant::Conic | SurfaceVariant::Sphere | SurfaceVariant::Iris
+            )
+        })
         .map(|(i, _)| i)
         .collect();
 
