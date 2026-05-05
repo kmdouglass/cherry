@@ -1,3 +1,4 @@
+pub mod fno;
 pub mod marginal_ray;
 
 use anyhow::Result;
@@ -6,6 +7,7 @@ use crate::specs::{gaps::GapSpec, surfaces::SurfaceSpec};
 
 use super::SequentialModel;
 
+pub use fno::FNumberSolve;
 pub use marginal_ray::MarginalRaySolve;
 
 /// A solve that modifies optical system specs to satisfy a constraint.
@@ -29,6 +31,7 @@ pub trait Solve {
     /// applying them, ensuring each solve sees a model that reflects all
     /// earlier solves' changes. The convention matches Zemax: the thickness
     /// of gap k is the "thickness of surface k", so a thickness solve on
-    /// gap k returns k here.
+    /// gap k returns k here. For curvature solves (e.g. [`FNumberSolve`]),
+    /// this is the index of the surface whose radius of curvature is modified.
     fn surface_index(&self) -> usize;
 }
