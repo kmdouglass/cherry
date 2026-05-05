@@ -8,6 +8,17 @@ use crate::specs::{gaps::GapSpec, surfaces::SurfaceSpec};
 use super::SequentialModel;
 use super::solves::Solve;
 
+/// The output of a successful [`SequentialModelBuilder::build()`] call.
+/// Carries the model and the post-solve specs so callers can extract
+/// solved parameter values.
+pub struct BuildResult {
+    pub model: SequentialModel,
+    /// Gap specs after all solves have been applied.
+    pub gap_specs: Vec<GapSpec>,
+    /// Surface specs after all solves have been applied.
+    pub surface_specs: Vec<SurfaceSpec>,
+}
+
 /// Specs-based construction of [`SequentialModel`]s with optional extensions.
 ///
 /// Use this when you need solves or a custom surface registry. For simple
@@ -43,7 +54,7 @@ impl SequentialModelBuilder {
         }
     }
 
-    pub fn build(self) -> Result<SequentialModel> {
+    pub fn build(self) -> Result<BuildResult> {
         self.validate()?;
 
         // Destructure all fields before any partial moves.
@@ -76,13 +87,17 @@ impl SequentialModelBuilder {
         let mut model = build(&gap_specs, &surface_specs)?;
 
         let mut solves = solves;
-        solves.sort_by_key(|s| s.surface_index());
+        solves.sort_by_key(|s| (s.surface_index(), s.parameter_kind()));
         for solve in &solves {
             solve.apply(&model, &mut gap_specs, &mut surface_specs)?;
             model = build(&gap_specs, &surface_specs)?;
         }
 
-        Ok(model)
+        Ok(BuildResult {
+            model,
+            gap_specs,
+            surface_specs,
+        })
     }
 
     pub fn gap_specs(mut self, gap_specs: Vec<GapSpec>) -> Self {
@@ -141,7 +156,7 @@ mod tests {
     use crate::{
         core::Float,
         core::math::linalg::rotations::Rotation3D,
-        core::sequential_model::SequentialSubModel,
+        core::sequential_model::{SequentialSubModel, solves::SolveKind},
         n,
         specs::gaps::GapSpec,
         specs::surfaces::{BoundaryType, SurfaceSpec},
@@ -216,6 +231,76 @@ mod tests {
         fn surface_index(&self) -> usize {
             self.surface_index
         }
+    }
+
+    /// Sets thickness only if the surface's RoC already matches `roc_sentinel`.
+    /// Used to verify that a RoC solve ran before this thickness solve.
+    struct SetThicknessIfRoc {
+        gap_index: usize,
+        surface_index: usize,
+        roc_sentinel: f64,
+        value_if_match: f64,
+        value_if_no_match: f64,
+    }
+
+    impl Solve for SetThicknessIfRoc {
+        fn apply(
+            &self,
+            _model: &SequentialModel,
+            gap_specs: &mut Vec<GapSpec>,
+            surface_specs: &mut Vec<SurfaceSpec>,
+        ) -> Result<()> {
+            let roc = match &surface_specs[self.surface_index] {
+                SurfaceSpec::Sphere {
+                    radius_of_curvature,
+                    ..
+                } => *radius_of_curvature,
+                _ => f64::NAN,
+            };
+            gap_specs[self.gap_index].thickness = if (roc - self.roc_sentinel).abs() < 1e-9 {
+                self.value_if_match
+            } else {
+                self.value_if_no_match
+            };
+            Ok(())
+        }
+
+        fn surface_index(&self) -> usize {
+            self.surface_index
+        }
+
+        fn parameter_kind(&self) -> SolveKind {
+            SolveKind::Thickness
+        }
+    }
+
+    /// Sets `surface_specs[surface_index]` RoC to `value` unconditionally.
+    struct SetRoc {
+        surface_index: usize,
+        value: f64,
+    }
+
+    impl Solve for SetRoc {
+        fn apply(
+            &self,
+            _model: &SequentialModel,
+            _gap_specs: &mut Vec<GapSpec>,
+            surface_specs: &mut Vec<SurfaceSpec>,
+        ) -> Result<()> {
+            if let SurfaceSpec::Sphere {
+                radius_of_curvature,
+                ..
+            } = &mut surface_specs[self.surface_index]
+            {
+                *radius_of_curvature = self.value;
+            }
+            Ok(())
+        }
+
+        fn surface_index(&self) -> usize {
+            self.surface_index
+        }
+        // parameter_kind defaults to Curvature — runs before Thickness
     }
 
     // --- Validation tests ---
@@ -296,7 +381,8 @@ mod tests {
             .wavelengths(vec![0.587])
             .stop_surface(1)
             .build()
-            .expect("build should succeed");
+            .expect("build should succeed")
+            .model;
         assert_eq!(model.stop_surface(), Some(1));
     }
 
@@ -314,7 +400,8 @@ mod tests {
                 value: 99.0,
             })])
             .build()
-            .expect("build should succeed");
+            .expect("build should succeed")
+            .model;
 
         // Gap index 1 in the submodel corresponds to gap_specs[1].
         let thickness = model.submodel(0).unwrap().gaps()[1].thickness;
@@ -382,10 +469,42 @@ mod tests {
                 }),
             ])
             .build()
-            .expect("build should succeed");
+            .expect("build should succeed")
+            .model;
 
         assert_eq!(model.submodel(0).unwrap().gaps()[1].thickness, 33.0);
         assert_eq!(model.submodel(0).unwrap().gaps()[2].thickness, 55.0);
+    }
+
+    #[test]
+    fn roc_solve_runs_before_thickness_solve_on_same_surface() {
+        // Supply the thickness solve first, then the RoC solve, in reverse
+        // priority order. The builder must apply the RoC solve first (priority
+        // 0) so the thickness solve sees the updated RoC (sentinel 99.0).
+        let sentinel_roc = 99.0;
+        let model = SequentialModelBuilder::new()
+            .gap_specs(lens_gaps())
+            .surface_specs(lens_surfaces())
+            .wavelengths(vec![0.587])
+            .solves(vec![
+                Box::new(SetThicknessIfRoc {
+                    gap_index: 1,
+                    surface_index: 1,
+                    roc_sentinel: sentinel_roc,
+                    value_if_match: 42.0,
+                    value_if_no_match: 0.0,
+                }),
+                Box::new(SetRoc {
+                    surface_index: 1,
+                    value: sentinel_roc,
+                }),
+            ])
+            .build()
+            .expect("build should succeed")
+            .model;
+
+        // If RoC solve ran first, thickness is 42.0; if order was wrong, it's 0.0.
+        assert_eq!(model.submodel(0).unwrap().gaps()[1].thickness, 42.0);
     }
 
     #[test]
@@ -408,7 +527,8 @@ mod tests {
                 }),
             ])
             .build()
-            .expect("build should succeed");
+            .expect("build should succeed")
+            .model;
 
         let thickness = model.submodel(0).unwrap().gaps()[1].thickness;
         assert_eq!(thickness, 77.0);

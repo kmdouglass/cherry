@@ -840,6 +840,7 @@ mod tests {
             ray_trace: None,
             cross_section: Some(cs),
             error: None,
+            solved_values: Default::default(),
         };
         let mut harness = Harness::new_state(
             |ctx, (w, r): &mut (CrossSectionWindow, ResultPackage)| {

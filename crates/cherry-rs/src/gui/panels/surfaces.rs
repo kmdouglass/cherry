@@ -1,10 +1,18 @@
 use egui_extras::{Column, TableBuilder};
 
-use super::super::model::{SurfaceKind, SurfaceVariant, SystemSpecs};
+use super::super::model::{
+    SolveParameter, SolvePopupState, SurfaceKind, SurfaceVariant, SystemSpecs,
+};
 use super::{format_display_float, inf_formatter, inf_parser, parse_display_float};
+use crate::gui::result_package::SolvedValues;
 
 /// Draw the surfaces editor panel. Returns true if any spec was modified.
-pub fn surfaces_panel(ui: &mut egui::Ui, specs: &mut SystemSpecs) -> bool {
+pub fn surfaces_panel(
+    ui: &mut egui::Ui,
+    specs: &mut SystemSpecs,
+    solved_values: Option<&SolvedValues>,
+    solve_popup: &mut Option<SolvePopupState>,
+) -> bool {
     let mut changed = false;
 
     // Snapshot material state before mutable table iteration.
@@ -105,6 +113,15 @@ pub fn surfaces_panel(ui: &mut egui::Ui, specs: &mut SystemSpecs) -> bool {
                 let mut delete_at: Option<usize> = None;
 
                 for row_idx in 0..num_surfaces {
+                    // Snapshot solve state before taking mutable borrow of surf.
+                    let roc_solve_spec = specs
+                        .solve_for(row_idx, SolveParameter::RadiusOfCurvature)
+                        .cloned();
+                    let thick_solve_spec =
+                        specs.solve_for(row_idx, SolveParameter::Thickness).cloned();
+                    let has_roc_solve = roc_solve_spec.is_some();
+                    let has_thick_solve = thick_solve_spec.is_some();
+
                     body.row(22.0, |mut row| {
                         if specs.stop_surface == Some(row_idx) {
                             row.set_selected(true);
@@ -203,14 +220,39 @@ pub fn surfaces_panel(ui: &mut egui::Ui, specs: &mut SystemSpecs) -> bool {
                         // Radius of Curvature
                         row.col(|ui| {
                             if is_curved {
-                                changed |= drag_inf(
-                                    ui,
-                                    &mut surf.radius_of_curvature,
-                                    row_idx,
-                                    "roc",
-                                    f64::NEG_INFINITY..=f64::INFINITY,
-                                    1.0,
-                                );
+                                if has_roc_solve {
+                                    match solved_values
+                                        .and_then(|sv| sv.surface_rocs.get(&row_idx).copied())
+                                    {
+                                        Some(val) => solved_cell(ui, val, "F"),
+                                        None => {
+                                            ui.weak("—");
+                                        }
+                                    }
+                                    if solve_button(ui, row_idx, "roc_solve", true).clicked() {
+                                        *solve_popup = Some(SolvePopupState::open(
+                                            row_idx,
+                                            SolveParameter::RadiusOfCurvature,
+                                            roc_solve_spec.as_ref(),
+                                        ));
+                                    }
+                                } else {
+                                    changed |= drag_inf(
+                                        ui,
+                                        &mut surf.radius_of_curvature,
+                                        row_idx,
+                                        "roc",
+                                        f64::NEG_INFINITY..=f64::INFINITY,
+                                        1.0,
+                                    );
+                                    if solve_button(ui, row_idx, "roc_solve", false).clicked() {
+                                        *solve_popup = Some(SolvePopupState::open(
+                                            row_idx,
+                                            SolveParameter::RadiusOfCurvature,
+                                            None,
+                                        ));
+                                    }
+                                }
                             }
                         });
 
@@ -239,14 +281,39 @@ pub fn surfaces_panel(ui: &mut egui::Ui, specs: &mut SystemSpecs) -> bool {
                         // Thickness
                         row.col(|ui| {
                             if !is_image {
-                                changed |= drag_inf(
-                                    ui,
-                                    &mut surf.thickness,
-                                    row_idx,
-                                    "thick",
-                                    0.0..=f64::INFINITY,
-                                    0.5,
-                                );
+                                if has_thick_solve {
+                                    match solved_values
+                                        .and_then(|sv| sv.gap_thicknesses.get(&row_idx).copied())
+                                    {
+                                        Some(val) => solved_cell(ui, val, "M"),
+                                        None => {
+                                            ui.weak("—");
+                                        }
+                                    }
+                                    if solve_button(ui, row_idx, "thick_solve", true).clicked() {
+                                        *solve_popup = Some(SolvePopupState::open(
+                                            row_idx,
+                                            SolveParameter::Thickness,
+                                            thick_solve_spec.as_ref(),
+                                        ));
+                                    }
+                                } else {
+                                    changed |= drag_inf(
+                                        ui,
+                                        &mut surf.thickness,
+                                        row_idx,
+                                        "thick",
+                                        0.0..=f64::INFINITY,
+                                        0.5,
+                                    );
+                                    if solve_button(ui, row_idx, "thick_solve", false).clicked() {
+                                        *solve_popup = Some(SolvePopupState::open(
+                                            row_idx,
+                                            SolveParameter::Thickness,
+                                            None,
+                                        ));
+                                    }
+                                }
                             }
                         });
 
@@ -357,6 +424,30 @@ pub fn surfaces_panel(ui: &mut egui::Ui, specs: &mut SystemSpecs) -> bool {
     changed
 }
 
+/// Renders a read-only label for a solved cell with a type badge.
+fn solved_cell(ui: &mut egui::Ui, val: f64, badge: &str) {
+    ui.horizontal(|ui| {
+        ui.label(format!("{val:.4}"));
+        ui.weak(format!("[{badge}]"));
+    });
+}
+
+/// Renders a small solve indicator button. Returns the egui Response.
+/// `active` = a solve is currently set on this cell.
+fn solve_button(ui: &mut egui::Ui, row: usize, col: &str, active: bool) -> egui::Response {
+    let label = if active { "●" } else { "○" };
+    let id = egui::Id::new(format!("solve_btn_{row}_{col}"));
+    ui.push_id(id, |ui| {
+        let btn = ui.small_button(label);
+        btn.on_hover_text(if active {
+            "Solve active"
+        } else {
+            "Configure solve"
+        })
+    })
+    .inner
+}
+
 /// DragValue cell without special infinity handling.
 fn drag_value(
     ui: &mut egui::Ui,
@@ -412,7 +503,7 @@ mod tests {
     use super::*;
     use egui_kittest::{Harness, kittest::Queryable};
 
-    use crate::gui::model::{SurfaceKind, SurfaceRow, SurfaceVariant, SystemSpecs};
+    use crate::gui::model::{SolveSpec, SurfaceKind, SurfaceRow, SurfaceVariant, SystemSpecs};
 
     fn specs_with_reflecting_surface() -> SystemSpecs {
         let mut mirror = SurfaceRow::new_sphere("12.7", "Infinity", "100.0", "1.0");
@@ -434,13 +525,17 @@ mod tests {
         }
     }
 
+    fn default_panel(ui: &mut egui::Ui, specs: &mut SystemSpecs) -> bool {
+        surfaces_panel(ui, specs, None, &mut None)
+    }
+
     /// The object row must have a + button so users can insert surfaces after
     /// it.
     #[test]
     fn object_row_has_add_button() {
         let mut specs = minimal_specs();
         let mut harness = Harness::new_ui(|ui| {
-            surfaces_panel(ui, &mut specs);
+            default_panel(ui, &mut specs);
         });
         harness.run();
         // Panics if no + button is found — that is the red state.
@@ -453,7 +548,7 @@ mod tests {
         let mut specs = minimal_specs();
         {
             let mut harness = Harness::new_ui(|ui| {
-                surfaces_panel(ui, &mut specs);
+                default_panel(ui, &mut specs);
             });
             harness.run();
             harness.get_by_label("+").click();
@@ -473,7 +568,7 @@ mod tests {
     fn actions_column_is_rightmost_with_reflecting_surfaces() {
         let mut specs = specs_with_reflecting_surface();
         let mut harness = Harness::new_ui(|ui| {
-            surfaces_panel(ui, &mut specs);
+            default_panel(ui, &mut specs);
         });
         harness.run();
 
@@ -489,6 +584,84 @@ mod tests {
              + button at x={:.1}, θ header at x={:.1}",
             add_button.rect().center().x,
             theta_header.rect().center().x,
+        );
+    }
+
+    fn lens_specs() -> SystemSpecs {
+        SystemSpecs {
+            surfaces: vec![
+                SurfaceRow::new_object("Infinity"),
+                SurfaceRow::new_sphere("12.5", "25.8", "5.3", "1.515"),
+                SurfaceRow::new_sphere("12.5", "Infinity", "46.6", "1.0"),
+                SurfaceRow::new_image(),
+            ],
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn solve_button_present_on_roc_cell_for_sphere() {
+        let mut specs = lens_specs();
+        let mut harness = Harness::new_ui(|ui| {
+            default_panel(ui, &mut specs);
+        });
+        harness.run();
+        // The ○ solve button must appear (at least one, since we have curved surfaces).
+        harness
+            .get_all_by_label("○")
+            .next()
+            .expect("solve button should exist on RoC cell");
+    }
+
+    #[test]
+    fn solved_roc_cell_shows_badge() {
+        use crate::gui::result_package::SolvedValues;
+        let mut specs = lens_specs();
+        specs.solves = vec![SolveSpec::FNumber {
+            surface_index: 1,
+            target_fno: 4.0,
+            wavelength_id: 0,
+        }];
+        let mut sv = SolvedValues::default();
+        sv.surface_rocs.insert(1, 12.345);
+
+        let mut harness = Harness::new_ui(|ui| {
+            surfaces_panel(ui, &mut specs, Some(&sv), &mut None);
+        });
+        harness.run();
+        harness.get_by_label("[F]");
+    }
+
+    #[test]
+    fn solved_roc_cell_shows_placeholder_before_result() {
+        let mut specs = lens_specs();
+        specs.solves = vec![SolveSpec::FNumber {
+            surface_index: 1,
+            target_fno: 4.0,
+            wavelength_id: 0,
+        }];
+
+        let mut harness = Harness::new_ui(|ui| {
+            surfaces_panel(ui, &mut specs, None, &mut None);
+        });
+        harness.run();
+        harness.get_by_label("—");
+    }
+
+    #[test]
+    fn unsolved_cell_shows_drag_value_not_badge() {
+        let mut specs = lens_specs();
+        // No solves active — DragValues should be present and solve buttons should
+        // show the inactive "○" icon, not the active "●".
+        let mut harness = Harness::new_ui(|ui| {
+            default_panel(ui, &mut specs);
+        });
+        harness.run();
+        // Active solve indicator "●" should not appear when no solves are configured.
+        let active_buttons: Vec<_> = harness.query_all_by_label("●").collect();
+        assert!(
+            active_buttons.is_empty(),
+            "should not show active solve buttons when no solve is active"
         );
     }
 }

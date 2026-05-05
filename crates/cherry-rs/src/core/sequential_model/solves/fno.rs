@@ -188,7 +188,8 @@ mod tests {
             .wavelengths(vec![0.5876])
             .solves(vec![Box::new(FNumberSolve::new(2, target_fno, 0))])
             .build()
-            .expect("build should succeed");
+            .expect("build should succeed")
+            .model;
         let pv = ParaxialView::new(&model, &field_specs(), false).unwrap();
         (model, pv)
     }
@@ -295,7 +296,8 @@ mod tests {
                 Box::new(MarginalRaySolve::new(2, 0.0, 0)),
             ])
             .build()
-            .expect("build should succeed");
+            .expect("build should succeed")
+            .model;
 
         let pv = ParaxialView::new(&model, &field_specs(), false).unwrap();
         let sub = pv.get(0, 0).unwrap();

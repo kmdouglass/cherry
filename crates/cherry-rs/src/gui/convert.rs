@@ -3,11 +3,11 @@ use std::rc::Rc;
 use anyhow::{Context, Result, bail};
 
 use crate::{
-    ApertureSpec, BoundaryType, ConstantRefractiveIndex, EulerAngles, FieldSpec, GapSpec,
-    RefractiveIndexSpec, Rotation3D, SurfaceSpec,
+    ApertureSpec, BoundaryType, ConstantRefractiveIndex, EulerAngles, FNumberSolve, FieldSpec,
+    GapSpec, MarginalRaySolve, RefractiveIndexSpec, Rotation3D, Solve, SurfaceSpec,
 };
 
-use super::model::{FieldMode, SurfaceKind, SurfaceVariant, SystemSpecs};
+use super::model::{FieldMode, SolveSpec, SurfaceKind, SurfaceVariant, SystemSpecs};
 
 /// Parsed core specs ready for model construction.
 pub struct ParsedSpecs {
@@ -17,6 +17,7 @@ pub struct ParsedSpecs {
     pub aperture: ApertureSpec,
     pub wavelengths: Vec<f64>,
     pub background: std::rc::Rc<dyn RefractiveIndexSpec>,
+    pub solves: Vec<Box<dyn Solve>>,
 }
 
 /// Parse a string as f64, treating "Infinity" / "infinity" / "inf" as
@@ -214,6 +215,33 @@ fn convert_specs_inner(
         materials,
     )?;
 
+    let solves: Vec<Box<dyn Solve>> = specs
+        .solves
+        .iter()
+        .map(|s| -> Box<dyn Solve> {
+            match s {
+                SolveSpec::MarginalRayHeight {
+                    gap_index,
+                    target_height,
+                    wavelength_id,
+                } => Box::new(MarginalRaySolve::new(
+                    *gap_index,
+                    *target_height,
+                    *wavelength_id,
+                )),
+                SolveSpec::FNumber {
+                    surface_index,
+                    target_fno,
+                    wavelength_id,
+                } => Box::new(FNumberSolve::new(
+                    *surface_index,
+                    *target_fno,
+                    *wavelength_id,
+                )),
+            }
+        })
+        .collect();
+
     Ok(ParsedSpecs {
         surfaces,
         gaps,
@@ -221,6 +249,7 @@ fn convert_specs_inner(
         aperture,
         wavelengths,
         background,
+        solves,
     })
 }
 
@@ -270,4 +299,68 @@ fn resolve_refractive_index(
     let n = parse_float(&row.refractive_index)
         .with_context(|| format!("surface {surface_idx}: refractive index"))?;
     Ok(Rc::new(ConstantRefractiveIndex::new(n, 0.0)))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::gui::model::{SolveSpec, SurfaceRow, SystemSpecs};
+
+    fn convert(specs: &SystemSpecs) -> ParsedSpecs {
+        #[cfg(not(feature = "ri-info"))]
+        return convert_specs(specs).expect("convert should succeed");
+        #[cfg(feature = "ri-info")]
+        return convert_specs(specs, &Default::default()).expect("convert should succeed");
+    }
+
+    #[test]
+    fn empty_solves_converts_ok() {
+        let specs = SystemSpecs::default();
+        let parsed = convert(&specs);
+        assert!(parsed.solves.is_empty());
+    }
+
+    #[test]
+    fn marginal_ray_height_spec_converts_to_solve() {
+        let mut specs = SystemSpecs {
+            surfaces: vec![
+                SurfaceRow::new_object("Infinity"),
+                SurfaceRow::new_sphere("12.5", "25.8", "5.3", "1.515"),
+                SurfaceRow::new_sphere("12.5", "Infinity", "46.6", "1.0"),
+                SurfaceRow::new_image(),
+            ],
+            solves: vec![SolveSpec::MarginalRayHeight {
+                gap_index: 2,
+                target_height: 0.0,
+                wavelength_id: 0,
+            }],
+            ..Default::default()
+        };
+        specs.wavelengths = vec!["0.567".into()];
+        let parsed = convert(&specs);
+        assert_eq!(parsed.solves.len(), 1);
+        assert_eq!(parsed.solves[0].surface_index(), 2);
+    }
+
+    #[test]
+    fn fno_spec_converts_to_solve() {
+        let mut specs = SystemSpecs {
+            surfaces: vec![
+                SurfaceRow::new_object("Infinity"),
+                SurfaceRow::new_sphere("12.5", "25.8", "5.3", "1.515"),
+                SurfaceRow::new_sphere("12.5", "Infinity", "46.6", "1.0"),
+                SurfaceRow::new_image(),
+            ],
+            solves: vec![SolveSpec::FNumber {
+                surface_index: 1,
+                target_fno: 4.0,
+                wavelength_id: 0,
+            }],
+            ..Default::default()
+        };
+        specs.wavelengths = vec!["0.567".into()];
+        let parsed = convert(&specs);
+        assert_eq!(parsed.solves.len(), 1);
+        assert_eq!(parsed.solves[0].surface_index(), 1);
+    }
 }

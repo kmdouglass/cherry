@@ -7,7 +7,7 @@ use crate::{
 };
 
 use super::super::SequentialModel;
-use super::Solve;
+use super::{Solve, SolveKind};
 
 /// Adjusts a gap thickness so that the paraxial marginal ray height at the
 /// following surface equals a target value.
@@ -32,6 +32,10 @@ impl MarginalRaySolve {
 }
 
 impl Solve for MarginalRaySolve {
+    fn parameter_kind(&self) -> SolveKind {
+        SolveKind::Thickness
+    }
+
     fn apply(
         &self,
         model: &SequentialModel,
@@ -153,7 +157,8 @@ mod tests {
             .wavelengths(vec![0.5876])
             .solves(vec![Box::new(MarginalRaySolve::new(2, 0.0, 0))])
             .build()
-            .expect("build should succeed");
+            .expect("build should succeed")
+            .model;
 
         let pv = ParaxialView::new(&model, &field_specs(), false).unwrap();
         let sub = pv.get(0, 0).unwrap();
@@ -172,7 +177,8 @@ mod tests {
             .wavelengths(vec![0.5876])
             .solves(vec![Box::new(MarginalRaySolve::new(2, target, 0))])
             .build()
-            .expect("build should succeed");
+            .expect("build should succeed")
+            .model;
 
         let pv = ParaxialView::new(&model, &field_specs(), false).unwrap();
         let sub = pv.get(0, 0).unwrap();
@@ -301,7 +307,8 @@ mod tests {
             .wavelengths(vec![0.5876])
             .solves(vec![Box::new(MarginalRaySolve::new(2, 0.0, 0))])
             .build()
-            .expect("build should succeed");
+            .expect("build should succeed")
+            .model;
 
         let pv = ParaxialView::new(&model, &field_specs(), false).unwrap();
         let sub = pv.get(0, 0).unwrap();

@@ -247,6 +247,7 @@ mod tests {
             ray_trace: None,
             cross_section: None,
             error: None,
+            solved_values: Default::default(),
         }
     }
 

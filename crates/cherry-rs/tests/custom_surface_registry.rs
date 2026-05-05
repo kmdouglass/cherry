@@ -134,7 +134,8 @@ fn params_are_forwarded_to_constructor() {
         .wavelengths(wavelengths)
         .registry(registry)
         .build()
-        .expect("model should build");
+        .expect("model should build")
+        .model;
 
     // The custom surface is at index 1.
     assert_eq!(model.surfaces()[1].mask().semi_diameter(), 7.5);

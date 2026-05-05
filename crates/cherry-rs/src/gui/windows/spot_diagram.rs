@@ -405,6 +405,7 @@ mod tests {
             ray_trace: None,
             cross_section: None,
             error: Some("trace failed".to_string()),
+            solved_values: Default::default(),
         };
 
         let window = SpotDiagramWindow::default();
@@ -486,6 +487,7 @@ mod tests {
             ray_trace: Some(trace),
             cross_section: None,
             error: None,
+            solved_values: Default::default(),
         };
 
         let window = SpotDiagramWindow::default();

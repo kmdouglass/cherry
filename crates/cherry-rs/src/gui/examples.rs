@@ -48,6 +48,7 @@ pub fn mirrors_figure_z() -> SystemSpecs {
         background_n: "1.0".into(),
         background_material_key: None,
         stop_surface: None,
+        solves: Vec::new(),
     }
 }
 
@@ -90,6 +91,7 @@ pub fn petzval_lens() -> SystemSpecs {
         background_n: "1.0".into(),
         background_material_key: None,
         stop_surface: None,
+        solves: Vec::new(),
     }
 }
 
@@ -126,6 +128,7 @@ pub fn biconvex_lens() -> SystemSpecs {
         background_n: "1.0".into(),
         background_material_key: None,
         stop_surface: None,
+        solves: Vec::new(),
     }
 }
 
@@ -195,6 +198,7 @@ pub fn convexplano_lens_with_materials() -> SystemSpecs {
         background_n: "1.0".into(),
         background_material_key: Some("other:air:Ciddor".into()),
         stop_surface: None,
+        solves: Vec::new(),
     }
 }
 
@@ -322,6 +326,7 @@ pub fn f_theta_scan_lens() -> SystemSpecs {
         background_n: "1.0".into(),
         background_material_key: Some("other:air:Ciddor".into()),
         stop_surface: None,
+        solves: Vec::new(),
     }
 }
 
@@ -367,5 +372,6 @@ pub fn concave_mirror() -> SystemSpecs {
         background_n: "1.0".into(),
         background_material_key: None,
         stop_surface: None,
+        solves: Vec::new(),
     }
 }
