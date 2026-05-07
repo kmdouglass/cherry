@@ -1,22 +1,29 @@
 /// A 3D vector
 #[cfg(feature = "serde")]
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::core::{EPSILON, Float, PI};
 
 const TOL: Float = (1 as Float) * EPSILON;
 
 #[derive(Debug, Clone, Copy)]
-#[cfg_attr(feature = "serde", derive(Serialize))]
-#[cfg_attr(feature = "serde", serde(into = "[Float; 3]"))]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(into = "[Float; 3]", from = "[Float; 3]"))]
 pub struct Vec3 {
     pub e: [Float; 3],
 }
 
-/// Required to serialize Vec3 directly into an array instead of a JSON Object.
+/// Required to serialize Vec3 directly into a JSON array.
 impl From<Vec3> for [Float; 3] {
     fn from(val: Vec3) -> Self {
         val.e
+    }
+}
+
+/// Required to deserialize Vec3 from a JSON array.
+impl From<[Float; 3]> for Vec3 {
+    fn from(val: [Float; 3]) -> Self {
+        Self { e: val }
     }
 }
 

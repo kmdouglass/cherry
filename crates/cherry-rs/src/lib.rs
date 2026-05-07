@@ -39,7 +39,7 @@
 //! use cherry_rs::{
 //!     n, ray_trace_3d_view, trace_ray_bundle, ApertureSpec, FieldSpec, GapSpec, ImagePlane,
 //!     ParaxialView, Pupil, SamplingConfig, RefractiveIndexSpec, Rotation3D,
-//!     SequentialModel, SurfaceSpec, BoundaryKind,
+//!     SequentialModel, SurfaceSpec, BoundaryKind, Vec3,
 //! };
 //!
 //! // Create a convexplano lens with an object at infinity.
@@ -70,14 +70,22 @@
 //!         radius_of_curvature: 25.8,
 //!         surf_kind: BoundaryKind::Refracting,
 //!         rotation: Rotation3D::None,
+//!         decenter: Vec3::new(0.0, 0.0, 0.0),
+//!         rotation_offset: Rotation3D::None,
 //!     },
 //!     SurfaceSpec::Sphere {
 //!         semi_diameter: 12.5,
 //!         radius_of_curvature: f64::INFINITY,
 //!         surf_kind: BoundaryKind::Refracting,
 //!         rotation: Rotation3D::None,
+//!         decenter: Vec3::new(0.0, 0.0, 0.0),
+//!         rotation_offset: Rotation3D::None,
 //!     },
-//!     SurfaceSpec::Image { rotation: Rotation3D::None },
+//!     SurfaceSpec::Image {
+//!         rotation: Rotation3D::None,
+//!         decenter: Vec3::new(0.0, 0.0, 0.0),
+//!         rotation_offset: Rotation3D::None,
+//!     },
 //! ];
 //!
 //! // Define a set of wavelengths to model.
@@ -141,7 +149,7 @@ pub use core::{
     sequential_model::{
         SequentialModel, SequentialSubModel, Step,
         builder::{BuildResult, SequentialModelBuilder},
-        placement::Placement,
+        placement::{Placement, SurfacePlacement},
         solves::{FNumberSolve, MarginalRaySolve, Solve, SolveKind},
     },
     surfaces::{Conic, Image, Iris, Object, Probe, Sphere, Surface, SurfaceKind},

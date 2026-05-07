@@ -6,7 +6,7 @@ use std::rc::Rc;
 
 use crate::{
     BoundaryKind, EulerAngles, GapSpec, RefractiveIndexSpec, Rotation3D, SequentialModel,
-    SurfaceSpec, core::Float,
+    SurfaceSpec, Vec3, core::Float,
 };
 
 pub fn sequential_model(
@@ -37,6 +37,8 @@ pub fn sequential_model(
             0.0,
             0.0,
         )),
+        decenter: Vec3::new(0.0, 0.0, 0.0),
+        rotation_offset: Rotation3D::None,
     };
     let surf_2 = SurfaceSpec::Sphere {
         semi_diameter: 12.7,
@@ -47,9 +49,13 @@ pub fn sequential_model(
             0.0,
             0.0,
         )),
+        decenter: Vec3::new(0.0, 0.0, 0.0),
+        rotation_offset: Rotation3D::None,
     };
     let surf_3 = SurfaceSpec::Image {
         rotation: Rotation3D::None,
+        decenter: Vec3::new(0.0, 0.0, 0.0),
+        rotation_offset: Rotation3D::None,
     };
     let surfaces = vec![surf_0, surf_1, surf_2, surf_3];
 

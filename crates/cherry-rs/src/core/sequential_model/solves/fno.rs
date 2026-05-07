@@ -126,7 +126,7 @@ mod tests {
     use approx::assert_abs_diff_eq;
 
     use crate::{
-        GapSpec, Rotation3D, SequentialModel, SurfaceSpec,
+        GapSpec, Rotation3D, SequentialModel, SurfaceSpec, Vec3,
         core::{Float, sequential_model::builder::SequentialModelBuilder},
         n,
         specs::{fields::FieldSpec, surfaces::BoundaryKind},
@@ -160,15 +160,21 @@ mod tests {
                 radius_of_curvature: 25.8,
                 surf_kind: BoundaryKind::Refracting,
                 rotation: Rotation3D::None,
+                decenter: Vec3::new(0.0, 0.0, 0.0),
+                rotation_offset: Rotation3D::None,
             },
             SurfaceSpec::Sphere {
                 semi_diameter: 12.5,
                 radius_of_curvature: Float::INFINITY,
                 surf_kind: BoundaryKind::Refracting,
                 rotation: Rotation3D::None,
+                decenter: Vec3::new(0.0, 0.0, 0.0),
+                rotation_offset: Rotation3D::None,
             },
             SurfaceSpec::Image {
                 rotation: Rotation3D::None,
+                decenter: Vec3::new(0.0, 0.0, 0.0),
+                rotation_offset: Rotation3D::None,
             },
         ]
     }
@@ -260,13 +266,19 @@ mod tests {
                 radius_of_curvature: 25.8,
                 surf_kind: BoundaryKind::Refracting,
                 rotation: Rotation3D::None,
+                decenter: Vec3::new(0.0, 0.0, 0.0),
+                rotation_offset: Rotation3D::None,
             },
             SurfaceSpec::Iris {
                 semi_diameter: 10.0,
                 rotation: Rotation3D::None,
+                decenter: Vec3::new(0.0, 0.0, 0.0),
+                rotation_offset: Rotation3D::None,
             },
             SurfaceSpec::Image {
                 rotation: Rotation3D::None,
+                decenter: Vec3::new(0.0, 0.0, 0.0),
+                rotation_offset: Rotation3D::None,
             },
         ];
         let model =

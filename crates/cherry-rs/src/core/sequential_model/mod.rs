@@ -9,15 +9,12 @@ use std::ops::Range;
 use anyhow::{Result, anyhow};
 
 use self::cursor::Cursor;
-use self::placement::Placement;
+use self::placement::{Placement, SurfacePlacement};
 #[cfg(feature = "serde")]
 use crate::core::surfaces::SurfaceRegistry;
 use crate::core::{
     Float,
-    math::{
-        linalg::{mat3x3::Mat3x3, rotations::Rotation3D},
-        vec3::Vec3,
-    },
+    math::{linalg::mat3x3::Mat3x3, vec3::Vec3},
     refractive_index::RefractiveIndex,
     surfaces::{Conic, Image, Iris, Object, Probe, Sphere, Surface, SurfaceKind},
 };
@@ -210,9 +207,9 @@ pub(crate) fn propagate_tangential_vec(
         .map(|(surf, placement)| {
             let v_incident = v;
             if let BoundaryKind::Reflecting = surf.boundary_kind() {
-                // Normal in global frame: third column of inv_rotation_matrix
-                // (maps local Z to global).
-                let n = placement.inv_rotation_matrix * Vec3::new(0.0, 0.0, 1.0);
+                // Normal in global frame derived from the *nominal* orientation
+                // so that rotation_offset never redirects the paraxial axis.
+                let n = placement.nominal_inv_rotation_matrix * Vec3::new(0.0, 0.0, 1.0);
                 let dot = v.x() * n.x() + v.y() * n.y() + v.z() * n.z();
                 v = Vec3::new(
                     v.x() - 2.0 * dot * n.x(),
@@ -354,15 +351,16 @@ impl SequentialModel {
     ///
     /// Use this when constructing a model programmatically in Rust without
     /// going through the spec/serialization layer. Each element of `surfaces`
-    /// pairs a surface implementation with its tilt rotation; pass
-    /// [`Rotation3D::None`] for untilted surfaces.
+    /// pairs a surface implementation with its [`SurfacePlacement`]; use
+    /// [`SurfacePlacement::none()`] for untilted surfaces with no displacement,
+    /// or [`SurfacePlacement::from_rotation`] to supply only a tilt rotation.
     ///
     /// # Arguments
-    /// * `surfaces` - Pre-built surfaces paired with their tilt rotations.
+    /// * `surfaces` - Pre-built surfaces paired with their placement data.
     /// * `gap_specs` - Gaps between surfaces (`surfaces.len() - 1` elements).
     /// * `wavelengths` - Wavelengths at which to model the system.
     pub fn from_surfaces(
-        surfaces: Vec<(Box<dyn Surface>, Rotation3D)>,
+        surfaces: Vec<(Box<dyn Surface>, SurfacePlacement)>,
         gap_specs: &[GapSpec],
         wavelengths: &[Float],
         stop_surface: Option<usize>,
@@ -377,9 +375,9 @@ impl SequentialModel {
         }
         Self::validate_specs(gap_specs, wavelengths)?;
 
-        let (surfs, rotations): (Vec<_>, Vec<_>) = surfaces.into_iter().unzip();
+        let (surfs, surface_placements): (Vec<_>, Vec<_>) = surfaces.into_iter().unzip();
         let (placements, axis_directions) =
-            Self::build_placements_and_directions(&surfs, &rotations, gap_specs);
+            Self::build_placements_and_directions(&surfs, &surface_placements, gap_specs);
 
         if let Some(i) = stop_surface {
             Self::validate_stop_surface(&surfs, i)?;
@@ -509,13 +507,13 @@ impl SequentialModel {
     }
 
     /// Walks the cursor through the system, building placements and axis
-    /// directions from pre-built surfaces and their rotations.
+    /// directions from pre-built surfaces and their placement data.
     ///
-    /// `surfaces` and `rotations` must have the same length N.
+    /// `surfaces` and `surface_placements` must have the same length N.
     /// `gap_specs` must have length N - 1.
     fn build_placements_and_directions(
         surfaces: &[Box<dyn Surface>],
-        rotations: &[Rotation3D],
+        surface_placements: &[SurfacePlacement],
         gap_specs: &[GapSpec],
     ) -> (Vec<Placement>, Vec<Vec3>) {
         let mut placements = Vec::new();
@@ -523,18 +521,29 @@ impl SequentialModel {
         let mut cursor = Cursor::new(-gap_specs[0].thickness);
 
         // Surfaces 0 to N-2 (each paired with a gap that follows it).
-        for ((surf, rotation), gap_spec) in
-            surfaces.iter().zip(rotations.iter()).zip(gap_specs.iter())
+        for ((surf, sp), gap_spec) in surfaces
+            .iter()
+            .zip(surface_placements.iter())
+            .zip(gap_specs.iter())
         {
             axis_directions.push(cursor.forward());
-            let placement = Placement::from_rotation(rotation, &cursor);
 
-            // Flip the cursor upon reflection. Evaluate the normal at the
-            // vertex (local origin = (0,0,0)) and transform to global frame.
+            let nominal_rot = sp.rotation.rotation_matrix();
+            let actual_rot = sp.rotation_offset.rotation_matrix() * nominal_rot;
+            let placement = Placement::from_decenter_and_rotation(
+                sp.decenter,
+                actual_rot,
+                nominal_rot,
+                &cursor,
+            );
+
+            // Flip the cursor upon reflection. Use only the nominal rotation
+            // so that rotation_offset never redirects the cursor.
             if let BoundaryKind::Reflecting = surf.boundary_kind() {
-                let mut norm = surf.norm(Vec3::new(0.0, 0.0, 0.0));
-                norm = (placement.inv_rotation_matrix * norm).normalize();
-                cursor.reflect(&norm);
+                let norm_local = surf.norm(Vec3::new(0.0, 0.0, 0.0));
+                let nominal_local_to_global = (nominal_rot * cursor.rotation_matrix()).transpose();
+                let norm_global = (nominal_local_to_global * norm_local).normalize();
+                cursor.reflect(&norm_global);
             }
 
             placements.push(placement);
@@ -543,8 +552,13 @@ impl SequentialModel {
 
         // Last surface - no gap after it.
         axis_directions.push(cursor.forward());
-        placements.push(Placement::from_rotation(
-            rotations.last().expect("at least one surface"),
+        let sp = surface_placements.last().expect("at least one surface");
+        let nominal_rot = sp.rotation.rotation_matrix();
+        let actual_rot = sp.rotation_offset.rotation_matrix() * nominal_rot;
+        placements.push(Placement::from_decenter_and_rotation(
+            sp.decenter,
+            actual_rot,
+            nominal_rot,
             &cursor,
         ));
 
@@ -561,9 +575,16 @@ impl SequentialModel {
             .iter()
             .map(|s| surface_from_spec(s, registry))
             .collect::<Result<Vec<_>>>()?;
-        let rotations: Vec<Rotation3D> = surf_specs.iter().map(rotation_from_spec).collect();
+        let surface_placements: Vec<SurfacePlacement> = surf_specs
+            .iter()
+            .map(|spec| SurfacePlacement {
+                decenter: spec.decenter(),
+                rotation: spec.rotation(),
+                rotation_offset: spec.rotation_offset(),
+            })
+            .collect();
         let (placements, axis_directions) =
-            Self::build_placements_and_directions(&surfaces, &rotations, gap_specs);
+            Self::build_placements_and_directions(&surfaces, &surface_placements, gap_specs);
         Ok((surfaces, placements, axis_directions))
     }
 
@@ -576,9 +597,16 @@ impl SequentialModel {
             .iter()
             .map(surface_from_spec)
             .collect::<Result<Vec<_>>>()?;
-        let rotations: Vec<Rotation3D> = surf_specs.iter().map(rotation_from_spec).collect();
+        let surface_placements: Vec<SurfacePlacement> = surf_specs
+            .iter()
+            .map(|spec| SurfacePlacement {
+                decenter: spec.decenter(),
+                rotation: spec.rotation(),
+                rotation_offset: spec.rotation_offset(),
+            })
+            .collect();
         let (placements, axis_directions) =
-            Self::build_placements_and_directions(&surfaces, &rotations, gap_specs);
+            Self::build_placements_and_directions(&surfaces, &surface_placements, gap_specs);
         Ok((surfaces, placements, axis_directions))
     }
 
@@ -761,20 +789,6 @@ impl<'a> Iterator for SequentialSubModelReverseIter<'a> {
     }
 }
 
-/// Extract the tilt [`Rotation3D`] from a surface specification.
-fn rotation_from_spec(spec: &SurfaceSpec) -> Rotation3D {
-    match spec {
-        SurfaceSpec::Conic { rotation, .. }
-        | SurfaceSpec::Sphere { rotation, .. }
-        | SurfaceSpec::Image { rotation }
-        | SurfaceSpec::Probe { rotation }
-        | SurfaceSpec::Iris { rotation, .. } => rotation.clone(),
-        SurfaceSpec::Object => Rotation3D::None,
-        #[cfg(feature = "serde")]
-        SurfaceSpec::Custom { rotation, .. } => rotation.clone(),
-    }
-}
-
 /// Build a [`Surface`] trait object from a surface specification.
 #[cfg(feature = "serde")]
 pub(crate) fn surface_from_spec(
@@ -870,6 +884,7 @@ mod tests {
         Placement::new(
             Vec3::new(0.0, 0.0, 0.0),
             0.0,
+            rotation_matrix,
             rotation_matrix,
             cursor_rotation_matrix,
         )
@@ -1010,8 +1025,8 @@ mod tests {
         // A system with identity rotations is rotationally symmetric.
         let id = Mat3x3::identity();
         let placements = vec![
-            Placement::new(Vec3::new(0.0, 0.0, 0.0), 0.0, id, id),
-            Placement::new(Vec3::new(0.0, 0.0, 0.0), 0.0, id, id),
+            Placement::new(Vec3::new(0.0, 0.0, 0.0), 0.0, id, id, id),
+            Placement::new(Vec3::new(0.0, 0.0, 0.0), 0.0, id, id, id),
         ];
         assert!(SequentialModel::is_rotationally_symmetric(&placements));
 
@@ -1072,19 +1087,19 @@ mod tests {
         let id = Mat3x3::identity();
 
         // z-coordinate infinite
-        let p = Placement::new(Vec3::new(0.0, 0.0, Float::INFINITY), 0.0, id, id);
+        let p = Placement::new(Vec3::new(0.0, 0.0, Float::INFINITY), 0.0, id, id, id);
         assert!(p.is_infinite());
 
         // y-coordinate infinite
-        let p = Placement::new(Vec3::new(0.0, Float::INFINITY, 0.0), 0.0, id, id);
+        let p = Placement::new(Vec3::new(0.0, Float::INFINITY, 0.0), 0.0, id, id, id);
         assert!(p.is_infinite());
 
         // x-coordinate infinite
-        let p = Placement::new(Vec3::new(Float::INFINITY, 0.0, 0.0), 0.0, id, id);
+        let p = Placement::new(Vec3::new(Float::INFINITY, 0.0, 0.0), 0.0, id, id, id);
         assert!(p.is_infinite());
 
         // finite
-        let p = Placement::new(Vec3::new(0.0, 0.0, 0.0), 0.0, id, id);
+        let p = Placement::new(Vec3::new(0.0, 0.0, 0.0), 0.0, id, id, id);
         assert!(!p.is_infinite());
     }
 
@@ -1157,16 +1172,24 @@ mod tests {
                 radius_of_curvature: 50.0,
                 surf_kind: BoundaryKind::Refracting,
                 rotation: Rotation3D::None,
+                decenter: Vec3::new(0.0, 0.0, 0.0),
+                rotation_offset: Rotation3D::None,
             },
             SurfaceSpec::Probe {
                 rotation: Rotation3D::None,
+                decenter: Vec3::new(0.0, 0.0, 0.0),
+                rotation_offset: Rotation3D::None,
             },
             SurfaceSpec::Iris {
                 semi_diameter: 5.0,
                 rotation: Rotation3D::None,
+                decenter: Vec3::new(0.0, 0.0, 0.0),
+                rotation_offset: Rotation3D::None,
             },
             SurfaceSpec::Image {
                 rotation: Rotation3D::None,
+                decenter: Vec3::new(0.0, 0.0, 0.0),
+                rotation_offset: Rotation3D::None,
             },
         ];
         (gaps, surfaces)
@@ -1208,5 +1231,174 @@ mod tests {
     fn stop_surface_probe_is_rejected() {
         let (gaps, surfaces) = stop_validation_specs();
         assert!(SequentialModel::from_surface_specs(&gaps, &surfaces, &[0.5876], Some(2)).is_err());
+    }
+
+    // AT-6: rotation_offset on a reflecting surface never redirects the cursor.
+    // A mirror with rotation = 45° about R redirects the cursor regardless of
+    // rotation_offset. Adding a rotation_offset should not change the image
+    // surface position (it only changes the surface's tilt, not the beam path).
+    #[test]
+    fn at6_rotation_offset_does_not_redirect_cursor() {
+        use crate::specs::surfaces::BoundaryKind;
+        use crate::{GapSpec, SurfaceSpec, Vec3, n};
+
+        let theta = 45.0_f64.to_radians();
+        let gaps = vec![
+            GapSpec {
+                thickness: 10.0,
+                refractive_index: n!(1.0),
+            },
+            GapSpec {
+                thickness: 10.0,
+                refractive_index: n!(1.0),
+            },
+        ];
+
+        // Mirror with rotation only (no rotation_offset).
+        let surfaces_no_offset = vec![
+            SurfaceSpec::Object,
+            SurfaceSpec::Sphere {
+                semi_diameter: 25.4,
+                radius_of_curvature: f64::INFINITY,
+                surf_kind: BoundaryKind::Reflecting,
+                rotation: Rotation3D::IntrinsicPassiveRUF(EulerAngles(theta, 0.0, 0.0)),
+                decenter: Vec3::new(0.0, 0.0, 0.0),
+                rotation_offset: Rotation3D::None,
+            },
+            SurfaceSpec::Image {
+                rotation: Rotation3D::None,
+                decenter: Vec3::new(0.0, 0.0, 0.0),
+                rotation_offset: Rotation3D::None,
+            },
+        ];
+        let model_no_offset =
+            SequentialModel::from_surface_specs(&gaps, &surfaces_no_offset, &[0.5876], None)
+                .expect("model_no_offset builds");
+
+        // Mirror with the same rotation plus a non-trivial rotation_offset.
+        let phi = 10.0_f64.to_radians();
+        let surfaces_with_offset = vec![
+            SurfaceSpec::Object,
+            SurfaceSpec::Sphere {
+                semi_diameter: 25.4,
+                radius_of_curvature: f64::INFINITY,
+                surf_kind: BoundaryKind::Reflecting,
+                rotation: Rotation3D::IntrinsicPassiveRUF(EulerAngles(theta, 0.0, 0.0)),
+                decenter: Vec3::new(0.0, 0.0, 0.0),
+                rotation_offset: Rotation3D::IntrinsicPassiveRUF(EulerAngles(0.0, phi, 0.0)),
+            },
+            SurfaceSpec::Image {
+                rotation: Rotation3D::None,
+                decenter: Vec3::new(0.0, 0.0, 0.0),
+                rotation_offset: Rotation3D::None,
+            },
+        ];
+        let model_with_offset =
+            SequentialModel::from_surface_specs(&gaps, &surfaces_with_offset, &[0.5876], None)
+                .expect("model_with_offset builds");
+
+        // Image surface position must be identical in both models because the
+        // cursor path is determined by `rotation` only.
+        let tol = 1e-10;
+        let pos_no_offset = model_no_offset.placements()[2].position;
+        let pos_with_offset = model_with_offset.placements()[2].position;
+        assert!(
+            (pos_no_offset.x() - pos_with_offset.x()).abs() < tol
+                && (pos_no_offset.y() - pos_with_offset.y()).abs() < tol
+                && (pos_no_offset.z() - pos_with_offset.z()).abs() < tol,
+            "rotation_offset changed cursor path: no_offset={:?}, with_offset={:?}",
+            pos_no_offset,
+            pos_with_offset
+        );
+    }
+
+    // AT-7: rotation_offset changes placement.rotation_matrix without changing
+    // the cursor direction (verified via the mirror surface itself).
+    #[test]
+    fn at7_rotation_offset_changes_rotation_matrix() {
+        use crate::specs::surfaces::BoundaryKind;
+        use crate::{GapSpec, SurfaceSpec, Vec3, n};
+
+        let gaps = vec![
+            GapSpec {
+                thickness: 10.0,
+                refractive_index: n!(1.0),
+            },
+            GapSpec {
+                thickness: 10.0,
+                refractive_index: n!(1.0),
+            },
+        ];
+        let phi = 5.0_f64.to_radians();
+
+        let surfaces_no_offset = vec![
+            SurfaceSpec::Object,
+            SurfaceSpec::Sphere {
+                semi_diameter: 25.4,
+                radius_of_curvature: f64::INFINITY,
+                surf_kind: BoundaryKind::Refracting,
+                rotation: Rotation3D::None,
+                decenter: Vec3::new(0.0, 0.0, 0.0),
+                rotation_offset: Rotation3D::None,
+            },
+            SurfaceSpec::Image {
+                rotation: Rotation3D::None,
+                decenter: Vec3::new(0.0, 0.0, 0.0),
+                rotation_offset: Rotation3D::None,
+            },
+        ];
+        let surfaces_with_offset = vec![
+            SurfaceSpec::Object,
+            SurfaceSpec::Sphere {
+                semi_diameter: 25.4,
+                radius_of_curvature: f64::INFINITY,
+                surf_kind: BoundaryKind::Refracting,
+                rotation: Rotation3D::None,
+                decenter: Vec3::new(0.0, 0.0, 0.0),
+                rotation_offset: Rotation3D::IntrinsicPassiveRUF(EulerAngles(0.0, phi, 0.0)),
+            },
+            SurfaceSpec::Image {
+                rotation: Rotation3D::None,
+                decenter: Vec3::new(0.0, 0.0, 0.0),
+                rotation_offset: Rotation3D::None,
+            },
+        ];
+
+        let model_no =
+            SequentialModel::from_surface_specs(&gaps, &surfaces_no_offset, &[0.5876], None)
+                .expect("model_no builds");
+        let model_with =
+            SequentialModel::from_surface_specs(&gaps, &surfaces_with_offset, &[0.5876], None)
+                .expect("model_with builds");
+
+        let rot_no = model_no.placements()[1].rotation_matrix;
+        let rot_with = model_with.placements()[1].rotation_matrix;
+
+        // rotation_matrix must differ when rotation_offset != None.
+        assert!(
+            !rot_no.approx_eq(&rot_with, 1e-10),
+            "rotation_matrix should change when rotation_offset is set"
+        );
+
+        // nominal_inv_rotation_matrix must be identical (cursor sees same nominal).
+        let nom_no = model_no.placements()[1].nominal_inv_rotation_matrix;
+        let nom_with = model_with.placements()[1].nominal_inv_rotation_matrix;
+        assert!(
+            nom_no.approx_eq(&nom_with, 1e-10),
+            "nominal_inv_rotation_matrix should be identical: no={:?}, with={:?}",
+            nom_no,
+            nom_with
+        );
+
+        // Image surface position must be identical (cursor path unchanged).
+        let tol = 1e-10;
+        let img_no = model_no.placements()[2].position;
+        let img_with = model_with.placements()[2].position;
+        assert!(
+            (img_no.z() - img_with.z()).abs() < tol,
+            "image z changed: no={}, with={}",
+            img_no.z(),
+            img_with.z()
+        );
     }
 }

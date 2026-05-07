@@ -1199,7 +1199,7 @@ mod test {
 
     use crate::examples::convexplano_lens;
     use crate::{
-        GapSpec, Rotation3D, SequentialModel, SurfaceSpec, core::Float, n,
+        GapSpec, Rotation3D, SequentialModel, SurfaceSpec, Vec3, core::Float, n,
         specs::surfaces::BoundaryKind,
     };
 
@@ -1463,6 +1463,8 @@ mod test {
                 conic_constant: 0.0,
                 surf_kind: BoundaryKind::Refracting,
                 rotation: Rotation3D::None,
+                decenter: Vec3::new(0.0, 0.0, 0.0),
+                rotation_offset: Rotation3D::None,
             },
             SurfaceSpec::Conic {
                 semi_diameter: 14.0,
@@ -1470,9 +1472,13 @@ mod test {
                 conic_constant: 0.0,
                 surf_kind: BoundaryKind::Refracting,
                 rotation: Rotation3D::None,
+                decenter: Vec3::new(0.0, 0.0, 0.0),
+                rotation_offset: Rotation3D::None,
             },
             SurfaceSpec::Image {
                 rotation: Rotation3D::None,
+                decenter: Vec3::new(0.0, 0.0, 0.0),
+                rotation_offset: Rotation3D::None,
             },
         ];
 
@@ -1524,6 +1530,8 @@ mod test {
                 conic_constant: 0.0,
                 surf_kind: BoundaryKind::Refracting,
                 rotation: Rotation3D::None,
+                decenter: Vec3::new(0.0, 0.0, 0.0),
+                rotation_offset: Rotation3D::None,
             },
             SurfaceSpec::Conic {
                 semi_diameter: 12.5,
@@ -1531,9 +1539,13 @@ mod test {
                 conic_constant: 0.0,
                 surf_kind: BoundaryKind::Refracting,
                 rotation: Rotation3D::None,
+                decenter: Vec3::new(0.0, 0.0, 0.0),
+                rotation_offset: Rotation3D::None,
             },
             SurfaceSpec::Image {
                 rotation: Rotation3D::None,
+                decenter: Vec3::new(0.0, 0.0, 0.0),
+                rotation_offset: Rotation3D::None,
             },
         ];
         let seq =

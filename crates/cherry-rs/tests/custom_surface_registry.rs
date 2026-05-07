@@ -75,6 +75,8 @@ fn builder_with_registry_accepts_custom_spec() {
         },
         SurfaceSpec::Image {
             rotation: Rotation3D::None,
+            decenter: Vec3::new(0.0, 0.0, 0.0),
+            rotation_offset: Rotation3D::None,
         },
     ];
     let gaps = vec![air_gap(f64::INFINITY), air_gap(10.0)];
@@ -100,6 +102,8 @@ fn without_registry_rejects_custom_spec() {
         },
         SurfaceSpec::Image {
             rotation: Rotation3D::None,
+            decenter: Vec3::new(0.0, 0.0, 0.0),
+            rotation_offset: Rotation3D::None,
         },
     ];
     let gaps = vec![air_gap(f64::INFINITY), air_gap(10.0)];
@@ -123,6 +127,8 @@ fn params_are_forwarded_to_constructor() {
         },
         SurfaceSpec::Image {
             rotation: Rotation3D::None,
+            decenter: Vec3::new(0.0, 0.0, 0.0),
+            rotation_offset: Rotation3D::None,
         },
     ];
     let gaps = vec![air_gap(f64::INFINITY), air_gap(10.0)];

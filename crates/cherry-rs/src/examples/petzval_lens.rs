@@ -1,4 +1,4 @@
-use crate::{BoundaryKind, FieldSpec, GapSpec, Rotation3D, SequentialModel, SurfaceSpec, n};
+use crate::{BoundaryKind, FieldSpec, GapSpec, Rotation3D, SequentialModel, SurfaceSpec, Vec3, n};
 
 pub fn sequential_model() -> SequentialModel {
     let air = n!(1.0);
@@ -53,55 +53,75 @@ pub fn sequential_model() -> SequentialModel {
         radius_of_curvature: 99.56266,
         surf_kind: BoundaryKind::Refracting,
         rotation: Rotation3D::None,
+        decenter: Vec3::new(0.0, 0.0, 0.0),
+        rotation_offset: Rotation3D::None,
     };
     let surf_2 = SurfaceSpec::Sphere {
         semi_diameter: 26.276,
         radius_of_curvature: -86.84002,
         surf_kind: BoundaryKind::Refracting,
         rotation: Rotation3D::None,
+        decenter: Vec3::new(0.0, 0.0, 0.0),
+        rotation_offset: Rotation3D::None,
     };
     let surf_3 = SurfaceSpec::Sphere {
         semi_diameter: 21.02,
         radius_of_curvature: -1187.63858,
         surf_kind: BoundaryKind::Refracting,
         rotation: Rotation3D::None,
+        decenter: Vec3::new(0.0, 0.0, 0.0),
+        rotation_offset: Rotation3D::None,
     };
     let surf_4 = SurfaceSpec::Iris {
         semi_diameter: 16.631,
         rotation: Rotation3D::None,
+        decenter: Vec3::new(0.0, 0.0, 0.0),
+        rotation_offset: Rotation3D::None,
     };
     let surf_5 = SurfaceSpec::Sphere {
         semi_diameter: 20.543,
         radius_of_curvature: 57.47491,
         surf_kind: BoundaryKind::Refracting,
         rotation: Rotation3D::None,
+        decenter: Vec3::new(0.0, 0.0, 0.0),
+        rotation_offset: Rotation3D::None,
     };
     let surf_6 = SurfaceSpec::Sphere {
         semi_diameter: 20.074,
         radius_of_curvature: -54.61685,
         surf_kind: BoundaryKind::Refracting,
         rotation: Rotation3D::None,
+        decenter: Vec3::new(0.0, 0.0, 0.0),
+        rotation_offset: Rotation3D::None,
     };
     let surf_7 = SurfaceSpec::Sphere {
         semi_diameter: 20.074,
         radius_of_curvature: -614.68633,
         surf_kind: BoundaryKind::Refracting,
         rotation: Rotation3D::None,
+        decenter: Vec3::new(0.0, 0.0, 0.0),
+        rotation_offset: Rotation3D::None,
     };
     let surf_8 = SurfaceSpec::Sphere {
         semi_diameter: 17.297,
         radius_of_curvature: -38.17110,
         surf_kind: BoundaryKind::Refracting,
         rotation: Rotation3D::None,
+        decenter: Vec3::new(0.0, 0.0, 0.0),
+        rotation_offset: Rotation3D::None,
     };
     let surf_9 = SurfaceSpec::Sphere {
         semi_diameter: 18.94,
         radius_of_curvature: f64::INFINITY,
         surf_kind: BoundaryKind::Refracting,
         rotation: Rotation3D::None,
+        decenter: Vec3::new(0.0, 0.0, 0.0),
+        rotation_offset: Rotation3D::None,
     };
     let surf_10 = SurfaceSpec::Image {
         rotation: Rotation3D::None,
+        decenter: Vec3::new(0.0, 0.0, 0.0),
+        rotation_offset: Rotation3D::None,
     };
     let surfaces = vec![
         surf_0, surf_1, surf_2, surf_3, surf_4, surf_5, surf_6, surf_7, surf_8, surf_9, surf_10,

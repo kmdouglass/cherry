@@ -1,4 +1,4 @@
-use cherry_rs::{BoundaryKind, GapSpec, Mask, Rotation3D, SequentialModel, Surface, Vec3, n};
+use cherry_rs::{BoundaryKind, GapSpec, Mask, SequentialModel, Surface, SurfacePlacement, Vec3, n};
 
 #[derive(Debug)]
 struct FlatNoOp {
@@ -40,9 +40,9 @@ fn air_gap(thickness: f64) -> GapSpec {
 
 #[test]
 fn from_surfaces_constructs_minimal_model() {
-    let surfaces: Vec<(Box<dyn Surface>, Rotation3D)> = vec![
-        (Box::new(FlatNoOp::new()), Rotation3D::None),
-        (Box::new(FlatNoOp::new()), Rotation3D::None),
+    let surfaces: Vec<(Box<dyn Surface>, SurfacePlacement)> = vec![
+        (Box::new(FlatNoOp::new()), SurfacePlacement::none()),
+        (Box::new(FlatNoOp::new()), SurfacePlacement::none()),
     ];
     let gaps = vec![air_gap(10.0)];
     let wavelengths = vec![0.587];
@@ -52,9 +52,9 @@ fn from_surfaces_constructs_minimal_model() {
 
 #[test]
 fn from_surfaces_wrong_gap_count_errors() {
-    let surfaces: Vec<(Box<dyn Surface>, Rotation3D)> = vec![
-        (Box::new(FlatNoOp::new()), Rotation3D::None),
-        (Box::new(FlatNoOp::new()), Rotation3D::None),
+    let surfaces: Vec<(Box<dyn Surface>, SurfacePlacement)> = vec![
+        (Box::new(FlatNoOp::new()), SurfacePlacement::none()),
+        (Box::new(FlatNoOp::new()), SurfacePlacement::none()),
     ];
     let gaps = vec![air_gap(10.0), air_gap(5.0)]; // one too many
     let wavelengths = vec![0.587];
@@ -64,9 +64,9 @@ fn from_surfaces_wrong_gap_count_errors() {
 
 #[test]
 fn from_surfaces_wavelengths_are_preserved() {
-    let surfaces: Vec<(Box<dyn Surface>, Rotation3D)> = vec![
-        (Box::new(FlatNoOp::new()), Rotation3D::None),
-        (Box::new(FlatNoOp::new()), Rotation3D::None),
+    let surfaces: Vec<(Box<dyn Surface>, SurfacePlacement)> = vec![
+        (Box::new(FlatNoOp::new()), SurfacePlacement::none()),
+        (Box::new(FlatNoOp::new()), SurfacePlacement::none()),
     ];
     let gaps = vec![air_gap(10.0)];
     let wavelengths = vec![0.486, 0.587, 0.656];
