@@ -57,53 +57,50 @@ pub fn surfaces_panel(
 
         let table = if has_reflecting {
             table
-                .column(Column::initial(65.0).resizable(true)) // θ (deg)
-                .column(Column::initial(65.0).resizable(true)) // ψ (deg)
+                .column(Column::initial(120.0).resizable(true)) // Nom. Rotation θ — wide enough for "Nominal Rotation" label
+                .column(Column::initial(65.0).resizable(true)) // Nom. Rotation ψ
         } else {
             table
         };
 
+        // Decenter (R, U, F) and Rotational Offset (θ, ψ, φ) are always present.
+        let table = table
+            .column(Column::initial(70.0).resizable(true)) // Decenter R — wide enough for "Decenter" label
+            .column(Column::initial(65.0).resizable(true)) // Decenter U
+            .column(Column::initial(65.0).resizable(true)) // Decenter F
+            .column(Column::initial(125.0).resizable(true)) // Rot. Offset θ — wide enough for "Rotational Offset" label
+            .column(Column::initial(65.0).resizable(true)) // Rot. Offset ψ
+            .column(Column::initial(65.0).resizable(true)); // Rot. Offset φ
+
         let table = table.column(Column::auto().at_least(50.0)); // Actions
 
+        // Two-zone header: a fixed-height top zone for group labels and a
+        // separator line, followed by the column name. Every cell uses the
+        // same fixed top-zone height (via allocate_ui_with_layout) so all
+        // column names sit at exactly the same Y regardless of label length.
         table
-            .header(20.0, |mut header| {
-                header.col(|ui| {
-                    ui.strong("#");
-                });
-                header.col(|ui| {
-                    ui.strong("Variant");
-                });
-                header.col(|ui| {
-                    ui.strong("Kind");
-                });
-                header.col(|ui| {
-                    ui.strong("Semi-Diam");
-                });
-                header.col(|ui| {
-                    ui.strong("RoC");
-                });
+            .header(34.0, |mut header| {
+                header.col(|ui| header_cell(ui, None, "#"));
+                header.col(|ui| header_cell(ui, None, "Variant"));
+                header.col(|ui| header_cell(ui, None, "Kind"));
+                header.col(|ui| header_cell(ui, None, "Semi-Diam"));
+                header.col(|ui| header_cell(ui, None, "RoC"));
                 if has_conic {
-                    header.col(|ui| {
-                        ui.strong("Conic");
-                    });
+                    header.col(|ui| header_cell(ui, None, "Conic"));
                 }
-                header.col(|ui| {
-                    ui.strong("Thickness");
-                });
-                header.col(|ui| {
-                    ui.strong("n");
-                });
+                header.col(|ui| header_cell(ui, None, "Thickness"));
+                header.col(|ui| header_cell(ui, None, "n"));
                 if has_reflecting {
-                    header.col(|ui| {
-                        ui.strong("\u{03b8} (deg)");
-                    });
-                    header.col(|ui| {
-                        ui.strong("\u{03c8} (deg)");
-                    });
+                    header.col(|ui| header_cell(ui, Some("Nominal Rotation"), "\u{03b8} (deg)"));
+                    header.col(|ui| header_cell(ui, None, "\u{03c8} (deg)"));
                 }
-                header.col(|ui| {
-                    ui.strong("");
-                });
+                header.col(|ui| header_cell(ui, Some("Decenter"), "R"));
+                header.col(|ui| header_cell(ui, None, "U"));
+                header.col(|ui| header_cell(ui, None, "F"));
+                header.col(|ui| header_cell(ui, Some("Rotational Offset"), "\u{03b8} (deg)"));
+                header.col(|ui| header_cell(ui, None, "\u{03c8} (deg)"));
+                header.col(|ui| header_cell(ui, None, "\u{03c6} (deg)"));
+                header.col(|ui| header_cell(ui, None, ""));
             })
             .body(|mut body| {
                 let num_surfaces = specs.surfaces.len();
@@ -390,6 +387,82 @@ pub fn surfaces_panel(
                             });
                         }
 
+                        // Decenter (R, U, F) — editable for all non-Object surfaces.
+                        row.col(|ui| {
+                            if !is_object {
+                                changed |= drag_value(
+                                    ui,
+                                    &mut surf.decenter_r,
+                                    row_idx,
+                                    "dec_r",
+                                    f64::NEG_INFINITY..=f64::INFINITY,
+                                    0.01,
+                                );
+                            }
+                        });
+                        row.col(|ui| {
+                            if !is_object {
+                                changed |= drag_value(
+                                    ui,
+                                    &mut surf.decenter_u,
+                                    row_idx,
+                                    "dec_u",
+                                    f64::NEG_INFINITY..=f64::INFINITY,
+                                    0.01,
+                                );
+                            }
+                        });
+                        row.col(|ui| {
+                            if !is_object {
+                                changed |= drag_value(
+                                    ui,
+                                    &mut surf.decenter_f,
+                                    row_idx,
+                                    "dec_f",
+                                    f64::NEG_INFINITY..=f64::INFINITY,
+                                    0.01,
+                                );
+                            }
+                        });
+
+                        // Rotational Offset (θ, ψ, φ) — editable for all non-Object surfaces.
+                        row.col(|ui| {
+                            if !is_object {
+                                changed |= drag_value(
+                                    ui,
+                                    &mut surf.rot_offset_theta,
+                                    row_idx,
+                                    "ro_theta",
+                                    -180.0..=180.0,
+                                    0.5,
+                                );
+                            }
+                        });
+                        row.col(|ui| {
+                            if !is_object {
+                                changed |= drag_value(
+                                    ui,
+                                    &mut surf.rot_offset_psi,
+                                    row_idx,
+                                    "ro_psi",
+                                    -180.0..=180.0,
+                                    0.5,
+                                );
+                            }
+                        });
+                        row.col(|ui| {
+                            if !is_object {
+                                changed |= drag_value(
+                                    ui,
+                                    &mut surf.rot_offset_phi,
+                                    row_idx,
+                                    "ro_phi",
+                                    -180.0..=180.0,
+                                    0.5,
+                                );
+                            }
+                        });
+
                         // Actions column (always last).
                         // Object row: + only (cannot remove object surface).
                         // Image row: no buttons (cannot insert after or remove image).
@@ -422,6 +495,21 @@ pub fn surfaces_panel(
     });
 
     changed
+}
+
+/// Renders a header cell with an optional group label above the column name.
+///
+/// Uses `bottom_up` layout so the column name is always anchored to the
+/// bottom of the cell. Group labels stack above it toward the top, so all
+/// column names sit at the same Y regardless of whether a group label is
+/// present and regardless of its text length.
+fn header_cell(ui: &mut egui::Ui, group: Option<&str>, name: &str) {
+    ui.with_layout(egui::Layout::bottom_up(egui::Align::Center), |ui| {
+        ui.strong(name);
+        if let Some(g) = group {
+            ui.weak(g);
+        }
+    });
 }
 
 /// Renders a read-only label for a solved cell with a type badge.
@@ -534,9 +622,11 @@ mod tests {
     #[test]
     fn object_row_has_add_button() {
         let mut specs = minimal_specs();
-        let mut harness = Harness::new_ui(|ui| {
-            default_panel(ui, &mut specs);
-        });
+        let mut harness = Harness::builder()
+            .with_size(egui::vec2(2000.0, 600.0))
+            .build_ui(|ui| {
+                default_panel(ui, &mut specs);
+            });
         harness.run();
         // Panics if no + button is found — that is the red state.
         harness.get_by_label("+");
@@ -547,9 +637,11 @@ mod tests {
     fn clicking_add_on_object_row_inserts_surface() {
         let mut specs = minimal_specs();
         {
-            let mut harness = Harness::new_ui(|ui| {
-                default_panel(ui, &mut specs);
-            });
+            let mut harness = Harness::builder()
+                .with_size(egui::vec2(2000.0, 600.0))
+                .build_ui(|ui| {
+                    default_panel(ui, &mut specs);
+                });
             harness.run();
             harness.get_by_label("+").click();
             harness.run();
@@ -562,29 +654,100 @@ mod tests {
         assert_eq!(specs.surfaces[1].variant, SurfaceVariant::Sphere);
     }
 
-    /// The actions (+/-) column must always be the last column, appearing to
-    /// the right of the θ/ψ columns when a reflecting surface is present.
+    /// The actions (+/-) column must always be the last column.
+    /// We verify against the φ (Rotational Offset) header, which is the last
+    /// column before Actions.
     #[test]
     fn actions_column_is_rightmost_with_reflecting_surfaces() {
         let mut specs = specs_with_reflecting_surface();
-        let mut harness = Harness::new_ui(|ui| {
-            default_panel(ui, &mut specs);
-        });
+        let mut harness = Harness::builder()
+            .with_size(egui::vec2(2000.0, 600.0))
+            .build_ui(|ui| {
+                default_panel(ui, &mut specs);
+            });
         harness.run();
 
-        let theta_header = harness.get_by_label("\u{03b8} (deg)");
+        // φ is the last column before Actions; use it as the reference.
+        let phi_header = harness.get_by_label("\u{03c6} (deg)");
         let add_button = harness
             .get_all_by_label("+")
             .next()
             .expect("at least one + button should be present");
 
         assert!(
-            add_button.rect().center().x > theta_header.rect().center().x,
-            "actions column must be to the right of θ column: \
-             + button at x={:.1}, θ header at x={:.1}",
+            add_button.rect().center().x > phi_header.rect().center().x,
+            "actions column must be to the right of φ column: \
+             + button at x={:.1}, φ header at x={:.1}",
             add_button.rect().center().x,
-            theta_header.rect().center().x,
+            phi_header.rect().center().x,
         );
+    }
+
+    /// Decenter columns are always visible, even without any reflecting
+    /// surface.
+    #[test]
+    fn decenter_columns_always_visible_without_reflecting() {
+        let mut specs = minimal_specs();
+        let mut harness = Harness::builder()
+            .with_size(egui::vec2(2000.0, 600.0))
+            .build_ui(|ui| {
+                default_panel(ui, &mut specs);
+            });
+        harness.run();
+        harness.get_by_label("Decenter");
+        harness.get_by_label("R");
+        harness.get_by_label("U");
+        harness.get_by_label("F");
+    }
+
+    /// Rotational Offset columns are always visible, even without any
+    /// reflecting surface.
+    #[test]
+    fn rot_offset_columns_always_visible_without_reflecting() {
+        let mut specs = minimal_specs();
+        let mut harness = Harness::builder()
+            .with_size(egui::vec2(2000.0, 600.0))
+            .build_ui(|ui| {
+                default_panel(ui, &mut specs);
+            });
+        harness.run();
+        harness.get_by_label("Rotational Offset");
+        // φ header uniquely identifies the rot-offset group.
+        harness.get_by_label("\u{03c6} (deg)");
+    }
+
+    /// The "Nominal Rotation" group label is absent when no reflecting surface
+    /// exists.
+    #[test]
+    fn nominal_rotation_group_absent_without_reflecting() {
+        let mut specs = minimal_specs();
+        let mut harness = Harness::builder()
+            .with_size(egui::vec2(2000.0, 600.0))
+            .build_ui(|ui| {
+                default_panel(ui, &mut specs);
+            });
+        harness.run();
+        assert!(
+            harness
+                .query_all_by_label("Nominal Rotation")
+                .next()
+                .is_none(),
+            "Nominal Rotation label should not appear without a reflecting surface"
+        );
+    }
+
+    /// The "Nominal Rotation" group label is present when a reflecting surface
+    /// exists.
+    #[test]
+    fn nominal_rotation_group_present_with_reflecting() {
+        let mut specs = specs_with_reflecting_surface();
+        let mut harness = Harness::builder()
+            .with_size(egui::vec2(2000.0, 600.0))
+            .build_ui(|ui| {
+                default_panel(ui, &mut specs);
+            });
+        harness.run();
+        harness.get_by_label("Nominal Rotation");
     }
 
     fn lens_specs() -> SystemSpecs {
@@ -602,9 +765,11 @@ mod tests {
     #[test]
     fn solve_button_present_on_roc_cell_for_sphere() {
         let mut specs = lens_specs();
-        let mut harness = Harness::new_ui(|ui| {
-            default_panel(ui, &mut specs);
-        });
+        let mut harness = Harness::builder()
+            .with_size(egui::vec2(2000.0, 600.0))
+            .build_ui(|ui| {
+                default_panel(ui, &mut specs);
+            });
         harness.run();
         // The ○ solve button must appear (at least one, since we have curved surfaces).
         harness
@@ -625,9 +790,11 @@ mod tests {
         let mut sv = SolvedValues::default();
         sv.surface_rocs.insert(1, 12.345);
 
-        let mut harness = Harness::new_ui(|ui| {
-            surfaces_panel(ui, &mut specs, Some(&sv), &mut None);
-        });
+        let mut harness = Harness::builder()
+            .with_size(egui::vec2(2000.0, 600.0))
+            .build_ui(|ui| {
+                surfaces_panel(ui, &mut specs, Some(&sv), &mut None);
+            });
         harness.run();
         harness.get_by_label("[F]");
     }
@@ -641,9 +808,11 @@ mod tests {
             wavelength_id: 0,
         }];
 
-        let mut harness = Harness::new_ui(|ui| {
-            surfaces_panel(ui, &mut specs, None, &mut None);
-        });
+        let mut harness = Harness::builder()
+            .with_size(egui::vec2(2000.0, 600.0))
+            .build_ui(|ui| {
+                surfaces_panel(ui, &mut specs, None, &mut None);
+            });
         harness.run();
         harness.get_by_label("—");
     }
@@ -653,9 +822,11 @@ mod tests {
         let mut specs = lens_specs();
         // No solves active — DragValues should be present and solve buttons should
         // show the inactive "○" icon, not the active "●".
-        let mut harness = Harness::new_ui(|ui| {
-            default_panel(ui, &mut specs);
-        });
+        let mut harness = Harness::builder()
+            .with_size(egui::vec2(2000.0, 600.0))
+            .build_ui(|ui| {
+                default_panel(ui, &mut specs);
+            });
         harness.run();
         // Active solve indicator "●" should not appear when no solves are configured.
         let active_buttons: Vec<_> = harness.query_all_by_label("●").collect();

@@ -58,6 +58,9 @@ pub enum DrawElement {
     },
     Iris {
         z: f64,
+        /// Transverse position of the aperture centre (non-zero when the iris
+        /// has a decenter along the cross-section's transverse axis).
+        center: f64,
         half_gap: f64,
         extent: f64,
     },
@@ -92,10 +95,24 @@ pub fn cross_section_view(
 ) -> CrossSectionView {
     let wavelengths = model.wavelengths().to_vec();
     let axis_dirs = model.axis_directions();
+    let placements = model.placements();
 
-    // Check which cutting planes are valid.
-    let yz_valid = axis_dirs.iter().all(|d| d.x().abs() < EPS);
-    let xz_valid = axis_dirs.iter().all(|d| d.y().abs() < EPS);
+    // A plane is valid when (a) the optical axis lies in it, (b) every surface
+    // vertex lies in it (no transverse decenter out of the plane), and (c) every
+    // surface normal lies in it (no rotation_offset that tilts the surface out of
+    // the plane). The surface normal in global coords is
+    // `rotation_matrix.transpose() * local_z` because `rotation_matrix` maps
+    // global→local.
+    let yz_valid = axis_dirs.iter().all(|d| d.x().abs() < EPS)
+        && placements.iter().all(|p| {
+            let n = p.rotation_matrix.transpose() * Vec3::new(0.0, 0.0, 1.0);
+            p.position.x().abs() < EPS && n.x().abs() < EPS
+        });
+    let xz_valid = axis_dirs.iter().all(|d| d.y().abs() < EPS)
+        && placements.iter().all(|p| {
+            let n = p.rotation_matrix.transpose() * Vec3::new(0.0, 0.0, 1.0);
+            p.position.y().abs() < EPS && n.y().abs() < EPS
+        });
 
     let yz = build_plane_geometry(model, cross_section_rays, GlobalAxis::Y, components);
     let xz = build_plane_geometry(model, cross_section_rays, GlobalAxis::X, components);
@@ -146,9 +163,14 @@ fn build_plane_geometry(
             }
             Component::Iris { stop_idx } => {
                 let z = placements[*stop_idx].position.z();
+                let center = match axis {
+                    GlobalAxis::Y => placements[*stop_idx].position.y(),
+                    GlobalAxis::X => placements[*stop_idx].position.x(),
+                };
                 let sd = surfaces[*stop_idx].mask().semi_diameter();
                 elements.push(DrawElement::Iris {
                     z,
+                    center,
                     half_gap: sd,
                     extent: largest_sd * 1.5,
                 });
@@ -351,7 +373,7 @@ fn compute_bounds(elements: &[DrawElement], ray_paths: &[Vec<Vec<[f64; 2]>>]) ->
             }
             DrawElement::Iris { z, extent, .. } => {
                 update(*z, *extent, &mut z_min, &mut z_max, &mut t_min, &mut t_max);
-                update(*z, -extent, &mut z_min, &mut z_max, &mut t_min, &mut t_max);
+                update(*z, -*extent, &mut z_min, &mut z_max, &mut t_min, &mut t_max);
             }
             DrawElement::FlatPlane { p1, p2, .. } => {
                 update(p1[0], p1[1], &mut z_min, &mut z_max, &mut t_min, &mut t_max);
@@ -387,7 +409,107 @@ fn compute_bounds(elements: &[DrawElement], ray_paths: &[Vec<Vec<[f64; 2]>>]) ->
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{core::Float, examples::convexplano_lens, n, views::components::components_view};
+    use crate::{
+        BoundaryKind, EulerAngles, GapSpec, Rotation3D, SequentialModel, SurfaceSpec, Vec3,
+        core::Float, examples::convexplano_lens, n, views::components::components_view,
+    };
+
+    /// Build a minimal straight system: Object → Sphere → Image.
+    fn straight_sphere_model(decenter: Vec3, rotation_offset: Rotation3D) -> SequentialModel {
+        let air = n!(1.0);
+        let gaps = vec![
+            GapSpec {
+                thickness: 100.0,
+                refractive_index: air.clone(),
+            },
+            GapSpec {
+                thickness: 50.0,
+                refractive_index: air,
+            },
+        ];
+        let surfs = vec![
+            SurfaceSpec::Object,
+            SurfaceSpec::Sphere {
+                semi_diameter: 10.0,
+                radius_of_curvature: 50.0,
+                surf_kind: BoundaryKind::Refracting,
+                rotation: Rotation3D::None,
+                decenter,
+                rotation_offset,
+            },
+            SurfaceSpec::Image {
+                rotation: Rotation3D::None,
+                decenter: Vec3::new(0.0, 0.0, 0.0),
+                rotation_offset: Rotation3D::None,
+            },
+        ];
+        SequentialModel::from_surface_specs(&gaps, &surfs, &[0.5876], None).expect("build model")
+    }
+
+    fn empty_components() -> std::collections::HashSet<Component> {
+        std::collections::HashSet::new()
+    }
+
+    #[test]
+    fn yz_invalid_when_r_decenter_nonzero() {
+        let model = straight_sphere_model(Vec3::new(0.1, 0.0, 0.0), Rotation3D::None);
+        let cs = cross_section_view(&model, None, &empty_components());
+        assert!(!cs.yz_valid, "R-decenter should invalidate YZ");
+        assert!(cs.xz_valid, "R-decenter should leave XZ valid");
+    }
+
+    #[test]
+    fn xz_invalid_when_u_decenter_nonzero() {
+        let model = straight_sphere_model(Vec3::new(0.0, 0.1, 0.0), Rotation3D::None);
+        let cs = cross_section_view(&model, None, &empty_components());
+        assert!(!cs.xz_valid, "U-decenter should invalidate XZ");
+        assert!(cs.yz_valid, "U-decenter should leave YZ valid");
+    }
+
+    #[test]
+    fn f_decenter_does_not_invalidate_either_plane() {
+        let model = straight_sphere_model(Vec3::new(0.0, 0.0, 0.5), Rotation3D::None);
+        let cs = cross_section_view(&model, None, &empty_components());
+        assert!(cs.yz_valid, "F-decenter should not invalidate YZ");
+        assert!(cs.xz_valid, "F-decenter should not invalidate XZ");
+    }
+
+    #[test]
+    fn yz_invalid_when_rot_offset_has_psi_component() {
+        // psi rotation_offset (about U axis) tilts the surface normal in the
+        // R-F plane, taking it out of the YZ plane.
+        let model = straight_sphere_model(
+            Vec3::new(0.0, 0.0, 0.0),
+            Rotation3D::IntrinsicPassiveRUF(EulerAngles(0.0, 0.1_f64.to_radians(), 0.0)),
+        );
+        let cs = cross_section_view(&model, None, &empty_components());
+        assert!(!cs.yz_valid, "psi rotation_offset should invalidate YZ");
+    }
+
+    #[test]
+    fn xz_invalid_when_rot_offset_has_theta_component() {
+        // theta rotation_offset (about R axis) tilts the surface normal in the
+        // U-F plane, taking it out of the XZ plane.
+        let model = straight_sphere_model(
+            Vec3::new(0.0, 0.0, 0.0),
+            Rotation3D::IntrinsicPassiveRUF(EulerAngles(0.1_f64.to_radians(), 0.0, 0.0)),
+        );
+        let cs = cross_section_view(&model, None, &empty_components());
+        assert!(!cs.xz_valid, "theta rotation_offset should invalidate XZ");
+    }
+
+    #[test]
+    fn phi_rot_offset_does_not_invalidate_either_plane() {
+        // phi rotation_offset (about F axis) is a roll that keeps the surface
+        // normal pointing along F; the cross-section planes remain valid.
+        let model = straight_sphere_model(
+            Vec3::new(0.0, 0.0, 0.0),
+            Rotation3D::IntrinsicPassiveRUF(EulerAngles(0.0, 0.0, 0.3_f64.to_radians())),
+        );
+        let cs = cross_section_view(&model, None, &empty_components());
+        assert!(cs.yz_valid, "phi rotation_offset should not invalidate YZ");
+        assert!(cs.xz_valid, "phi rotation_offset should not invalidate XZ");
+    }
 
     #[test]
     fn yz_valid_for_straight_system() {

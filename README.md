@@ -65,28 +65,27 @@ Cherry might be for you if:
 
 ### Now
 
-- [X] Refactor the core to support the next set of features and better future-proof the API
-  - [X] User-specified stop
-  - [X] Serialization layer moved into a crate feature
-  - [X] Flat and spherical ray-surface intersection solvers
-- [X] Solve system to enforce active constraints on a design
+- [X] Decenters/rotational offsets on surfaces
+- [ ] Lens view for manipulating systems by lens instead of by surface
+- [ ] Decenters/rotational offsets on lenses
+- [ ] **Help Wanted** Annotate coordinate axes, the optical axis, and other elements in the cross-section view
+- [ ] Galvo plus scan lens example
 
 ### Next
 
-- [ ] Lens view for manipulating systems by lens instead of by surface
-- [ ] Tip/tilts/decenters on individual surfaces and lenses
 - [ ] Encode designs into URLs and enable sharing via tiny URLs
 - [ ] Cooke triplet example
 - [ ] **Help Wanted** mdbook to serve as the app's user documentation
-- [ ] **Help Wanted** Annotate coordinate axes, the optical axis, and other elements in the cross-section view
 
 ### Later
 
 - [ ] Lens library/explorer
 - [ ] Paraxial Gaussian beam propagation
-- [ ] Ensure backwards compatibility with saved designs
+- [ ] Backwards compatibility with saved designs
 - [ ] **Help Wanted** 3D views
 - [ ] **Help Wanted** Fuzzy search for materials
+- [ ] Paraxial surface types
+- [ ] [Cardinal lens](https://opg.optica.org/ao/fulltext.cfm?uri=ao-63-4-1110) surface type for ideal objective models
 
 ## License
 

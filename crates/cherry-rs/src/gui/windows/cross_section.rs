@@ -311,10 +311,11 @@ fn draw_element(
         }
         DrawElement::Iris {
             z,
+            center,
             half_gap,
-            extent,
+            ..
         } => {
-            draw_stop(painter, *z as f32, *half_gap as f32, *extent as f32, w2s);
+            draw_stop(painter, *z as f32, *center as f32, *half_gap as f32, w2s);
         }
         DrawElement::FlatPlane { p1, p2, kind } => {
             draw_flat_plane(painter, *p1, *p2, *kind, w2s);
@@ -407,10 +408,16 @@ fn draw_surface_profile(painter: &egui::Painter, points: &[[f64; 2]], w2s: &Worl
     }
 }
 
-fn draw_stop(painter: &egui::Painter, z: f32, half_gap: f32, extent: f32, w2s: &WorldToScreen) {
+fn draw_stop(painter: &egui::Painter, z: f32, center: f32, half_gap: f32, w2s: &WorldToScreen) {
     let stroke = egui::Stroke::new(2.0, egui::Color32::from_gray(160));
-    painter.line_segment([w2s.map(z, extent), w2s.map(z, half_gap)], stroke);
-    painter.line_segment([w2s.map(z, -half_gap), w2s.map(z, -extent)], stroke);
+    let gap_top = w2s.map(z, center + half_gap);
+    let gap_bot = w2s.map(z, center - half_gap);
+    // Anchor the outer ends of the iris arms to the painter's clip boundary
+    // rather than to a world-coordinate extent. This prevents the arms from
+    // shrinking as the aperture approaches the padding region.
+    let clip = painter.clip_rect();
+    painter.line_segment([egui::pos2(gap_top.x, clip.top()), gap_top], stroke);
+    painter.line_segment([gap_bot, egui::pos2(gap_bot.x, clip.bottom())], stroke);
 }
 
 fn draw_flat_plane(
@@ -591,10 +598,11 @@ fn render_svg(geom: &PlaneGeometry, wavelengths: &[f64], dark_mode: bool) -> Str
             }
             DrawElement::Iris {
                 z,
+                center,
                 half_gap,
-                extent,
+                ..
             } => {
-                svg_stop(&mut s, *z, *half_gap, *extent, &w2s, stop_color);
+                svg_stop(&mut s, *z, *center, *half_gap, &w2s, stop_color);
             }
             DrawElement::FlatPlane { p1, p2, kind } => {
                 svg_flat_plane(&mut s, *p1, *p2, *kind, &w2s);
@@ -669,16 +677,15 @@ fn svg_polyline(s: &mut String, points: &[[f64; 2]], w2s: &WorldToSvg, stroke: &
     ));
 }
 
-fn svg_stop(s: &mut String, z: f64, half_gap: f64, extent: f64, w2s: &WorldToSvg, color: &str) {
-    let (x, y_top) = w2s.map(z, extent);
-    let (_, y_gap_top) = w2s.map(z, half_gap);
+fn svg_stop(s: &mut String, z: f64, center: f64, half_gap: f64, w2s: &WorldToSvg, color: &str) {
+    let (x, y_gap_top) = w2s.map(z, center + half_gap);
+    let (_, y_gap_bot) = w2s.map(z, center - half_gap);
+    // Anchor arms to the SVG canvas edges so they never shrink near the boundary.
     s.push_str(&format!(
-        r#"<line x1="{x:.2}" y1="{y_top:.2}" x2="{x:.2}" y2="{y_gap_top:.2}" stroke="{color}" stroke-width="2"/>"#
+        r#"<line x1="{x:.2}" y1="0" x2="{x:.2}" y2="{y_gap_top:.2}" stroke="{color}" stroke-width="2"/>"#
     ));
-    let (_, y_gap_bot) = w2s.map(z, -half_gap);
-    let (_, y_bot) = w2s.map(z, -extent);
     s.push_str(&format!(
-        r#"<line x1="{x:.2}" y1="{y_gap_bot:.2}" x2="{x:.2}" y2="{y_bot:.2}" stroke="{color}" stroke-width="2"/>"#
+        r#"<line x1="{x:.2}" y1="{y_gap_bot:.2}" x2="{x:.2}" y2="{SVG_H:.2}" stroke="{color}" stroke-width="2"/>"#
     ));
 }
 

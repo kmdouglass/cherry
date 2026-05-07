@@ -7,7 +7,7 @@ use crate::{
     GapSpec, MarginalRaySolve, RefractiveIndexSpec, Rotation3D, Solve, SurfaceSpec, Vec3,
 };
 
-use super::model::{FieldMode, SolveSpec, SurfaceKind, SurfaceVariant, SystemSpecs};
+use super::model::{FieldMode, SolveSpec, SurfaceKind, SurfaceRow, SurfaceVariant, SystemSpecs};
 
 /// Parsed core specs ready for model construction.
 pub struct ParsedSpecs {
@@ -36,6 +36,31 @@ fn parse_float(s: &str) -> Result<f64> {
 /// Materials map type used when the ri-info feature is enabled.
 #[cfg(feature = "ri-info")]
 pub type MaterialsMap = std::collections::HashMap<String, Rc<lib_ria::Material>>;
+
+fn parse_decenter(row: &SurfaceRow, i: usize) -> Result<Vec3> {
+    let r = parse_float(&row.decenter_r).with_context(|| format!("surface {i}: decenter R"))?;
+    let u = parse_float(&row.decenter_u).with_context(|| format!("surface {i}: decenter U"))?;
+    let f = parse_float(&row.decenter_f).with_context(|| format!("surface {i}: decenter F"))?;
+    Ok(Vec3::new(r, u, f))
+}
+
+fn parse_rotation_offset(row: &SurfaceRow, i: usize) -> Result<Rotation3D> {
+    let theta = parse_float(&row.rot_offset_theta)
+        .with_context(|| format!("surface {i}: rot_offset theta"))?;
+    let psi =
+        parse_float(&row.rot_offset_psi).with_context(|| format!("surface {i}: rot_offset psi"))?;
+    let phi =
+        parse_float(&row.rot_offset_phi).with_context(|| format!("surface {i}: rot_offset phi"))?;
+    if theta == 0.0 && psi == 0.0 && phi == 0.0 {
+        Ok(Rotation3D::None)
+    } else {
+        Ok(Rotation3D::IntrinsicPassiveRUF(EulerAngles(
+            theta.to_radians(),
+            psi.to_radians(),
+            phi.to_radians(),
+        )))
+    }
+}
 
 /// Convert GUI `SystemSpecs` into core library specs.
 ///
@@ -101,8 +126,8 @@ fn convert_specs_inner(
                     conic_constant: conic,
                     surf_kind,
                     rotation,
-                    decenter: Vec3::new(0.0, 0.0, 0.0),
-                    rotation_offset: Rotation3D::None,
+                    decenter: parse_decenter(row, i)?,
+                    rotation_offset: parse_rotation_offset(row, i)?,
                 }
             }
             SurfaceVariant::Sphere => {
@@ -136,8 +161,8 @@ fn convert_specs_inner(
                     radius_of_curvature: roc,
                     surf_kind,
                     rotation,
-                    decenter: Vec3::new(0.0, 0.0, 0.0),
-                    rotation_offset: Rotation3D::None,
+                    decenter: parse_decenter(row, i)?,
+                    rotation_offset: parse_rotation_offset(row, i)?,
                 }
             }
             SurfaceVariant::Iris => {
@@ -146,19 +171,19 @@ fn convert_specs_inner(
                 SurfaceSpec::Iris {
                     semi_diameter,
                     rotation: Rotation3D::None,
-                    decenter: Vec3::new(0.0, 0.0, 0.0),
-                    rotation_offset: Rotation3D::None,
+                    decenter: parse_decenter(row, i)?,
+                    rotation_offset: parse_rotation_offset(row, i)?,
                 }
             }
             SurfaceVariant::Probe => SurfaceSpec::Probe {
                 rotation: Rotation3D::None,
-                decenter: Vec3::new(0.0, 0.0, 0.0),
-                rotation_offset: Rotation3D::None,
+                decenter: parse_decenter(row, i)?,
+                rotation_offset: parse_rotation_offset(row, i)?,
             },
             SurfaceVariant::Image => SurfaceSpec::Image {
                 rotation: Rotation3D::None,
-                decenter: Vec3::new(0.0, 0.0, 0.0),
-                rotation_offset: Rotation3D::None,
+                decenter: parse_decenter(row, i)?,
+                rotation_offset: parse_rotation_offset(row, i)?,
             },
         };
         surfaces.push(surface);
@@ -372,5 +397,77 @@ mod tests {
         let parsed = convert(&specs);
         assert_eq!(parsed.solves.len(), 1);
         assert_eq!(parsed.solves[0].surface_index(), 1);
+    }
+
+    fn lens_specs() -> SystemSpecs {
+        SystemSpecs {
+            surfaces: vec![
+                SurfaceRow::new_object("Infinity"),
+                SurfaceRow::new_sphere("12.5", "25.8", "5.3", "1.515"),
+                SurfaceRow::new_sphere("12.5", "Infinity", "46.6", "1.0"),
+                SurfaceRow::new_image(),
+            ],
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn convert_non_zero_decenter_r_populates_sphere_decenter() {
+        use approx::assert_abs_diff_eq;
+        let mut specs = lens_specs();
+        specs.surfaces[1].decenter_r = "2.5".into();
+        let parsed = convert(&specs);
+        match &parsed.surfaces[1] {
+            crate::SurfaceSpec::Sphere { decenter, .. } => {
+                assert_abs_diff_eq!(decenter.x(), 2.5, epsilon = 1e-10);
+                assert_abs_diff_eq!(decenter.y(), 0.0, epsilon = 1e-10);
+                assert_abs_diff_eq!(decenter.z(), 0.0, epsilon = 1e-10);
+            }
+            other => panic!("expected Sphere, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn convert_non_zero_rotation_offset_theta_populates_sphere() {
+        use approx::assert_abs_diff_eq;
+        let mut specs = lens_specs();
+        specs.surfaces[1].rot_offset_theta = "30.0".into();
+        let parsed = convert(&specs);
+        match &parsed.surfaces[1] {
+            crate::SurfaceSpec::Sphere {
+                rotation_offset, ..
+            } => match rotation_offset {
+                crate::Rotation3D::IntrinsicPassiveRUF(crate::EulerAngles(a, b, c)) => {
+                    assert_abs_diff_eq!(*a, 30.0_f64.to_radians(), epsilon = 1e-10);
+                    assert_abs_diff_eq!(*b, 0.0, epsilon = 1e-10);
+                    assert_abs_diff_eq!(*c, 0.0, epsilon = 1e-10);
+                }
+                other => panic!("expected IntrinsicPassiveRUF, got {:?}", other),
+            },
+            other => panic!("expected Sphere, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn convert_zero_displacement_gives_none_and_zero_vec() {
+        use approx::assert_abs_diff_eq;
+        let specs = lens_specs();
+        let parsed = convert(&specs);
+        match &parsed.surfaces[1] {
+            crate::SurfaceSpec::Sphere {
+                decenter,
+                rotation_offset,
+                ..
+            } => {
+                assert!(
+                    matches!(rotation_offset, crate::Rotation3D::None),
+                    "all-zero rot_offset should give Rotation3D::None"
+                );
+                assert_abs_diff_eq!(decenter.x(), 0.0, epsilon = 1e-10);
+                assert_abs_diff_eq!(decenter.y(), 0.0, epsilon = 1e-10);
+                assert_abs_diff_eq!(decenter.z(), 0.0, epsilon = 1e-10);
+            }
+            other => panic!("expected Sphere, got {:?}", other),
+        }
     }
 }
