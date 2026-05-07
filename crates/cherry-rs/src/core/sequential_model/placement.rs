@@ -11,7 +11,7 @@ use crate::core::{
     math::{linalg::mat3x3::Mat3x3, linalg::rotations::Rotation3D, vec3::Vec3},
 };
 
-use crate::core::math::geometry::reference_frames::Cursor;
+use super::cursor::Cursor;
 
 /// Position and orientation of a surface in the global coordinate system.
 #[derive(Debug, Clone)]
@@ -24,13 +24,13 @@ pub struct Placement {
 
     /// Rotation from the global frame into the surface's local frame.
     ///
-    /// Equals `surface_tilt_rotation × cursor_rotation` (global-to-local).
+    /// Equals `surface_tilt_rotation * cursor_rotation` (global-to-local).
     pub rotation_matrix: Mat3x3,
 
     /// Inverse of `rotation_matrix` (local-to-global).
     ///
     /// Because the matrix is orthogonal this equals
-    /// `rotation_matrix.transpose()`.
+    /// `rotation_matrix.transpose()`. This value is cached for efficiency.
     pub inv_rotation_matrix: Mat3x3,
 
     /// Rotation from the global frame into the optical-axis (cursor) frame

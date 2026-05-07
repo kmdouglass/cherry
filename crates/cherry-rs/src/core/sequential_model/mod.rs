@@ -1,21 +1,23 @@
 /// Data types for modeling sequential ray tracing systems.
 pub mod builder;
+pub(crate) mod cursor;
+pub mod placement;
 pub mod solves;
 
 use std::ops::Range;
 
 use anyhow::{Result, anyhow};
 
+use self::cursor::Cursor;
+use self::placement::Placement;
 #[cfg(feature = "serde")]
 use crate::core::surfaces::SurfaceRegistry;
 use crate::core::{
     Float,
     math::{
-        geometry::reference_frames::Cursor,
         linalg::{mat3x3::Mat3x3, rotations::Rotation3D},
         vec3::Vec3,
     },
-    placement::Placement,
     refractive_index::RefractiveIndex,
     surfaces::{Conic, Image, Iris, Object, Probe, Sphere, Surface, SurfaceKind},
 };

@@ -16,10 +16,10 @@ use crate::{
     core::{
         Float,
         math::{linalg::mat2x2::Mat2x2, vec3::Vec3},
-        placement::Placement,
         sequential_model::{
             SequentialModel, SequentialSubModel, Step, first_physical_surface,
-            last_physical_surface, propagate_tangential_vec, reversed_surface_id,
+            last_physical_surface, placement::Placement, propagate_tangential_vec,
+            reversed_surface_id,
         },
         surfaces::Surface,
     },

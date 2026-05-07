@@ -1,7 +1,7 @@
 #[cfg(feature = "serde")]
 use serde::Serialize;
 
-use crate::core::{Float, PI, math::vec3::Vec3, placement::Placement};
+use crate::core::{Float, PI, math::vec3::Vec3, sequential_model::placement::Placement};
 
 /// A single ray to be traced through an optical system.
 ///

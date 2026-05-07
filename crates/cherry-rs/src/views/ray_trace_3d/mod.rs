@@ -12,9 +12,8 @@ use crate::{
     core::{
         Float, PI,
         math::vec3::Vec3,
-        placement::Placement,
         ray::Ray,
-        sequential_model::{SequentialModel, SequentialSubModel},
+        sequential_model::{SequentialModel, SequentialSubModel, placement::Placement},
         surfaces::Surface,
     },
     specs::{

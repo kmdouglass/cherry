@@ -76,7 +76,7 @@ Cherry might be for you if:
 - [ ] Lens view for manipulating systems by lens instead of by surface
 - [ ] Tip/tilts/decenters on individual surfaces and lenses
 - [ ] Encode designs into URLs and enable sharing via tiny URLs
-- [ ] **Help Wanted** Cooke triplet template crate
+- [ ] Cooke triplet example
 - [ ] **Help Wanted** mdbook to serve as the app's user documentation
 - [ ] **Help Wanted** Annotate coordinate axes, the optical axis, and other elements in the cross-section view
 

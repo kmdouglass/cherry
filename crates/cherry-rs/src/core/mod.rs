@@ -1,6 +1,5 @@
 /// Data types for modeling ray tracing systems.
 pub(super) mod math;
-pub(crate) mod placement;
 pub(crate) mod ray;
 pub(crate) mod refractive_index;
 pub(crate) mod sequential_model;

@@ -137,11 +137,11 @@ pub use core::surfaces::{SurfaceConstructor, SurfaceRegistry};
 pub use core::{
     math::linalg::rotations::{EulerAngles, Rotation3D},
     math::vec3::Vec3,
-    placement::Placement,
     ray::Ray,
     sequential_model::{
         SequentialModel, SequentialSubModel, Step,
         builder::{BuildResult, SequentialModelBuilder},
+        placement::Placement,
         solves::{FNumberSolve, MarginalRaySolve, Solve, SolveKind},
     },
     surfaces::{Conic, Image, Iris, Object, Probe, Sphere, Surface, SurfaceKind},

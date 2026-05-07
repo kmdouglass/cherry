@@ -1,4 +1,4 @@
-/// Reference frame logic for building sequential optical systems.
+/// Cursor reference frame logic for building sequential optical systems.
 use crate::core::{
     Float,
     math::{linalg::mat3x3::Mat3x3, vec3::Vec3},

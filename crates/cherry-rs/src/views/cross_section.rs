@@ -4,7 +4,7 @@ use std::collections::HashSet;
 
 use crate::{
     SequentialModel, SurfaceKind,
-    core::{Float, math::vec3::Vec3, placement::Placement, surfaces::Surface},
+    core::{Float, math::vec3::Vec3, sequential_model::placement::Placement, surfaces::Surface},
     views::{components::Component, ray_trace_3d::RayBundle},
 };
 

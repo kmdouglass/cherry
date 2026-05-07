@@ -27,8 +27,8 @@ pub enum Mask {
 
 /// Specifies a surface in a sequential optical system.
 ///
-/// Rotations are optional and specify the active rotation sequence to orient
-/// the surface in 3D.
+/// Rotations specify transformations from the cursor reference frame to the
+/// surface local reference frame.
 #[derive(Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum SurfaceSpec {
