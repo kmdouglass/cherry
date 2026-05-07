@@ -210,6 +210,29 @@ pub struct SurfaceRow {
     /// reflecting Conic surfaces.
     #[serde(default = "default_zero")]
     pub psi: String,
+    /// Decenter in cursor-frame R direction (mm). Available for all non-Object
+    /// surfaces.
+    #[serde(default = "default_zero")]
+    pub decenter_r: String,
+    /// Decenter in cursor-frame U direction (mm). Available for all non-Object
+    /// surfaces.
+    #[serde(default = "default_zero")]
+    pub decenter_u: String,
+    /// Decenter in cursor-frame F direction (mm). Available for all non-Object
+    /// surfaces.
+    #[serde(default = "default_zero")]
+    pub decenter_f: String,
+    /// Rotation offset about cursor-R axis (deg). Does not redirect the cursor.
+    #[serde(default = "default_zero")]
+    pub rot_offset_theta: String,
+    /// Rotation offset about intermediate cursor-U axis (deg). Does not
+    /// redirect the cursor.
+    #[serde(default = "default_zero")]
+    pub rot_offset_psi: String,
+    /// Rotation offset about second intermediate cursor-F axis (deg). Does not
+    /// redirect the cursor.
+    #[serde(default = "default_zero")]
+    pub rot_offset_phi: String,
     /// Material key from rii.db (e.g. "glass:BK7:SCHOTT"). Used when
     /// `SystemSpecs::use_materials` is true.
     #[serde(default)]
@@ -228,6 +251,12 @@ impl SurfaceRow {
             conic_constant: String::new(),
             theta: "0".into(),
             psi: "0".into(),
+            decenter_r: "0".into(),
+            decenter_u: "0".into(),
+            decenter_f: "0".into(),
+            rot_offset_theta: "0".into(),
+            rot_offset_psi: "0".into(),
+            rot_offset_phi: "0".into(),
             material_key: None,
         }
     }
@@ -249,6 +278,12 @@ impl SurfaceRow {
             conic_constant: conic_constant.into(),
             theta: "0".into(),
             psi: "0".into(),
+            decenter_r: "0".into(),
+            decenter_u: "0".into(),
+            decenter_f: "0".into(),
+            rot_offset_theta: "0".into(),
+            rot_offset_psi: "0".into(),
+            rot_offset_phi: "0".into(),
             material_key: None,
         }
     }
@@ -269,6 +304,12 @@ impl SurfaceRow {
             conic_constant: String::new(),
             theta: "0".into(),
             psi: "0".into(),
+            decenter_r: "0".into(),
+            decenter_u: "0".into(),
+            decenter_f: "0".into(),
+            rot_offset_theta: "0".into(),
+            rot_offset_psi: "0".into(),
+            rot_offset_phi: "0".into(),
             material_key: None,
         }
     }
@@ -284,6 +325,12 @@ impl SurfaceRow {
             conic_constant: String::new(),
             theta: "0".into(),
             psi: "0".into(),
+            decenter_r: "0".into(),
+            decenter_u: "0".into(),
+            decenter_f: "0".into(),
+            rot_offset_theta: "0".into(),
+            rot_offset_psi: "0".into(),
+            rot_offset_phi: "0".into(),
             material_key: None,
         }
     }
@@ -299,6 +346,12 @@ impl SurfaceRow {
             conic_constant: String::new(),
             theta: "0".into(),
             psi: "0".into(),
+            decenter_r: "0".into(),
+            decenter_u: "0".into(),
+            decenter_f: "0".into(),
+            rot_offset_theta: "0".into(),
+            rot_offset_psi: "0".into(),
+            rot_offset_phi: "0".into(),
             material_key: None,
         }
     }
@@ -674,5 +727,49 @@ mod tests {
         );
         // Wrong index
         assert!(specs.solve_for(3, SolveParameter::Thickness).is_none());
+    }
+
+    #[test]
+    fn surface_row_displacement_fields_default_to_zero() {
+        let row = SurfaceRow::new_default();
+        assert_eq!(row.decenter_r, "0");
+        assert_eq!(row.decenter_u, "0");
+        assert_eq!(row.decenter_f, "0");
+        assert_eq!(row.rot_offset_theta, "0");
+        assert_eq!(row.rot_offset_psi, "0");
+        assert_eq!(row.rot_offset_phi, "0");
+    }
+
+    #[test]
+    fn surface_row_serde_default_fills_new_fields_from_old_json() {
+        // Simulate deserializing a save file that predates the displacement fields.
+        let json = r#"{
+            "variant": "Sphere",
+            "surface_kind": "Refracting",
+            "refractive_index": "1.5",
+            "thickness": "5.0",
+            "semi_diameter": "10.0",
+            "radius_of_curvature": "25.0",
+            "conic_constant": ""
+        }"#;
+        let row: SurfaceRow = serde_json::from_str(json).expect("deserialize old row");
+        assert_eq!(row.decenter_r, "0");
+        assert_eq!(row.decenter_u, "0");
+        assert_eq!(row.decenter_f, "0");
+        assert_eq!(row.rot_offset_theta, "0");
+        assert_eq!(row.rot_offset_psi, "0");
+        assert_eq!(row.rot_offset_phi, "0");
+    }
+
+    #[test]
+    fn surface_row_serde_roundtrip_preserves_displacement_fields() {
+        let mut row = SurfaceRow::new_sphere("10.0", "25.0", "5.0", "1.5");
+        row.decenter_r = "1.5".into();
+        row.rot_offset_theta = "5.0".into();
+        let json = serde_json::to_string(&row).expect("serialize");
+        let restored: SurfaceRow = serde_json::from_str(&json).expect("deserialize");
+        assert_eq!(restored.decenter_r, "1.5");
+        assert_eq!(restored.rot_offset_theta, "5.0");
+        assert_eq!(restored.decenter_u, "0");
     }
 }
