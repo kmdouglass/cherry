@@ -140,7 +140,7 @@ mod tests {
     use std::rc::Rc;
 
     use crate::examples::{concave_mirror, convexplano_lens};
-    use crate::{GapSpec, Rotation3D, SequentialModel, SurfaceSpec, core::Float, n};
+    use crate::{GapSpec, Rotation3D, SequentialModel, SurfaceSpec, Vec3, core::Float, n};
 
     use super::*;
 
@@ -154,6 +154,8 @@ mod tests {
         };
         let surf_1 = SurfaceSpec::Image {
             rotation: Rotation3D::None,
+            decenter: Vec3::new(0.0, 0.0, 0.0),
+            rotation_offset: Rotation3D::None,
         };
 
         let surfaces = vec![surf_0, surf_1];
@@ -179,6 +181,8 @@ mod tests {
             conic_constant: 0.0,
             surf_kind: crate::BoundaryKind::Refracting,
             rotation: Rotation3D::None,
+            decenter: Vec3::new(0.0, 0.0, 0.0),
+            rotation_offset: Rotation3D::None,
         };
         let gap_1 = GapSpec {
             thickness: 5.3,
@@ -190,6 +194,8 @@ mod tests {
             conic_constant: 0.0,
             surf_kind: crate::BoundaryKind::Refracting,
             rotation: Rotation3D::None,
+            decenter: Vec3::new(0.0, 0.0, 0.0),
+            rotation_offset: Rotation3D::None,
         };
         let gap_2 = GapSpec {
             thickness: 46.6,
@@ -201,6 +207,8 @@ mod tests {
             conic_constant: 0.0,
             surf_kind: crate::BoundaryKind::Refracting,
             rotation: Rotation3D::None,
+            decenter: Vec3::new(0.0, 0.0, 0.0),
+            rotation_offset: Rotation3D::None,
         }; // Surface is unpaired
         let gap_3 = GapSpec {
             thickness: 20.0,
@@ -208,6 +216,8 @@ mod tests {
         };
         let surf_4 = SurfaceSpec::Image {
             rotation: Rotation3D::None,
+            decenter: Vec3::new(0.0, 0.0, 0.0),
+            rotation_offset: Rotation3D::None,
         };
 
         let surfaces = vec![surf_0, surf_1, surf_2, surf_3, surf_4];
@@ -233,6 +243,8 @@ mod tests {
             conic_constant: 0.0,
             surf_kind: crate::BoundaryKind::Refracting,
             rotation: Rotation3D::None,
+            decenter: Vec3::new(0.0, 0.0, 0.0),
+            rotation_offset: Rotation3D::None,
         };
         let gap_1 = GapSpec {
             thickness: 10.0,
@@ -241,6 +253,8 @@ mod tests {
         let surf_2 = SurfaceSpec::Iris {
             semi_diameter: 12.5,
             rotation: Rotation3D::None,
+            decenter: Vec3::new(0.0, 0.0, 0.0),
+            rotation_offset: Rotation3D::None,
         };
         let gap_2 = GapSpec {
             thickness: 10.0,
@@ -248,6 +262,8 @@ mod tests {
         };
         let surf_3 = SurfaceSpec::Image {
             rotation: Rotation3D::None,
+            decenter: Vec3::new(0.0, 0.0, 0.0),
+            rotation_offset: Rotation3D::None,
         };
 
         let surfaces = vec![surf_0, surf_1, surf_2, surf_3];
@@ -272,6 +288,8 @@ mod tests {
         let surf_1 = SurfaceSpec::Iris {
             semi_diameter: 5.0,
             rotation: Rotation3D::None,
+            decenter: Vec3::new(0.0, 0.0, 0.0),
+            rotation_offset: Rotation3D::None,
         };
         let gap_1 = GapSpec {
             thickness: 5.0,
@@ -283,6 +301,8 @@ mod tests {
             conic_constant: 0.0,
             surf_kind: crate::BoundaryKind::Refracting,
             rotation: Rotation3D::None,
+            decenter: Vec3::new(0.0, 0.0, 0.0),
+            rotation_offset: Rotation3D::None,
         };
         let gap_2 = GapSpec {
             thickness: 5.0,
@@ -294,6 +314,8 @@ mod tests {
             conic_constant: 0.0,
             surf_kind: crate::BoundaryKind::Refracting,
             rotation: Rotation3D::None,
+            decenter: Vec3::new(0.0, 0.0, 0.0),
+            rotation_offset: Rotation3D::None,
         };
         let gap_3 = GapSpec {
             thickness: 47.974,
@@ -301,6 +323,8 @@ mod tests {
         };
         let surf_4 = SurfaceSpec::Image {
             rotation: Rotation3D::None,
+            decenter: Vec3::new(0.0, 0.0, 0.0),
+            rotation_offset: Rotation3D::None,
         };
 
         let surfaces = vec![surf_0, surf_1, surf_2, surf_3, surf_4];
@@ -459,12 +483,18 @@ mod tests {
                 conic_constant: 0.0,
                 surf_kind: crate::BoundaryKind::Reflecting,
                 rotation: Rotation3D::None,
+                decenter: Vec3::new(0.0, 0.0, 0.0),
+                rotation_offset: Rotation3D::None,
             },
             SurfaceSpec::Probe {
                 rotation: Rotation3D::None,
+                decenter: Vec3::new(0.0, 0.0, 0.0),
+                rotation_offset: Rotation3D::None,
             },
             SurfaceSpec::Image {
                 rotation: Rotation3D::None,
+                decenter: Vec3::new(0.0, 0.0, 0.0),
+                rotation_offset: Rotation3D::None,
             },
         ];
         let gaps = vec![

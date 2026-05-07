@@ -155,7 +155,7 @@ mod tests {
     use super::*;
     use crate::{
         core::Float,
-        core::math::linalg::rotations::Rotation3D,
+        core::math::{linalg::rotations::Rotation3D, vec3::Vec3},
         core::sequential_model::{SequentialSubModel, solves::SolveKind},
         n,
         specs::gaps::GapSpec,
@@ -175,6 +175,8 @@ mod tests {
             SurfaceSpec::Object,
             SurfaceSpec::Image {
                 rotation: Rotation3D::None,
+                decenter: Vec3::new(0.0, 0.0, 0.0),
+                rotation_offset: Rotation3D::None,
             },
         ]
     }
@@ -201,9 +203,13 @@ mod tests {
                 radius_of_curvature: 25.8,
                 surf_kind: BoundaryKind::Refracting,
                 rotation: Rotation3D::None,
+                decenter: Vec3::new(0.0, 0.0, 0.0),
+                rotation_offset: Rotation3D::None,
             },
             SurfaceSpec::Image {
                 rotation: Rotation3D::None,
+                decenter: Vec3::new(0.0, 0.0, 0.0),
+                rotation_offset: Rotation3D::None,
             },
         ]
     }
@@ -434,15 +440,21 @@ mod tests {
                 radius_of_curvature: 25.8,
                 surf_kind: BoundaryKind::Refracting,
                 rotation: Rotation3D::None,
+                decenter: Vec3::new(0.0, 0.0, 0.0),
+                rotation_offset: Rotation3D::None,
             },
             SurfaceSpec::Sphere {
                 semi_diameter: 12.5,
                 radius_of_curvature: Float::INFINITY,
                 surf_kind: BoundaryKind::Refracting,
                 rotation: Rotation3D::None,
+                decenter: Vec3::new(0.0, 0.0, 0.0),
+                rotation_offset: Rotation3D::None,
             },
             SurfaceSpec::Image {
                 rotation: Rotation3D::None,
+                decenter: Vec3::new(0.0, 0.0, 0.0),
+                rotation_offset: Rotation3D::None,
             },
         ]
     }

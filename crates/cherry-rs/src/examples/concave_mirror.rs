@@ -1,7 +1,9 @@
 //! A f=+100 mm concave mirror with infinite field points.
 use std::rc::Rc;
 
-use crate::{BoundaryKind, GapSpec, RefractiveIndexSpec, Rotation3D, SequentialModel, SurfaceSpec};
+use crate::{
+    BoundaryKind, GapSpec, RefractiveIndexSpec, Rotation3D, SequentialModel, SurfaceSpec, Vec3,
+};
 
 pub fn sequential_model(
     n_air: Rc<dyn RefractiveIndexSpec>,
@@ -23,9 +25,13 @@ pub fn sequential_model(
         radius_of_curvature: -200.0,
         surf_kind: BoundaryKind::Reflecting,
         rotation: Rotation3D::None,
+        decenter: Vec3::new(0.0, 0.0, 0.0),
+        rotation_offset: Rotation3D::None,
     };
     let surf_2 = SurfaceSpec::Image {
         rotation: Rotation3D::None,
+        decenter: Vec3::new(0.0, 0.0, 0.0),
+        rotation_offset: Rotation3D::None,
     };
     let surfaces = vec![surf_0, surf_1, surf_2];
 

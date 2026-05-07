@@ -4,7 +4,7 @@ use anyhow::{Context, Result, bail};
 
 use crate::{
     ApertureSpec, BoundaryKind, ConstantRefractiveIndex, EulerAngles, FNumberSolve, FieldSpec,
-    GapSpec, MarginalRaySolve, RefractiveIndexSpec, Rotation3D, Solve, SurfaceSpec,
+    GapSpec, MarginalRaySolve, RefractiveIndexSpec, Rotation3D, Solve, SurfaceSpec, Vec3,
 };
 
 use super::model::{FieldMode, SolveSpec, SurfaceKind, SurfaceVariant, SystemSpecs};
@@ -101,6 +101,8 @@ fn convert_specs_inner(
                     conic_constant: conic,
                     surf_kind,
                     rotation,
+                    decenter: Vec3::new(0.0, 0.0, 0.0),
+                    rotation_offset: Rotation3D::None,
                 }
             }
             SurfaceVariant::Sphere => {
@@ -134,6 +136,8 @@ fn convert_specs_inner(
                     radius_of_curvature: roc,
                     surf_kind,
                     rotation,
+                    decenter: Vec3::new(0.0, 0.0, 0.0),
+                    rotation_offset: Rotation3D::None,
                 }
             }
             SurfaceVariant::Iris => {
@@ -142,13 +146,19 @@ fn convert_specs_inner(
                 SurfaceSpec::Iris {
                     semi_diameter,
                     rotation: Rotation3D::None,
+                    decenter: Vec3::new(0.0, 0.0, 0.0),
+                    rotation_offset: Rotation3D::None,
                 }
             }
             SurfaceVariant::Probe => SurfaceSpec::Probe {
                 rotation: Rotation3D::None,
+                decenter: Vec3::new(0.0, 0.0, 0.0),
+                rotation_offset: Rotation3D::None,
             },
             SurfaceVariant::Image => SurfaceSpec::Image {
                 rotation: Rotation3D::None,
+                decenter: Vec3::new(0.0, 0.0, 0.0),
+                rotation_offset: Rotation3D::None,
             },
         };
         surfaces.push(surface);
