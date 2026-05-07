@@ -5,7 +5,7 @@
 use std::rc::Rc;
 
 use crate::{
-    BoundaryType, EulerAngles, GapSpec, RefractiveIndexSpec, Rotation3D, SequentialModel,
+    BoundaryKind, EulerAngles, GapSpec, RefractiveIndexSpec, Rotation3D, SequentialModel,
     SurfaceSpec, core::Float,
 };
 
@@ -31,7 +31,7 @@ pub fn sequential_model(
     let surf_1 = SurfaceSpec::Sphere {
         semi_diameter: 12.7,
         radius_of_curvature: Float::INFINITY,
-        surf_type: BoundaryType::Reflecting,
+        surf_kind: BoundaryKind::Reflecting,
         rotation: Rotation3D::IntrinsicPassiveRUF(EulerAngles(
             (30 as Float).to_radians(),
             0.0,
@@ -41,7 +41,7 @@ pub fn sequential_model(
     let surf_2 = SurfaceSpec::Sphere {
         semi_diameter: 12.7,
         radius_of_curvature: f64::INFINITY,
-        surf_type: BoundaryType::Reflecting,
+        surf_kind: BoundaryKind::Reflecting,
         rotation: Rotation3D::IntrinsicPassiveRUF(EulerAngles(
             (30 as Float).to_radians(),
             0.0,

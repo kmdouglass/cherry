@@ -2,7 +2,7 @@ use anyhow::Result;
 
 use crate::{
     core::{Float, math::vec3::Vec3, ray::Ray},
-    specs::surfaces::{BoundaryType, Mask},
+    specs::surfaces::{BoundaryKind, Mask},
 };
 
 use super::{Surface, SurfaceKind, solvers::flat_surface};
@@ -28,8 +28,8 @@ impl Default for Probe {
 }
 
 impl Surface for Probe {
-    fn boundary_type(&self) -> BoundaryType {
-        BoundaryType::NoOp
+    fn boundary_kind(&self) -> BoundaryKind {
+        BoundaryKind::NoOp
     }
 
     fn intersect(&self, ray: &Ray, _max_iter: usize) -> Result<(Vec3, Vec3)> {

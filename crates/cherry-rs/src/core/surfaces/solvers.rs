@@ -197,7 +197,7 @@ mod tests {
         ray::Ray,
         surfaces::{Conic, Probe, Sphere},
     };
-    use crate::specs::surfaces::BoundaryType;
+    use crate::specs::surfaces::BoundaryKind;
 
     use super::*;
 
@@ -218,7 +218,7 @@ mod tests {
     #[test]
     fn newton_raphson_flat_surface() {
         let ray = Ray::new(Vec3::new(0.0, 0.0, -1.0), Vec3::new(0.0, 0.0, 1.0));
-        let surf = Sphere::new(4.0, Float::INFINITY, BoundaryType::Refracting);
+        let surf = Sphere::new(4.0, Float::INFINITY, BoundaryKind::Refracting);
 
         let (p, _) = newton_raphson(&ray, &surf, 1000).unwrap();
 
@@ -230,7 +230,7 @@ mod tests {
         let l = (std::f64::consts::PI as Float / 4.0).sin();
         let m = (std::f64::consts::PI as Float / 4.0).cos();
         let ray = Ray::new(Vec3::new(0.0, 0.0, -1.0), Vec3::new(0.0, l, m));
-        let surf = Conic::new(4.0, -1.0, 0.0, BoundaryType::Refracting);
+        let surf = Conic::new(4.0, -1.0, 0.0, BoundaryKind::Refracting);
 
         let (p, _) = newton_raphson(&ray, &surf, 1000).unwrap();
 
@@ -242,7 +242,7 @@ mod tests {
 
     #[test]
     fn spherical_surface_infinite_roc_is_flat() {
-        let surf = Sphere::new(12.5, Float::INFINITY, BoundaryType::Refracting);
+        let surf = Sphere::new(12.5, Float::INFINITY, BoundaryKind::Refracting);
         let ray = Ray::new(
             Vec3::new(0.0, 3.0, -10.0),
             Vec3::new(0.0, Float::sqrt(2.0) / 2.0, Float::sqrt(2.0) / 2.0),
@@ -255,7 +255,7 @@ mod tests {
     #[test]
     fn spherical_surface_positive_roc_matches_newton_raphson() {
         let roc = 102.4;
-        let surf = Sphere::new(12.7, roc, BoundaryType::Refracting);
+        let surf = Sphere::new(12.7, roc, BoundaryKind::Refracting);
         let ray = Ray::new(Vec3::new(0.0, 5.0, -200.0), Vec3::new(0.0, 0.0, 1.0));
 
         let (p_analytical, _) = spherical_surface(&ray, &surf, 0).unwrap();
@@ -284,7 +284,7 @@ mod tests {
     #[test]
     fn spherical_surface_negative_roc_matches_newton_raphson() {
         let roc = -102.4;
-        let surf = Sphere::new(12.7, roc, BoundaryType::Refracting);
+        let surf = Sphere::new(12.7, roc, BoundaryKind::Refracting);
         let ray = Ray::new(Vec3::new(0.0, 5.0, -3.6), Vec3::new(0.0, 0.0, 1.0));
 
         let (p_analytical, _) = spherical_surface(&ray, &surf, 0).unwrap();
@@ -313,7 +313,7 @@ mod tests {
     #[test]
     fn spherical_surface_on_axis_matches_newton_raphson() {
         let roc = 50.0;
-        let surf = Sphere::new(10.0, roc, BoundaryType::Refracting);
+        let surf = Sphere::new(10.0, roc, BoundaryKind::Refracting);
         let ray = Ray::new(Vec3::new(0.0, 0.0, -100.0), Vec3::new(0.0, 0.0, 1.0));
 
         let (p_analytical, _) = spherical_surface(&ray, &surf, 0).unwrap();

@@ -3,7 +3,7 @@ use std::rc::Rc;
 use anyhow::{Context, Result, bail};
 
 use crate::{
-    ApertureSpec, BoundaryType, ConstantRefractiveIndex, EulerAngles, FNumberSolve, FieldSpec,
+    ApertureSpec, BoundaryKind, ConstantRefractiveIndex, EulerAngles, FNumberSolve, FieldSpec,
     GapSpec, MarginalRaySolve, RefractiveIndexSpec, Rotation3D, Solve, SurfaceSpec,
 };
 
@@ -74,11 +74,11 @@ fn convert_specs_inner(
                     .with_context(|| format!("surface {i}: radius of curvature"))?;
                 let conic = parse_float(&row.conic_constant)
                     .with_context(|| format!("surface {i}: conic constant"))?;
-                let surf_type = match row.surface_kind {
-                    SurfaceKind::Refracting => BoundaryType::Refracting,
-                    SurfaceKind::Reflecting => BoundaryType::Reflecting,
+                let surf_kind = match row.surface_kind {
+                    SurfaceKind::Refracting => BoundaryKind::Refracting,
+                    SurfaceKind::Reflecting => BoundaryKind::Reflecting,
                 };
-                let rotation = if matches!(surf_type, BoundaryType::Reflecting) {
+                let rotation = if matches!(surf_kind, BoundaryKind::Reflecting) {
                     let theta_deg =
                         parse_float(&row.theta).with_context(|| format!("surface {i}: theta"))?;
                     let psi_deg =
@@ -99,7 +99,7 @@ fn convert_specs_inner(
                     semi_diameter,
                     radius_of_curvature: roc,
                     conic_constant: conic,
-                    surf_type,
+                    surf_kind,
                     rotation,
                 }
             }
@@ -108,11 +108,11 @@ fn convert_specs_inner(
                     .with_context(|| format!("surface {i}: semi-diameter"))?;
                 let roc = parse_float(&row.radius_of_curvature)
                     .with_context(|| format!("surface {i}: radius of curvature"))?;
-                let surf_type = match row.surface_kind {
-                    SurfaceKind::Refracting => BoundaryType::Refracting,
-                    SurfaceKind::Reflecting => BoundaryType::Reflecting,
+                let surf_kind = match row.surface_kind {
+                    SurfaceKind::Refracting => BoundaryKind::Refracting,
+                    SurfaceKind::Reflecting => BoundaryKind::Reflecting,
                 };
-                let rotation = if matches!(surf_type, BoundaryType::Reflecting) {
+                let rotation = if matches!(surf_kind, BoundaryKind::Reflecting) {
                     let theta_deg =
                         parse_float(&row.theta).with_context(|| format!("surface {i}: theta"))?;
                     let psi_deg =
@@ -132,7 +132,7 @@ fn convert_specs_inner(
                 SurfaceSpec::Sphere {
                     semi_diameter,
                     radius_of_curvature: roc,
-                    surf_type,
+                    surf_kind,
                     rotation,
                 }
             }

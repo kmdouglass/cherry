@@ -200,14 +200,14 @@ mod tests {
         math::vec3::Vec3,
         surfaces::{Conic, Surface},
     };
-    use crate::specs::surfaces::BoundaryType;
+    use crate::specs::surfaces::BoundaryKind;
 
     use super::*;
 
     #[test]
     fn test_ray_intersection_flat_surface() {
         let ray = Ray::new(Vec3::new(0.0, 0.0, -1.0), Vec3::new(0.0, 0.0, 1.0));
-        let surf = Conic::new(4.0, Float::INFINITY, 0.0, BoundaryType::Refracting);
+        let surf = Conic::new(4.0, Float::INFINITY, 0.0, BoundaryKind::Refracting);
 
         let (p, _) = surf.intersect(&ray, 1000).unwrap();
 
@@ -219,7 +219,7 @@ mod tests {
         let l = (std::f64::consts::PI as Float / 4.0).sin();
         let m = (std::f64::consts::PI as Float / 4.0).cos();
         let ray = Ray::new(Vec3::new(0.0, 0.0, -1.0), Vec3::new(0.0, l, m));
-        let surf = Conic::new(4.0, -1.0, 0.0, BoundaryType::Refracting);
+        let surf = Conic::new(4.0, -1.0, 0.0, BoundaryKind::Refracting);
 
         let (p, _) = surf.intersect(&ray, 1000).unwrap();
 

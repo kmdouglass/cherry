@@ -2,7 +2,7 @@ use anyhow::Result;
 
 use crate::{
     core::{Float, math::vec3::Vec3, ray::Ray},
-    specs::surfaces::{BoundaryType, Mask},
+    specs::surfaces::{BoundaryKind, Mask},
 };
 
 use super::{Surface, SurfaceKind, solvers::flat_surface};
@@ -22,8 +22,8 @@ impl Iris {
 }
 
 impl Surface for Iris {
-    fn boundary_type(&self) -> BoundaryType {
-        BoundaryType::NoOp
+    fn boundary_kind(&self) -> BoundaryKind {
+        BoundaryKind::NoOp
     }
 
     fn intersect(&self, ray: &Ray, _max_iter: usize) -> Result<(Vec3, Vec3)> {
@@ -69,9 +69,9 @@ mod tests {
     }
 
     #[test]
-    fn boundary_type_is_noop() {
+    fn boundary_kind_is_noop() {
         let iris = Iris::new(5.0);
-        assert!(matches!(iris.boundary_type(), BoundaryType::NoOp));
+        assert!(matches!(iris.boundary_kind(), BoundaryKind::NoOp));
     }
 
     #[test]

@@ -1,7 +1,7 @@
 //! A f = 50 mm convexplano lens.
 use std::rc::Rc;
 
-use crate::{BoundaryType, GapSpec, RefractiveIndexSpec, Rotation3D, SequentialModel, SurfaceSpec};
+use crate::{BoundaryKind, GapSpec, RefractiveIndexSpec, Rotation3D, SequentialModel, SurfaceSpec};
 
 pub fn sequential_model(
     n_air: Rc<dyn RefractiveIndexSpec>,
@@ -26,13 +26,13 @@ pub fn sequential_model(
     let surf_1 = SurfaceSpec::Sphere {
         semi_diameter: 12.5,
         radius_of_curvature: 25.8,
-        surf_type: BoundaryType::Refracting,
+        surf_kind: BoundaryKind::Refracting,
         rotation: Rotation3D::None,
     };
     let surf_2 = SurfaceSpec::Sphere {
         semi_diameter: 12.5,
         radius_of_curvature: f64::INFINITY,
-        surf_type: BoundaryType::Refracting,
+        surf_kind: BoundaryKind::Refracting,
         rotation: Rotation3D::None,
     };
     let surf_3 = SurfaceSpec::Image {

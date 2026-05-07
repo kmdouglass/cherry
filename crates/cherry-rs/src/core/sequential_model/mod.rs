@@ -23,7 +23,7 @@ use crate::core::{
 };
 use crate::specs::{
     gaps::GapSpec,
-    surfaces::{BoundaryType, SurfaceSpec},
+    surfaces::{BoundaryKind, SurfaceSpec},
 };
 
 type SurfsPlacementsDirs = (Vec<Box<dyn Surface>>, Vec<Placement>, Vec<Vec3>);
@@ -202,14 +202,14 @@ pub(crate) fn propagate_tangential_vec(
     surfaces: &[Box<dyn Surface>],
     placements: &[Placement],
 ) -> Vec<Vec3> {
-    use crate::specs::surfaces::BoundaryType;
+    use crate::specs::surfaces::BoundaryKind;
     let mut v = v_init;
     surfaces
         .iter()
         .zip(placements.iter())
         .map(|(surf, placement)| {
             let v_incident = v;
-            if let BoundaryType::Reflecting = surf.boundary_type() {
+            if let BoundaryKind::Reflecting = surf.boundary_kind() {
                 // Normal in global frame: third column of inv_rotation_matrix
                 // (maps local Z to global).
                 let n = placement.inv_rotation_matrix * Vec3::new(0.0, 0.0, 1.0);
@@ -531,7 +531,7 @@ impl SequentialModel {
 
             // Flip the cursor upon reflection. Evaluate the normal at the
             // vertex (local origin = (0,0,0)) and transform to global frame.
-            if let BoundaryType::Reflecting = surf.boundary_type() {
+            if let BoundaryKind::Reflecting = surf.boundary_kind() {
                 let mut norm = surf.norm(Vec3::new(0.0, 0.0, 0.0));
                 norm = (placement.inv_rotation_matrix * norm).normalize();
                 cursor.reflect(&norm);
@@ -541,7 +541,7 @@ impl SequentialModel {
             cursor.advance(gap_spec.thickness);
         }
 
-        // Last surface — no gap after it.
+        // Last surface - no gap after it.
         axis_directions.push(cursor.forward());
         placements.push(Placement::from_rotation(
             rotations.last().expect("at least one surface"),
@@ -786,23 +786,23 @@ pub(crate) fn surface_from_spec(
             semi_diameter,
             radius_of_curvature,
             conic_constant,
-            surf_type,
+            surf_kind,
             ..
         } => Ok(Box::new(Conic::new(
             *semi_diameter,
             *radius_of_curvature,
             *conic_constant,
-            *surf_type,
+            *surf_kind,
         ))),
         SurfaceSpec::Sphere {
             semi_diameter,
             radius_of_curvature,
-            surf_type,
+            surf_kind,
             ..
         } => Ok(Box::new(Sphere::new(
             *semi_diameter,
             *radius_of_curvature,
-            *surf_type,
+            *surf_kind,
         ))),
         SurfaceSpec::Custom {
             type_id, params, ..
@@ -829,23 +829,23 @@ pub(crate) fn surface_from_spec(spec: &SurfaceSpec) -> Result<Box<dyn Surface>> 
             semi_diameter,
             radius_of_curvature,
             conic_constant,
-            surf_type,
+            surf_kind,
             ..
         } => Ok(Box::new(Conic::new(
             *semi_diameter,
             *radius_of_curvature,
             *conic_constant,
-            *surf_type,
+            *surf_kind,
         ))),
         SurfaceSpec::Sphere {
             semi_diameter,
             radius_of_curvature,
-            surf_type,
+            surf_kind,
             ..
         } => Ok(Box::new(Sphere::new(
             *semi_diameter,
             *radius_of_curvature,
-            *surf_type,
+            *surf_kind,
         ))),
         SurfaceSpec::Image { .. } => Ok(Box::new(Image::new())),
         SurfaceSpec::Object => Ok(Box::new(Object::new())),
@@ -859,7 +859,7 @@ mod tests {
     use super::*;
     use crate::{
         EulerAngles, Rotation3D, core::Float, core::surfaces::Sphere, n,
-        specs::surfaces::BoundaryType,
+        specs::surfaces::BoundaryKind,
     };
 
     // Helper: build a Placement for a surface with the given rotation, in an
@@ -1032,8 +1032,8 @@ mod tests {
         let surfaces: Vec<Box<dyn Surface>> = vec![
             Box::new(Object::new()),
             Box::new(Probe::new()),
-            Box::new(Sphere::new(1.0, 1.0, BoundaryType::Refracting)),
-            Box::new(Sphere::new(1.0, 1.0, BoundaryType::Refracting)),
+            Box::new(Sphere::new(1.0, 1.0, BoundaryKind::Refracting)),
+            Box::new(Sphere::new(1.0, 1.0, BoundaryKind::Refracting)),
             Box::new(Image::new()),
         ];
 
@@ -1047,8 +1047,8 @@ mod tests {
         // 2.
         let surfaces: Vec<Box<dyn Surface>> = vec![
             Box::new(Object::new()),
-            Box::new(Sphere::new(1.0, 1.0, BoundaryType::Refracting)),
-            Box::new(Sphere::new(1.0, 1.0, BoundaryType::Refracting)),
+            Box::new(Sphere::new(1.0, 1.0, BoundaryKind::Refracting)),
+            Box::new(Sphere::new(1.0, 1.0, BoundaryKind::Refracting)),
             Box::new(Probe::new()),
             Box::new(Image::new()),
         ];
@@ -1155,7 +1155,7 @@ mod tests {
             SurfaceSpec::Sphere {
                 semi_diameter: 10.0,
                 radius_of_curvature: 50.0,
-                surf_type: BoundaryType::Refracting,
+                surf_kind: BoundaryKind::Refracting,
                 rotation: Rotation3D::None,
             },
             SurfaceSpec::Probe {

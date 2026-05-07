@@ -159,7 +159,7 @@ mod tests {
         core::sequential_model::{SequentialSubModel, solves::SolveKind},
         n,
         specs::gaps::GapSpec,
-        specs::surfaces::{BoundaryType, SurfaceSpec},
+        specs::surfaces::{BoundaryKind, SurfaceSpec},
     };
 
     /// A minimal two-surface system: Object → gap → Image.
@@ -199,7 +199,7 @@ mod tests {
             SurfaceSpec::Sphere {
                 semi_diameter: 12.5,
                 radius_of_curvature: 25.8,
-                surf_type: BoundaryType::Refracting,
+                surf_kind: BoundaryKind::Refracting,
                 rotation: Rotation3D::None,
             },
             SurfaceSpec::Image {
@@ -432,13 +432,13 @@ mod tests {
             SurfaceSpec::Sphere {
                 semi_diameter: 12.5,
                 radius_of_curvature: 25.8,
-                surf_type: BoundaryType::Refracting,
+                surf_kind: BoundaryKind::Refracting,
                 rotation: Rotation3D::None,
             },
             SurfaceSpec::Sphere {
                 semi_diameter: 12.5,
                 radius_of_curvature: Float::INFINITY,
-                surf_type: BoundaryType::Refracting,
+                surf_kind: BoundaryKind::Refracting,
                 rotation: Rotation3D::None,
             },
             SurfaceSpec::Image {

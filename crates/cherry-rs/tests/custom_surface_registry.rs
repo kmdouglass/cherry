@@ -1,7 +1,7 @@
 #![cfg(feature = "serde")]
 
 use cherry_rs::{
-    BoundaryType, GapSpec, Mask, Rotation3D, SequentialModel, SequentialModelBuilder, Surface,
+    BoundaryKind, GapSpec, Mask, Rotation3D, SequentialModel, SequentialModelBuilder, Surface,
     SurfaceRegistry, SurfaceSpec, Vec3, n,
 };
 use serde_json::json;
@@ -12,8 +12,8 @@ struct FlatNoOp {
 }
 
 impl Surface for FlatNoOp {
-    fn boundary_type(&self) -> BoundaryType {
-        BoundaryType::NoOp
+    fn boundary_kind(&self) -> BoundaryKind {
+        BoundaryKind::NoOp
     }
 
     fn sag(&self, _pos: Vec3) -> f64 {

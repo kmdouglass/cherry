@@ -1,6 +1,6 @@
 use crate::{
     core::{Float, math::vec3::Vec3},
-    specs::surfaces::{BoundaryType, Mask},
+    specs::surfaces::{BoundaryKind, Mask},
 };
 
 use super::{Surface, SurfaceKind};
@@ -10,7 +10,7 @@ use super::{Surface, SurfaceKind};
 pub struct Conic {
     pub radius_of_curvature: Float,
     pub conic_constant: Float,
-    pub boundary_type: BoundaryType,
+    pub boundary_kind: BoundaryKind,
     mask: Mask,
 }
 
@@ -19,12 +19,12 @@ impl Conic {
         semi_diameter: Float,
         radius_of_curvature: Float,
         conic_constant: Float,
-        boundary_type: BoundaryType,
+        boundary_kind: BoundaryKind,
     ) -> Self {
         Self {
             radius_of_curvature,
             conic_constant,
-            boundary_type,
+            boundary_kind,
             mask: Mask::Circular { semi_diameter },
         }
     }
@@ -68,8 +68,8 @@ impl Surface for Conic {
         &self.mask
     }
 
-    fn boundary_type(&self) -> BoundaryType {
-        self.boundary_type
+    fn boundary_kind(&self) -> BoundaryKind {
+        self.boundary_kind
     }
 
     fn surface_kind(&self) -> SurfaceKind {
@@ -83,12 +83,12 @@ mod tests {
     use approx::assert_abs_diff_eq;
 
     fn sphere(roc: Float, semi_diameter: Float) -> Conic {
-        Conic::new(semi_diameter, roc, 0.0, BoundaryType::Refracting)
+        Conic::new(semi_diameter, roc, 0.0, BoundaryKind::Refracting)
     }
 
     #[test]
     fn flat_surface_sag_is_zero() {
-        let conic = Conic::new(10.0, Float::INFINITY, 0.0, BoundaryType::Refracting);
+        let conic = Conic::new(10.0, Float::INFINITY, 0.0, BoundaryKind::Refracting);
         assert_eq!(conic.sag(Vec3::new(3.0, 4.0, 0.0)), 0.0);
         let norm = conic.norm(Vec3::new(3.0, 4.0, 0.0));
         assert_abs_diff_eq!(norm.x(), 0.0);
@@ -98,7 +98,7 @@ mod tests {
 
     #[test]
     fn flat_surface_at_origin_sag_is_zero() {
-        let conic = Conic::new(10.0, Float::INFINITY, 0.0, BoundaryType::Refracting);
+        let conic = Conic::new(10.0, Float::INFINITY, 0.0, BoundaryKind::Refracting);
         assert_eq!(conic.sag(Vec3::new(0.0, 0.0, 0.0)), 0.0);
         assert_abs_diff_eq!(conic.norm(Vec3::new(0.0, 0.0, 0.0)).z(), 1.0);
     }
@@ -140,7 +140,7 @@ mod tests {
 
     #[test]
     fn roc_returns_configured_value() {
-        let conic = Conic::new(10.0, 77.3, 0.0, BoundaryType::Refracting);
+        let conic = Conic::new(10.0, 77.3, 0.0, BoundaryKind::Refracting);
         assert_abs_diff_eq!(conic.roc(0.0), 77.3);
         // Circularly symmetric — azimuth does not change roc
         assert_abs_diff_eq!(conic.roc(1.23), 77.3);
@@ -148,21 +148,21 @@ mod tests {
 
     #[test]
     fn roc_flat_returns_infinity() {
-        let conic = Conic::new(10.0, Float::INFINITY, 0.0, BoundaryType::Refracting);
+        let conic = Conic::new(10.0, Float::INFINITY, 0.0, BoundaryKind::Refracting);
         assert!(conic.roc(0.0).is_infinite());
     }
 
     #[test]
-    fn boundary_type_round_trips() {
-        let r = Conic::new(5.0, 30.0, 0.0, BoundaryType::Refracting);
-        let m = Conic::new(5.0, 30.0, 0.0, BoundaryType::Reflecting);
-        assert!(matches!(r.boundary_type(), BoundaryType::Refracting));
-        assert!(matches!(m.boundary_type(), BoundaryType::Reflecting));
+    fn boundary_kind_round_trips() {
+        let r = Conic::new(5.0, 30.0, 0.0, BoundaryKind::Refracting);
+        let m = Conic::new(5.0, 30.0, 0.0, BoundaryKind::Reflecting);
+        assert!(matches!(r.boundary_kind(), BoundaryKind::Refracting));
+        assert!(matches!(m.boundary_kind(), BoundaryKind::Reflecting));
     }
 
     #[test]
     fn mask_blocks_ray_outside_aperture() {
-        let conic = Conic::new(10.0, Float::INFINITY, 0.0, BoundaryType::Refracting);
+        let conic = Conic::new(10.0, Float::INFINITY, 0.0, BoundaryKind::Refracting);
         assert!(
             !conic
                 .mask()
@@ -177,7 +177,7 @@ mod tests {
 
     #[test]
     fn mask_preserves_semi_diameter() {
-        let conic = Conic::new(12.5, 50.0, 0.0, BoundaryType::Refracting);
+        let conic = Conic::new(12.5, 50.0, 0.0, BoundaryKind::Refracting);
         assert_abs_diff_eq!(conic.mask().semi_diameter(), 12.5);
     }
 }

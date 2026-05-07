@@ -1,6 +1,6 @@
 use crate::{
     core::{Float, math::vec3::Vec3},
-    specs::surfaces::{BoundaryType, Mask},
+    specs::surfaces::{BoundaryKind, Mask},
 };
 
 use super::{Surface, SurfaceKind, solvers::spherical_surface};
@@ -9,7 +9,7 @@ use super::{Surface, SurfaceKind, solvers::spherical_surface};
 #[derive(Debug, Clone)]
 pub struct Sphere {
     pub radius_of_curvature: Float,
-    pub boundary_type: BoundaryType,
+    pub boundary_kind: BoundaryKind,
     mask: Mask,
 }
 
@@ -17,19 +17,19 @@ impl Sphere {
     pub fn new(
         semi_diameter: Float,
         radius_of_curvature: Float,
-        boundary_type: BoundaryType,
+        boundary_kind: BoundaryKind,
     ) -> Self {
         Self {
             radius_of_curvature,
-            boundary_type,
+            boundary_kind,
             mask: Mask::Circular { semi_diameter },
         }
     }
 }
 
 impl Surface for Sphere {
-    fn boundary_type(&self) -> BoundaryType {
-        self.boundary_type
+    fn boundary_kind(&self) -> BoundaryKind {
+        self.boundary_kind
     }
 
     fn intersect(
@@ -87,16 +87,16 @@ mod tests {
     use approx::assert_abs_diff_eq;
 
     fn sphere(roc: Float, semi_diameter: Float) -> Sphere {
-        Sphere::new(semi_diameter, roc, BoundaryType::Refracting)
+        Sphere::new(semi_diameter, roc, BoundaryKind::Refracting)
     }
 
     fn equiv_conic(roc: Float, semi_diameter: Float) -> Conic {
-        Conic::new(semi_diameter, roc, 0.0, BoundaryType::Refracting)
+        Conic::new(semi_diameter, roc, 0.0, BoundaryKind::Refracting)
     }
 
     #[test]
     fn flat_surface_sag_is_zero() {
-        let s = Sphere::new(10.0, Float::INFINITY, BoundaryType::Refracting);
+        let s = Sphere::new(10.0, Float::INFINITY, BoundaryKind::Refracting);
         assert_eq!(s.sag(Vec3::new(3.0, 4.0, 0.0)), 0.0);
         let norm = s.norm(Vec3::new(3.0, 4.0, 0.0));
         assert_abs_diff_eq!(norm.x(), 0.0);
@@ -106,7 +106,7 @@ mod tests {
 
     #[test]
     fn flat_surface_at_origin_sag_is_zero() {
-        let s = Sphere::new(10.0, Float::INFINITY, BoundaryType::Refracting);
+        let s = Sphere::new(10.0, Float::INFINITY, BoundaryKind::Refracting);
         assert_eq!(s.sag(Vec3::new(0.0, 0.0, 0.0)), 0.0);
         assert_abs_diff_eq!(s.norm(Vec3::new(0.0, 0.0, 0.0)).z(), 1.0);
     }
@@ -166,28 +166,28 @@ mod tests {
 
     #[test]
     fn roc_returns_configured_value() {
-        let s = Sphere::new(10.0, 77.3, BoundaryType::Refracting);
+        let s = Sphere::new(10.0, 77.3, BoundaryKind::Refracting);
         assert_abs_diff_eq!(s.roc(0.0), 77.3);
         assert_abs_diff_eq!(s.roc(1.23), 77.3);
     }
 
     #[test]
-    fn boundary_type_round_trips() {
-        let r = Sphere::new(5.0, 30.0, BoundaryType::Refracting);
-        let m = Sphere::new(5.0, 30.0, BoundaryType::Reflecting);
-        assert!(matches!(r.boundary_type(), BoundaryType::Refracting));
-        assert!(matches!(m.boundary_type(), BoundaryType::Reflecting));
+    fn boundary_kind_round_trips() {
+        let r = Sphere::new(5.0, 30.0, BoundaryKind::Refracting);
+        let m = Sphere::new(5.0, 30.0, BoundaryKind::Reflecting);
+        assert!(matches!(r.boundary_kind(), BoundaryKind::Refracting));
+        assert!(matches!(m.boundary_kind(), BoundaryKind::Reflecting));
     }
 
     #[test]
     fn surface_kind_is_sphere() {
-        let s = Sphere::new(5.0, 30.0, BoundaryType::Refracting);
+        let s = Sphere::new(5.0, 30.0, BoundaryKind::Refracting);
         assert!(matches!(s.surface_kind(), SurfaceKind::Sphere));
     }
 
     #[test]
     fn mask_preserves_semi_diameter() {
-        let s = Sphere::new(12.5, 50.0, BoundaryType::Refracting);
+        let s = Sphere::new(12.5, 50.0, BoundaryKind::Refracting);
         assert_abs_diff_eq!(s.mask().semi_diameter(), 12.5);
     }
 }

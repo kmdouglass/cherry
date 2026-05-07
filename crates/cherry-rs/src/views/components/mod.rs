@@ -6,7 +6,7 @@ use anyhow::{Result, anyhow};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    BoundaryType, RefractiveIndexSpec, SequentialModel, SequentialSubModel, SurfaceKind,
+    BoundaryKind, RefractiveIndexSpec, SequentialModel, SequentialSubModel, SurfaceKind,
     core::{Float, refractive_index::RefractiveIndex},
 };
 
@@ -81,7 +81,7 @@ pub fn components_view(
         }
 
         // Detect reflecting surfaces explicitly by type — before any gap-based logic.
-        if matches!(surf_pair.0.boundary_type(), BoundaryType::Reflecting) {
+        if matches!(surf_pair.0.boundary_kind(), BoundaryKind::Reflecting) {
             components.insert(Component::Mirror { surf_idx: i });
             continue;
         }
@@ -177,7 +177,7 @@ mod tests {
             semi_diameter: 12.5,
             radius_of_curvature: 25.8,
             conic_constant: 0.0,
-            surf_type: crate::BoundaryType::Refracting,
+            surf_kind: crate::BoundaryKind::Refracting,
             rotation: Rotation3D::None,
         };
         let gap_1 = GapSpec {
@@ -188,7 +188,7 @@ mod tests {
             semi_diameter: 12.5,
             radius_of_curvature: Float::INFINITY,
             conic_constant: 0.0,
-            surf_type: crate::BoundaryType::Refracting,
+            surf_kind: crate::BoundaryKind::Refracting,
             rotation: Rotation3D::None,
         };
         let gap_2 = GapSpec {
@@ -199,7 +199,7 @@ mod tests {
             semi_diameter: 12.5,
             radius_of_curvature: 25.8,
             conic_constant: 0.0,
-            surf_type: crate::BoundaryType::Refracting,
+            surf_kind: crate::BoundaryKind::Refracting,
             rotation: Rotation3D::None,
         }; // Surface is unpaired
         let gap_3 = GapSpec {
@@ -231,7 +231,7 @@ mod tests {
             semi_diameter: 12.5,
             radius_of_curvature: 25.8,
             conic_constant: 0.0,
-            surf_type: crate::BoundaryType::Refracting,
+            surf_kind: crate::BoundaryKind::Refracting,
             rotation: Rotation3D::None,
         };
         let gap_1 = GapSpec {
@@ -281,7 +281,7 @@ mod tests {
             semi_diameter: 6.882,
             radius_of_curvature: Float::INFINITY,
             conic_constant: 0.0,
-            surf_type: crate::BoundaryType::Refracting,
+            surf_kind: crate::BoundaryKind::Refracting,
             rotation: Rotation3D::None,
         };
         let gap_2 = GapSpec {
@@ -292,7 +292,7 @@ mod tests {
             semi_diameter: 7.367,
             radius_of_curvature: -25.84,
             conic_constant: 0.0,
-            surf_type: crate::BoundaryType::Refracting,
+            surf_kind: crate::BoundaryKind::Refracting,
             rotation: Rotation3D::None,
         };
         let gap_3 = GapSpec {
@@ -317,19 +317,19 @@ mod tests {
     //             semi_diameter: 28.478,
     //             radius_of_curvature: 99.56266,
     //             conic_constant: 0.0,
-    //             surf_type: crate::BoundaryType::Refracting,
+    //             surf_kind: crate::BoundaryKind::Refracting,
     //         },
     //         SurfaceSpec::Conic {
     //             semi_diameter: 26.276,
     //             radius_of_curvature: -86.84002,
     //             conic_constant: 0.0,
-    //             surf_type: crate::BoundaryType::Refracting,
+    //             surf_kind: crate::BoundaryKind::Refracting,
     //         },
     //         SurfaceSpec::Conic {
     //             semi_diameter: 21.01,
     //             radius_of_curvature: -1187.63858,
     //             conic_constant: 0.0,
-    //             surf_type: crate::BoundaryType::Refracting,
+    //             surf_kind: crate::BoundaryKind::Refracting,
     //         },
     //         SurfaceSpec::Iris {
     //             semi_diameter: 33.262,
@@ -338,31 +338,31 @@ mod tests {
     //             semi_diameter: 20.543,
     //             radius_of_curvature: 57.47491,
     //             conic_constant: 0.0,
-    //             surf_type: crate::BoundaryType::Refracting,
+    //             surf_kind: crate::BoundaryKind::Refracting,
     //         },
     //         SurfaceSpec::Conic {
     //             semi_diameter: 20.074,
     //             radius_of_curvature: -54.61685,
     //             conic_constant: 0.0,
-    //             surf_type: crate::BoundaryType::Refracting,
+    //             surf_kind: crate::BoundaryKind::Refracting,
     //         },
     //         SurfaceSpec::Conic {
     //             semi_diameter: 16.492,
     //             radius_of_curvature: -614.68633,
     //             conic_constant: 0.0,
-    //             surf_type: crate::BoundaryType::Refracting,
+    //             surf_kind: crate::BoundaryKind::Refracting,
     //         },
     //         SurfaceSpec::Conic {
     //             semi_diameter: 17.297,
     //             radius_of_curvature: -38.17110,
     //             conic_constant: 0.0,
-    //             surf_type: crate::BoundaryType::Refracting,
+    //             surf_kind: crate::BoundaryKind::Refracting,
     //         },
     //         SurfaceSpec::Conic {
     //             semi_diameter: 18.94,
     //             radius_of_curvature: Float::INFINITY,
     //             conic_constant: 0.0,
-    //             surf_type: crate::BoundaryType::Refracting,
+    //             surf_kind: crate::BoundaryKind::Refracting,
     //         },
     //         SurfaceSpec::Image,
     //     ];
@@ -457,7 +457,7 @@ mod tests {
                 semi_diameter: 12.5,
                 radius_of_curvature: -200.0,
                 conic_constant: 0.0,
-                surf_type: crate::BoundaryType::Reflecting,
+                surf_kind: crate::BoundaryKind::Reflecting,
                 rotation: Rotation3D::None,
             },
             SurfaceSpec::Probe {

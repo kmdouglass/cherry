@@ -3,7 +3,7 @@ use anyhow::Result;
 
 use crate::core::{Float, math::vec3::Vec3, ray::Ray};
 
-use crate::specs::surfaces::{BoundaryType, Mask};
+use crate::specs::surfaces::{BoundaryKind, Mask};
 
 pub mod conic;
 pub mod image;
@@ -28,7 +28,7 @@ pub use surface_registry::{SurfaceConstructor, SurfaceRegistry};
 ///
 /// Used by rendering and analysis code to distinguish surface roles that cannot
 /// be inferred from geometry alone (e.g., Image vs. Probe vs. Object — all flat
-/// with the same `boundary_type()`).
+/// with the same `boundary_kind()`).
 ///
 /// Library-provided surfaces return their specific kind. User-defined surfaces
 /// should return [`SurfaceKind::Custom`] (the default).
@@ -52,7 +52,7 @@ pub enum SurfaceKind {
 /// its local coordinate system. A flat surface lies in the local xy-plane.
 pub trait Surface: std::fmt::Debug + Send + Sync {
     /// Returns the surface boundary type (refracting, reflecting, etc.).
-    fn boundary_type(&self) -> BoundaryType;
+    fn boundary_kind(&self) -> BoundaryKind;
 
     /// Finds the intersection of a ray with the surface using Newton-Raphson
     /// iteration.
@@ -130,19 +130,19 @@ pub trait Surface: std::fmt::Debug + Send + Sync {
     ///   normalized)
     fn interact(&self, ray: &mut Ray, n_0: Float, n_1: Float, norm: Vec3) {
         let norm = norm.normalize();
-        match self.boundary_type() {
-            BoundaryType::Refracting => {
+        match self.boundary_kind() {
+            BoundaryKind::Refracting => {
                 let mu = n_0 / n_1;
                 let cos_theta_1 = ray.dir().dot(&norm);
                 let term_1 = norm * (1.0 - mu * mu * (1.0 - cos_theta_1 * cos_theta_1)).sqrt();
                 let term_2 = (ray.dir() - norm * cos_theta_1) * mu;
                 ray.set_dir(term_1 + term_2);
             }
-            BoundaryType::Reflecting => {
+            BoundaryKind::Reflecting => {
                 let cos_theta_1 = ray.dir().dot(&norm);
                 ray.set_dir(ray.dir() - norm * (2.0 * cos_theta_1));
             }
-            BoundaryType::NoOp => {}
+            BoundaryKind::NoOp => {}
         }
     }
 }
@@ -152,7 +152,7 @@ mod tests {
     use super::*;
     use crate::core::math::vec3::Vec3;
     use crate::core::surfaces::Conic;
-    use crate::specs::surfaces::BoundaryType;
+    use crate::specs::surfaces::BoundaryKind;
 
     fn make_ray(dir: Vec3) -> Ray {
         Ray::new(Vec3::new(0.0, 0.0, 0.0), dir)
@@ -160,7 +160,7 @@ mod tests {
 
     #[test]
     fn test_interact_noop_leaves_direction_unchanged() {
-        let surf = Conic::new(4.0, Float::INFINITY, 0.0, BoundaryType::NoOp);
+        let surf = Conic::new(4.0, Float::INFINITY, 0.0, BoundaryKind::NoOp);
         let dir = Vec3::new(0.0, 0.0, 1.0);
         let mut ray = make_ray(dir);
         let norm = Vec3::new(0.0, 0.0, 1.0);
@@ -171,7 +171,7 @@ mod tests {
     #[test]
     fn test_interact_refracting_normal_incidence() {
         // Normal incidence: direction should not change (Snell's law, theta_i = 0)
-        let surf = Conic::new(4.0, Float::INFINITY, 0.0, BoundaryType::Refracting);
+        let surf = Conic::new(4.0, Float::INFINITY, 0.0, BoundaryKind::Refracting);
         let dir = Vec3::new(0.0, 0.0, 1.0);
         let mut ray = make_ray(dir);
         let norm = Vec3::new(0.0, 0.0, 1.0);
@@ -183,7 +183,7 @@ mod tests {
 
     #[test]
     fn test_interact_reflecting_reverses_normal_component() {
-        let surf = Conic::new(4.0, Float::INFINITY, 0.0, BoundaryType::Reflecting);
+        let surf = Conic::new(4.0, Float::INFINITY, 0.0, BoundaryKind::Reflecting);
         // Ray travelling in +z, flat surface normal in +z — reflected back in -z
         let dir = Vec3::new(0.0, 0.0, 1.0);
         let mut ray = make_ray(dir);

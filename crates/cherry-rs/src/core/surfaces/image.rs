@@ -2,7 +2,7 @@ use anyhow::Result;
 
 use crate::{
     core::{Float, math::vec3::Vec3, ray::Ray},
-    specs::surfaces::{BoundaryType, Mask},
+    specs::surfaces::{BoundaryKind, Mask},
 };
 
 use super::{Surface, SurfaceKind, solvers::flat_surface};
@@ -44,8 +44,8 @@ impl Surface for Image {
         &self.mask
     }
 
-    fn boundary_type(&self) -> BoundaryType {
-        BoundaryType::NoOp
+    fn boundary_kind(&self) -> BoundaryKind {
+        BoundaryKind::NoOp
     }
 
     fn surface_kind(&self) -> SurfaceKind {

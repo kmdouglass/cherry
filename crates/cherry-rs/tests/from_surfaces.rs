@@ -1,4 +1,4 @@
-use cherry_rs::{BoundaryType, GapSpec, Mask, Rotation3D, SequentialModel, Surface, Vec3, n};
+use cherry_rs::{BoundaryKind, GapSpec, Mask, Rotation3D, SequentialModel, Surface, Vec3, n};
 
 #[derive(Debug)]
 struct FlatNoOp {
@@ -14,8 +14,8 @@ impl FlatNoOp {
 }
 
 impl Surface for FlatNoOp {
-    fn boundary_type(&self) -> BoundaryType {
-        BoundaryType::NoOp
+    fn boundary_kind(&self) -> BoundaryKind {
+        BoundaryKind::NoOp
     }
 
     fn sag(&self, _pos: Vec3) -> f64 {

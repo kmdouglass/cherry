@@ -9,7 +9,7 @@
 use std::rc::Rc;
 
 use crate::{
-    BoundaryType, FieldSpec, GapSpec, RefractiveIndexSpec, Rotation3D, SequentialModel, SurfaceSpec,
+    BoundaryKind, FieldSpec, GapSpec, RefractiveIndexSpec, Rotation3D, SequentialModel, SurfaceSpec,
 };
 
 pub fn sequential_model(
@@ -59,37 +59,37 @@ pub fn sequential_model(
     let surf_2 = SurfaceSpec::Sphere {
         semi_diameter: 2.0,
         radius_of_curvature: -2.2136,
-        surf_type: BoundaryType::Refracting,
+        surf_kind: BoundaryKind::Refracting,
         rotation: Rotation3D::None,
     };
     let surf_3 = SurfaceSpec::Sphere {
         semi_diameter: 2.0,
         radius_of_curvature: -2.6575,
-        surf_type: BoundaryType::Refracting,
+        surf_kind: BoundaryKind::Refracting,
         rotation: Rotation3D::None,
     };
     let surf_4 = SurfaceSpec::Sphere {
         semi_diameter: 2.0,
         radius_of_curvature: -5.5022,
-        surf_type: BoundaryType::Refracting,
+        surf_kind: BoundaryKind::Refracting,
         rotation: Rotation3D::None,
     };
     let surf_5 = SurfaceSpec::Sphere {
         semi_diameter: 2.0,
         radius_of_curvature: -3.8129,
-        surf_type: BoundaryType::Refracting,
+        surf_kind: BoundaryKind::Refracting,
         rotation: Rotation3D::None,
     };
     let surf_6 = SurfaceSpec::Sphere {
         semi_diameter: 3.0,
         radius_of_curvature: 7.9951,
-        surf_type: BoundaryType::Refracting,
+        surf_kind: BoundaryKind::Refracting,
         rotation: Rotation3D::None,
     };
     let surf_7 = SurfaceSpec::Sphere {
         semi_diameter: 3.0,
         radius_of_curvature: 8.3651,
-        surf_type: BoundaryType::Refracting,
+        surf_kind: BoundaryKind::Refracting,
         rotation: Rotation3D::None,
     };
     let surf_8 = SurfaceSpec::Image {

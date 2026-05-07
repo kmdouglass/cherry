@@ -3,10 +3,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::core::{Float, math::linalg::rotations::Rotation3D, math::vec3::Vec3};
 
-/// Specifies the type of interaction of light with a sequential model surface.
+/// Specifies the kind of interaction of light with a sequential model surface.
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub enum BoundaryType {
+pub enum BoundaryKind {
     Refracting,
     Reflecting,
     NoOp,
@@ -36,13 +36,13 @@ pub enum SurfaceSpec {
         semi_diameter: Float,
         radius_of_curvature: Float,
         conic_constant: Float,
-        surf_type: BoundaryType,
+        surf_kind: BoundaryKind,
         rotation: Rotation3D,
     },
     Sphere {
         semi_diameter: Float,
         radius_of_curvature: Float,
-        surf_type: BoundaryType,
+        surf_kind: BoundaryKind,
         rotation: Rotation3D,
     },
     /// A user-defined surface type registered with a [`SurfaceRegistry`].

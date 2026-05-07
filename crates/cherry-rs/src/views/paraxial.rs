@@ -23,7 +23,7 @@ use crate::{
         },
         surfaces::Surface,
     },
-    specs::{fields::unique_tangential_vecs, surfaces::BoundaryType},
+    specs::{fields::unique_tangential_vecs, surfaces::BoundaryKind},
 };
 
 const DEFAULT_THICKNESS: Float = 0.0;
@@ -999,7 +999,7 @@ impl ParaxialSubView {
             };
 
             let roc = surface.roc(0.0);
-            if let BoundaryType::Reflecting = surface.boundary_type() {
+            if let BoundaryKind::Reflecting = surface.boundary_kind() {
                 reflected *= -1;
             }
 
@@ -1059,8 +1059,8 @@ fn surface_to_rtm(
     n_0: Float,
     n_1: Float,
 ) -> RayTransferMatrix {
-    match surface.boundary_type() {
-        BoundaryType::Refracting => Mat2x2::new(
+    match surface.boundary_kind() {
+        BoundaryKind::Refracting => Mat2x2::new(
             1.0,
             t,
             (n_0 - n_1) / n_1 / roc,
@@ -1068,8 +1068,8 @@ fn surface_to_rtm(
         ),
         // -1.0 in the second row flips the angle upon reflection so that we don't have to do
         // acrobatics flipping by the +z-direction instead
-        BoundaryType::Reflecting => Mat2x2::new(1.0, t, -2.0 / roc, -1.0 - 2.0 * t / roc),
-        BoundaryType::NoOp => Mat2x2::new(1.0, t, 0.0, 1.0),
+        BoundaryKind::Reflecting => Mat2x2::new(1.0, t, -2.0 / roc, -1.0 - 2.0 * t / roc),
+        BoundaryKind::NoOp => Mat2x2::new(1.0, t, 0.0, 1.0),
     }
 }
 
@@ -1200,7 +1200,7 @@ mod test {
     use crate::examples::convexplano_lens;
     use crate::{
         GapSpec, Rotation3D, SequentialModel, SurfaceSpec, core::Float, n,
-        specs::surfaces::BoundaryType,
+        specs::surfaces::BoundaryKind,
     };
 
     use super::*;
@@ -1461,14 +1461,14 @@ mod test {
                 semi_diameter: 10.0,
                 radius_of_curvature: Float::INFINITY,
                 conic_constant: 0.0,
-                surf_type: BoundaryType::Refracting,
+                surf_kind: BoundaryKind::Refracting,
                 rotation: Rotation3D::None,
             },
             SurfaceSpec::Conic {
                 semi_diameter: 14.0,
                 radius_of_curvature: Float::INFINITY,
                 conic_constant: 0.0,
-                surf_type: BoundaryType::Refracting,
+                surf_kind: BoundaryKind::Refracting,
                 rotation: Rotation3D::None,
             },
             SurfaceSpec::Image {
@@ -1522,14 +1522,14 @@ mod test {
                 semi_diameter: 12.5,
                 radius_of_curvature: 25.8,
                 conic_constant: 0.0,
-                surf_type: BoundaryType::Refracting,
+                surf_kind: BoundaryKind::Refracting,
                 rotation: Rotation3D::None,
             },
             SurfaceSpec::Conic {
                 semi_diameter: 12.5,
                 radius_of_curvature: Float::INFINITY,
                 conic_constant: 0.0,
-                surf_type: BoundaryType::Refracting,
+                surf_kind: BoundaryKind::Refracting,
                 rotation: Rotation3D::None,
             },
             SurfaceSpec::Image {

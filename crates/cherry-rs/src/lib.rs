@@ -39,7 +39,7 @@
 //! use cherry_rs::{
 //!     n, ray_trace_3d_view, trace_ray_bundle, ApertureSpec, FieldSpec, GapSpec, ImagePlane,
 //!     ParaxialView, Pupil, SamplingConfig, RefractiveIndexSpec, Rotation3D,
-//!     SequentialModel, SurfaceSpec, BoundaryType,
+//!     SequentialModel, SurfaceSpec, BoundaryKind,
 //! };
 //!
 //! // Create a convexplano lens with an object at infinity.
@@ -68,13 +68,13 @@
 //!     SurfaceSpec::Sphere {
 //!         semi_diameter: 12.5,
 //!         radius_of_curvature: 25.8,
-//!         surf_type: BoundaryType::Refracting,
+//!         surf_kind: BoundaryKind::Refracting,
 //!         rotation: Rotation3D::None,
 //!     },
 //!     SurfaceSpec::Sphere {
 //!         semi_diameter: 12.5,
 //!         radius_of_curvature: f64::INFINITY,
-//!         surf_type: BoundaryType::Refracting,
+//!         surf_kind: BoundaryKind::Refracting,
 //!         rotation: Rotation3D::None,
 //!     },
 //!     SurfaceSpec::Image { rotation: Rotation3D::None },
@@ -150,7 +150,7 @@ pub use specs::{
     aperture::ApertureSpec,
     fields::{FieldSpec, PupilSampling},
     gaps::{ConstantRefractiveIndex, GapSpec, RefractiveIndexSpec},
-    surfaces::{BoundaryType, Mask, SurfaceSpec},
+    surfaces::{BoundaryKind, Mask, SurfaceSpec},
 };
 pub use views::{
     components::{Component, components_view},

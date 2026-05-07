@@ -129,7 +129,7 @@ mod tests {
         GapSpec, Rotation3D, SequentialModel, SurfaceSpec,
         core::{Float, sequential_model::builder::SequentialModelBuilder},
         n,
-        specs::{fields::FieldSpec, surfaces::BoundaryType},
+        specs::{fields::FieldSpec, surfaces::BoundaryKind},
         views::paraxial::{ParaxialView, marginal_ray_bundle},
     };
 
@@ -158,13 +158,13 @@ mod tests {
             SurfaceSpec::Sphere {
                 semi_diameter: 12.5,
                 radius_of_curvature: 25.8,
-                surf_type: BoundaryType::Refracting,
+                surf_kind: BoundaryKind::Refracting,
                 rotation: Rotation3D::None,
             },
             SurfaceSpec::Sphere {
                 semi_diameter: 12.5,
                 radius_of_curvature: Float::INFINITY,
-                surf_type: BoundaryType::Refracting,
+                surf_kind: BoundaryKind::Refracting,
                 rotation: Rotation3D::None,
             },
             SurfaceSpec::Image {
@@ -258,7 +258,7 @@ mod tests {
             SurfaceSpec::Sphere {
                 semi_diameter: 12.5,
                 radius_of_curvature: 25.8,
-                surf_type: BoundaryType::Refracting,
+                surf_kind: BoundaryKind::Refracting,
                 rotation: Rotation3D::None,
             },
             SurfaceSpec::Iris {
