@@ -13,6 +13,7 @@ Interactive and accessible optical system design for tabletop optics.
 1. [Project Description](#project-description)
 1. [Roadmap](#roadmap)
 1. [License](#license)
+1. [Acknowledgements](#acknowledgements)
 
 ## Quickstart
 
@@ -69,7 +70,7 @@ Cherry might be for you if:
 - [ ] Lens view for manipulating systems by lens instead of by surface
 - [ ] Decenters/rotational offsets on lenses
 - [ ] **Help Wanted** Annotate coordinate axes, the optical axis, and other elements in the cross-section view
-- [ ] Galvo plus scan lens example
+- [X] Galvo plus scan lens example
 
 ### Next
 
@@ -92,3 +93,9 @@ Cherry might be for you if:
 Copyright (c) 2024-2026, ECOLE POLYTECHNIQUE FEDERALE DE LAUSANNE, Switzerland, Laboratory of Experimental Biophysics (LEB).
 
 The cherry-rs library is licensed under the [GNU Lesser General Public License v3.0 or later](LICENSE.txt) (LGPL-3.0-or-later). The compiled `cherry` GUI binary is licensed under the GNU General Public License v3.0 or later (GPL-3.0-or-later).
+
+## Acknowledgements
+
+- [Refractive Index Database](https://github.com/polyanskiy/refractiveindex.info-database) - Material data
+- Laikin, *Lens Design*, 4th ed., CRC Press, p. 251 (2007), <https://doi.org/10.1201/9780849382796> - F-theta scan lens example
+- Negrean and Mansvelder, *Optimal lens design and use in laser-scanning microscopy*, Biomed. Opt. Express 5, 1588 (2014), <https://doi.org/10.1364/BOE.5.001588> - Galvo + scan lens example

@@ -497,8 +497,15 @@ impl eframe::App for CherryApp {
                         self.load_specs(examples::petzval_lens());
                         ui.close();
                     }
-                    if ui.button("F-Theta Scan Lens").clicked() {
+                    if ui.button("F-Theta Scan Lens (Laikin)").clicked() {
                         self.load_specs(examples::f_theta_scan_lens());
+                        ui.close();
+                    }
+                    if ui
+                        .button("Galvo and Scan Lens (Negrean and Mansvelder)")
+                        .clicked()
+                    {
+                        self.load_specs(examples::galvo_scan_lens_negrean_mansvelder());
                         ui.close();
                     }
                 });
