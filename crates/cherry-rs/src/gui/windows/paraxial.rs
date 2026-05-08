@@ -1,3 +1,5 @@
+use egui_extras::{Column, TableBuilder};
+
 use crate::{gui::result_package::ResultPackage, views::paraxial::ParaxialSubView};
 
 /// Floating paraxial summary output window.
@@ -51,7 +53,7 @@ fn render_paraxial_content(ui: &mut egui::Ui, r: &ResultPackage) {
             .collect();
         ids.sort_by_key(|&(wl_id, _)| wl_id);
 
-        render_v_table(ui, r, v_idx, &ids, pv);
+        render_v_table(ui, r, &ids, pv);
         ui.add_space(8.0);
     }
 
@@ -80,102 +82,145 @@ fn render_paraxial_content(ui: &mut egui::Ui, r: &ResultPackage) {
 fn render_v_table(
     ui: &mut egui::Ui,
     r: &ResultPackage,
-    v_idx: usize,
     ids: &[(usize, usize)],
     pv: &crate::views::paraxial::ParaxialView,
 ) {
     let n_wl = ids.len();
-    let n_cols = 1 + n_wl;
+    let row_h = ui.text_style_height(&egui::TextStyle::Body) + 4.0;
 
-    egui::Grid::new(format!("paraxial_{v_idx}"))
-        .num_columns(n_cols)
-        .spacing([20.0, 4.0])
-        .show(ui, |ui| {
-            // Wavelength header row — only when there are multiple wavelengths.
-            if n_wl > 1 {
-                ui.label(""); // empty label cell
+    let builder = TableBuilder::new(ui)
+        .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
+        .column(Column::auto())
+        .columns(Column::auto().at_least(70.0), n_wl);
+
+    if n_wl > 1 {
+        builder
+            .header(row_h, |mut hdr| {
+                hdr.col(|_| {});
                 for &(wl_id, _) in ids {
-                    let wl_label = r
-                        .wavelengths
-                        .get(wl_id)
-                        .map(|wl| format!("{wl:.4} \u{00b5}m"))
-                        .unwrap_or_else(|| format!("WL {wl_id}"));
-                    ui.label(wl_label);
+                    hdr.col(|ui| {
+                        let wl_label = r
+                            .wavelengths
+                            .get(wl_id)
+                            .map(|wl| format!("{wl:.4} \u{00b5}m"))
+                            .unwrap_or_else(|| format!("WL {wl_id}"));
+                        ui.label(wl_label);
+                    });
                 }
-                ui.end_row();
-                // Separator row.
-                for _ in 0..n_cols {
-                    ui.separator();
-                }
-                ui.end_row();
-            }
-
-            multi_row(ui, "EFL", ids, pv, |sv| *sv.effective_focal_length());
-            multi_row(ui, "BFD", ids, pv, |sv| *sv.back_focal_distance());
-            multi_row(ui, "FFD", ids, pv, |sv| *sv.front_focal_distance());
-            multi_row(ui, "Paraxial F/#", ids, pv, |sv| sv.paraxial_fno());
-            multi_row(ui, "Image space F/#", ids, pv, |sv| sv.image_space_fno());
-
-            sep_row(ui, n_cols);
-
-            multi_row(
-                ui,
-                "Entrance pupil dist. from first surface",
-                ids,
-                pv,
-                |sv| sv.entrance_pupil().location,
-            );
-            multi_row(ui, "Entrance pupil semi-diameter", ids, pv, |sv| {
-                sv.entrance_pupil().semi_diameter
+            })
+            .body(|mut body| {
+                render_table_body(&mut body, row_h, ids, pv);
             });
-            multi_row(ui, "Exit pupil dist. from last surface", ids, pv, |sv| {
-                sv.exit_pupil().location
-            });
-            multi_row(ui, "Exit pupil semi-diameter", ids, pv, |sv| {
-                sv.exit_pupil().semi_diameter
-            });
+    } else {
+        builder.body(|mut body| {
+            render_table_body(&mut body, row_h, ids, pv);
+        });
+    }
+}
 
-            sep_row(ui, n_cols);
+fn render_table_body(
+    body: &mut egui_extras::TableBody<'_>,
+    row_h: f32,
+    ids: &[(usize, usize)],
+    pv: &crate::views::paraxial::ParaxialView,
+) {
+    let n_cols = 1 + ids.len();
 
-            multi_row(
-                ui,
-                "Front principal plane dist. from first surface",
-                ids,
-                pv,
-                |sv| *sv.front_principal_plane(),
-            );
-            multi_row(
-                ui,
-                "Back principal plane dist. from last surface",
-                ids,
-                pv,
-                |sv| *sv.back_principal_plane(),
-            );
+    if ids.len() > 1 {
+        tb_sep(body, n_cols);
+    }
 
-            sep_row(ui, n_cols);
+    tb_row(body, row_h, "EFL", ids, pv, |sv| {
+        *sv.effective_focal_length()
+    });
+    tb_row(body, row_h, "BFD", ids, pv, |sv| *sv.back_focal_distance());
+    tb_row(body, row_h, "FFD", ids, pv, |sv| *sv.front_focal_distance());
+    tb_row(body, row_h, "Paraxial F/#", ids, pv, |sv| sv.paraxial_fno());
+    tb_row(body, row_h, "Image space F/#", ids, pv, |sv| {
+        sv.image_space_fno()
+    });
 
-            // Aperture stop is an integer index; format it without decimals.
+    tb_sep(body, n_cols);
+
+    tb_row(
+        body,
+        row_h,
+        "Entrance pupil dist. from first surface",
+        ids,
+        pv,
+        |sv| sv.entrance_pupil().location,
+    );
+    tb_row(body, row_h, "Entrance pupil semi-diameter", ids, pv, |sv| {
+        sv.entrance_pupil().semi_diameter
+    });
+    tb_row(
+        body,
+        row_h,
+        "Exit pupil dist. from last surface",
+        ids,
+        pv,
+        |sv| sv.exit_pupil().location,
+    );
+    tb_row(body, row_h, "Exit pupil semi-diameter", ids, pv, |sv| {
+        sv.exit_pupil().semi_diameter
+    });
+
+    tb_sep(body, n_cols);
+
+    tb_row(
+        body,
+        row_h,
+        "Front principal plane dist. from first surface",
+        ids,
+        pv,
+        |sv| *sv.front_principal_plane(),
+    );
+    tb_row(
+        body,
+        row_h,
+        "Back principal plane dist. from last surface",
+        ids,
+        pv,
+        |sv| *sv.back_principal_plane(),
+    );
+
+    tb_sep(body, n_cols);
+
+    // Aperture stop is an integer index; format it without decimals.
+    body.row(row_h, |mut row| {
+        row.col(|ui| {
             ui.label("Aperture stop (surface)");
-            for &(wl_id, tangential_vec_id) in ids {
+        });
+        for &(wl_id, tangential_vec_id) in ids {
+            row.col(|ui| {
                 if let Some(sv) = pv.get(wl_id, tangential_vec_id) {
                     ui.label(sv.aperture_stop().to_string());
                 } else {
                     ui.label("\u{2014}");
                 }
-            }
-            ui.end_row();
-        });
+            });
+        }
+    });
 }
 
-fn sep_row(ui: &mut egui::Ui, n_cols: usize) {
-    for _ in 0..n_cols {
-        ui.separator();
-    }
-    ui.end_row();
+fn tb_sep(body: &mut egui_extras::TableBody<'_>, n_cols: usize) {
+    body.row(6.0, |mut row| {
+        for _ in 0..n_cols {
+            row.col(|ui| {
+                let (rect, _) = ui.allocate_exact_size(ui.available_size(), egui::Sense::hover());
+                ui.painter().hline(
+                    rect.x_range(),
+                    rect.center().y,
+                    ui.visuals().widgets.noninteractive.bg_stroke,
+                );
+            });
+        }
+    });
 }
 
-fn multi_row<F>(
-    ui: &mut egui::Ui,
+fn tb_row<F>(
+    body: &mut egui_extras::TableBody<'_>,
+    row_h: f32,
     label: &str,
     ids: &[(usize, usize)],
     pv: &crate::views::paraxial::ParaxialView,
@@ -183,15 +228,20 @@ fn multi_row<F>(
 ) where
     F: Fn(&ParaxialSubView) -> f64,
 {
-    ui.label(label);
-    for &(wl_id, tangential_vec_id) in ids {
-        if let Some(sv) = pv.get(wl_id, tangential_vec_id) {
-            ui.label(format_value(get_val(sv)));
-        } else {
-            ui.label("\u{2014}");
+    body.row(row_h, |mut row| {
+        row.col(|ui| {
+            ui.label(label);
+        });
+        for &(wl_id, tangential_vec_id) in ids {
+            row.col(|ui| {
+                if let Some(sv) = pv.get(wl_id, tangential_vec_id) {
+                    ui.label(format_value(get_val(sv)));
+                } else {
+                    ui.label("\u{2014}");
+                }
+            });
         }
-    }
-    ui.end_row();
+    });
 }
 
 fn format_value(v: f64) -> String {
