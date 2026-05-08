@@ -434,7 +434,7 @@ pub fn surfaces_panel(
                                     row_idx,
                                     "ro_theta",
                                     -180.0..=180.0,
-                                    0.5,
+                                    0.1,
                                 );
                             }
                         });
@@ -446,7 +446,7 @@ pub fn surfaces_panel(
                                     row_idx,
                                     "ro_psi",
                                     -180.0..=180.0,
-                                    0.5,
+                                    0.1,
                                 );
                             }
                         });
@@ -458,7 +458,7 @@ pub fn surfaces_panel(
                                     row_idx,
                                     "ro_phi",
                                     -180.0..=180.0,
-                                    0.5,
+                                    0.1,
                                 );
                             }
                         });

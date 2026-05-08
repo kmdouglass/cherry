@@ -979,8 +979,6 @@ impl ParaxialSubView {
             forward_iter = sequential_sub_model.try_iter(surfaces, placements)?;
             &mut forward_iter
         };
-        let mut reflected: i8 = 1;
-
         for Step {
             gap_before: gap_0,
             surface,
@@ -995,13 +993,10 @@ impl ParaxialSubView {
                 // with inverses of ray transfer matrices.
                 -gap_0.thickness
             } else {
-                reflected as Float * gap_0.thickness
+                gap_0.thickness
             };
 
             let roc = surface.roc(0.0);
-            if let BoundaryKind::Reflecting = surface.boundary_kind() {
-                reflected *= -1;
-            }
 
             let n_0 = gap_0.refractive_index.n();
             let n_1 = if let Some(gap_1) = gap_1 {
@@ -1066,9 +1061,7 @@ fn surface_to_rtm(
             (n_0 - n_1) / n_1 / roc,
             t * (n_0 - n_1) / n_1 / roc + n_0 / n_1,
         ),
-        // -1.0 in the second row flips the angle upon reflection so that we don't have to do
-        // acrobatics flipping by the +z-direction instead
-        BoundaryKind::Reflecting => Mat2x2::new(1.0, t, -2.0 / roc, -1.0 - 2.0 * t / roc),
+        BoundaryKind::Reflecting => Mat2x2::new(1.0, t, 2.0 / roc, 2.0 * t / roc + 1.0),
         BoundaryKind::NoOp => Mat2x2::new(1.0, t, 0.0, 1.0),
     }
 }

@@ -20,9 +20,9 @@ const ENTRANCE_PUPIL_SD_R: f64 = 12.7;
 
 // Exit pupil: image of Mirror 1 (track=0) formed by the flat Mirror 2
 // (track=100). A flat mirror images an object 100 mm in front of it to 100 mm
-// behind it, so the exit pupil is 100 mm past Mirror 2 (distance from last
-// physical surface).
-const EXIT_PUPIL_LOCATION: f64 = 100.0;
+// behind it. In the cursor frame the exit pupil is 100 mm upstream of Mirror 2
+// (negative = toward the object side), so the signed distance is -100.
+const EXIT_PUPIL_LOCATION: f64 = -100.0;
 
 /// For a straight system track == z for every finite surface.
 #[test]

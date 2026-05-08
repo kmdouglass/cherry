@@ -33,18 +33,18 @@ const FRONT_PRINCIPAL_PLANE: f64 = 0.0;
 
 // For a 5 degree field angle
 const PARAXIAL_IMAGE_PLANE: ImagePlane = ImagePlane {
-    location: -100.0,
+    location: 100.0,
     semi_diameter: 8.7489,
 };
 
 // For a 5 degree field angle; expected (height, angle) per surface for first
 // ray
 fn chief_ray_expected() -> Vec<(f64, f64)> {
-    vec![(0.0, 0.087489), (0.0, -0.087489), (8.7489, -0.087489)]
+    vec![(0.0, 0.087489), (0.0, 0.087489), (8.7489, 0.087489)]
 }
 
 fn marginal_ray_expected() -> Vec<(f64, f64)> {
-    vec![(12.5000, 0.0), (12.5000, 0.125), (0.0000, 0.125)]
+    vec![(12.5000, 0.0), (12.5000, -0.125), (0.0000, -0.125)]
 }
 
 fn assert_ray_results_approx_eq(actual: &ParaxialRayBundle, expected: &[(f64, f64)], epsilon: f64) {
