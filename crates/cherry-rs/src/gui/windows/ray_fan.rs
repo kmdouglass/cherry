@@ -490,6 +490,7 @@ mod tests {
             cross_section: None,
             error: None,
             solved_values: Default::default(),
+            components: Vec::new(),
         }
     }
 
@@ -547,6 +548,7 @@ mod tests {
                     label: format!("{name} [{i}]"),
                     pos: p.position,
                     rot_mat: p.rotation_matrix,
+                    cursor_rot_mat: p.cursor_rotation_matrix,
                 }
             })
             .collect();
@@ -576,6 +578,7 @@ mod tests {
             cross_section: None,
             error: None,
             solved_values: Default::default(),
+            components: Vec::new(),
         }
     }
 

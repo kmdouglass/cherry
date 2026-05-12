@@ -27,6 +27,7 @@ pub struct WindowVisibility {
     pub cross_section: bool,
     pub ray_fan: bool,
     pub system: bool,
+    pub lens_overlay: bool,
 }
 
 impl Default for WindowVisibility {
@@ -39,6 +40,7 @@ impl Default for WindowVisibility {
             cross_section: false,
             ray_fan: false,
             system: false,
+            lens_overlay: false,
         }
     }
 }

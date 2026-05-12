@@ -63,15 +63,6 @@ pub fn surfaces_panel(
             table
         };
 
-        // Decenter (R, U, F) and Rotational Offset (θ, ψ, φ) are always present.
-        let table = table
-            .column(Column::initial(70.0).resizable(true)) // Decenter R — wide enough for "Decenter" label
-            .column(Column::initial(65.0).resizable(true)) // Decenter U
-            .column(Column::initial(65.0).resizable(true)) // Decenter F
-            .column(Column::initial(125.0).resizable(true)) // Rot. Offset θ — wide enough for "Rotational Offset" label
-            .column(Column::initial(65.0).resizable(true)) // Rot. Offset ψ
-            .column(Column::initial(65.0).resizable(true)); // Rot. Offset φ
-
         let table = table.column(Column::auto().at_least(50.0)); // Actions
 
         // Two-zone header: a fixed-height top zone for group labels and a
@@ -94,12 +85,6 @@ pub fn surfaces_panel(
                     header.col(|ui| header_cell(ui, Some("Nominal Rotation"), "\u{03b8} (deg)"));
                     header.col(|ui| header_cell(ui, None, "\u{03c8} (deg)"));
                 }
-                header.col(|ui| header_cell(ui, Some("Decenter"), "R"));
-                header.col(|ui| header_cell(ui, None, "U"));
-                header.col(|ui| header_cell(ui, None, "F"));
-                header.col(|ui| header_cell(ui, Some("Rotational Offset"), "\u{03b8} (deg)"));
-                header.col(|ui| header_cell(ui, None, "\u{03c8} (deg)"));
-                header.col(|ui| header_cell(ui, None, "\u{03c6} (deg)"));
                 header.col(|ui| header_cell(ui, None, ""));
             })
             .body(|mut body| {
@@ -387,82 +372,6 @@ pub fn surfaces_panel(
                             });
                         }
 
-                        // Decenter (R, U, F) — editable for all non-Object surfaces.
-                        row.col(|ui| {
-                            if !is_object {
-                                changed |= drag_value(
-                                    ui,
-                                    &mut surf.decenter_r,
-                                    row_idx,
-                                    "dec_r",
-                                    f64::NEG_INFINITY..=f64::INFINITY,
-                                    0.01,
-                                );
-                            }
-                        });
-                        row.col(|ui| {
-                            if !is_object {
-                                changed |= drag_value(
-                                    ui,
-                                    &mut surf.decenter_u,
-                                    row_idx,
-                                    "dec_u",
-                                    f64::NEG_INFINITY..=f64::INFINITY,
-                                    0.01,
-                                );
-                            }
-                        });
-                        row.col(|ui| {
-                            if !is_object {
-                                changed |= drag_value(
-                                    ui,
-                                    &mut surf.decenter_f,
-                                    row_idx,
-                                    "dec_f",
-                                    f64::NEG_INFINITY..=f64::INFINITY,
-                                    0.01,
-                                );
-                            }
-                        });
-
-                        // Rotational Offset (θ, ψ, φ) — editable for all non-Object surfaces.
-                        row.col(|ui| {
-                            if !is_object {
-                                changed |= drag_value(
-                                    ui,
-                                    &mut surf.rot_offset_theta,
-                                    row_idx,
-                                    "ro_theta",
-                                    -180.0..=180.0,
-                                    0.1,
-                                );
-                            }
-                        });
-                        row.col(|ui| {
-                            if !is_object {
-                                changed |= drag_value(
-                                    ui,
-                                    &mut surf.rot_offset_psi,
-                                    row_idx,
-                                    "ro_psi",
-                                    -180.0..=180.0,
-                                    0.1,
-                                );
-                            }
-                        });
-                        row.col(|ui| {
-                            if !is_object {
-                                changed |= drag_value(
-                                    ui,
-                                    &mut surf.rot_offset_phi,
-                                    row_idx,
-                                    "ro_phi",
-                                    -180.0..=180.0,
-                                    0.1,
-                                );
-                            }
-                        });
-
                         // Actions column (always last).
                         // Object row: + only (cannot remove object surface).
                         // Image row: no buttons (cannot insert after or remove image).
@@ -655,8 +564,8 @@ mod tests {
     }
 
     /// The actions (+/-) column must always be the last column.
-    /// We verify against the φ (Rotational Offset) header, which is the last
-    /// column before Actions.
+    /// We verify against the ψ (Nominal Rotation) header, which is the last
+    /// column before Actions when reflecting surfaces are present.
     #[test]
     fn actions_column_is_rightmost_with_reflecting_surfaces() {
         let mut specs = specs_with_reflecting_surface();
@@ -667,53 +576,20 @@ mod tests {
             });
         harness.run();
 
-        // φ is the last column before Actions; use it as the reference.
-        let phi_header = harness.get_by_label("\u{03c6} (deg)");
+        // ψ is the last non-action column when reflecting surfaces are present.
+        let psi_header = harness.get_by_label("\u{03c8} (deg)");
         let add_button = harness
             .get_all_by_label("+")
             .next()
             .expect("at least one + button should be present");
 
         assert!(
-            add_button.rect().center().x > phi_header.rect().center().x,
-            "actions column must be to the right of φ column: \
-             + button at x={:.1}, φ header at x={:.1}",
+            add_button.rect().center().x > psi_header.rect().center().x,
+            "actions column must be to the right of ψ column: \
+             + button at x={:.1}, ψ header at x={:.1}",
             add_button.rect().center().x,
-            phi_header.rect().center().x,
+            psi_header.rect().center().x,
         );
-    }
-
-    /// Decenter columns are always visible, even without any reflecting
-    /// surface.
-    #[test]
-    fn decenter_columns_always_visible_without_reflecting() {
-        let mut specs = minimal_specs();
-        let mut harness = Harness::builder()
-            .with_size(egui::vec2(2000.0, 600.0))
-            .build_ui(|ui| {
-                default_panel(ui, &mut specs);
-            });
-        harness.run();
-        harness.get_by_label("Decenter");
-        harness.get_by_label("R");
-        harness.get_by_label("U");
-        harness.get_by_label("F");
-    }
-
-    /// Rotational Offset columns are always visible, even without any
-    /// reflecting surface.
-    #[test]
-    fn rot_offset_columns_always_visible_without_reflecting() {
-        let mut specs = minimal_specs();
-        let mut harness = Harness::builder()
-            .with_size(egui::vec2(2000.0, 600.0))
-            .build_ui(|ui| {
-                default_panel(ui, &mut specs);
-            });
-        harness.run();
-        harness.get_by_label("Rotational Offset");
-        // φ header uniquely identifies the rot-offset group.
-        harness.get_by_label("\u{03c6} (deg)");
     }
 
     /// The "Nominal Rotation" group label is absent when no reflecting surface

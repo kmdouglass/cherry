@@ -14,7 +14,6 @@ use crate::gui::{
     },
 };
 
-#[cfg(feature = "ri-info")]
 use crate::gui::panels;
 
 #[cfg(feature = "ri-info")]
@@ -47,6 +46,7 @@ pub struct CherryApp {
     spot_diagram_window: SpotDiagramWindow,
     cross_section_window: CrossSectionWindow,
     ray_fan_window: RayFanWindow,
+    lens_overlay_panel: panels::LensOverlayPanel,
 
     // ri-info: material browser data loaded on main thread for UI
     #[cfg(feature = "ri-info")]
@@ -190,6 +190,7 @@ impl CherryApp {
             spot_diagram_window: SpotDiagramWindow::default(),
             cross_section_window: CrossSectionWindow::default(),
             ray_fan_window: RayFanWindow::default(),
+            lens_overlay_panel: panels::LensOverlayPanel::default(),
             #[cfg(feature = "ri-info")]
             material_index,
             #[cfg(feature = "ri-info")]
@@ -357,6 +358,7 @@ impl CherryApp {
         #[cfg(feature = "ri-info")]
         ui.toggle_value(&mut self.windows.materials, "Materials");
         ui.toggle_value(&mut self.windows.system, "System");
+        ui.toggle_value(&mut self.windows.lens_overlay, "Lens Overlay");
         ui.add_space(8.0);
         ui.label(egui::RichText::new("Output").strong());
         ui.separator();
@@ -380,6 +382,7 @@ impl eframe::App for CherryApp {
                 cross_section: self.windows.cross_section,
                 ray_fan: self.windows.ray_fan,
                 system: self.windows.system,
+                lens_overlay: self.windows.lens_overlay,
             },
         };
         eframe::set_value(storage, eframe::APP_KEY, &state);
@@ -615,6 +618,18 @@ impl eframe::App for CherryApp {
         if self.windows.ray_fan {
             self.ray_fan_window
                 .show(ctx, &mut self.windows.ray_fan, self.latest_result.as_ref());
+        }
+
+        {
+            let changed = self.lens_overlay_panel.show(
+                ctx,
+                &mut self.windows.lens_overlay,
+                &mut self.specs,
+                self.latest_result.as_ref(),
+            );
+            if changed {
+                self.bump_input_id();
+            }
         }
 
         // Keep repainting while a compute is in flight.

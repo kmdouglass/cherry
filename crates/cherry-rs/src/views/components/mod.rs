@@ -24,10 +24,20 @@ const TOL: Float = 1e-6;
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum Component {
-    Element { surf_idxs: (usize, usize) },
-    Iris { stop_idx: usize },
-    Mirror { surf_idx: usize },
-    UnpairedSurface { surf_idx: usize },
+    /// A refracting element. `surf_idxs` contains the ordered surface indices
+    /// (front, optional cemented interfaces, back). Length is always ≥ 2.
+    Element {
+        surf_idxs: Vec<usize>,
+    },
+    Iris {
+        stop_idx: usize,
+    },
+    Mirror {
+        surf_idx: usize,
+    },
+    UnpairedSurface {
+        surf_idx: usize,
+    },
 }
 
 /// Determine the components of an optical system.
@@ -44,13 +54,9 @@ pub enum Component {
 pub fn components_view(
     sequential_model: &SequentialModel,
     background: Rc<dyn RefractiveIndexSpec>,
-) -> Result<HashSet<Component>> {
-    let mut components = HashSet::new();
-
+) -> Result<Vec<Component>> {
     let surfaces = sequential_model.surfaces();
-    let surface_pairs = surfaces.iter().zip(surfaces.iter().skip(1)).enumerate();
-    let max_idx = surfaces.len() - 1;
-    let mut paired_surfaces = HashSet::new();
+    let n_surfs = surfaces.len();
 
     let wavelength = sequential_model
         .wavelengths()
@@ -58,71 +64,148 @@ pub fn components_view(
         .copied()
         .unwrap_or(0.5876);
 
-    // Evaluate the background at the model's first wavelength.  This value is
-    // used only in the fallback branch of `same_medium` (identity comparison
-    // takes priority); see `RefractiveIndex::same_material` for the edge case.
-    let background_refractive_index =
-        RefractiveIndex::try_from_spec(background.as_ref(), wavelength)?;
+    let background_ri = RefractiveIndex::try_from_spec(background.as_ref(), wavelength)?;
 
     let sequential_sub_model = sequential_model
         .submodel(0)
         .ok_or(anyhow!("No submodel found for wavelength index 0."))?;
     let gaps = sequential_sub_model.gaps();
 
-    if max_idx < 2 {
-        // There are no components because only the object and image plane exist.
-        return Ok(components);
+    if n_surfs < 3 {
+        // Only object and image plane exist; no real components.
+        return Ok(vec![]);
     }
 
-    for (i, surf_pair) in surface_pairs {
-        if i == 0 || i == max_idx {
-            // Don't include the object or image plane surfaces
-            continue;
+    // Collect non-element components (mirrors, irises) and track which surfaces
+    // are already claimed so we can detect unpaired surfaces later.
+    let mut non_elements: Vec<Component> = Vec::new();
+    let mut claimed: HashSet<usize> = HashSet::new();
+
+    for (i, surface) in surfaces.iter().enumerate().skip(1).take(n_surfs - 2) {
+        let kind = surface.surface_kind();
+        if matches!(surface.boundary_kind(), BoundaryKind::Reflecting) {
+            non_elements.push(Component::Mirror { surf_idx: i });
+            claimed.insert(i);
+        } else if kind == SurfaceKind::Iris {
+            non_elements.push(Component::Iris { stop_idx: i });
+            claimed.insert(i);
+        }
+    }
+
+    // Pass 1: for every non-background gap, find the nearest non-probe surface
+    // on each side and emit a candidate length-2 element.  Probes inside a glass
+    // run are skipped so they don't split an element.
+    let mut candidates: Vec<Vec<usize>> = Vec::new();
+
+    'gap_loop: for (gap_idx, gap) in gaps.iter().enumerate().skip(1).take(n_surfs - 2) {
+        if same_medium(gap.refractive_index, background_ri) {
+            continue; // background gap — not inside glass
         }
 
-        // Detect reflecting surfaces explicitly by type — before any gap-based logic.
-        if matches!(surf_pair.0.boundary_kind(), BoundaryKind::Reflecting) {
-            components.insert(Component::Mirror { surf_idx: i });
-            continue;
+        // The front surface is the surface at index gap_idx (left side of the
+        // gap), walking backwards past any probes to find a real boundary.
+        let mut front = gap_idx;
+        while front > 0 && surfaces[front].surface_kind() == SurfaceKind::Probe {
+            front -= 1;
         }
 
-        if surf_pair.0.surface_kind() == SurfaceKind::Probe {
-            // Probe surfaces are observation planes, not optical components.
-            continue;
+        // The back surface is gap_idx+1, walking forwards past any probes.
+        let mut back = gap_idx + 1;
+        while back < n_surfs && surfaces[back].surface_kind() == SurfaceKind::Probe {
+            back += 1;
         }
 
-        if surf_pair.0.surface_kind() == SurfaceKind::Iris {
-            components.insert(Component::Iris { stop_idx: i });
-            continue;
+        // Skip if probe-walk escaped the model bounds or landed on object/image.
+        if front == 0
+            || back >= n_surfs
+            || back == n_surfs - 1 && surfaces[back].surface_kind() == SurfaceKind::Image
+        {
+            continue 'gap_loop;
         }
 
-        if surf_pair.1.surface_kind() == SurfaceKind::Iris {
-            // Ensure that irises following surfaces are not added as a component.
-            continue;
+        // Skip if either boundary is a mirror or iris (handled above).
+        if claimed.contains(&front) || claimed.contains(&back) {
+            continue 'gap_loop;
         }
 
-        if surf_pair.1.surface_kind() == SurfaceKind::Image {
-            // Check whether the next to last surface has already been paired with another.
-            if !paired_surfaces.contains(&i) {
-                components.insert(Component::UnpairedSurface { surf_idx: i });
-                continue;
+        candidates.push(vec![front, back]);
+    }
+
+    // Pass 2: merge candidates that share a surface index into compound elements
+    // (cemented doublets, triplets, etc.).  Repeat until stable.
+    let mut changed = true;
+    while changed {
+        changed = false;
+        let mut i = 0;
+        while i < candidates.len() {
+            let mut merged = false;
+            for j in (i + 1)..candidates.len() {
+                let shared = candidates[i].iter().any(|s| candidates[j].contains(s));
+                if shared {
+                    // Merge j into i.
+                    let other = candidates.remove(j);
+                    for s in other {
+                        if !candidates[i].contains(&s) {
+                            candidates[i].push(s);
+                        }
+                    }
+                    candidates[i].sort_unstable();
+                    changed = true;
+                    merged = true;
+                    break;
+                }
+            }
+            if !merged {
+                i += 1;
             }
         }
-
-        if same_medium(gaps[i].refractive_index, background_refractive_index) {
-            // Don't include surface pairs that go from background to another medium because
-            // these are gaps.
-            continue;
-        }
-
-        components.insert(Component::Element {
-            surf_idxs: (i, i + 1),
-        });
-        paired_surfaces.insert(i);
-        paired_surfaces.insert(i + 1);
     }
 
-    Ok(components)
+    // Convert candidates to Element components, tracking which surfaces are now
+    // part of an element so unpaired surfaces can be detected.
+    let mut elements: Vec<Component> = Vec::new();
+    for mut surfs in candidates {
+        surfs.sort_unstable();
+        for &s in &surfs {
+            claimed.insert(s);
+        }
+        elements.push(Component::Element { surf_idxs: surfs });
+    }
+
+    // Detect unpaired surfaces: refracting surfaces that border at least one
+    // non-background gap but were not merged into any element. This includes
+    // the surface just before Image and surfaces adjacent to an iris or mirror
+    // in a non-background medium (e.g. an iris submerged in glass).
+    for i in 1..(n_surfs - 1) {
+        if claimed.contains(&i) {
+            continue;
+        }
+        let kind = surfaces[i].surface_kind();
+        if kind == SurfaceKind::Object
+            || kind == SurfaceKind::Image
+            || kind == SurfaceKind::Probe
+            || kind == SurfaceKind::Iris
+            || matches!(surfaces[i].boundary_kind(), BoundaryKind::Reflecting)
+        {
+            continue;
+        }
+        let borders_non_background = !same_medium(gaps[i - 1].refractive_index, background_ri)
+            || !same_medium(gaps[i].refractive_index, background_ri);
+        if borders_non_background {
+            non_elements.push(Component::UnpairedSurface { surf_idx: i });
+            claimed.insert(i);
+        }
+    }
+
+    // Combine all components and sort by first surface index.
+    let mut result: Vec<Component> = elements.into_iter().chain(non_elements).collect();
+    result.sort_by_key(|c| match c {
+        Component::Element { surf_idxs } => *surf_idxs.first().unwrap_or(&usize::MAX),
+        Component::Iris { stop_idx } => *stop_idx,
+        Component::Mirror { surf_idx } => *surf_idx,
+        Component::UnpairedSurface { surf_idx } => *surf_idx,
+    });
+    Ok(result)
 }
 
 /// Two different media are considered the same if their refractive indices are
@@ -435,18 +518,22 @@ mod tests {
         let components = components_view(&sequential_model, n!(1.0)).unwrap();
 
         assert_eq!(components.len(), 1);
-        assert!(components.contains(&Component::Element { surf_idxs: (1, 2) }));
+        assert!(components.contains(&Component::Element {
+            surf_idxs: vec![1, 2]
+        }));
     }
 
     #[test]
     fn test_silly_single_surface_and_stop() {
-        // This is not a useful system but a good test.
+        // Sphere1 borders a glass gap on its right side even though the iris
+        // is claimed — it must be emitted as an UnpairedSurface.
         let sequential_model = silly_single_surface_and_stop();
 
         let components = components_view(&sequential_model, n!(1.0)).unwrap();
 
-        assert_eq!(components.len(), 1);
-        assert!(components.contains(&Component::Iris { stop_idx: 2 })); // Hard stop
+        assert_eq!(components.len(), 2);
+        assert!(components.contains(&Component::Iris { stop_idx: 2 }));
+        assert!(components.contains(&Component::UnpairedSurface { surf_idx: 1 }));
     }
 
     #[test]
@@ -457,7 +544,9 @@ mod tests {
         let components = components_view(&sequential_model, n!(1.0)).unwrap();
 
         assert_eq!(components.len(), 2);
-        assert!(components.contains(&Component::Element { surf_idxs: (1, 2) }));
+        assert!(components.contains(&Component::Element {
+            surf_idxs: vec![1, 2]
+        }));
         assert!(components.contains(&Component::UnpairedSurface { surf_idx: 3 }));
     }
 
@@ -469,7 +558,9 @@ mod tests {
 
         assert_eq!(components.len(), 2);
         assert!(components.contains(&Component::Iris { stop_idx: 1 })); // Hard stop
-        assert!(components.contains(&Component::Element { surf_idxs: (2, 3) }));
+        assert!(components.contains(&Component::Element {
+            surf_idxs: vec![2, 3]
+        }));
         // Lens
     }
 
@@ -535,8 +626,235 @@ mod tests {
         let components = components_view(&model, air).unwrap();
         assert_eq!(components.len(), 4); // 1 stop + 3 elements
         assert!(components.contains(&Component::Iris { stop_idx: 1 }));
-        assert!(components.contains(&Component::Element { surf_idxs: (2, 3) }));
-        assert!(components.contains(&Component::Element { surf_idxs: (4, 5) }));
-        assert!(components.contains(&Component::Element { surf_idxs: (6, 7) }));
+        assert!(components.contains(&Component::Element {
+            surf_idxs: vec![2, 3]
+        }));
+        assert!(components.contains(&Component::Element {
+            surf_idxs: vec![4, 5]
+        }));
+        assert!(components.contains(&Component::Element {
+            surf_idxs: vec![6, 7]
+        }));
+    }
+
+    pub fn cemented_doublet() -> SequentialModel {
+        // Crown-flint cemented doublet: air → BK7 → SF2 → air
+        // Surfaces: Object[0], Conic[1] (front), Conic[2] (cemented), Conic[3] (back),
+        // Image[4]
+        let air = n!(1.0);
+        let bk7 = n!(1.515);
+        let sf2 = n!(1.648);
+
+        let surf_0 = SurfaceSpec::Object;
+        let gap_0 = GapSpec {
+            thickness: Float::INFINITY,
+            refractive_index: air.clone(),
+        };
+        let surf_1 = SurfaceSpec::Conic {
+            semi_diameter: 12.5,
+            radius_of_curvature: 50.0,
+            conic_constant: 0.0,
+            surf_kind: crate::BoundaryKind::Refracting,
+            rotation: Rotation3D::None,
+            decenter: Vec3::new(0.0, 0.0, 0.0),
+            rotation_offset: Rotation3D::None,
+        };
+        let gap_1 = GapSpec {
+            thickness: 6.0,
+            refractive_index: bk7,
+        };
+        let surf_2 = SurfaceSpec::Conic {
+            semi_diameter: 12.5,
+            radius_of_curvature: -30.0,
+            conic_constant: 0.0,
+            surf_kind: crate::BoundaryKind::Refracting,
+            rotation: Rotation3D::None,
+            decenter: Vec3::new(0.0, 0.0, 0.0),
+            rotation_offset: Rotation3D::None,
+        };
+        let gap_2 = GapSpec {
+            thickness: 3.0,
+            refractive_index: sf2,
+        };
+        let surf_3 = SurfaceSpec::Conic {
+            semi_diameter: 12.5,
+            radius_of_curvature: -100.0,
+            conic_constant: 0.0,
+            surf_kind: crate::BoundaryKind::Refracting,
+            rotation: Rotation3D::None,
+            decenter: Vec3::new(0.0, 0.0, 0.0),
+            rotation_offset: Rotation3D::None,
+        };
+        let gap_3 = GapSpec {
+            thickness: 50.0,
+            refractive_index: air,
+        };
+        let surf_4 = SurfaceSpec::Image {
+            rotation: Rotation3D::None,
+            decenter: Vec3::new(0.0, 0.0, 0.0),
+            rotation_offset: Rotation3D::None,
+        };
+
+        let surfaces = vec![surf_0, surf_1, surf_2, surf_3, surf_4];
+        let gaps = vec![gap_0, gap_1, gap_2, gap_3];
+        SequentialModel::from_surface_specs(&gaps, &surfaces, &[0.5876], None).unwrap()
+    }
+
+    #[test]
+    fn test_cemented_doublet_is_single_element() {
+        // A cemented doublet (BK7 + SF2) must be detected as one element spanning
+        // all three bounding surfaces [1, 2, 3], not two separate elements.
+        let model = cemented_doublet();
+        let components = components_view(&model, n!(1.0)).unwrap();
+        assert_eq!(components.len(), 1);
+        assert_eq!(
+            components[0],
+            Component::Element {
+                surf_idxs: vec![1, 2, 3]
+            }
+        );
+    }
+
+    pub fn singlet_with_probe() -> SequentialModel {
+        // Singlet with a probe surface inside the glass: Object[0], Conic[1],
+        // Probe[2] (inside glass), Conic[3], Image[4]. The probe must not split
+        // the element.
+        let air = n!(1.0);
+        let bk7 = n!(1.515);
+
+        let surf_0 = SurfaceSpec::Object;
+        let gap_0 = GapSpec {
+            thickness: Float::INFINITY,
+            refractive_index: air.clone(),
+        };
+        let surf_1 = SurfaceSpec::Conic {
+            semi_diameter: 12.5,
+            radius_of_curvature: 50.0,
+            conic_constant: 0.0,
+            surf_kind: crate::BoundaryKind::Refracting,
+            rotation: Rotation3D::None,
+            decenter: Vec3::new(0.0, 0.0, 0.0),
+            rotation_offset: Rotation3D::None,
+        };
+        let gap_1 = GapSpec {
+            thickness: 4.0,
+            refractive_index: bk7.clone(),
+        };
+        let surf_2 = SurfaceSpec::Probe {
+            rotation: Rotation3D::None,
+            decenter: Vec3::new(0.0, 0.0, 0.0),
+            rotation_offset: Rotation3D::None,
+        };
+        let gap_2 = GapSpec {
+            thickness: 2.0,
+            refractive_index: bk7,
+        };
+        let surf_3 = SurfaceSpec::Conic {
+            semi_diameter: 12.5,
+            radius_of_curvature: Float::INFINITY,
+            conic_constant: 0.0,
+            surf_kind: crate::BoundaryKind::Refracting,
+            rotation: Rotation3D::None,
+            decenter: Vec3::new(0.0, 0.0, 0.0),
+            rotation_offset: Rotation3D::None,
+        };
+        let gap_3 = GapSpec {
+            thickness: 50.0,
+            refractive_index: air,
+        };
+        let surf_4 = SurfaceSpec::Image {
+            rotation: Rotation3D::None,
+            decenter: Vec3::new(0.0, 0.0, 0.0),
+            rotation_offset: Rotation3D::None,
+        };
+
+        let surfaces = vec![surf_0, surf_1, surf_2, surf_3, surf_4];
+        let gaps = vec![gap_0, gap_1, gap_2, gap_3];
+        SequentialModel::from_surface_specs(&gaps, &surfaces, &[0.5876], None).unwrap()
+    }
+
+    #[test]
+    fn test_probe_inside_glass_does_not_split_element() {
+        // A probe inside the glass of a singlet must not split it into two elements.
+        // Expected: one Element with surf_idxs [1, 3], skipping the probe at [2].
+        let model = singlet_with_probe();
+        let components = components_view(&model, n!(1.0)).unwrap();
+        assert_eq!(components.len(), 1);
+        assert_eq!(
+            components[0],
+            Component::Element {
+                surf_idxs: vec![1, 3]
+            }
+        );
+    }
+
+    pub fn iris_in_glass() -> SequentialModel {
+        // Iris submerged in glass on both sides: Object → Sphere → Iris → Sphere →
+        // Image. Both gaps adjacent to the iris are non-background (glass), so
+        // each surrounding Sphere is an independent ungrouped surface.
+        let air = n!(1.0);
+        let glass = n!(1.517);
+        let surfaces = vec![
+            SurfaceSpec::Object,
+            SurfaceSpec::Sphere {
+                semi_diameter: 12.7,
+                radius_of_curvature: 102.4,
+                surf_kind: BoundaryKind::Refracting,
+                rotation: Rotation3D::None,
+                decenter: Vec3::new(0.0, 0.0, 0.0),
+                rotation_offset: Rotation3D::None,
+            },
+            SurfaceSpec::Iris {
+                semi_diameter: 13.0,
+                rotation: Rotation3D::None,
+                decenter: Vec3::new(0.0, 0.0, 0.0),
+                rotation_offset: Rotation3D::None,
+            },
+            SurfaceSpec::Sphere {
+                semi_diameter: 12.7,
+                radius_of_curvature: -102.4,
+                surf_kind: BoundaryKind::Refracting,
+                rotation: Rotation3D::None,
+                decenter: Vec3::new(0.0, 0.0, 0.0),
+                rotation_offset: Rotation3D::None,
+            },
+            SurfaceSpec::Image {
+                rotation: Rotation3D::None,
+                decenter: Vec3::new(0.0, 0.0, 0.0),
+                rotation_offset: Rotation3D::None,
+            },
+        ];
+        let gaps = vec![
+            GapSpec {
+                thickness: 200.0,
+                refractive_index: air.clone(),
+            },
+            GapSpec {
+                thickness: 1.8,
+                refractive_index: glass.clone(),
+            },
+            GapSpec {
+                thickness: 1.8,
+                refractive_index: glass,
+            },
+            GapSpec {
+                thickness: 196.0,
+                refractive_index: air,
+            },
+        ];
+        SequentialModel::from_surface_specs(&gaps, &surfaces, &[0.5876], None).unwrap()
+    }
+
+    #[test]
+    fn test_iris_in_glass() {
+        // Regression: when an iris sits between two non-background surfaces,
+        // both surrounding refracting surfaces must appear as UnpairedSurface.
+        let model = iris_in_glass();
+        let components = components_view(&model, n!(1.0)).unwrap();
+
+        assert_eq!(components.len(), 3);
+        assert!(components.contains(&Component::Iris { stop_idx: 2 }));
+        assert!(components.contains(&Component::UnpairedSurface { surf_idx: 1 }));
+        assert!(components.contains(&Component::UnpairedSurface { surf_idx: 3 }));
     }
 }

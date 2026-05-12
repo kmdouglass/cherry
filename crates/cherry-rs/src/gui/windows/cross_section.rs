@@ -310,12 +310,23 @@ fn draw_element(
             draw_surface_profile(painter, points, w2s);
         }
         DrawElement::Iris {
-            z,
-            center,
+            center_z,
+            center_t,
+            fwd_z,
+            fwd_t,
             half_gap,
-            ..
+            extent,
         } => {
-            draw_stop(painter, *z as f32, *center as f32, *half_gap as f32, w2s);
+            draw_stop(
+                painter,
+                *center_z as f32,
+                *center_t as f32,
+                *fwd_z as f32,
+                *fwd_t as f32,
+                *half_gap as f32,
+                *extent as f32,
+                w2s,
+            );
         }
         DrawElement::FlatPlane { p1, p2, kind } => {
             draw_flat_plane(painter, *p1, *p2, *kind, w2s);
@@ -408,16 +419,30 @@ fn draw_surface_profile(painter: &egui::Painter, points: &[[f64; 2]], w2s: &Worl
     }
 }
 
-fn draw_stop(painter: &egui::Painter, z: f32, center: f32, half_gap: f32, w2s: &WorldToScreen) {
+#[allow(clippy::too_many_arguments)]
+fn draw_stop(
+    painter: &egui::Painter,
+    center_z: f32,
+    center_t: f32,
+    fwd_z: f32,
+    fwd_t: f32,
+    half_gap: f32,
+    extent: f32,
+    w2s: &WorldToScreen,
+) {
     let stroke = egui::Stroke::new(2.0, egui::Color32::from_gray(160));
-    let gap_top = w2s.map(z, center + half_gap);
-    let gap_bot = w2s.map(z, center - half_gap);
-    // Anchor the outer ends of the iris arms to the painter's clip boundary
-    // rather than to a world-coordinate extent. This prevents the arms from
-    // shrinking as the aperture approaches the padding region.
-    let clip = painter.clip_rect();
-    painter.line_segment([egui::pos2(gap_top.x, clip.top()), gap_top], stroke);
-    painter.line_segment([gap_bot, egui::pos2(gap_bot.x, clip.bottom())], stroke);
+    // Perpendicular to (fwd_z, fwd_t) is (-fwd_t, fwd_z) — the direction along
+    // the iris surface in the 2-D (z, transverse) plot.
+    let perp_z = -fwd_t;
+    let perp_t = fwd_z;
+    let gap_top = w2s.map(center_z + perp_z * half_gap, center_t + perp_t * half_gap);
+    let gap_bot = w2s.map(center_z - perp_z * half_gap, center_t - perp_t * half_gap);
+    let far = half_gap + extent;
+    let top_outer = w2s.map(center_z + perp_z * far, center_t + perp_t * far);
+    let bot_outer = w2s.map(center_z - perp_z * far, center_t - perp_t * far);
+    // egui clips line_segment to the painter clip rect automatically.
+    painter.line_segment([top_outer, gap_top], stroke);
+    painter.line_segment([gap_bot, bot_outer], stroke);
 }
 
 fn draw_flat_plane(
@@ -597,12 +622,17 @@ fn render_svg(geom: &PlaneGeometry, wavelengths: &[f64], dark_mode: bool) -> Str
                 svg_polyline(&mut s, points, &w2s, profile_color, 1.5);
             }
             DrawElement::Iris {
-                z,
-                center,
+                center_z,
+                center_t,
+                fwd_z,
+                fwd_t,
                 half_gap,
-                ..
+                extent,
             } => {
-                svg_stop(&mut s, *z, *center, *half_gap, &w2s, stop_color);
+                svg_stop(
+                    &mut s, *center_z, *center_t, *fwd_z, *fwd_t, *half_gap, *extent, &w2s,
+                    stop_color,
+                );
             }
             DrawElement::FlatPlane { p1, p2, kind } => {
                 svg_flat_plane(&mut s, *p1, *p2, *kind, &w2s);
@@ -677,15 +707,30 @@ fn svg_polyline(s: &mut String, points: &[[f64; 2]], w2s: &WorldToSvg, stroke: &
     ));
 }
 
-fn svg_stop(s: &mut String, z: f64, center: f64, half_gap: f64, w2s: &WorldToSvg, color: &str) {
-    let (x, y_gap_top) = w2s.map(z, center + half_gap);
-    let (_, y_gap_bot) = w2s.map(z, center - half_gap);
-    // Anchor arms to the SVG canvas edges so they never shrink near the boundary.
+#[allow(clippy::too_many_arguments)]
+fn svg_stop(
+    s: &mut String,
+    center_z: f64,
+    center_t: f64,
+    fwd_z: f64,
+    fwd_t: f64,
+    half_gap: f64,
+    extent: f64,
+    w2s: &WorldToSvg,
+    color: &str,
+) {
+    let perp_z = -fwd_t;
+    let perp_t = fwd_z;
+    let far = half_gap + extent;
+    let (x_gt, y_gt) = w2s.map(center_z + perp_z * half_gap, center_t + perp_t * half_gap);
+    let (x_gb, y_gb) = w2s.map(center_z - perp_z * half_gap, center_t - perp_t * half_gap);
+    let (x_to, y_to) = w2s.map(center_z + perp_z * far, center_t + perp_t * far);
+    let (x_bo, y_bo) = w2s.map(center_z - perp_z * far, center_t - perp_t * far);
     s.push_str(&format!(
-        r#"<line x1="{x:.2}" y1="0" x2="{x:.2}" y2="{y_gap_top:.2}" stroke="{color}" stroke-width="2"/>"#
+        r#"<line x1="{x_to:.2}" y1="{y_to:.2}" x2="{x_gt:.2}" y2="{y_gt:.2}" stroke="{color}" stroke-width="2"/>"#
     ));
     s.push_str(&format!(
-        r#"<line x1="{x:.2}" y1="{y_gap_bot:.2}" x2="{x:.2}" y2="{SVG_H:.2}" stroke="{color}" stroke-width="2"/>"#
+        r#"<line x1="{x_gb:.2}" y1="{y_gb:.2}" x2="{x_bo:.2}" y2="{y_bo:.2}" stroke="{color}" stroke-width="2"/>"#
     ));
 }
 
@@ -848,6 +893,7 @@ mod tests {
             cross_section: Some(cs),
             error: None,
             solved_values: Default::default(),
+            components: Vec::new(),
         };
         let mut harness = Harness::new_state(
             |ctx, (w, r): &mut (CrossSectionWindow, ResultPackage)| {

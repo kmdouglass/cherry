@@ -1,7 +1,5 @@
 //! 2D cross-section view of a sequential optical system.
 
-use std::collections::HashSet;
-
 use crate::{
     SequentialModel, SurfaceKind,
     core::{Float, math::vec3::Vec3, sequential_model::placement::Placement, surfaces::Surface},
@@ -57,10 +55,14 @@ pub enum DrawElement {
         points: Vec<[f64; 2]>,
     },
     Iris {
-        z: f64,
+        center_z: f64,
         /// Transverse position of the aperture centre (non-zero when the iris
         /// has a decenter along the cross-section's transverse axis).
-        center: f64,
+        center_t: f64,
+        /// Forward (optical-axis) direction at this surface in (z, t) plot
+        /// space.
+        fwd_z: f64,
+        fwd_t: f64,
         half_gap: f64,
         extent: f64,
     },
@@ -91,7 +93,7 @@ pub enum FlatPlaneKind {
 pub fn cross_section_view(
     model: &SequentialModel,
     cross_section_rays: Option<&[(usize, usize, RayBundle)]>,
-    components: &HashSet<Component>,
+    components: &[Component],
 ) -> CrossSectionView {
     let wavelengths = model.wavelengths().to_vec();
     let axis_dirs = model.axis_directions();
@@ -131,7 +133,7 @@ fn build_plane_geometry(
     model: &SequentialModel,
     cross_section_rays: Option<&[(usize, usize, RayBundle)]>,
     axis: GlobalAxis,
-    components: &HashSet<Component>,
+    components: &[Component],
 ) -> PlaneGeometry {
     let surfaces = model.surfaces();
     let placements = model.placements();
@@ -139,21 +141,15 @@ fn build_plane_geometry(
 
     let mut elements: Vec<DrawElement> = Vec::new();
 
-    // Add lens groups and stops.
-    // Sort components by surface index for consistent ordering.
-    let mut sorted_components: Vec<Component> = components.iter().cloned().collect();
-    sorted_components.sort_by_key(|c| match c {
-        Component::Element { surf_idxs: (i, _) } => *i,
-        Component::Iris { stop_idx } => *stop_idx,
-        Component::Mirror { surf_idx } => *surf_idx,
-        Component::UnpairedSurface { surf_idx } => *surf_idx,
-    });
-
-    for comp in &sorted_components {
+    // Add lens groups and stops. Components are already sorted by first surface
+    // index.
+    for comp in components {
         match comp {
-            Component::Element { surf_idxs: (i, j) } => {
-                let front_pts = sample_surface(surfaces[*i].as_ref(), &placements[*i], axis, N_PTS);
-                let back_pts = sample_surface(surfaces[*j].as_ref(), &placements[*j], axis, N_PTS);
+            Component::Element { surf_idxs } => {
+                let i = surf_idxs.first().copied().unwrap_or(0);
+                let j = surf_idxs.last().copied().unwrap_or(0);
+                let front_pts = sample_surface(surfaces[i].as_ref(), &placements[i], axis, N_PTS);
+                let back_pts = sample_surface(surfaces[j].as_ref(), &placements[j], axis, N_PTS);
                 if !front_pts.is_empty() && !back_pts.is_empty() {
                     elements.push(DrawElement::LensGroup {
                         front_pts,
@@ -162,15 +158,24 @@ fn build_plane_geometry(
                 }
             }
             Component::Iris { stop_idx } => {
-                let z = placements[*stop_idx].position.z();
-                let center = match axis {
-                    GlobalAxis::Y => placements[*stop_idx].position.y(),
-                    GlobalAxis::X => placements[*stop_idx].position.x(),
+                let placement = &placements[*stop_idx];
+                let center_z = placement.position.z();
+                let center_t = match axis {
+                    GlobalAxis::Y => placement.position.y(),
+                    GlobalAxis::X => placement.position.x(),
+                };
+                let fwd = placement.inv_rotation_matrix * Vec3::new(0.0, 0.0, 1.0);
+                let fwd_z = fwd.z();
+                let fwd_t = match axis {
+                    GlobalAxis::Y => fwd.y(),
+                    GlobalAxis::X => fwd.x(),
                 };
                 let sd = surfaces[*stop_idx].mask().semi_diameter();
                 elements.push(DrawElement::Iris {
-                    z,
-                    center,
+                    center_z,
+                    center_t,
+                    fwd_z,
+                    fwd_t,
                     half_gap: sd,
                     extent: largest_sd * 1.5,
                 });
@@ -371,9 +376,33 @@ fn compute_bounds(elements: &[DrawElement], ray_paths: &[Vec<Vec<[f64; 2]>>]) ->
                     update(z, t, &mut z_min, &mut z_max, &mut t_min, &mut t_max);
                 }
             }
-            DrawElement::Iris { z, extent, .. } => {
-                update(*z, *extent, &mut z_min, &mut z_max, &mut t_min, &mut t_max);
-                update(*z, -*extent, &mut z_min, &mut z_max, &mut t_min, &mut t_max);
+            DrawElement::Iris {
+                center_z,
+                center_t,
+                fwd_z,
+                fwd_t,
+                extent,
+                ..
+            } => {
+                // perp = (-fwd_t, fwd_z): direction along the iris surface
+                let perp_z = -fwd_t;
+                let perp_t = fwd_z;
+                update(
+                    center_z + perp_z * extent,
+                    center_t + perp_t * extent,
+                    &mut z_min,
+                    &mut z_max,
+                    &mut t_min,
+                    &mut t_max,
+                );
+                update(
+                    center_z - perp_z * extent,
+                    center_t - perp_t * extent,
+                    &mut z_min,
+                    &mut z_max,
+                    &mut t_min,
+                    &mut t_max,
+                );
             }
             DrawElement::FlatPlane { p1, p2, .. } => {
                 update(p1[0], p1[1], &mut z_min, &mut z_max, &mut t_min, &mut t_max);
@@ -446,8 +475,8 @@ mod tests {
         SequentialModel::from_surface_specs(&gaps, &surfs, &[0.5876], None).expect("build model")
     }
 
-    fn empty_components() -> std::collections::HashSet<Component> {
-        std::collections::HashSet::new()
+    fn empty_components() -> Vec<Component> {
+        Vec::new()
     }
 
     #[test]
@@ -634,5 +663,82 @@ mod tests {
             .filter(|e| matches!(e, DrawElement::LensGroup { .. }))
             .count();
         assert_eq!(n_groups, 3, "expected 3 separate lens groups");
+    }
+
+    #[test]
+    fn iris_in_folded_system_has_correct_forward_direction() {
+        // Regression: iris after a 45° fold mirror was drawn with wrong orientation.
+        // Build: Object → Sphere(refracting) → Mirror(theta=45°) → Iris → Image
+        let air = n!(1.0);
+        let gaps = vec![
+            GapSpec {
+                thickness: 100.0,
+                refractive_index: air.clone(),
+            },
+            GapSpec {
+                thickness: 50.0,
+                refractive_index: air.clone(),
+            },
+            GapSpec {
+                thickness: 25.0,
+                refractive_index: air.clone(),
+            },
+            GapSpec {
+                thickness: 50.0,
+                refractive_index: air.clone(),
+            },
+        ];
+        let mirror_rotation =
+            Rotation3D::IntrinsicPassiveRUF(EulerAngles(45.0_f64.to_radians(), 0.0, 0.0));
+        let surfs = vec![
+            SurfaceSpec::Object,
+            SurfaceSpec::Sphere {
+                semi_diameter: 12.7,
+                radius_of_curvature: 102.4,
+                surf_kind: BoundaryKind::Refracting,
+                rotation: Rotation3D::None,
+                decenter: Vec3::new(0.0, 0.0, 0.0),
+                rotation_offset: Rotation3D::None,
+            },
+            SurfaceSpec::Sphere {
+                semi_diameter: 10.0,
+                radius_of_curvature: Float::INFINITY,
+                surf_kind: BoundaryKind::Reflecting,
+                rotation: mirror_rotation,
+                decenter: Vec3::new(0.0, 0.0, 0.0),
+                rotation_offset: Rotation3D::None,
+            },
+            SurfaceSpec::Iris {
+                semi_diameter: 7.1,
+                rotation: Rotation3D::None,
+                decenter: Vec3::new(0.0, 0.0, 0.0),
+                rotation_offset: Rotation3D::None,
+            },
+            SurfaceSpec::Image {
+                rotation: Rotation3D::None,
+                decenter: Vec3::new(0.0, 0.0, 0.0),
+                rotation_offset: Rotation3D::None,
+            },
+        ];
+        let model = SequentialModel::from_surface_specs(&gaps, &surfs, &[0.5876], None)
+            .expect("build folded model");
+        let components = components_view(&model, air).unwrap();
+        let cs = cross_section_view(&model, None, &components);
+
+        // After the 45° fold the optical axis points along Y (transverse), not Z.
+        // The iris DrawElement must therefore have fwd_z ≈ 0 and fwd_t ≈ ±1.
+        let iris = cs.yz.elements.iter().find_map(|e| match e {
+            DrawElement::Iris { fwd_z, fwd_t, .. } => Some((*fwd_z, *fwd_t)),
+            _ => None,
+        });
+        let (fwd_z, fwd_t) = iris.expect("iris DrawElement not found in YZ plane");
+        assert!(
+            fwd_z.abs() < 0.01,
+            "after fold, iris fwd_z should be ~0, got {fwd_z}"
+        );
+        assert!(
+            fwd_t.abs() > 0.99,
+            "after fold, iris fwd_t should be ~±1, got {fwd_t}"
+        );
     }
 }

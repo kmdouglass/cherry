@@ -406,6 +406,7 @@ mod tests {
             cross_section: None,
             error: Some("trace failed".to_string()),
             solved_values: Default::default(),
+            components: Vec::new(),
         };
 
         let window = SpotDiagramWindow::default();
@@ -472,6 +473,7 @@ mod tests {
                     label: format!("S{i}"),
                     pos: p.position,
                     rot_mat: p.rotation_matrix,
+                    cursor_rot_mat: p.cursor_rotation_matrix,
                 })
                 .collect(),
             fields: vec![
@@ -488,6 +490,7 @@ mod tests {
             cross_section: None,
             error: None,
             solved_values: Default::default(),
+            components: Vec::new(),
         };
 
         let window = SpotDiagramWindow::default();

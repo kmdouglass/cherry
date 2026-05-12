@@ -1,5 +1,6 @@
 mod aperture;
 mod fields;
+mod lens_overlay;
 #[cfg(feature = "ri-info")]
 mod materials;
 mod surfaces;
@@ -8,6 +9,7 @@ mod wavelengths;
 
 pub use aperture::aperture_panel;
 pub use fields::fields_panel;
+pub use lens_overlay::LensOverlayPanel;
 #[cfg(feature = "ri-info")]
 pub use materials::{MaterialBrowserState, MaterialIndex, materials_panel};
 pub use surfaces::surfaces_panel;

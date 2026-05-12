@@ -67,8 +67,8 @@ Cherry might be for you if:
 ### Now
 
 - [X] Decenters/rotational offsets on surfaces
-- [ ] Lens view for manipulating systems by lens instead of by surface
-- [ ] Decenters/rotational offsets on lenses
+- [X] Lens view for manipulating systems by lens instead of by surface
+- [X] Decenters/rotational offsets on lenses
 - [ ] **Help Wanted** Annotate coordinate axes, the optical axis, and other elements in the cross-section view
 - [X] Galvo plus scan lens example
 
@@ -77,6 +77,8 @@ Cherry might be for you if:
 - [ ] Encode designs into URLs and enable sharing via tiny URLs
 - [ ] Cooke triplet example
 - [ ] **Help Wanted** mdbook to serve as the app's user documentation
+- [ ] Surface coatings
+- [ ] Systems with beam splitters
 
 ### Later
 
@@ -87,6 +89,7 @@ Cherry might be for you if:
 - [ ] **Help Wanted** Fuzzy search for materials
 - [ ] Paraxial surface types
 - [ ] [Cardinal lens](https://opg.optica.org/ao/fulltext.cfm?uri=ao-63-4-1110) surface type for ideal objective models
+- [ ] Microscope objective example (see <https://opg.optica.org/josaa/fulltext.cfm?uri=josaa-32-11-2082>)
 
 ## License
 
