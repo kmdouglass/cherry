@@ -328,7 +328,7 @@ impl LensOverlayPanel {
             self.selected.remove(&idx);
         }
 
-        // Merge button
+        // Action buttons: Merge and Split.
         ui.add_space(4.0);
         ui.horizontal(|ui| {
             let can_merge = self.selected.len() >= 2;
@@ -356,6 +356,37 @@ impl LensOverlayPanel {
                 let mut new_group = LensGroupSpec::new(new_name);
                 new_group.component_first_surfs = merged_surfs;
                 specs.lens_groups.insert(insert_pos, new_group);
+
+                self.selected.clear();
+                changed = true;
+            }
+
+            let can_split = self
+                .selected
+                .iter()
+                .any(|&i| specs.lens_groups[i].component_first_surfs.len() > 1);
+            if ui
+                .add_enabled(can_split, egui::Button::new("Split selected"))
+                .clicked()
+            {
+                let mut sel: Vec<usize> = self.selected.iter().copied().collect();
+                sel.sort_unstable_by(|a, b| b.cmp(a)); // descending — stable indices
+
+                for i in sel {
+                    if specs.lens_groups[i].component_first_surfs.len() <= 1 {
+                        continue;
+                    }
+                    let group = specs.lens_groups.remove(i);
+                    for (offset, key) in group.component_first_surfs.iter().enumerate() {
+                        let name = comp_lookup
+                            .get(key)
+                            .map(|c| default_group_name(c))
+                            .unwrap_or_else(|| format!("Surface ({key})"));
+                        let mut new_group = LensGroupSpec::new(name);
+                        new_group.component_first_surfs = vec![*key];
+                        specs.lens_groups.insert(i + offset, new_group);
+                    }
+                }
 
                 self.selected.clear();
                 changed = true;
@@ -427,6 +458,91 @@ mod tests {
         let (_, _) = validate_and_sync(&mut groups, &components);
         assert_eq!(groups[0].component_first_surfs[0], 1);
         assert_eq!(groups[1].component_first_surfs[0], 5);
+    }
+
+    /// Simulates the split logic from `show_contents` without the egui
+    /// plumbing.
+    fn do_split(
+        groups: &mut Vec<LensGroupSpec>,
+        selected: &[usize],
+        comp_lookup: &std::collections::HashMap<usize, Component>,
+    ) {
+        let mut sel = selected.to_vec();
+        sel.sort_unstable_by(|a, b| b.cmp(a));
+        for i in sel {
+            if groups[i].component_first_surfs.len() <= 1 {
+                continue;
+            }
+            let group = groups.remove(i);
+            for (offset, key) in group.component_first_surfs.iter().enumerate() {
+                let name = comp_lookup
+                    .get(key)
+                    .map(default_group_name)
+                    .unwrap_or_else(|| format!("Surface ({key})"));
+                let mut new_group = LensGroupSpec::new(name);
+                new_group.component_first_surfs = vec![*key];
+                groups.insert(i + offset, new_group);
+            }
+        }
+    }
+
+    #[test]
+    fn split_merged_group_produces_single_component_groups() {
+        let components = [
+            make_element(vec![1, 2]),
+            make_mirror(3),
+            make_element(vec![4, 5]),
+        ];
+        let comp_lookup: std::collections::HashMap<usize, Component> = components
+            .iter()
+            .map(|c| (component_first_idx(c), c.clone()))
+            .collect();
+
+        // Start with all three merged into one group.
+        let mut groups = vec![make_group("Big Group", vec![1, 3, 4])];
+
+        do_split(&mut groups, &[0], &comp_lookup);
+
+        assert_eq!(groups.len(), 3);
+        assert_eq!(groups[0].component_first_surfs, vec![1]);
+        assert_eq!(groups[0].name, "Element (1\u{2013}2)");
+        assert_eq!(groups[0].decenter, [0.0, 0.0, 0.0]);
+        assert_eq!(groups[0].rotation, [0.0, 0.0, 0.0]);
+        assert_eq!(groups[1].component_first_surfs, vec![3]);
+        assert_eq!(groups[1].name, "Mirror (3)");
+        assert_eq!(groups[2].component_first_surfs, vec![4]);
+        assert_eq!(groups[2].name, "Element (4\u{2013}5)");
+    }
+
+    #[test]
+    fn split_skips_single_component_groups() {
+        let components = [make_element(vec![1, 2]), make_mirror(3)];
+        let comp_lookup: std::collections::HashMap<usize, Component> = components
+            .iter()
+            .map(|c| (component_first_idx(c), c.clone()))
+            .collect();
+
+        // Two groups: one merged (keys 1, 3) and one single-component (key 3 already
+        // covered — use a fresh setup: merged group with keys [1] only is
+        // single, keys [1,3] is merged).
+        let mut groups = vec![
+            make_group("Merged", vec![1, 3]),
+            make_group("Single", vec![5]),
+        ];
+        // Add a component for key 5 to comp_lookup.
+        let comp5 = make_element(vec![5, 6]);
+        let mut comp_lookup2 = comp_lookup;
+        comp_lookup2.insert(5, comp5);
+
+        // Select both rows.
+        do_split(&mut groups, &[0, 1], &comp_lookup2);
+
+        // Row 0 (merged) splits into 2; row 1 (single) unchanged.
+        assert_eq!(groups.len(), 3);
+        assert_eq!(groups[0].component_first_surfs, vec![1]);
+        assert_eq!(groups[1].component_first_surfs, vec![3]);
+        assert_eq!(groups[2].component_first_surfs, vec![5]); // unchanged
+        assert_eq!(groups[2].name, "Single");
     }
 
     #[test]
