@@ -164,6 +164,7 @@ fn run_compute(
                 cross_section: None,
                 error: Some(format!("Paraxial error: {e}")),
                 solved_values,
+                components: Vec::new(),
             };
         }
     };
@@ -215,6 +216,7 @@ fn run_compute(
         cross_section,
         error: None,
         solved_values,
+        components,
     }
 }
 
@@ -276,6 +278,7 @@ fn build_surface_descs(seq: &SequentialModel) -> Vec<SurfaceDesc> {
                 label: format!("{name} [{i}]"),
                 pos: p.position,
                 rot_mat: p.rotation_matrix,
+                cursor_rot_mat: p.cursor_rotation_matrix,
             }
         })
         .collect()

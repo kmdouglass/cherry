@@ -210,29 +210,6 @@ pub struct SurfaceRow {
     /// reflecting Conic surfaces.
     #[serde(default = "default_zero")]
     pub psi: String,
-    /// Decenter in cursor-frame R direction (mm). Available for all non-Object
-    /// surfaces.
-    #[serde(default = "default_zero")]
-    pub decenter_r: String,
-    /// Decenter in cursor-frame U direction (mm). Available for all non-Object
-    /// surfaces.
-    #[serde(default = "default_zero")]
-    pub decenter_u: String,
-    /// Decenter in cursor-frame F direction (mm). Available for all non-Object
-    /// surfaces.
-    #[serde(default = "default_zero")]
-    pub decenter_f: String,
-    /// Rotation offset about cursor-R axis (deg). Does not redirect the cursor.
-    #[serde(default = "default_zero")]
-    pub rot_offset_theta: String,
-    /// Rotation offset about intermediate cursor-U axis (deg). Does not
-    /// redirect the cursor.
-    #[serde(default = "default_zero")]
-    pub rot_offset_psi: String,
-    /// Rotation offset about second intermediate cursor-F axis (deg). Does not
-    /// redirect the cursor.
-    #[serde(default = "default_zero")]
-    pub rot_offset_phi: String,
     /// Material key from rii.db (e.g. "glass:BK7:SCHOTT"). Used when
     /// `SystemSpecs::use_materials` is true.
     #[serde(default)]
@@ -251,12 +228,6 @@ impl SurfaceRow {
             conic_constant: String::new(),
             theta: "0".into(),
             psi: "0".into(),
-            decenter_r: "0".into(),
-            decenter_u: "0".into(),
-            decenter_f: "0".into(),
-            rot_offset_theta: "0".into(),
-            rot_offset_psi: "0".into(),
-            rot_offset_phi: "0".into(),
             material_key: None,
         }
     }
@@ -278,12 +249,6 @@ impl SurfaceRow {
             conic_constant: conic_constant.into(),
             theta: "0".into(),
             psi: "0".into(),
-            decenter_r: "0".into(),
-            decenter_u: "0".into(),
-            decenter_f: "0".into(),
-            rot_offset_theta: "0".into(),
-            rot_offset_psi: "0".into(),
-            rot_offset_phi: "0".into(),
             material_key: None,
         }
     }
@@ -304,12 +269,6 @@ impl SurfaceRow {
             conic_constant: String::new(),
             theta: "0".into(),
             psi: "0".into(),
-            decenter_r: "0".into(),
-            decenter_u: "0".into(),
-            decenter_f: "0".into(),
-            rot_offset_theta: "0".into(),
-            rot_offset_psi: "0".into(),
-            rot_offset_phi: "0".into(),
             material_key: None,
         }
     }
@@ -325,12 +284,6 @@ impl SurfaceRow {
             conic_constant: String::new(),
             theta: "0".into(),
             psi: "0".into(),
-            decenter_r: "0".into(),
-            decenter_u: "0".into(),
-            decenter_f: "0".into(),
-            rot_offset_theta: "0".into(),
-            rot_offset_psi: "0".into(),
-            rot_offset_phi: "0".into(),
             material_key: None,
         }
     }
@@ -346,12 +299,6 @@ impl SurfaceRow {
             conic_constant: String::new(),
             theta: "0".into(),
             psi: "0".into(),
-            decenter_r: "0".into(),
-            decenter_u: "0".into(),
-            decenter_f: "0".into(),
-            rot_offset_theta: "0".into(),
-            rot_offset_psi: "0".into(),
-            rot_offset_phi: "0".into(),
             material_key: None,
         }
     }
@@ -364,6 +311,36 @@ impl SurfaceRow {
 
 fn default_phi() -> String {
     "90.0".into()
+}
+
+/// A user-defined group of components that share a common displacement and
+/// rotation.
+///
+/// `component_first_surfs` stores the first surface index of each component
+/// (as reported by `components_view`) that belongs to the group. These indices
+/// are kept in sync with the surfaces table via `insert_surface_after` and
+/// `delete_surface`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LensGroupSpec {
+    pub name: String,
+    /// First surface indices of the components in this group.
+    pub component_first_surfs: Vec<usize>,
+    /// Global-frame decenter [R, U, F] in mm.
+    pub decenter: [f64; 3],
+    /// Passive-RUF Euler angles [θ, ψ, φ] in degrees applied about the group
+    /// vertex.
+    pub rotation: [f64; 3],
+}
+
+impl LensGroupSpec {
+    pub fn new(name: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            component_first_surfs: Vec::new(),
+            decenter: [0.0; 3],
+            rotation: [0.0; 3],
+        }
+    }
 }
 
 /// A single row in the fields table.
@@ -441,11 +418,14 @@ pub struct SystemSpecs {
     /// Active solves on the system, serialized as part of system state.
     #[serde(default)]
     pub solves: Vec<SolveSpec>,
+    /// User-defined lens groups for the lens overlay panel.
+    #[serde(default)]
+    pub lens_groups: Vec<LensGroupSpec>,
 }
 
 impl SystemSpecs {
-    /// Insert a default surface after index `idx` and adjust `stop_surface` and
-    /// solves.
+    /// Insert a default surface after index `idx` and adjust `stop_surface`,
+    /// solves, and lens groups.
     pub fn insert_surface_after(&mut self, idx: usize) {
         self.surfaces.insert(idx + 1, SurfaceRow::new_default());
         if let Some(stop) = self.stop_surface
@@ -458,9 +438,17 @@ impl SystemSpecs {
                 solve.set_surface_index(solve.surface_index() + 1);
             }
         }
+        for group in &mut self.lens_groups {
+            for s in &mut group.component_first_surfs {
+                if *s > idx {
+                    *s += 1;
+                }
+            }
+        }
     }
 
-    /// Remove the surface at index `idx` and adjust `stop_surface` and solves.
+    /// Remove the surface at index `idx` and adjust `stop_surface`, solves,
+    /// and lens groups.
     ///
     /// Does nothing if fewer than 3 surfaces remain (must keep object + image).
     pub fn delete_surface(&mut self, idx: usize) {
@@ -479,6 +467,16 @@ impl SystemSpecs {
                 solve.set_surface_index(solve.surface_index() - 1);
             }
         }
+        for group in &mut self.lens_groups {
+            group.component_first_surfs.retain(|&s| s != idx);
+            for s in &mut group.component_first_surfs {
+                if *s > idx {
+                    *s -= 1;
+                }
+            }
+        }
+        self.lens_groups
+            .retain(|g| !g.component_first_surfs.is_empty());
     }
 
     /// Return the active solve for a given cell, if any.
@@ -532,6 +530,7 @@ impl Default for SystemSpecs {
             background_material_key: None,
             stop_surface: None,
             solves: Vec::new(),
+            lens_groups: Vec::new(),
         }
     }
 }
@@ -711,6 +710,73 @@ mod tests {
         assert_eq!(found.unwrap().surface_index(), 2);
     }
 
+    // --- lens_groups index updates ---
+
+    fn specs_with_group(first_surfs: Vec<usize>) -> SystemSpecs {
+        let mut specs = five_surface_specs();
+        let mut g = LensGroupSpec::new("G1");
+        g.component_first_surfs = first_surfs;
+        specs.lens_groups = vec![g];
+        specs
+    }
+
+    #[test]
+    fn insert_before_group_surface_increments_group_index() {
+        // Group references surface 2; inserting at index 1 should shift it to 3.
+        let mut specs = specs_with_group(vec![2]);
+        specs.insert_surface_after(1);
+        assert_eq!(specs.lens_groups[0].component_first_surfs, vec![3]);
+    }
+
+    #[test]
+    fn insert_at_group_surface_leaves_group_index_unchanged() {
+        // Inserting *after* surface 2 places new surface at 3; group ref 2 unchanged.
+        let mut specs = specs_with_group(vec![2]);
+        specs.insert_surface_after(2);
+        assert_eq!(specs.lens_groups[0].component_first_surfs, vec![2]);
+    }
+
+    #[test]
+    fn insert_after_group_surface_leaves_group_index_unchanged() {
+        // Inserting after surface 3 doesn't affect a group referencing surface 2.
+        let mut specs = specs_with_group(vec![2]);
+        specs.insert_surface_after(3);
+        assert_eq!(specs.lens_groups[0].component_first_surfs, vec![2]);
+    }
+
+    #[test]
+    fn delete_removes_matching_group_entry() {
+        // Deleting surface 2 removes entry 2; entry 1 (before the deleted index)
+        // is unaffected.
+        let mut specs = specs_with_group(vec![1, 2]);
+        specs.delete_surface(2);
+        assert_eq!(specs.lens_groups[0].component_first_surfs, vec![1]);
+    }
+
+    #[test]
+    fn delete_removes_entire_group_when_last_entry_deleted() {
+        // If the last entry in a group is removed, the group itself is dropped.
+        let mut specs = specs_with_group(vec![2]);
+        specs.delete_surface(2);
+        assert!(specs.lens_groups.is_empty());
+    }
+
+    #[test]
+    fn delete_before_group_surface_decrements_group_index() {
+        // Deleting surface 1 (before group ref 3) should shift it to 2.
+        let mut specs = specs_with_group(vec![3]);
+        specs.delete_surface(1);
+        assert_eq!(specs.lens_groups[0].component_first_surfs, vec![2]);
+    }
+
+    #[test]
+    fn delete_after_group_surface_leaves_group_index_unchanged() {
+        // Deleting surface 3 doesn't affect a group referencing surface 1.
+        let mut specs = specs_with_group(vec![1]);
+        specs.delete_surface(3);
+        assert_eq!(specs.lens_groups[0].component_first_surfs, vec![1]);
+    }
+
     #[test]
     fn solve_for_returns_none_for_unmatched() {
         let mut specs = five_surface_specs();
@@ -727,49 +793,5 @@ mod tests {
         );
         // Wrong index
         assert!(specs.solve_for(3, SolveParameter::Thickness).is_none());
-    }
-
-    #[test]
-    fn surface_row_displacement_fields_default_to_zero() {
-        let row = SurfaceRow::new_default();
-        assert_eq!(row.decenter_r, "0");
-        assert_eq!(row.decenter_u, "0");
-        assert_eq!(row.decenter_f, "0");
-        assert_eq!(row.rot_offset_theta, "0");
-        assert_eq!(row.rot_offset_psi, "0");
-        assert_eq!(row.rot_offset_phi, "0");
-    }
-
-    #[test]
-    fn surface_row_serde_default_fills_new_fields_from_old_json() {
-        // Simulate deserializing a save file that predates the displacement fields.
-        let json = r#"{
-            "variant": "Sphere",
-            "surface_kind": "Refracting",
-            "refractive_index": "1.5",
-            "thickness": "5.0",
-            "semi_diameter": "10.0",
-            "radius_of_curvature": "25.0",
-            "conic_constant": ""
-        }"#;
-        let row: SurfaceRow = serde_json::from_str(json).expect("deserialize old row");
-        assert_eq!(row.decenter_r, "0");
-        assert_eq!(row.decenter_u, "0");
-        assert_eq!(row.decenter_f, "0");
-        assert_eq!(row.rot_offset_theta, "0");
-        assert_eq!(row.rot_offset_psi, "0");
-        assert_eq!(row.rot_offset_phi, "0");
-    }
-
-    #[test]
-    fn surface_row_serde_roundtrip_preserves_displacement_fields() {
-        let mut row = SurfaceRow::new_sphere("10.0", "25.0", "5.0", "1.5");
-        row.decenter_r = "1.5".into();
-        row.rot_offset_theta = "5.0".into();
-        let json = serde_json::to_string(&row).expect("serialize");
-        let restored: SurfaceRow = serde_json::from_str(&json).expect("deserialize");
-        assert_eq!(restored.decenter_r, "1.5");
-        assert_eq!(restored.rot_offset_theta, "5.0");
-        assert_eq!(restored.decenter_u, "0");
     }
 }

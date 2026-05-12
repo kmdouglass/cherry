@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use crate::{
     CrossSectionView, FieldSpec, ParaxialView, TraceResultsCollection,
     core::math::{linalg::mat3x3::Mat3x3, vec3::Vec3},
+    views::components::Component,
 };
 
 /// Post-solve parameter values keyed by their index in the surfaces table.
@@ -23,6 +24,9 @@ pub struct SurfaceDesc {
     pub pos: Vec3,
     /// Rotation matrix from global into the surface's local coordinate system.
     pub rot_mat: Mat3x3,
+    /// Cursor rotation matrix C_i at this surface (passive, global→cursor
+    /// frame).
+    pub cursor_rot_mat: Mat3x3,
 }
 
 /// Lightweight description of a field point for display.
@@ -45,6 +49,8 @@ pub struct ResultPackage {
     pub cross_section: Option<CrossSectionView>,
     pub error: Option<String>,
     pub solved_values: SolvedValues,
+    /// Auto-detected optical components from the sequential model.
+    pub components: Vec<Component>,
 }
 
 impl ResultPackage {
@@ -61,6 +67,7 @@ impl ResultPackage {
             cross_section: None,
             error: Some(msg),
             solved_values: SolvedValues::default(),
+            components: Vec::new(),
         }
     }
 }

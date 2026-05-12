@@ -298,6 +298,7 @@ mod tests {
             cross_section: None,
             error: None,
             solved_values: Default::default(),
+            components: Vec::new(),
         }
     }
 
