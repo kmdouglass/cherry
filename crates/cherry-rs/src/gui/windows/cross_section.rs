@@ -26,18 +26,37 @@ pub enum CuttingPlane {
     XZ,
 }
 
+// ── Annotation settings
+// ──────────────────────────────────────────────────────
+
+struct AnnotationSettings {
+    show_axis: bool,
+    show_scalebar: bool,
+}
+
+impl Default for AnnotationSettings {
+    fn default() -> Self {
+        Self {
+            show_axis: true,
+            show_scalebar: true,
+        }
+    }
+}
+
 // ── Window struct
 // ─────────────────────────────────────────────────────────────
 
 /// Cross-section output window.
 pub struct CrossSectionWindow {
     cutting_plane: CuttingPlane,
+    annotations: AnnotationSettings,
 }
 
 impl Default for CrossSectionWindow {
     fn default() -> Self {
         Self {
             cutting_plane: CuttingPlane::YZ,
+            annotations: AnnotationSettings::default(),
         }
     }
 }
@@ -132,6 +151,11 @@ impl CrossSectionWindow {
             if resp.changed() {
                 changed = true;
             }
+            ui.separator();
+            ui.menu_button("Annotations \u{25be}", |ui| {
+                ui.checkbox(&mut self.annotations.show_axis, "Optical axis");
+                ui.checkbox(&mut self.annotations.show_scalebar, "Scale bar");
+            });
         });
         changed
     }
@@ -174,8 +198,13 @@ impl CrossSectionWindow {
             draw_rays(&painter, paths, &w2s, color);
         }
 
-        // Draw scale bar.
-        draw_scalebar(&painter, rect, &geom.bounding_box);
+        // Draw annotations.
+        if self.annotations.show_axis {
+            draw_axis(&painter, &geom.axis_path, &w2s);
+        }
+        if self.annotations.show_scalebar {
+            draw_scalebar(&painter, rect, &geom.bounding_box);
+        }
     }
 
     fn show_invalid_plane_message(&self, ui: &mut egui::Ui) {
@@ -485,6 +514,18 @@ fn draw_rays(
     }
 }
 
+fn draw_axis(painter: &egui::Painter, path: &[[f64; 2]], w2s: &WorldToScreen) {
+    if path.len() < 2 {
+        return;
+    }
+    let stroke = egui::Stroke::new(1.0, egui::Color32::from_gray(110));
+    let screen: Vec<egui::Pos2> = path
+        .iter()
+        .map(|&[z, t]| w2s.map(z as f32, t as f32))
+        .collect();
+    painter.add(egui::Shape::line(screen, stroke));
+}
+
 fn draw_scalebar(painter: &egui::Painter, rect: egui::Rect, bb: &Bounds2D) {
     let world_width = (bb.z.1 - bb.z.0) as f32;
     if world_width <= 0.0 {
@@ -610,6 +651,8 @@ fn render_svg(geom: &PlaneGeometry, wavelengths: &[f64], dark_mode: bool) -> Str
         r#"<rect width="{w}" height="{h}" fill="none" stroke="{border}" stroke-width="1"/>"#
     ));
 
+    svg_axis(&mut s, &geom.axis_path, &w2s, scalebar_color);
+
     for elem in &geom.elements {
         match elem {
             DrawElement::LensGroup {
@@ -687,6 +730,23 @@ fn svg_lens_group(
         .join(" ");
     s.push_str(&format!(
         r#"<polygon points="{pts}" fill="{fill}" stroke="{stroke}" stroke-width="1.5" stroke-linejoin="round"/>"#
+    ));
+}
+
+fn svg_axis(s: &mut String, path: &[[f64; 2]], w2s: &WorldToSvg, color: &str) {
+    if path.len() < 2 {
+        return;
+    }
+    let pts: String = path
+        .iter()
+        .map(|&[z, t]| {
+            let (x, y) = w2s.map(z, t);
+            format!("{x:.2},{y:.2}")
+        })
+        .collect::<Vec<_>>()
+        .join(" ");
+    s.push_str(&format!(
+        r#"<polyline points="{pts}" fill="none" stroke="{color}" stroke-width="1" stroke-dasharray="4 3"/>"#
     ));
 }
 
@@ -872,6 +932,7 @@ mod tests {
                 },
                 elements: Vec::new(),
                 ray_paths: Vec::new(),
+                axis_path: Vec::new(),
             },
             xz: PlaneGeometry {
                 bounding_box: Bounds2D {
@@ -880,6 +941,7 @@ mod tests {
                 },
                 elements: Vec::new(),
                 ray_paths: Vec::new(),
+                axis_path: Vec::new(),
             },
         };
         let result = ResultPackage {
