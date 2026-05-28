@@ -35,6 +35,11 @@ pub struct PlaneGeometry {
     pub elements: Vec<DrawElement>,
     /// ray_paths[wavelength_idx][path_idx] = Vec<[z, transverse]>
     pub ray_paths: Vec<Vec<Vec<[f64; 2]>>>,
+    /// On-axis positions [z, transverse] from the first finite surface to the
+    /// image surface. Starts at the object surface for finite-conjugate
+    /// systems, or at the first lens surface for infinite-conjugate systems
+    /// (where the object placement is infinite).
+    pub axis_path: Vec<[f64; 2]>,
 }
 
 /// Axis-aligned bounding box in the (z, transverse) 2D coordinate system.
@@ -293,12 +298,26 @@ fn build_plane_geometry(
         }
     }
 
+    let axis_path: Vec<[f64; 2]> = model
+        .cursor_positions()
+        .iter()
+        .filter(|p| p.x().is_finite() && p.y().is_finite() && p.z().is_finite())
+        .map(|p| {
+            let t = match axis {
+                GlobalAxis::Y => p.y(),
+                GlobalAxis::X => p.x(),
+            };
+            [p.z(), t]
+        })
+        .collect();
+
     let bounding_box = compute_bounds(&elements, &ray_paths);
 
     PlaneGeometry {
         bounding_box,
         elements,
         ray_paths,
+        axis_path,
     }
 }
 
@@ -739,6 +758,144 @@ mod tests {
         assert!(
             fwd_t.abs() > 0.99,
             "after fold, iris fwd_t should be ~±1, got {fwd_t}"
+        );
+    }
+
+    #[test]
+    fn axis_path_starts_at_first_lens_for_infinite_object() {
+        // convexplano_lens uses INFINITY for the first gap, so the object
+        // surface is infinite and must be excluded from axis_path.
+        let air = n!(1.0);
+        let nbk7 = n!(1.515);
+        let wavelengths: [Float; 1] = [0.5876];
+        let model = convexplano_lens::sequential_model(air.clone(), nbk7, &wavelengths);
+        let components = components_view(&model, air).unwrap();
+        let cs = cross_section_view(&model, None, &components);
+
+        // Object is infinite → axis_path must not contain an infinite coordinate.
+        assert!(
+            cs.yz
+                .axis_path
+                .iter()
+                .all(|&[z, t]| z.is_finite() && t.is_finite()),
+            "axis_path must not contain infinite coordinates"
+        );
+        // For a straight system every on-axis transverse coordinate is zero.
+        for &[_z, t] in &cs.yz.axis_path {
+            assert!(t.abs() < EPS, "expected on-axis transverse ≈ 0, got {t}");
+        }
+        // The path should include the two lens surfaces plus the image surface
+        // (3 finite surfaces: front lens, back lens, image).
+        assert_eq!(cs.yz.axis_path.len(), 3, "expected 3 points in axis_path");
+    }
+
+    #[test]
+    fn axis_path_starts_at_object_for_finite_object() {
+        // straight_sphere_model uses thickness=100.0 for the first gap, so the
+        // object surface is at a finite z position and must be included.
+        let model = straight_sphere_model(Vec3::new(0.0, 0.0, 0.0), Rotation3D::None);
+        let components = components_view(&model, n!(1.0)).unwrap();
+        let cs = cross_section_view(&model, None, &components);
+
+        // Object(finite) + Sphere + Image = 3 surfaces.
+        assert_eq!(
+            cs.yz.axis_path.len(),
+            3,
+            "expected 3 points: object, sphere, image; got {}",
+            cs.yz.axis_path.len()
+        );
+        // All coordinates must be finite.
+        assert!(
+            cs.yz
+                .axis_path
+                .iter()
+                .all(|&[z, t]| z.is_finite() && t.is_finite()),
+            "axis_path must not contain infinite coordinates"
+        );
+    }
+
+    #[test]
+    fn axis_path_unaffected_by_lens_decenter() {
+        // A 2 mm U-decenter shifts the surface vertex to t = 2, but the cursor
+        // (optical axis) must remain at t = 0.
+        let model = straight_sphere_model(Vec3::new(0.0, 2.0, 0.0), Rotation3D::None);
+        let components = components_view(&model, n!(1.0)).unwrap();
+        let cs = cross_section_view(&model, None, &components);
+
+        for &[_z, t] in &cs.yz.axis_path {
+            assert!(
+                t.abs() < EPS,
+                "axis_path must stay on-axis despite decenter, got t={t}"
+            );
+        }
+    }
+
+    #[test]
+    fn axis_path_nonzero_transverse_after_fold() {
+        // After a 45° fold mirror, the axis has a non-zero transverse component
+        // in the YZ plane. At least one axis_path point must have |t| > 0.
+        let air = n!(1.0);
+        let gaps = vec![
+            GapSpec {
+                thickness: 100.0,
+                refractive_index: air.clone(),
+            },
+            GapSpec {
+                thickness: 50.0,
+                refractive_index: air.clone(),
+            },
+            GapSpec {
+                thickness: 25.0,
+                refractive_index: air.clone(),
+            },
+            GapSpec {
+                thickness: 50.0,
+                refractive_index: air.clone(),
+            },
+        ];
+        let mirror_rotation =
+            Rotation3D::IntrinsicPassiveRUF(EulerAngles(45.0_f64.to_radians(), 0.0, 0.0));
+        let surfs = vec![
+            SurfaceSpec::Object,
+            SurfaceSpec::Sphere {
+                semi_diameter: 12.7,
+                radius_of_curvature: 102.4,
+                surf_kind: BoundaryKind::Refracting,
+                rotation: Rotation3D::None,
+                decenter: Vec3::new(0.0, 0.0, 0.0),
+                rotation_offset: Rotation3D::None,
+            },
+            SurfaceSpec::Sphere {
+                semi_diameter: 10.0,
+                radius_of_curvature: Float::INFINITY,
+                surf_kind: BoundaryKind::Reflecting,
+                rotation: mirror_rotation,
+                decenter: Vec3::new(0.0, 0.0, 0.0),
+                rotation_offset: Rotation3D::None,
+            },
+            SurfaceSpec::Iris {
+                semi_diameter: 7.1,
+                rotation: Rotation3D::None,
+                decenter: Vec3::new(0.0, 0.0, 0.0),
+                rotation_offset: Rotation3D::None,
+            },
+            SurfaceSpec::Image {
+                rotation: Rotation3D::None,
+                decenter: Vec3::new(0.0, 0.0, 0.0),
+                rotation_offset: Rotation3D::None,
+            },
+        ];
+        let model = SequentialModel::from_surface_specs(&gaps, &surfs, &[0.5876], None)
+            .expect("build folded model");
+        let components = components_view(&model, air).unwrap();
+        let cs = cross_section_view(&model, None, &components);
+
+        // After the fold, at least one point in axis_path must have non-zero
+        // transverse.
+        let has_nonzero_t = cs.yz.axis_path.iter().any(|&[_z, t]| t.abs() > 0.1);
+        assert!(
+            has_nonzero_t,
+            "expected non-zero transverse in axis_path after 45° fold"
         );
     }
 }

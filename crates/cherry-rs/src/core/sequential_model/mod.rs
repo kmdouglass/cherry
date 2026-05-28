@@ -23,7 +23,18 @@ use crate::specs::{
     surfaces::{BoundaryKind, SurfaceSpec},
 };
 
-type SurfsPlacementsDirs = (Vec<Box<dyn Surface>>, Vec<Placement>, Vec<Vec3>);
+/// Cursor forward direction at each surface.
+type AxisDirections = Vec<Vec3>;
+/// Nominal on-axis cursor position at each surface, before any decenter is
+/// applied.
+type CursorPositions = Vec<Vec3>;
+
+type SurfsPlacementsDirs = (
+    Vec<Box<dyn Surface>>,
+    Vec<Placement>,
+    AxisDirections,
+    CursorPositions,
+);
 
 /// A gap between two surfaces in a sequential system.
 #[derive(Debug)]
@@ -49,6 +60,12 @@ pub struct SequentialModel {
 
     // The cursor forward direction at each surface vertex.
     axis_directions: Vec<Vec3>,
+
+    /// Cursor position at each surface, captured before the surface's decenter
+    /// is applied. Unlike `placements[i].position`, these are unaffected by
+    /// lens group tilts and decenters — they represent the nominal optical
+    /// axis.
+    cursor_positions: Vec<Vec3>,
 
     /// User-specified aperture stop surface index, or `None` for auto-derived.
     stop_surface: Option<usize>,
@@ -293,7 +310,7 @@ impl SequentialModel {
         #[cfg(not(feature = "serde"))]
         {
             Self::validate_specs(gap_specs, wavelengths)?;
-            let (surfaces, placements, axis_directions) =
+            let (surfaces, placements, axis_directions, cursor_positions) =
                 Self::surf_specs_to_surfs(surface_specs, gap_specs)?;
             if let Some(i) = stop_surface {
                 Self::validate_stop_surface(&surfaces, i)?;
@@ -309,6 +326,7 @@ impl SequentialModel {
                 submodels: models,
                 wavelengths: wavelengths.to_vec(),
                 axis_directions,
+                cursor_positions,
                 stop_surface,
             })
         }
@@ -327,7 +345,7 @@ impl SequentialModel {
         registry: Option<&SurfaceRegistry>,
     ) -> Result<Self> {
         Self::validate_specs(gap_specs, wavelengths)?;
-        let (surfaces, placements, axis_directions) =
+        let (surfaces, placements, axis_directions, cursor_positions) =
             Self::surf_specs_to_surfs(surface_specs, gap_specs, registry)?;
         if let Some(i) = stop_surface {
             Self::validate_stop_surface(&surfaces, i)?;
@@ -343,6 +361,7 @@ impl SequentialModel {
             submodels: models,
             wavelengths: wavelengths.to_vec(),
             axis_directions,
+            cursor_positions,
             stop_surface,
         })
     }
@@ -376,7 +395,7 @@ impl SequentialModel {
         Self::validate_specs(gap_specs, wavelengths)?;
 
         let (surfs, surface_placements): (Vec<_>, Vec<_>) = surfaces.into_iter().unzip();
-        let (placements, axis_directions) =
+        let (placements, axis_directions, cursor_positions) =
             Self::build_placements_and_directions(&surfs, &surface_placements, gap_specs);
 
         if let Some(i) = stop_surface {
@@ -395,6 +414,7 @@ impl SequentialModel {
             submodels: models,
             wavelengths: wavelengths.to_vec(),
             axis_directions,
+            cursor_positions,
             stop_surface,
         })
     }
@@ -483,6 +503,10 @@ impl SequentialModel {
         &self.axis_directions
     }
 
+    pub fn cursor_positions(&self) -> &[Vec3] {
+        &self.cursor_positions
+    }
+
     fn gap_specs_to_gaps(gap_specs: &[GapSpec], wavelength: Float) -> Result<Vec<Gap>> {
         let mut gaps = Vec::new();
         for gap_spec in gap_specs.iter() {
@@ -515,9 +539,10 @@ impl SequentialModel {
         surfaces: &[Box<dyn Surface>],
         surface_placements: &[SurfacePlacement],
         gap_specs: &[GapSpec],
-    ) -> (Vec<Placement>, Vec<Vec3>) {
+    ) -> (Vec<Placement>, Vec<Vec3>, Vec<Vec3>) {
         let mut placements = Vec::new();
         let mut axis_directions = Vec::new();
+        let mut cursor_positions = Vec::new();
         let mut cursor = Cursor::new(-gap_specs[0].thickness);
 
         // Surfaces 0 to N-2 (each paired with a gap that follows it).
@@ -527,6 +552,7 @@ impl SequentialModel {
             .zip(gap_specs.iter())
         {
             axis_directions.push(cursor.forward());
+            cursor_positions.push(cursor.pos());
 
             let nominal_rot = sp.rotation.rotation_matrix();
             let actual_rot = sp.rotation_offset.rotation_matrix() * nominal_rot;
@@ -552,6 +578,7 @@ impl SequentialModel {
 
         // Last surface - no gap after it.
         axis_directions.push(cursor.forward());
+        cursor_positions.push(cursor.pos());
         let sp = surface_placements.last().expect("at least one surface");
         let nominal_rot = sp.rotation.rotation_matrix();
         let actual_rot = sp.rotation_offset.rotation_matrix() * nominal_rot;
@@ -562,7 +589,7 @@ impl SequentialModel {
             &cursor,
         ));
 
-        (placements, axis_directions)
+        (placements, axis_directions, cursor_positions)
     }
 
     #[cfg(feature = "serde")]
@@ -583,9 +610,9 @@ impl SequentialModel {
                 rotation_offset: spec.rotation_offset(),
             })
             .collect();
-        let (placements, axis_directions) =
+        let (placements, axis_directions, cursor_positions) =
             Self::build_placements_and_directions(&surfaces, &surface_placements, gap_specs);
-        Ok((surfaces, placements, axis_directions))
+        Ok((surfaces, placements, axis_directions, cursor_positions))
     }
 
     #[cfg(not(feature = "serde"))]
@@ -605,9 +632,9 @@ impl SequentialModel {
                 rotation_offset: spec.rotation_offset(),
             })
             .collect();
-        let (placements, axis_directions) =
+        let (placements, axis_directions, cursor_positions) =
             Self::build_placements_and_directions(&surfaces, &surface_placements, gap_specs);
-        Ok((surfaces, placements, axis_directions))
+        Ok((surfaces, placements, axis_directions, cursor_positions))
     }
 
     fn validate_gaps(gaps: &[GapSpec]) -> Result<()> {
