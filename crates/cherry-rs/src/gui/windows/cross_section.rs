@@ -8,6 +8,7 @@ const MAX_CROSS_SECTION_N_RAYS: u32 = 32;
 const MIN_VIEWPORT_HEIGHT: f32 = 200.0;
 const SCALEBAR_MARGIN: f32 = 8.0;
 const SCALEBAR_HEIGHT: f32 = 4.0;
+const AXIS_LENGTH: f32 = 20.0;
 
 /// SVG canvas dimensions in logical pixels (for file export only).
 const SVG_W: f64 = 700.0;
@@ -32,6 +33,7 @@ pub enum CuttingPlane {
 struct AnnotationSettings {
     show_axis: bool,
     show_scalebar: bool,
+    show_global_axes: bool,
 }
 
 impl Default for AnnotationSettings {
@@ -39,6 +41,7 @@ impl Default for AnnotationSettings {
         Self {
             show_axis: true,
             show_scalebar: true,
+            show_global_axes: true,
         }
     }
 }
@@ -155,6 +158,7 @@ impl CrossSectionWindow {
             ui.menu_button("Annotations \u{25be}", |ui| {
                 ui.checkbox(&mut self.annotations.show_axis, "Optical axis");
                 ui.checkbox(&mut self.annotations.show_scalebar, "Scale bar");
+                ui.checkbox(&mut self.annotations.show_global_axes, "Global axes");
             });
         });
         changed
@@ -204,6 +208,9 @@ impl CrossSectionWindow {
         }
         if self.annotations.show_scalebar {
             draw_scalebar(&painter, rect, &geom.bounding_box);
+        }
+        if self.annotations.show_global_axes {
+            draw_global_axes(&painter, rect, self.cutting_plane);
         }
     }
 
@@ -257,7 +264,12 @@ impl CrossSectionWindow {
             CuttingPlane::XZ if cs.xz_valid => &cs.xz,
             _ => return None,
         };
-        Some(render_svg(geom, &cs.wavelengths, dark_mode))
+        Some(render_svg(
+            geom,
+            &cs.wavelengths,
+            dark_mode,
+            self.cutting_plane,
+        ))
     }
 }
 
@@ -584,6 +596,40 @@ fn draw_scalebar(painter: &egui::Painter, rect: egui::Rect, bb: &Bounds2D) {
     );
 }
 
+fn draw_global_axes(painter: &egui::Painter, rect: egui::Rect, cutting_plane: CuttingPlane) {
+    let origin = egui::pos2(
+        rect.left() + SCALEBAR_MARGIN,
+        rect.bottom() - SCALEBAR_MARGIN,
+    );
+    let z_tip = egui::pos2(origin.x + AXIS_LENGTH, origin.y);
+    let t_tip = egui::pos2(origin.x, origin.y - AXIS_LENGTH);
+
+    let z_color = egui::Color32::from_rgb(80, 130, 230);
+    let stroke_z = egui::Stroke::new(2.0, z_color);
+    painter.line_segment([origin, z_tip], stroke_z);
+    painter.text(
+        egui::pos2(z_tip.x + 2.0, z_tip.y),
+        egui::Align2::LEFT_CENTER,
+        "Z",
+        egui::FontId::proportional(10.0),
+        z_color,
+    );
+
+    let (t_label, t_color) = match cutting_plane {
+        CuttingPlane::YZ => ("Y", egui::Color32::from_rgb(60, 200, 60)),
+        CuttingPlane::XZ => ("X", egui::Color32::from_rgb(220, 60, 60)),
+    };
+    let stroke_t = egui::Stroke::new(2.0, t_color);
+    painter.line_segment([origin, t_tip], stroke_t);
+    painter.text(
+        egui::pos2(t_tip.x, t_tip.y - 2.0),
+        egui::Align2::CENTER_BOTTOM,
+        t_label,
+        egui::FontId::proportional(10.0),
+        t_color,
+    );
+}
+
 // ── SVG export
 // ──────────────────────────────────────────────────────────────────
 //
@@ -627,7 +673,12 @@ impl WorldToSvg {
     }
 }
 
-fn render_svg(geom: &PlaneGeometry, wavelengths: &[f64], dark_mode: bool) -> String {
+fn render_svg(
+    geom: &PlaneGeometry,
+    wavelengths: &[f64],
+    dark_mode: bool,
+    cutting_plane: CuttingPlane,
+) -> String {
     let w2s = WorldToSvg::new(&geom.bounding_box);
 
     let bg = if dark_mode { "#1e1e2e" } else { "#f5f5f5" };
@@ -701,6 +752,7 @@ fn render_svg(geom: &PlaneGeometry, wavelengths: &[f64], dark_mode: bool) -> Str
     }
 
     svg_scalebar(&mut s, &geom.bounding_box, &w2s, scalebar_color);
+    svg_global_axes(&mut s, cutting_plane);
 
     s.push_str("</svg>");
     s
@@ -855,6 +907,36 @@ fn svg_scalebar(s: &mut String, bb: &Bounds2D, w2s: &WorldToSvg, color: &str) {
     let label_y = bar_y - serif_h - 2.0;
     s.push_str(&format!(
         r#"<text x="{label_x:.2}" y="{label_y:.2}" text-anchor="middle" font-family="sans-serif" font-size="11" fill="{color}">{label}</text>"#
+    ));
+}
+
+fn svg_global_axes(s: &mut String, cutting_plane: CuttingPlane) {
+    const AXIS_LEN: f64 = 20.0;
+    const MARGIN: f64 = 8.0;
+
+    let ox = MARGIN;
+    let oy = SVG_H - MARGIN;
+    let z_tx = ox + AXIS_LEN;
+    let t_ty = oy - AXIS_LEN;
+
+    s.push_str(&format!(
+        r##"<line x1="{ox:.2}" y1="{oy:.2}" x2="{z_tx:.2}" y2="{oy:.2}" stroke="#5082e6" stroke-width="2"/>"##
+    ));
+    s.push_str(&format!(
+        r##"<text x="{:.2}" y="{oy:.2}" dominant-baseline="middle" font-family="sans-serif" font-size="11" fill="#5082e6">Z</text>"##,
+        z_tx + 2.0
+    ));
+
+    let (t_label, t_color) = match cutting_plane {
+        CuttingPlane::YZ => ("Y", "#3cc83c"),
+        CuttingPlane::XZ => ("X", "#dc3c3c"),
+    };
+    s.push_str(&format!(
+        r#"<line x1="{ox:.2}" y1="{oy:.2}" x2="{ox:.2}" y2="{t_ty:.2}" stroke="{t_color}" stroke-width="2"/>"#
+    ));
+    s.push_str(&format!(
+        r#"<text x="{ox:.2}" y="{:.2}" text-anchor="middle" font-family="sans-serif" font-size="11" fill="{t_color}">{t_label}</text>"#,
+        t_ty - 2.0
     ));
 }
 

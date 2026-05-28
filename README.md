@@ -69,7 +69,7 @@ Cherry might be for you if:
 - [X] Decenters/rotational offsets on surfaces
 - [X] Lens view for manipulating systems by lens instead of by surface
 - [X] Decenters/rotational offsets on lenses
-- [ ] **Help Wanted** Annotate coordinate axes, the optical axis, and other elements in the cross-section view
+- [X] **Help Wanted** Annotate coordinate axes and the optical axis in the cross-section view
 - [X] Galvo plus scan lens example
 
 ### Next
