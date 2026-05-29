@@ -34,6 +34,7 @@ pub fn fields_panel(ui: &mut egui::Ui, specs: &mut SystemSpecs) -> bool {
         let table = TableBuilder::new(ui)
             .striped(true)
             .resizable(true)
+            .sense(egui::Sense::click())
             .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
             .column(Column::auto().at_least(30.0)) // #
             .column(Column::initial(100.0).resizable(true)) // χ (angle) or Y (point source)
