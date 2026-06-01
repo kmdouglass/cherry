@@ -369,7 +369,8 @@ fn draw_element(
         DrawElement::LensGroup {
             front_pts,
             back_pts,
-        } => draw_lens_group(painter, front_pts, back_pts, w2s, visuals),
+            inner_pts,
+        } => draw_lens_group(painter, front_pts, back_pts, inner_pts, w2s, visuals),
         DrawElement::SurfaceProfile { points } => {
             draw_surface_profile(painter, points, w2s);
         }
@@ -402,11 +403,11 @@ fn draw_lens_group(
     painter: &egui::Painter,
     front_pts: &[[f64; 2]],
     back_pts: &[[f64; 2]],
+    inner_pts: &[Vec<[f64; 2]>],
     w2s: &WorldToScreen,
     visuals: &egui::Visuals,
 ) {
-    let n = front_pts.len().min(back_pts.len());
-    if n < 2 {
+    if front_pts.len() < 2 || back_pts.len() < 2 {
         return;
     }
 
@@ -416,27 +417,33 @@ fn draw_lens_group(
         egui::Color32::from_rgba_premultiplied(100, 160, 220, 80)
     };
 
-    // Zipper-triangulate the band between the two surface curves.
-    // Front vertices at indices 0..n-1; back vertices at indices n..2n-1.
-    // Both curves are sampled bottom-to-top, so front[i] and back[i] share
-    // the same transverse parameter — quads connect them correctly regardless
-    // of concavity.
-    let mut mesh = egui::Mesh::default();
-    for &[z, t] in front_pts.iter().take(n) {
-        mesh.colored_vertex(w2s.map(z as f32, t as f32), fill);
+    // Zipper-triangulate each sub-region between consecutive surface profiles.
+    // Both curves are sampled bottom-to-top, so profile_a[i] and profile_b[i]
+    // share the same transverse parameter — quads connect them correctly.
+    let all_fill_pts: Vec<&[[f64; 2]]> = std::iter::once(front_pts)
+        .chain(inner_pts.iter().map(|v| v.as_slice()))
+        .chain(std::iter::once(back_pts))
+        .collect();
+    for pair in all_fill_pts.windows(2) {
+        let (a, b) = (pair[0], pair[1]);
+        let n = a.len().min(b.len());
+        if n < 2 {
+            continue;
+        }
+        let mut mesh = egui::Mesh::default();
+        for &[z, t] in a.iter().take(n) {
+            mesh.colored_vertex(w2s.map(z as f32, t as f32), fill);
+        }
+        for &[z, t] in b.iter().take(n) {
+            mesh.colored_vertex(w2s.map(z as f32, t as f32), fill);
+        }
+        for i in 0..(n as u32 - 1) {
+            let bi = n as u32 + i;
+            mesh.indices.extend_from_slice(&[i, i + 1, bi]);
+            mesh.indices.extend_from_slice(&[i + 1, bi + 1, bi]);
+        }
+        painter.add(egui::Shape::mesh(mesh));
     }
-    for &[z, t] in back_pts.iter().take(n) {
-        mesh.colored_vertex(w2s.map(z as f32, t as f32), fill);
-    }
-    for i in 0..(n as u32 - 1) {
-        let fi = i;
-        let fi1 = i + 1;
-        let bi = n as u32 + i;
-        let bi1 = n as u32 + i + 1;
-        mesh.indices.extend_from_slice(&[fi, fi1, bi]);
-        mesh.indices.extend_from_slice(&[fi1, bi1, bi]);
-    }
-    painter.add(egui::Shape::mesh(mesh));
 
     let stroke_color = if visuals.dark_mode {
         egui::Color32::from_rgb(100, 149, 220)
@@ -445,27 +452,33 @@ fn draw_lens_group(
     };
     let stroke = egui::Stroke::new(1.5, stroke_color);
 
-    let front_screen: Vec<egui::Pos2> = front_pts
-        .iter()
-        .map(|&[z, t]| w2s.map(z as f32, t as f32))
-        .collect();
-    let back_screen: Vec<egui::Pos2> = back_pts
-        .iter()
-        .map(|&[z, t]| w2s.map(z as f32, t as f32))
+    // Build all profiles in screen coords: front, inner[0..], back.
+    let all_profiles: Vec<Vec<egui::Pos2>> = std::iter::once(front_pts)
+        .chain(inner_pts.iter().map(|v| v.as_slice()))
+        .chain(std::iter::once(back_pts))
+        .map(|pts| {
+            pts.iter()
+                .map(|&[z, t]| w2s.map(z as f32, t as f32))
+                .collect()
+        })
         .collect();
 
-    for pair in front_screen.windows(2) {
-        painter.line_segment([pair[0], pair[1]], stroke);
+    // Draw each surface profile as a polyline.
+    for profile in &all_profiles {
+        for pair in profile.windows(2) {
+            painter.line_segment([pair[0], pair[1]], stroke);
+        }
     }
-    for pair in back_screen.windows(2) {
-        painter.line_segment([pair[0], pair[1]], stroke);
-    }
-    // Top and bottom rims.
-    if let (Some(&ft), Some(&bt)) = (front_screen.last(), back_screen.last()) {
-        painter.line_segment([ft, bt], stroke);
-    }
-    if let (Some(&fb), Some(&bb)) = (front_screen.first(), back_screen.first()) {
-        painter.line_segment([fb, bb], stroke);
+
+    // Edge rims: connect consecutive profiles' top and bottom endpoints.
+    for window in all_profiles.windows(2) {
+        let (a, b) = (&window[0], &window[1]);
+        if let (Some(&at), Some(&bt)) = (a.last(), b.last()) {
+            painter.line_segment([at, bt], stroke);
+        }
+        if let (Some(&ab), Some(&bb)) = (a.first(), b.first()) {
+            painter.line_segment([ab, bb], stroke);
+        }
     }
 }
 
@@ -846,8 +859,17 @@ fn render_svg(
             DrawElement::LensGroup {
                 front_pts,
                 back_pts,
+                inner_pts,
             } => {
-                svg_lens_group(&mut s, front_pts, back_pts, &w2s, lens_fill, lens_stroke);
+                svg_lens_group(
+                    &mut s,
+                    front_pts,
+                    back_pts,
+                    inner_pts,
+                    &w2s,
+                    lens_fill,
+                    lens_stroke,
+                );
             }
             DrawElement::SurfaceProfile { points } => {
                 svg_polyline(&mut s, points, &w2s, profile_color, 1.5);
@@ -899,6 +921,7 @@ fn svg_lens_group(
     s: &mut String,
     front_pts: &[[f64; 2]],
     back_pts: &[[f64; 2]],
+    inner_pts: &[Vec<[f64; 2]>],
     w2s: &WorldToSvg,
     fill: &str,
     stroke: &str,
@@ -906,20 +929,42 @@ fn svg_lens_group(
     if front_pts.is_empty() || back_pts.is_empty() {
         return;
     }
-    // Outline: front bottom→top, then back top→bottom. SVG's nonzero fill rule
-    // handles non-convex polygons correctly.
-    let pts: String = front_pts
-        .iter()
-        .chain(back_pts.iter().rev())
-        .map(|&[z, t]| {
-            let (x, y) = w2s.map(z, t);
-            format!("{x:.2},{y:.2}")
-        })
-        .collect::<Vec<_>>()
-        .join(" ");
-    s.push_str(&format!(
-        r#"<polygon points="{pts}" fill="{fill}" stroke="{stroke}" stroke-width="1.5" stroke-linejoin="round"/>"#
-    ));
+    let all_surfs: Vec<&[[f64; 2]]> = std::iter::once(front_pts)
+        .chain(inner_pts.iter().map(|v| v.as_slice()))
+        .chain(std::iter::once(back_pts))
+        .collect();
+
+    // Fill: one polygon per adjacent surface pair, no stroke (outlines drawn
+    // separately).
+    for pair in all_surfs.windows(2) {
+        let pts: String = pair[0]
+            .iter()
+            .chain(pair[1].iter().rev())
+            .map(|&[z, t]| {
+                let (x, y) = w2s.map(z, t);
+                format!("{x:.2},{y:.2}")
+            })
+            .collect::<Vec<_>>()
+            .join(" ");
+        s.push_str(&format!(
+            r#"<polygon points="{pts}" fill="{fill}" stroke="none"/>"#
+        ));
+    }
+
+    // Outlines: each surface profile.
+    for surf in &all_surfs {
+        svg_polyline(s, surf, w2s, stroke, 1.5);
+    }
+
+    // Rims: connect consecutive surface endpoints.
+    for pair in all_surfs.windows(2) {
+        if let (Some(&top_a), Some(&top_b)) = (pair[0].last(), pair[1].last()) {
+            svg_polyline(s, &[top_a, top_b], w2s, stroke, 1.5);
+        }
+        if let (Some(&bot_a), Some(&bot_b)) = (pair[0].first(), pair[1].first()) {
+            svg_polyline(s, &[bot_a, bot_b], w2s, stroke, 1.5);
+        }
+    }
 }
 
 fn svg_axis(s: &mut String, path: &[[f64; 2]], w2s: &WorldToSvg, color: &str) {

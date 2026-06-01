@@ -77,6 +77,9 @@ pub enum DrawElement {
         front_pts: Vec<[f64; 2]>,
         /// Back surface points sampled bottom-to-top (transverse -sd → +sd).
         back_pts: Vec<[f64; 2]>,
+        /// Interior surface profiles (glass-glass interfaces), front→back
+        /// order. Empty for singlets.
+        inner_pts: Vec<Vec<[f64; 2]>>,
     },
     SurfaceProfile {
         points: Vec<[f64; 2]>,
@@ -178,9 +181,18 @@ fn build_plane_geometry(
                 let front_pts = sample_surface(surfaces[i].as_ref(), &placements[i], axis, N_PTS);
                 let back_pts = sample_surface(surfaces[j].as_ref(), &placements[j], axis, N_PTS);
                 if !front_pts.is_empty() && !back_pts.is_empty() {
+                    let inner_pts: Vec<Vec<[f64; 2]>> = surf_idxs[1..surf_idxs.len() - 1]
+                        .iter()
+                        .filter_map(|&k| {
+                            let pts =
+                                sample_surface(surfaces[k].as_ref(), &placements[k], axis, N_PTS);
+                            if pts.is_empty() { None } else { Some(pts) }
+                        })
+                        .collect();
                     elements.push(DrawElement::LensGroup {
                         front_pts,
                         back_pts,
+                        inner_pts,
                     });
                 }
             }
@@ -455,8 +467,13 @@ fn compute_bounds(elements: &[DrawElement], ray_paths: &[Vec<Vec<[f64; 2]>>]) ->
             DrawElement::LensGroup {
                 front_pts,
                 back_pts,
+                inner_pts,
             } => {
-                for &[z, t] in front_pts.iter().chain(back_pts.iter()) {
+                for &[z, t] in front_pts
+                    .iter()
+                    .chain(back_pts.iter())
+                    .chain(inner_pts.iter().flatten())
+                {
                     update(z, t, &mut z_min, &mut z_max, &mut t_min, &mut t_max);
                 }
             }
@@ -1145,6 +1162,89 @@ mod tests {
         assert!(
             has_nonzero_t,
             "expected non-zero transverse in axis_path after 45° fold"
+        );
+    }
+
+    #[test]
+    fn cemented_doublet_inner_surface_is_drawn() {
+        // Regression: the cemented interface of a doublet (surf_idxs [1,2,3])
+        // must appear in inner_pts of the LensGroup, not be silently dropped.
+        let air = n!(1.0);
+        let bk7 = n!(1.515);
+        let sf2 = n!(1.648);
+        let gaps = vec![
+            GapSpec {
+                thickness: Float::INFINITY,
+                refractive_index: air.clone(),
+            },
+            GapSpec {
+                thickness: 6.0,
+                refractive_index: bk7,
+            },
+            GapSpec {
+                thickness: 3.0,
+                refractive_index: sf2,
+            },
+            GapSpec {
+                thickness: 50.0,
+                refractive_index: air.clone(),
+            },
+        ];
+        let surfs = vec![
+            SurfaceSpec::Object,
+            SurfaceSpec::Sphere {
+                semi_diameter: 12.5,
+                radius_of_curvature: 50.0,
+                surf_kind: BoundaryKind::Refracting,
+                rotation: Rotation3D::None,
+                decenter: Vec3::new(0.0, 0.0, 0.0),
+                rotation_offset: Rotation3D::None,
+            },
+            SurfaceSpec::Sphere {
+                semi_diameter: 12.5,
+                radius_of_curvature: -30.0,
+                surf_kind: BoundaryKind::Refracting,
+                rotation: Rotation3D::None,
+                decenter: Vec3::new(0.0, 0.0, 0.0),
+                rotation_offset: Rotation3D::None,
+            },
+            SurfaceSpec::Sphere {
+                semi_diameter: 12.5,
+                radius_of_curvature: -100.0,
+                surf_kind: BoundaryKind::Refracting,
+                rotation: Rotation3D::None,
+                decenter: Vec3::new(0.0, 0.0, 0.0),
+                rotation_offset: Rotation3D::None,
+            },
+            SurfaceSpec::Image {
+                rotation: Rotation3D::None,
+                decenter: Vec3::new(0.0, 0.0, 0.0),
+                rotation_offset: Rotation3D::None,
+            },
+        ];
+        let model = SequentialModel::from_surface_specs(&gaps, &surfs, &[0.5876], None).unwrap();
+        let components = components_view(&model, air).unwrap();
+        let cs = cross_section_view(&model, None, &components);
+
+        let lens_groups: Vec<_> = cs
+            .yz
+            .elements
+            .iter()
+            .filter_map(|e| match e {
+                DrawElement::LensGroup { inner_pts, .. } => Some(inner_pts),
+                _ => None,
+            })
+            .collect();
+
+        assert_eq!(lens_groups.len(), 1, "expected exactly one lens group");
+        assert_eq!(
+            lens_groups[0].len(),
+            1,
+            "cemented doublet must have one inner surface profile"
+        );
+        assert!(
+            !lens_groups[0][0].is_empty(),
+            "inner surface profile must be non-empty"
         );
     }
 }
