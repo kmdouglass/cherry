@@ -1,6 +1,8 @@
 use crate::{
     gui::{colors::wavelength_to_color, result_package::ResultPackage},
-    views::cross_section::{Bounds2D, CrossSectionView, DrawElement, FlatPlaneKind, PlaneGeometry},
+    views::cross_section::{
+        Bounds2D, CrossSectionView, DrawElement, FlatPlaneKind, PlaneGeometry, SurfaceFrame2D,
+    },
 };
 
 const VIEWPORT_HEIGHT_RATIO: f32 = 0.5;
@@ -8,7 +10,10 @@ const MAX_CROSS_SECTION_N_RAYS: u32 = 32;
 const MIN_VIEWPORT_HEIGHT: f32 = 200.0;
 const SCALEBAR_MARGIN: f32 = 8.0;
 const SCALEBAR_HEIGHT: f32 = 4.0;
-const AXIS_LENGTH: f32 = 20.0;
+const AXIS_LENGTH: f32 = 25.0;
+const CIRCLE_RADIUS: f32 = 4.0;
+const DOT_RADIUS: f32 = 1.5;
+const CROSS_HALF: f32 = 2.5;
 
 /// SVG canvas dimensions in logical pixels (for file export only).
 const SVG_W: f64 = 700.0;
@@ -34,6 +39,7 @@ struct AnnotationSettings {
     show_axis: bool,
     show_scalebar: bool,
     show_global_axes: bool,
+    show_ruf_axes: bool,
 }
 
 impl Default for AnnotationSettings {
@@ -42,6 +48,7 @@ impl Default for AnnotationSettings {
             show_axis: true,
             show_scalebar: true,
             show_global_axes: true,
+            show_ruf_axes: false,
         }
     }
 }
@@ -159,6 +166,7 @@ impl CrossSectionWindow {
                 ui.checkbox(&mut self.annotations.show_axis, "Optical axis");
                 ui.checkbox(&mut self.annotations.show_scalebar, "Scale bar");
                 ui.checkbox(&mut self.annotations.show_global_axes, "Global axes");
+                ui.checkbox(&mut self.annotations.show_ruf_axes, "RUF axes");
             });
         });
         changed
@@ -211,6 +219,21 @@ impl CrossSectionWindow {
         }
         if self.annotations.show_global_axes {
             draw_global_axes(&painter, rect, self.cutting_plane);
+        }
+
+        // Always clear the hover key, even when the annotation is disabled, to prevent
+        // a stale surface index from appearing the moment the annotation is re-enabled.
+        let hover_id = egui::Id::new("annotation_hover_surface_idx");
+        let hover_idx = ui.ctx().data_mut(|d| {
+            let v = d.get_temp::<usize>(hover_id);
+            d.remove::<usize>(hover_id);
+            v
+        });
+        if self.annotations.show_ruf_axes
+            && let Some(idx) = hover_idx
+            && let Some(Some(frame)) = geom.surface_frames.get(idx)
+        {
+            draw_ruf_axes(&painter, frame, &w2s, self.cutting_plane);
         }
     }
 
@@ -601,15 +624,14 @@ fn draw_global_axes(painter: &egui::Painter, rect: egui::Rect, cutting_plane: Cu
         rect.left() + SCALEBAR_MARGIN,
         rect.bottom() - SCALEBAR_MARGIN,
     );
-    let z_tip = egui::pos2(origin.x + AXIS_LENGTH, origin.y);
-    let t_tip = egui::pos2(origin.x, origin.y - AXIS_LENGTH);
+    let z_dir = egui::Vec2::new(1.0, 0.0);
+    let t_dir = egui::Vec2::new(0.0, -1.0);
 
     let z_color = egui::Color32::from_rgb(80, 130, 230);
-    let stroke_z = egui::Stroke::new(2.0, z_color);
-    painter.line_segment([origin, z_tip], stroke_z);
+    painter.arrow(origin, z_dir * AXIS_LENGTH, egui::Stroke::new(2.0, z_color));
     painter.text(
-        egui::pos2(z_tip.x + 2.0, z_tip.y),
-        egui::Align2::LEFT_CENTER,
+        origin + z_dir * (AXIS_LENGTH + 9.0),
+        egui::Align2::CENTER_CENTER,
         "Z",
         egui::FontId::proportional(10.0),
         z_color,
@@ -619,14 +641,129 @@ fn draw_global_axes(painter: &egui::Painter, rect: egui::Rect, cutting_plane: Cu
         CuttingPlane::YZ => ("Y", egui::Color32::from_rgb(60, 200, 60)),
         CuttingPlane::XZ => ("X", egui::Color32::from_rgb(220, 60, 60)),
     };
-    let stroke_t = egui::Stroke::new(2.0, t_color);
-    painter.line_segment([origin, t_tip], stroke_t);
+    painter.arrow(origin, t_dir * AXIS_LENGTH, egui::Stroke::new(2.0, t_color));
     painter.text(
-        egui::pos2(t_tip.x, t_tip.y - 2.0),
-        egui::Align2::CENTER_BOTTOM,
+        origin + t_dir * (AXIS_LENGTH + 9.0),
+        egui::Align2::CENTER_CENTER,
         t_label,
         egui::FontId::proportional(10.0),
         t_color,
+    );
+
+    let (oop_label, oop_color) = match cutting_plane {
+        CuttingPlane::YZ => ("X", egui::Color32::from_rgb(220, 60, 60)),
+        CuttingPlane::XZ => ("Y", egui::Color32::from_rgb(60, 200, 60)),
+    };
+    painter.circle_stroke(origin, CIRCLE_RADIUS, egui::Stroke::new(1.5, oop_color));
+    match cutting_plane {
+        CuttingPlane::YZ => {
+            painter.line_segment(
+                [
+                    origin - egui::Vec2::new(CROSS_HALF, 0.0),
+                    origin + egui::Vec2::new(CROSS_HALF, 0.0),
+                ],
+                egui::Stroke::new(1.5, oop_color),
+            );
+            painter.line_segment(
+                [
+                    origin - egui::Vec2::new(0.0, CROSS_HALF),
+                    origin + egui::Vec2::new(0.0, CROSS_HALF),
+                ],
+                egui::Stroke::new(1.5, oop_color),
+            );
+        }
+        CuttingPlane::XZ => {
+            painter.circle_filled(origin, DOT_RADIUS, oop_color);
+        }
+    }
+    // The origin is pinned to the bottom-left corner, so +bisector (upper-right,
+    // between the two arrows) is the only direction that stays inside the viewport.
+    let bisector = (z_dir + t_dir).normalized();
+    painter.text(
+        origin + bisector * (CIRCLE_RADIUS + 13.0),
+        egui::Align2::CENTER_CENTER,
+        oop_label,
+        egui::FontId::proportional(10.0),
+        oop_color,
+    );
+}
+
+fn draw_ruf_axes(
+    painter: &egui::Painter,
+    frame: &SurfaceFrame2D,
+    w2s: &WorldToScreen,
+    cutting_plane: CuttingPlane,
+) {
+    let origin = w2s.map(frame.vertex_z as f32, frame.vertex_t as f32);
+
+    let r_color = egui::Color32::from_rgb(220, 60, 60);
+    let u_color = egui::Color32::from_rgb(60, 200, 60);
+    let f_color = egui::Color32::from_rgb(80, 130, 230);
+
+    // World (dz, dt) maps to screen (dx, -dy) because WorldToScreen negates
+    // the transverse axis. The world vectors are unit vectors so the screen
+    // vectors are also unit vectors — no renormalization needed.
+    let f_screen = egui::Vec2::new(frame.f_z as f32, -(frame.f_t as f32));
+    let t_screen = egui::Vec2::new(frame.t_z as f32, -(frame.t_t as f32));
+
+    let (in1_dir, in1_color, in1_label) = (f_screen, f_color, "F");
+    let (in2_dir, in2_color, in2_label, oop_color, oop_label) = match cutting_plane {
+        CuttingPlane::YZ => (t_screen, u_color, "U", r_color, "R"),
+        CuttingPlane::XZ => (t_screen, r_color, "R", u_color, "U"),
+    };
+
+    painter.arrow(
+        origin,
+        in1_dir * AXIS_LENGTH,
+        egui::Stroke::new(2.0, in1_color),
+    );
+    painter.text(
+        origin + in1_dir * (AXIS_LENGTH + 9.0),
+        egui::Align2::CENTER_CENTER,
+        in1_label,
+        egui::FontId::proportional(10.0),
+        in1_color,
+    );
+
+    painter.arrow(
+        origin,
+        in2_dir * AXIS_LENGTH,
+        egui::Stroke::new(2.0, in2_color),
+    );
+    painter.text(
+        origin + in2_dir * (AXIS_LENGTH + 9.0),
+        egui::Align2::CENTER_CENTER,
+        in2_label,
+        egui::FontId::proportional(10.0),
+        in2_color,
+    );
+
+    painter.circle_stroke(origin, CIRCLE_RADIUS, egui::Stroke::new(1.5, oop_color));
+    if frame.oop_out_of_screen {
+        painter.circle_filled(origin, DOT_RADIUS, oop_color);
+    } else {
+        painter.line_segment(
+            [
+                origin - egui::Vec2::new(CROSS_HALF, 0.0),
+                origin + egui::Vec2::new(CROSS_HALF, 0.0),
+            ],
+            egui::Stroke::new(1.5, oop_color),
+        );
+        painter.line_segment(
+            [
+                origin - egui::Vec2::new(0.0, CROSS_HALF),
+                origin + egui::Vec2::new(0.0, CROSS_HALF),
+            ],
+            egui::Stroke::new(1.5, oop_color),
+        );
+    }
+    let bisector = (in1_dir + in2_dir).normalized();
+    painter.text(
+        origin - bisector * (CIRCLE_RADIUS + 13.0),
+        egui::Align2::CENTER_CENTER,
+        oop_label,
+        egui::FontId::proportional(10.0),
+        oop_color,
     );
 }
 
@@ -1015,6 +1152,7 @@ mod tests {
                 elements: Vec::new(),
                 ray_paths: Vec::new(),
                 axis_path: Vec::new(),
+                surface_frames: Vec::new(),
             },
             xz: PlaneGeometry {
                 bounding_box: Bounds2D {
@@ -1024,6 +1162,7 @@ mod tests {
                 elements: Vec::new(),
                 ray_paths: Vec::new(),
                 axis_path: Vec::new(),
+                surface_frames: Vec::new(),
             },
         };
         let result = ResultPackage {

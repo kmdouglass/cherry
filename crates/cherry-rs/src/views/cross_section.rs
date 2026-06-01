@@ -29,6 +29,25 @@ pub struct CrossSectionView {
     pub xz: PlaneGeometry,
 }
 
+/// Local RUF coordinate frame for one surface, projected into 2D plot space.
+///
+/// `f` is the cursor forward direction; `t` is the in-plane transverse axis
+/// (U in the YZ cutting plane, R in the XZ cutting plane). Both are unit
+/// vectors in (z, transverse) world coordinates. The out-of-plane axis is
+/// implicit in the cutting plane.
+pub struct SurfaceFrame2D {
+    pub vertex_z: f64,
+    pub vertex_t: f64,
+    pub f_z: f64,
+    pub f_t: f64,
+    pub t_z: f64,
+    pub t_t: f64,
+    /// True when the out-of-plane axis points toward the viewer.
+    /// YZ plane is viewed from −X toward +X: R.x() < 0 → out of screen.
+    /// XZ plane is viewed from +Y downward:  U.y() > 0 → out of screen.
+    pub oop_out_of_screen: bool,
+}
+
 /// 2D geometry for one cutting plane.
 pub struct PlaneGeometry {
     pub bounding_box: Bounds2D,
@@ -40,6 +59,9 @@ pub struct PlaneGeometry {
     /// systems, or at the first lens surface for infinite-conjugate systems
     /// (where the object placement is infinite).
     pub axis_path: Vec<[f64; 2]>,
+    /// Per-surface local RUF frame in 2D plot coordinates, indexed by surface
+    /// index. `None` for surfaces with an infinite vertex position.
+    pub surface_frames: Vec<Option<SurfaceFrame2D>>,
 }
 
 /// Axis-aligned bounding box in the (z, transverse) 2D coordinate system.
@@ -169,6 +191,8 @@ fn build_plane_geometry(
                     GlobalAxis::Y => placement.position.y(),
                     GlobalAxis::X => placement.position.x(),
                 };
+                // Surface normal in global coordinates (used to orient the iris
+                // perpendicular to the surface).
                 let fwd = placement.inv_rotation_matrix * Vec3::new(0.0, 0.0, 1.0);
                 let fwd_z = fwd.z();
                 let fwd_t = match axis {
@@ -234,9 +258,7 @@ fn build_plane_geometry(
             GlobalAxis::X => placement.position.x(),
         };
 
-        // Forward direction of the cursor at this surface in global coordinates.
-        // inv_rotation_matrix maps local → global; applying to (0,0,1) gives the
-        // cursor forward direction.
+        // Surface normal direction in global coordinates.
         let fwd = placement.inv_rotation_matrix * Vec3::new(0.0, 0.0, 1.0);
         let fwd_z = fwd.z();
         let fwd_t = match axis {
@@ -313,11 +335,59 @@ fn build_plane_geometry(
 
     let bounding_box = compute_bounds(&elements, &ray_paths);
 
+    // Use cursor_positions (axis position before any decenter) rather than
+    // placement.position (physical vertex) so that group tilts and decenters
+    // don't displace the annotation away from the optical axis.
+    let cursor_positions = model.cursor_positions();
+    let surface_frames: Vec<Option<SurfaceFrame2D>> = placements
+        .iter()
+        .zip(cursor_positions.iter())
+        .map(|(p, cursor_pos)| {
+            if p.is_infinite() {
+                return None;
+            }
+            let crm_t = p.cursor_rotation_matrix.transpose();
+            let f = crm_t * Vec3::new(0.0, 0.0, 1.0);
+            let r = crm_t * Vec3::new(1.0, 0.0, 0.0);
+            let u = crm_t * Vec3::new(0.0, 1.0, 0.0);
+            let (vertex_z, vertex_t, f_z, f_t, t_z, t_t, oop_out_of_screen) = match axis {
+                GlobalAxis::Y => (
+                    cursor_pos.z(),
+                    cursor_pos.y(),
+                    f.z(),
+                    f.y(),
+                    u.z(),
+                    u.y(),
+                    r.x() < 0.0,
+                ),
+                GlobalAxis::X => (
+                    cursor_pos.z(),
+                    cursor_pos.x(),
+                    f.z(),
+                    f.x(),
+                    r.z(),
+                    r.x(),
+                    u.y() > 0.0,
+                ),
+            };
+            Some(SurfaceFrame2D {
+                vertex_z,
+                vertex_t,
+                f_z,
+                f_t,
+                t_z,
+                t_t,
+                oop_out_of_screen,
+            })
+        })
+        .collect();
+
     PlaneGeometry {
         bounding_box,
         elements,
         ray_paths,
         axis_path,
+        surface_frames,
     }
 }
 
@@ -815,6 +885,168 @@ mod tests {
     }
 
     #[test]
+    fn surface_frames_length_matches_surfaces() {
+        let model = straight_sphere_model(Vec3::new(0.0, 0.0, 0.0), Rotation3D::None);
+        let components = components_view(&model, n!(1.0)).unwrap();
+        let cs = cross_section_view(&model, None, &components);
+        assert_eq!(
+            cs.yz.surface_frames.len(),
+            model.surfaces().len(),
+            "surface_frames must have one entry per surface"
+        );
+    }
+
+    #[test]
+    fn surface_frames_object_at_infinity_is_none() {
+        // straight_sphere_model has thickness=100.0, so object is at a finite position.
+        // Use convexplano_lens which has an infinite first gap to get a None frame.
+        let air = n!(1.0);
+        let nbk7 = n!(1.515);
+        let wavelengths: [Float; 1] = [0.5876];
+        let model = convexplano_lens::sequential_model(air.clone(), nbk7, &wavelengths);
+        let components = components_view(&model, air).unwrap();
+        let cs = cross_section_view(&model, None, &components);
+        assert!(
+            cs.yz.surface_frames[0].is_none(),
+            "object at infinity must produce a None surface frame"
+        );
+    }
+
+    #[test]
+    fn surface_frames_straight_system_directions() {
+        // For a straight (unrotated) system the cursor frame equals the global frame.
+        // F → (f_z=1, f_t=0); U → (t_z=0, t_t=1) in the YZ cutting plane.
+        // Cherry places the first lens at z=0; the object is at negative z.
+        let model = straight_sphere_model(Vec3::new(0.0, 0.0, 0.0), Rotation3D::None);
+        let components = components_view(&model, n!(1.0)).unwrap();
+        let cs = cross_section_view(&model, None, &components);
+
+        // Surface 1 is the sphere. Check directions; don't assert specific z since
+        // Cherry places the first refracting surface at z=0.
+        let frame = cs.yz.surface_frames[1]
+            .as_ref()
+            .expect("sphere surface frame must be Some");
+        assert!(
+            frame.vertex_t.abs() < 1e-9,
+            "vertex_t ≈ 0 (on-axis), got {}",
+            frame.vertex_t
+        );
+        assert!(
+            (frame.f_z - 1.0).abs() < 1e-9,
+            "F points along +Z: f_z ≈ 1, got {}",
+            frame.f_z
+        );
+        assert!(
+            frame.f_t.abs() < 1e-9,
+            "F points along +Z: f_t ≈ 0, got {}",
+            frame.f_t
+        );
+        assert!(
+            frame.t_z.abs() < 1e-9,
+            "U points along +Y: t_z ≈ 0, got {}",
+            frame.t_z
+        );
+        assert!(
+            (frame.t_t - 1.0).abs() < 1e-9,
+            "U points along +Y: t_t ≈ 1, got {}",
+            frame.t_t
+        );
+        assert!(
+            !frame.oop_out_of_screen,
+            "straight system: R = +X is into screen (cross), not out of screen"
+        );
+    }
+
+    #[test]
+    fn surface_frames_folded_system_directions() {
+        // Use the same 45° fold model as
+        // iris_in_folded_system_has_correct_forward_direction. After the 45°
+        // fold the cursor F direction rotates 90° from +Z toward ±Y.
+        // The surface frame for the iris (index 3, after the fold) must reflect this.
+        let air = n!(1.0);
+        let gaps = vec![
+            GapSpec {
+                thickness: 100.0,
+                refractive_index: air.clone(),
+            },
+            GapSpec {
+                thickness: 50.0,
+                refractive_index: air.clone(),
+            },
+            GapSpec {
+                thickness: 25.0,
+                refractive_index: air.clone(),
+            },
+            GapSpec {
+                thickness: 50.0,
+                refractive_index: air.clone(),
+            },
+        ];
+        let mirror_rotation =
+            Rotation3D::IntrinsicPassiveRUF(EulerAngles(45.0_f64.to_radians(), 0.0, 0.0));
+        let surfs = vec![
+            SurfaceSpec::Object,
+            SurfaceSpec::Sphere {
+                semi_diameter: 12.7,
+                radius_of_curvature: 102.4,
+                surf_kind: BoundaryKind::Refracting,
+                rotation: Rotation3D::None,
+                decenter: Vec3::new(0.0, 0.0, 0.0),
+                rotation_offset: Rotation3D::None,
+            },
+            SurfaceSpec::Sphere {
+                semi_diameter: 10.0,
+                radius_of_curvature: Float::INFINITY,
+                surf_kind: BoundaryKind::Reflecting,
+                rotation: mirror_rotation,
+                decenter: Vec3::new(0.0, 0.0, 0.0),
+                rotation_offset: Rotation3D::None,
+            },
+            SurfaceSpec::Iris {
+                semi_diameter: 7.1,
+                rotation: Rotation3D::None,
+                decenter: Vec3::new(0.0, 0.0, 0.0),
+                rotation_offset: Rotation3D::None,
+            },
+            SurfaceSpec::Image {
+                rotation: Rotation3D::None,
+                decenter: Vec3::new(0.0, 0.0, 0.0),
+                rotation_offset: Rotation3D::None,
+            },
+        ];
+        let model = SequentialModel::from_surface_specs(&gaps, &surfs, &[0.5876], None).unwrap();
+        let components = components_view(&model, air).unwrap();
+        let cs = cross_section_view(&model, None, &components);
+
+        // Iris is at index 3, after the 45° fold — its cursor F should point in
+        // the transverse direction (f_z ≈ 0, |f_t| ≈ 1).
+        let frame = cs.yz.surface_frames[3]
+            .as_ref()
+            .expect("iris surface frame must be Some");
+        assert!(
+            frame.f_z.abs() < 0.01,
+            "after 45° fold, iris f_z ≈ 0, got {}",
+            frame.f_z
+        );
+        assert!(
+            frame.f_t.abs() > 0.99,
+            "after 45° fold, iris |f_t| ≈ 1, got {}",
+            frame.f_t
+        );
+        // T must be perpendicular to F.
+        let dot = frame.f_z * frame.t_z + frame.f_t * frame.t_t;
+        assert!(
+            dot.abs() < 0.01,
+            "F and T must be perpendicular (dot ≈ 0), got {}",
+            dot
+        );
+        assert!(
+            frame.oop_out_of_screen,
+            "after 45° YZ fold: cursor right = (-1,0,0), so R.x() < 0 → out of screen (dot)"
+        );
+    }
+
+    #[test]
     fn axis_path_unaffected_by_lens_decenter() {
         // A 2 mm U-decenter shifts the surface vertex to t = 2, but the cursor
         // (optical axis) must remain at t = 0.
@@ -828,6 +1060,23 @@ mod tests {
                 "axis_path must stay on-axis despite decenter, got t={t}"
             );
         }
+    }
+
+    #[test]
+    fn surface_frame_vertex_on_axis_despite_decenter() {
+        // A 2 mm U-decenter shifts placement.position.y() to 2, but the RUF
+        // annotation must use cursor_positions (on-axis) so vertex_t stays 0.
+        let model = straight_sphere_model(Vec3::new(0.0, 2.0, 0.0), Rotation3D::None);
+        let components = components_view(&model, n!(1.0)).unwrap();
+        let cs = cross_section_view(&model, None, &components);
+        let frame = cs.yz.surface_frames[1]
+            .as_ref()
+            .expect("sphere surface frame must be Some");
+        assert!(
+            frame.vertex_t.abs() < 1e-9,
+            "decentered surface: vertex_t must be on-axis (0), got {}",
+            frame.vertex_t
+        );
     }
 
     #[test]

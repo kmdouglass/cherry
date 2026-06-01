@@ -35,9 +35,11 @@ pub fn surfaces_panel(
         .any(|s| s.variant == SurfaceVariant::Conic);
 
     egui::ScrollArea::horizontal().show(ui, |ui| {
+        let ctx = ui.ctx().clone();
         let table = TableBuilder::new(ui)
             .striped(true)
             .resizable(true)
+            .sense(egui::Sense::click())
             .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
             .column(Column::auto().at_least(30.0)) // #
             .column(Column::auto().at_least(70.0)) // Variant
@@ -388,6 +390,15 @@ pub fn surfaces_panel(
                                 });
                             }
                         });
+
+                        if row.response().hovered() && !is_object && !is_image {
+                            ctx.data_mut(|d| {
+                                d.insert_temp(
+                                    egui::Id::new("annotation_hover_surface_idx"),
+                                    row_idx,
+                                );
+                            });
+                        }
                     });
                 }
 

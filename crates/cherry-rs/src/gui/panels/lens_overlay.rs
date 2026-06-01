@@ -183,9 +183,11 @@ impl LensOverlayPanel {
         let mut select_remove: Vec<usize> = Vec::new();
 
         egui::ScrollArea::horizontal().show(ui, |ui| {
+            let ctx = ui.ctx().clone();
             let table = TableBuilder::new(ui)
                 .striped(true)
                 .resizable(true)
+                .sense(egui::Sense::click())
                 .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
                 .column(Column::auto().at_least(16.0)) // select
                 .column(Column::initial(130.0).resizable(true)) // Name
@@ -243,10 +245,9 @@ impl LensOverlayPanel {
                                 }
                             });
 
-                            let group = &mut specs.lens_groups[row_idx];
-
                             // Name (editable)
                             row.col(|ui| {
+                                let group = &mut specs.lens_groups[row_idx];
                                 if ui.text_edit_singleline(&mut group.name).changed() {
                                     changed = true;
                                 }
@@ -254,7 +255,7 @@ impl LensOverlayPanel {
 
                             // Components summary (read-only)
                             row.col(|ui| {
-                                let summary: Vec<String> = group
+                                let summary: Vec<String> = specs.lens_groups[row_idx]
                                     .component_first_surfs
                                     .iter()
                                     .filter_map(|&fs| {
@@ -267,7 +268,12 @@ impl LensOverlayPanel {
                             // Decenter R / U / F
                             row.col(|ui| {
                                 if ui
-                                    .add(egui::DragValue::new(&mut group.decenter[0]).speed(0.01))
+                                    .add(
+                                        egui::DragValue::new(
+                                            &mut specs.lens_groups[row_idx].decenter[0],
+                                        )
+                                        .speed(0.01),
+                                    )
                                     .changed()
                                 {
                                     changed = true;
@@ -275,7 +281,12 @@ impl LensOverlayPanel {
                             });
                             row.col(|ui| {
                                 if ui
-                                    .add(egui::DragValue::new(&mut group.decenter[1]).speed(0.01))
+                                    .add(
+                                        egui::DragValue::new(
+                                            &mut specs.lens_groups[row_idx].decenter[1],
+                                        )
+                                        .speed(0.01),
+                                    )
                                     .changed()
                                 {
                                     changed = true;
@@ -283,7 +294,12 @@ impl LensOverlayPanel {
                             });
                             row.col(|ui| {
                                 if ui
-                                    .add(egui::DragValue::new(&mut group.decenter[2]).speed(0.01))
+                                    .add(
+                                        egui::DragValue::new(
+                                            &mut specs.lens_groups[row_idx].decenter[2],
+                                        )
+                                        .speed(0.01),
+                                    )
                                     .changed()
                                 {
                                     changed = true;
@@ -293,7 +309,12 @@ impl LensOverlayPanel {
                             // Euler angles θ / ψ / φ
                             row.col(|ui| {
                                 if ui
-                                    .add(egui::DragValue::new(&mut group.rotation[0]).speed(0.01))
+                                    .add(
+                                        egui::DragValue::new(
+                                            &mut specs.lens_groups[row_idx].rotation[0],
+                                        )
+                                        .speed(0.01),
+                                    )
                                     .changed()
                                 {
                                     changed = true;
@@ -301,7 +322,12 @@ impl LensOverlayPanel {
                             });
                             row.col(|ui| {
                                 if ui
-                                    .add(egui::DragValue::new(&mut group.rotation[1]).speed(0.01))
+                                    .add(
+                                        egui::DragValue::new(
+                                            &mut specs.lens_groups[row_idx].rotation[1],
+                                        )
+                                        .speed(0.01),
+                                    )
                                     .changed()
                                 {
                                     changed = true;
@@ -309,12 +335,32 @@ impl LensOverlayPanel {
                             });
                             row.col(|ui| {
                                 if ui
-                                    .add(egui::DragValue::new(&mut group.rotation[2]).speed(0.01))
+                                    .add(
+                                        egui::DragValue::new(
+                                            &mut specs.lens_groups[row_idx].rotation[2],
+                                        )
+                                        .speed(0.01),
+                                    )
                                     .changed()
                                 {
                                     changed = true;
                                 }
                             });
+
+                            if row.response().hovered() {
+                                let surf_idx = specs.lens_groups[row_idx]
+                                    .component_first_surfs
+                                    .first()
+                                    .copied();
+                                if let Some(idx) = surf_idx {
+                                    ctx.data_mut(|d| {
+                                        d.insert_temp(
+                                            egui::Id::new("annotation_hover_surface_idx"),
+                                            idx,
+                                        );
+                                    });
+                                }
+                            }
                         });
                     }
                 });
