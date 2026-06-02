@@ -12,6 +12,23 @@ pub enum BoundaryKind {
     NoOp,
 }
 
+/// Selects which optical path a [`BeamSplitter`] surface models.
+///
+/// A beam splitter creates two output paths from one input. Because
+/// [`SequentialModel`] is single-path, each path is a separate model whose
+/// beam splitter surface is configured with the appropriate variant here.
+///
+/// [`BeamSplitter`]: crate::core::surfaces::BeamSplitter
+/// [`SequentialModel`]: crate::core::sequential_model::SequentialModel
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum BeamSplitterPathKind {
+    /// Transmitted path: ray refracts (Snell's law); cursor continues straight.
+    Transmitting,
+    /// Reflected path: ray reflects (law of reflection); cursor is deflected.
+    Reflecting,
+}
+
 /// Specifies the clear aperture of a surface.
 ///
 /// This is referred to as a "mask" to avoid confusion with
@@ -90,6 +107,20 @@ pub enum SurfaceSpec {
         #[cfg_attr(feature = "serde", serde(default = "default_rotation3d_none"))]
         rotation_offset: Rotation3D,
     },
+    /// A flat beam-splitting surface nominally tilted like a mirror.
+    ///
+    /// `path_kind` selects whether this instance models the transmitted or
+    /// reflected optical path. Build one `SequentialModel` per path from the
+    /// same surface list, setting `path_kind` accordingly on this variant.
+    BeamSplitter {
+        semi_diameter: Float,
+        path_kind: BeamSplitterPathKind,
+        rotation: Rotation3D,
+        #[cfg_attr(feature = "serde", serde(default = "default_zero_vec3"))]
+        decenter: Vec3,
+        #[cfg_attr(feature = "serde", serde(default = "default_rotation3d_none"))]
+        rotation_offset: Rotation3D,
+    },
 }
 
 #[cfg(feature = "serde")]
@@ -110,7 +141,8 @@ impl SurfaceSpec {
             | SurfaceSpec::Sphere { rotation, .. }
             | SurfaceSpec::Image { rotation, .. }
             | SurfaceSpec::Probe { rotation, .. }
-            | SurfaceSpec::Iris { rotation, .. } => rotation.clone(),
+            | SurfaceSpec::Iris { rotation, .. }
+            | SurfaceSpec::BeamSplitter { rotation, .. } => rotation.clone(),
             SurfaceSpec::Object => Rotation3D::None,
             #[cfg(feature = "serde")]
             SurfaceSpec::Custom { rotation, .. } => rotation.clone(),
@@ -134,6 +166,9 @@ impl SurfaceSpec {
             }
             | SurfaceSpec::Iris {
                 rotation_offset, ..
+            }
+            | SurfaceSpec::BeamSplitter {
+                rotation_offset, ..
             } => rotation_offset.clone(),
             SurfaceSpec::Object => Rotation3D::None,
             #[cfg(feature = "serde")]
@@ -149,7 +184,8 @@ impl SurfaceSpec {
             | SurfaceSpec::Sphere { decenter, .. }
             | SurfaceSpec::Image { decenter, .. }
             | SurfaceSpec::Probe { decenter, .. }
-            | SurfaceSpec::Iris { decenter, .. } => *decenter,
+            | SurfaceSpec::Iris { decenter, .. }
+            | SurfaceSpec::BeamSplitter { decenter, .. } => *decenter,
             SurfaceSpec::Object => Vec3::new(0.0, 0.0, 0.0),
             #[cfg(feature = "serde")]
             SurfaceSpec::Custom { .. } => Vec3::new(0.0, 0.0, 0.0),

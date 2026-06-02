@@ -433,6 +433,11 @@ fn set_surface_displacement(
             decenter: d,
             rotation_offset: ro,
             ..
+        }
+        | SurfaceSpec::BeamSplitter {
+            decenter: d,
+            rotation_offset: ro,
+            ..
         } => {
             *d = decenter;
             *ro = rotation_offset;

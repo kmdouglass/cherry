@@ -16,7 +16,7 @@ use crate::core::{
     Float,
     math::{linalg::mat3x3::Mat3x3, vec3::Vec3},
     refractive_index::RefractiveIndex,
-    surfaces::{Conic, Image, Iris, Object, Probe, Sphere, Surface, SurfaceKind},
+    surfaces::{BeamSplitter, Conic, Image, Iris, Object, Probe, Sphere, Surface, SurfaceKind},
 };
 use crate::specs::{
     gaps::GapSpec,
@@ -430,7 +430,10 @@ impl SequentialModel {
             ));
         }
         match surfaces[i].surface_kind() {
-            SurfaceKind::Conic | SurfaceKind::Sphere | SurfaceKind::Iris => Ok(()),
+            SurfaceKind::BeamSplitter
+            | SurfaceKind::Conic
+            | SurfaceKind::Sphere
+            | SurfaceKind::Iris => Ok(()),
             kind => Err(anyhow!(
                 "surface {i} ({kind:?}) is not eligible as the aperture stop; \
                  only Conic and Iris surfaces are allowed"
@@ -859,6 +862,11 @@ pub(crate) fn surface_from_spec(
         SurfaceSpec::Object => Ok(Box::new(Object::new())),
         SurfaceSpec::Probe { .. } => Ok(Box::new(Probe::new())),
         SurfaceSpec::Iris { semi_diameter, .. } => Ok(Box::new(Iris::new(*semi_diameter))),
+        SurfaceSpec::BeamSplitter {
+            semi_diameter,
+            path_kind,
+            ..
+        } => Ok(Box::new(BeamSplitter::new(*semi_diameter, *path_kind))),
     }
 }
 
@@ -892,6 +900,11 @@ pub(crate) fn surface_from_spec(spec: &SurfaceSpec) -> Result<Box<dyn Surface>> 
         SurfaceSpec::Object => Ok(Box::new(Object::new())),
         SurfaceSpec::Probe { .. } => Ok(Box::new(Probe::new())),
         SurfaceSpec::Iris { semi_diameter, .. } => Ok(Box::new(Iris::new(*semi_diameter))),
+        SurfaceSpec::BeamSplitter {
+            semi_diameter,
+            path_kind,
+            ..
+        } => Ok(Box::new(BeamSplitter::new(*semi_diameter, *path_kind))),
     }
 }
 

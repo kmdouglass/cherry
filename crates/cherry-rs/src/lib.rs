@@ -152,13 +152,13 @@ pub use core::{
         placement::{Placement, SurfacePlacement},
         solves::{FNumberSolve, MarginalRaySolve, Solve, SolveKind},
     },
-    surfaces::{Conic, Image, Iris, Object, Probe, Sphere, Surface, SurfaceKind},
+    surfaces::{BeamSplitter, Conic, Image, Iris, Object, Probe, Sphere, Surface, SurfaceKind},
 };
 pub use specs::{
     aperture::ApertureSpec,
     fields::{FieldSpec, PupilSampling},
     gaps::{ConstantRefractiveIndex, GapSpec, RefractiveIndexSpec},
-    surfaces::{BoundaryKind, Mask, SurfaceSpec},
+    surfaces::{BeamSplitterPathKind, BoundaryKind, Mask, SurfaceSpec},
 };
 pub use views::{
     components::{Component, components_view},

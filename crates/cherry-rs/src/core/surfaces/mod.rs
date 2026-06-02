@@ -10,7 +10,7 @@ pub mod solvers;
 #[cfg(feature = "serde")]
 pub mod surface_registry;
 
-pub use kinds::{Conic, Image, Iris, Object, Probe, Sphere};
+pub use kinds::{BeamSplitter, Conic, Image, Iris, Object, Probe, Sphere};
 #[cfg(feature = "serde")]
 pub use surface_registry::{SurfaceConstructor, SurfaceRegistry};
 
@@ -24,6 +24,7 @@ pub use surface_registry::{SurfaceConstructor, SurfaceRegistry};
 /// should return [`SurfaceKind::Custom`] (the default).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SurfaceKind {
+    BeamSplitter,
     Conic,
     Image,
     Iris,
