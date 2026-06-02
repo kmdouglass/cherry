@@ -3,7 +3,7 @@ use crate::{
     specs::surfaces::{BoundaryKind, Mask},
 };
 
-use super::{Surface, SurfaceKind};
+use super::super::{Surface, SurfaceKind};
 
 /// A conic surface (sphere, paraboloid, hyperboloid, etc.).
 #[derive(Debug, Clone)]

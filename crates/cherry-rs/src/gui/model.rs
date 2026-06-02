@@ -173,16 +173,16 @@ impl std::fmt::Display for SurfaceVariant {
 
 /// Whether a conic surface is refracting or reflecting.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-pub enum SurfaceKind {
+pub enum BoundaryVariant {
     Refracting,
     Reflecting,
 }
 
-impl std::fmt::Display for SurfaceKind {
+impl std::fmt::Display for BoundaryVariant {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            SurfaceKind::Refracting => write!(f, "Refracting"),
-            SurfaceKind::Reflecting => write!(f, "Reflecting"),
+            BoundaryVariant::Refracting => write!(f, "Refracting"),
+            BoundaryVariant::Reflecting => write!(f, "Reflecting"),
         }
     }
 }
@@ -196,7 +196,7 @@ fn default_zero() -> String {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SurfaceRow {
     pub variant: SurfaceVariant,
-    pub surface_kind: SurfaceKind,
+    pub boundary_variant: BoundaryVariant,
     pub refractive_index: String,
     pub thickness: String,
     pub semi_diameter: String,
@@ -220,7 +220,7 @@ impl SurfaceRow {
     pub fn new_object(thickness: &str) -> Self {
         Self {
             variant: SurfaceVariant::Object,
-            surface_kind: SurfaceKind::Refracting,
+            boundary_variant: BoundaryVariant::Refracting,
             refractive_index: "1.0".into(),
             thickness: thickness.into(),
             semi_diameter: String::new(),
@@ -241,7 +241,7 @@ impl SurfaceRow {
     ) -> Self {
         Self {
             variant: SurfaceVariant::Conic,
-            surface_kind: SurfaceKind::Refracting,
+            boundary_variant: BoundaryVariant::Refracting,
             refractive_index: refractive_index.into(),
             thickness: thickness.into(),
             semi_diameter: semi_diameter.into(),
@@ -261,7 +261,7 @@ impl SurfaceRow {
     ) -> Self {
         Self {
             variant: SurfaceVariant::Sphere,
-            surface_kind: SurfaceKind::Refracting,
+            boundary_variant: BoundaryVariant::Refracting,
             refractive_index: refractive_index.into(),
             thickness: thickness.into(),
             semi_diameter: semi_diameter.into(),
@@ -276,7 +276,7 @@ impl SurfaceRow {
     pub fn new_iris(semi_diameter: &str, thickness: &str, refractive_index: &str) -> Self {
         Self {
             variant: SurfaceVariant::Iris,
-            surface_kind: SurfaceKind::Refracting,
+            boundary_variant: BoundaryVariant::Refracting,
             refractive_index: refractive_index.into(),
             thickness: thickness.into(),
             semi_diameter: semi_diameter.into(),
@@ -291,7 +291,7 @@ impl SurfaceRow {
     pub fn new_image() -> Self {
         Self {
             variant: SurfaceVariant::Image,
-            surface_kind: SurfaceKind::Refracting,
+            boundary_variant: BoundaryVariant::Refracting,
             refractive_index: String::new(),
             thickness: String::new(),
             semi_diameter: String::new(),

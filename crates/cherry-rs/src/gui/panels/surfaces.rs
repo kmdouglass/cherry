@@ -1,7 +1,7 @@
 use egui_extras::{Column, TableBuilder};
 
 use super::super::model::{
-    SolveParameter, SolvePopupState, SurfaceKind, SurfaceVariant, SystemSpecs,
+    BoundaryVariant, SolveParameter, SolvePopupState, SurfaceVariant, SystemSpecs,
 };
 use super::{format_display_float, inf_formatter, inf_parser, parse_display_float};
 use crate::gui::result_package::SolvedValues;
@@ -27,7 +27,7 @@ pub fn surfaces_panel(
 
     let has_reflecting = specs.surfaces.iter().any(|s| {
         matches!(s.variant, SurfaceVariant::Conic | SurfaceVariant::Sphere)
-            && s.surface_kind == SurfaceKind::Reflecting
+            && s.boundary_variant == BoundaryVariant::Reflecting
     });
     let has_conic = specs
         .surfaces
@@ -166,15 +166,16 @@ pub fn surfaces_panel(
                             if is_curved {
                                 let id = ui.make_persistent_id(format!("kind_{row_idx}"));
                                 egui::ComboBox::from_id_salt(id)
-                                    .selected_text(surf.surface_kind.to_string())
+                                    .selected_text(surf.boundary_variant.to_string())
                                     .width(80.0)
                                     .show_ui(ui, |ui| {
-                                        for kind in
-                                            [SurfaceKind::Refracting, SurfaceKind::Reflecting]
-                                        {
+                                        for kind in [
+                                            BoundaryVariant::Refracting,
+                                            BoundaryVariant::Reflecting,
+                                        ] {
                                             if ui
                                                 .selectable_value(
-                                                    &mut surf.surface_kind,
+                                                    &mut surf.boundary_variant,
                                                     kind,
                                                     kind.to_string(),
                                                 )
@@ -347,7 +348,7 @@ pub fn surfaces_panel(
                         // θ / ψ columns (only shown when system has reflecting surfaces)
                         if has_reflecting {
                             let is_reflecting_curved =
-                                is_curved && surf.surface_kind == SurfaceKind::Reflecting;
+                                is_curved && surf.boundary_variant == BoundaryVariant::Reflecting;
                             row.col(|ui| {
                                 if is_reflecting_curved {
                                     changed |= drag_value(
@@ -511,11 +512,11 @@ mod tests {
     use super::*;
     use egui_kittest::{Harness, kittest::Queryable};
 
-    use crate::gui::model::{SolveSpec, SurfaceKind, SurfaceRow, SurfaceVariant, SystemSpecs};
+    use crate::gui::model::{BoundaryVariant, SolveSpec, SurfaceRow, SurfaceVariant, SystemSpecs};
 
     fn specs_with_reflecting_surface() -> SystemSpecs {
         let mut mirror = SurfaceRow::new_sphere("12.7", "Infinity", "100.0", "1.0");
-        mirror.surface_kind = SurfaceKind::Reflecting;
+        mirror.boundary_variant = BoundaryVariant::Reflecting;
         SystemSpecs {
             surfaces: vec![
                 SurfaceRow::new_object("Infinity"),

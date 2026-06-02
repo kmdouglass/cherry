@@ -5,22 +5,12 @@ use crate::core::{Float, math::vec3::Vec3, ray::Ray};
 
 use crate::specs::surfaces::{BoundaryKind, Mask};
 
-pub mod conic;
-pub mod image;
-pub mod iris;
-pub mod object;
-pub mod probe;
+pub mod kinds;
 pub mod solvers;
-pub mod sphere;
 #[cfg(feature = "serde")]
 pub mod surface_registry;
 
-pub use conic::Conic;
-pub use image::Image;
-pub use iris::Iris;
-pub use object::Object;
-pub use probe::Probe;
-pub use sphere::Sphere;
+pub use kinds::{Conic, Image, Iris, Object, Probe, Sphere};
 #[cfg(feature = "serde")]
 pub use surface_registry::{SurfaceConstructor, SurfaceRegistry};
 

@@ -3,7 +3,7 @@ use crate::{
     specs::surfaces::{BoundaryKind, Mask},
 };
 
-use super::{Surface, SurfaceKind, solvers::spherical_surface};
+use super::super::{Surface, SurfaceKind, solvers::spherical_surface};
 
 /// A spherical surface (conic constant = 0).
 #[derive(Debug, Clone)]
