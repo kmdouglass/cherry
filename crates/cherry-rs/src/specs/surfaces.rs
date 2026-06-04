@@ -42,6 +42,57 @@ pub enum Mask {
     Unbounded,
 }
 
+/// Tilt and decenter input spec for one surface.
+///
+/// This is the *input* passed to [`SequentialModel::from_surfaces`] and used
+/// internally when converting [`SurfaceSpec`]s into a model. It is distinct
+/// from the computed [`Placement`], which records the surface's resolved
+/// position and orientation in the global frame.
+///
+/// The three fields have distinct roles:
+/// - `rotation` — nominal cursor-redirecting tilt (e.g., 45° for a fold
+///   mirror); a first-order design parameter, not a perturbation.
+/// - `rotation_offset` — additional surface-only tilt that never redirects
+///   the cursor; a true perturbation in the classical tilt/decenter sense.
+/// - `decenter` — vertex offset from the nominal cursor position, in
+///   cursor-frame (R, U, F); a true decenter in the classical sense.
+///
+/// [`SequentialModel::from_surfaces`]:
+///     crate::core::sequential_model::SequentialModel::from_surfaces
+/// [`Placement`]: crate::core::sequential_model::placement::Placement
+#[derive(Debug, Clone)]
+pub struct PlacementSpec {
+    /// Nominal surface tilt; redirects the cursor for reflecting surfaces.
+    pub rotation: Rotation3D,
+    /// Additional surface-only rotation; never redirects the cursor.
+    pub rotation_offset: Rotation3D,
+    /// Vertex offset from the nominal cursor position, in cursor-frame (R, U,
+    /// F).
+    pub decenter: Vec3,
+}
+
+impl PlacementSpec {
+    /// Returns a `PlacementSpec` with no tilt, no rotation offset, and no
+    /// decenter.
+    pub fn none() -> Self {
+        Self {
+            rotation: Rotation3D::None,
+            rotation_offset: Rotation3D::None,
+            decenter: Vec3::new(0.0, 0.0, 0.0),
+        }
+    }
+
+    /// Returns a `PlacementSpec` with the given nominal rotation and no
+    /// decenter or rotation offset.
+    pub fn from_rotation(rotation: Rotation3D) -> Self {
+        Self {
+            rotation,
+            rotation_offset: Rotation3D::None,
+            decenter: Vec3::new(0.0, 0.0, 0.0),
+        }
+    }
+}
+
 /// Specifies a surface in a sequential optical system.
 ///
 /// Rotations specify transformations from the cursor reference frame to the

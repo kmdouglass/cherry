@@ -1,4 +1,4 @@
-use cherry_rs::{BoundaryKind, GapSpec, Mask, SequentialModel, Surface, SurfacePlacement, Vec3, n};
+use cherry_rs::{BoundaryKind, GapSpec, Mask, PlacementSpec, SequentialModel, Surface, Vec3, n};
 
 #[derive(Debug)]
 struct FlatNoOp {
@@ -40,38 +40,41 @@ fn air_gap(thickness: f64) -> GapSpec {
 
 #[test]
 fn from_surfaces_constructs_minimal_model() {
-    let surfaces: Vec<(Box<dyn Surface>, SurfacePlacement)> = vec![
-        (Box::new(FlatNoOp::new()), SurfacePlacement::none()),
-        (Box::new(FlatNoOp::new()), SurfacePlacement::none()),
+    let surfaces: Vec<Box<dyn Surface>> = vec![
+        Box::new(FlatNoOp::new()),
+        Box::new(FlatNoOp::new()),
     ];
+    let placements = vec![PlacementSpec::none(), PlacementSpec::none()];
     let gaps = vec![air_gap(10.0)];
     let wavelengths = vec![0.587];
 
-    assert!(SequentialModel::from_surfaces(surfaces, &gaps, &wavelengths, None).is_ok());
+    assert!(SequentialModel::from_surfaces(surfaces, &placements, &gaps, &wavelengths, None).is_ok());
 }
 
 #[test]
 fn from_surfaces_wrong_gap_count_errors() {
-    let surfaces: Vec<(Box<dyn Surface>, SurfacePlacement)> = vec![
-        (Box::new(FlatNoOp::new()), SurfacePlacement::none()),
-        (Box::new(FlatNoOp::new()), SurfacePlacement::none()),
+    let surfaces: Vec<Box<dyn Surface>> = vec![
+        Box::new(FlatNoOp::new()),
+        Box::new(FlatNoOp::new()),
     ];
+    let placements = vec![PlacementSpec::none(), PlacementSpec::none()];
     let gaps = vec![air_gap(10.0), air_gap(5.0)]; // one too many
     let wavelengths = vec![0.587];
 
-    assert!(SequentialModel::from_surfaces(surfaces, &gaps, &wavelengths, None).is_err());
+    assert!(SequentialModel::from_surfaces(surfaces, &placements, &gaps, &wavelengths, None).is_err());
 }
 
 #[test]
 fn from_surfaces_wavelengths_are_preserved() {
-    let surfaces: Vec<(Box<dyn Surface>, SurfacePlacement)> = vec![
-        (Box::new(FlatNoOp::new()), SurfacePlacement::none()),
-        (Box::new(FlatNoOp::new()), SurfacePlacement::none()),
+    let surfaces: Vec<Box<dyn Surface>> = vec![
+        Box::new(FlatNoOp::new()),
+        Box::new(FlatNoOp::new()),
     ];
+    let placements = vec![PlacementSpec::none(), PlacementSpec::none()];
     let gaps = vec![air_gap(10.0)];
     let wavelengths = vec![0.486, 0.587, 0.656];
 
-    let model = SequentialModel::from_surfaces(surfaces, &gaps, &wavelengths, None)
+    let model = SequentialModel::from_surfaces(surfaces, &placements, &gaps, &wavelengths, None)
         .expect("model should build");
 
     assert_eq!(model.wavelengths(), wavelengths.as_slice());

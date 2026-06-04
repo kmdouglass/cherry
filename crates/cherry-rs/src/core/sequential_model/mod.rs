@@ -9,7 +9,8 @@ use std::ops::Range;
 use anyhow::{Result, anyhow};
 
 use self::cursor::Cursor;
-use self::placement::{Placement, SurfacePlacement};
+use self::placement::Placement;
+use crate::specs::surfaces::PlacementSpec;
 #[cfg(feature = "serde")]
 use crate::core::surfaces::SurfaceRegistry;
 use crate::core::{
@@ -369,21 +370,31 @@ impl SequentialModel {
     /// Creates a new sequential model from pre-built surface trait objects.
     ///
     /// Use this when constructing a model programmatically in Rust without
-    /// going through the spec/serialization layer. Each element of `surfaces`
-    /// pairs a surface implementation with its [`SurfacePlacement`]; use
-    /// [`SurfacePlacement::none()`] for untilted surfaces with no displacement,
-    /// or [`SurfacePlacement::from_rotation`] to supply only a tilt rotation.
+    /// going through the surface spec/serialization layer. Use
+    /// [`PlacementSpec::none()`] for untilted surfaces with no displacement,
+    /// or [`PlacementSpec::from_rotation`] to supply only a tilt rotation.
     ///
     /// # Arguments
-    /// * `surfaces` - Pre-built surfaces paired with their placement data.
+    /// * `surfaces` - Pre-built surface trait objects.
+    /// * `placement_specs` - Tilt/decenter spec for each surface; must be the
+    ///   same length as `surfaces`.
     /// * `gap_specs` - Gaps between surfaces (`surfaces.len() - 1` elements).
     /// * `wavelengths` - Wavelengths at which to model the system.
     pub fn from_surfaces(
-        surfaces: Vec<(Box<dyn Surface>, SurfacePlacement)>,
+        surfaces: Vec<Box<dyn Surface>>,
+        placement_specs: &[PlacementSpec],
         gap_specs: &[GapSpec],
         wavelengths: &[Float],
         stop_surface: Option<usize>,
     ) -> Result<Self> {
+        if surfaces.len() != placement_specs.len() {
+            return Err(anyhow!(
+                "Expected {} placement spec(s) for {} surface(s), got {}.",
+                surfaces.len(),
+                surfaces.len(),
+                placement_specs.len()
+            ));
+        }
         if surfaces.len() != gap_specs.len() + 1 {
             return Err(anyhow!(
                 "Expected {} gap(s) for {} surface(s), got {}.",
@@ -394,12 +405,11 @@ impl SequentialModel {
         }
         Self::validate_specs(gap_specs, wavelengths)?;
 
-        let (surfs, surface_placements): (Vec<_>, Vec<_>) = surfaces.into_iter().unzip();
         let (placements, axis_directions, cursor_positions) =
-            Self::build_placements_and_directions(&surfs, &surface_placements, gap_specs);
+            Self::build_placements_and_directions(&surfaces, placement_specs, gap_specs);
 
         if let Some(i) = stop_surface {
-            Self::validate_stop_surface(&surfs, i)?;
+            Self::validate_stop_surface(&surfaces, i)?;
         }
 
         let mut models: Vec<SequentialSubModelBase> = Vec::new();
@@ -409,7 +419,7 @@ impl SequentialModel {
         }
 
         Ok(Self {
-            surfaces: surfs,
+            surfaces,
             placements,
             submodels: models,
             wavelengths: wavelengths.to_vec(),
@@ -540,7 +550,7 @@ impl SequentialModel {
     /// `gap_specs` must have length N - 1.
     fn build_placements_and_directions(
         surfaces: &[Box<dyn Surface>],
-        surface_placements: &[SurfacePlacement],
+        surface_placements: &[PlacementSpec],
         gap_specs: &[GapSpec],
     ) -> (Vec<Placement>, Vec<Vec3>, Vec<Vec3>) {
         let mut placements = Vec::new();
@@ -605,9 +615,9 @@ impl SequentialModel {
             .iter()
             .map(|s| surface_from_spec(s, registry))
             .collect::<Result<Vec<_>>>()?;
-        let surface_placements: Vec<SurfacePlacement> = surf_specs
+        let surface_placements: Vec<PlacementSpec> = surf_specs
             .iter()
-            .map(|spec| SurfacePlacement {
+            .map(|spec| PlacementSpec {
                 decenter: spec.decenter(),
                 rotation: spec.rotation(),
                 rotation_offset: spec.rotation_offset(),
@@ -627,9 +637,9 @@ impl SequentialModel {
             .iter()
             .map(surface_from_spec)
             .collect::<Result<Vec<_>>>()?;
-        let surface_placements: Vec<SurfacePlacement> = surf_specs
+        let surface_placements: Vec<PlacementSpec> = surf_specs
             .iter()
-            .map(|spec| SurfacePlacement {
+            .map(|spec| PlacementSpec {
                 decenter: spec.decenter(),
                 rotation: spec.rotation(),
                 rotation_offset: spec.rotation_offset(),
