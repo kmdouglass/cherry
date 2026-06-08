@@ -1,64 +1,86 @@
-//! A flat 45° beam splitter between object and image planes.
+//! A flat 45° beam splitter: object → BS → two image planes.
 //!
-//! The beam splitter sits at the origin, tilted 45° about the R axis. Use
-//! `transmitting_model` for the path that continues along +z, or
-//! `reflecting_model` for the path that is deflected 90° into +y.
+//! Build with `two_path_model(n_air, wavelengths, gap_transmitted,
+//! gap_reflected)`. Path 0 is the transmitted arm (+z); path 1 is the reflected
+//! arm (+y after a –45° tilt about R).
 use std::rc::Rc;
 
 use crate::{
-    BeamSplitterPathKind, EulerAngles, GapSpec, RefractiveIndexSpec, Rotation3D, SequentialModel,
-    SurfaceSpec, Vec3, core::Float,
+    BeamSplitterPathKind, EulerAngles, GapSpec, PathSpec, PathSurfaceRef, RefractiveIndexSpec,
+    Rotation3D, SequentialModel, SurfaceSpec, Vec3,
+    core::{Float, sequential_model::builder::SequentialModelBuilder},
 };
 
-/// Transmitted path: cursor continues along +z; image plane is along +z.
-pub fn transmitting_model(
+/// Build a two-path beam splitter model.
+///
+/// - Path 0: transmitted arm — image along +z at distance `gap_transmitted`
+///   from the BS.
+/// - Path 1: reflected arm — image along +y at distance `gap_reflected` from
+///   the BS (45° BS deflects 90° into +y).
+pub fn two_path_model(
     n_air: Rc<dyn RefractiveIndexSpec>,
     wavelengths: &[Float],
+    gap_transmitted: Float,
+    gap_reflected: Float,
 ) -> SequentialModel {
-    build(n_air, wavelengths, BeamSplitterPathKind::Transmitting)
-}
+    let bs_rotation =
+        Rotation3D::IntrinsicPassiveRUF(EulerAngles((-45_f64 as Float).to_radians(), 0.0, 0.0));
 
-/// Reflected path: cursor deflects 90° into +y; image plane is along +y.
-pub fn reflecting_model(
-    n_air: Rc<dyn RefractiveIndexSpec>,
-    wavelengths: &[Float],
-) -> SequentialModel {
-    build(n_air, wavelengths, BeamSplitterPathKind::Reflecting)
-}
-
-fn build(
-    n_air: Rc<dyn RefractiveIndexSpec>,
-    wavelengths: &[Float],
-    path_kind: BeamSplitterPathKind,
-) -> SequentialModel {
-    let gap_0 = GapSpec {
-        thickness: Float::INFINITY,
-        refractive_index: n_air.clone(),
-    };
-    let gap_1 = GapSpec {
-        thickness: 100.0,
-        refractive_index: n_air,
-    };
-    let gaps = vec![gap_0, gap_1];
-
-    let surf_0 = SurfaceSpec::Object;
-    let surf_1 = SurfaceSpec::BeamSplitter {
-        semi_diameter: 10.0,
-        path_kind,
-        rotation: Rotation3D::IntrinsicPassiveRUF(EulerAngles(
-            (-45 as Float).to_radians(),
-            0.0,
-            0.0,
-        )),
-        decenter: Vec3::new(0.0, 0.0, 0.0),
-        rotation_offset: Rotation3D::None,
-    };
-    let surf_2 = SurfaceSpec::Image {
+    let img = || SurfaceSpec::Image {
         rotation: Rotation3D::None,
         decenter: Vec3::new(0.0, 0.0, 0.0),
         rotation_offset: Rotation3D::None,
     };
-    let surfaces = vec![surf_0, surf_1, surf_2];
+    let gap_inf = || GapSpec {
+        thickness: Float::INFINITY,
+        refractive_index: n_air.clone(),
+    };
 
-    SequentialModel::from_surface_specs(&gaps, &surfaces, wavelengths, None).unwrap()
+    // Path 0: transmitted arm.
+    // Store indices: Object=0, BS=1, Image_T=2
+    let path_t = PathSpec {
+        surface_refs: vec![
+            PathSurfaceRef::New(SurfaceSpec::Object),
+            PathSurfaceRef::New(SurfaceSpec::BeamSplitter {
+                semi_diameter: 10.0,
+                rotation: bs_rotation,
+                decenter: Vec3::new(0.0, 0.0, 0.0),
+                rotation_offset: Rotation3D::None,
+            }),
+            PathSurfaceRef::New(img()),
+        ],
+        gaps: vec![
+            gap_inf(),
+            GapSpec {
+                thickness: gap_transmitted,
+                refractive_index: n_air.clone(),
+            },
+        ],
+        beam_splitter_arms: vec![BeamSplitterPathKind::Transmitting],
+    };
+
+    // Path 1: reflected arm.
+    // Shared(0)=Object, Shared(1)=BS (same physical component), New=Image_R=3
+    let path_r = PathSpec {
+        surface_refs: vec![
+            PathSurfaceRef::Shared(0),
+            PathSurfaceRef::Shared(1),
+            PathSurfaceRef::New(img()),
+        ],
+        gaps: vec![
+            gap_inf(),
+            GapSpec {
+                thickness: gap_reflected,
+                refractive_index: n_air,
+            },
+        ],
+        beam_splitter_arms: vec![BeamSplitterPathKind::Reflecting],
+    };
+
+    SequentialModelBuilder::new()
+        .paths(vec![path_t, path_r])
+        .wavelengths(wavelengths.to_vec())
+        .build()
+        .expect("beam splitter model builds")
+        .model
 }

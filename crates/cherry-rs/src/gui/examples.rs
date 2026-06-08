@@ -190,7 +190,7 @@ pub fn convexplano_lens_with_materials() -> SystemSpecs {
                 x: "0.0".into(),
             },
         ],
-        aperture_semi_diameter: "5.0".into(),
+        aperture_semi_diameter: "12.0".into(),
         wavelengths: vec!["0.4861".into(), "0.5876".into(), "0.6563".into()],
         field_mode: FieldMode::Angle,
         use_materials: true,

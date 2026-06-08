@@ -158,6 +158,7 @@ pub use specs::{
     aperture::ApertureSpec,
     fields::{FieldSpec, PupilSampling},
     gaps::{ConstantRefractiveIndex, GapSpec, RefractiveIndexSpec},
+    paths::{PathSpec, PathSurfaceRef},
     surfaces::{BeamSplitterPathKind, BoundaryKind, Mask, PlacementSpec, SurfaceSpec},
 };
 pub use views::{

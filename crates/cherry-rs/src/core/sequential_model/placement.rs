@@ -13,7 +13,6 @@ use crate::core::{
 
 use super::cursor::Cursor;
 
-
 /// Position and orientation of a surface in the global coordinate system.
 #[derive(Debug, Clone)]
 pub struct Placement {

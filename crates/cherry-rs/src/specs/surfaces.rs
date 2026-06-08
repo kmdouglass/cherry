@@ -52,8 +52,8 @@ pub enum Mask {
 /// The three fields have distinct roles:
 /// - `rotation` — nominal cursor-redirecting tilt (e.g., 45° for a fold
 ///   mirror); a first-order design parameter, not a perturbation.
-/// - `rotation_offset` — additional surface-only tilt that never redirects
-///   the cursor; a true perturbation in the classical tilt/decenter sense.
+/// - `rotation_offset` — additional surface-only tilt that never redirects the
+///   cursor; a true perturbation in the classical tilt/decenter sense.
 /// - `decenter` — vertex offset from the nominal cursor position, in
 ///   cursor-frame (R, U, F); a true decenter in the classical sense.
 ///
@@ -160,12 +160,13 @@ pub enum SurfaceSpec {
     },
     /// A flat beam-splitting surface nominally tilted like a mirror.
     ///
-    /// `path_kind` selects whether this instance models the transmitted or
-    /// reflected optical path. Build one `SequentialModel` per path from the
-    /// same surface list, setting `path_kind` accordingly on this variant.
+    /// The surface is purely geometric. Arm selection (transmitting vs.
+    /// reflecting) is declared per path via
+    /// [`PathSpec::beam_splitter_arms`].
+    ///
+    /// [`PathSpec::beam_splitter_arms`]: crate::specs::paths::PathSpec
     BeamSplitter {
         semi_diameter: Float,
-        path_kind: BeamSplitterPathKind,
         rotation: Rotation3D,
         #[cfg_attr(feature = "serde", serde(default = "default_zero_vec3"))]
         decenter: Vec3,
@@ -269,12 +270,24 @@ impl Mask {
     }
 }
 
-#[cfg(all(test, feature = "serde"))]
+#[cfg(test)]
 mod tests {
     use super::*;
 
+    // Step 3: SurfaceSpec::BeamSplitter can be constructed without path_kind.
+    #[test]
+    fn beam_splitter_spec_has_no_path_kind() {
+        let _ = SurfaceSpec::BeamSplitter {
+            semi_diameter: 10.0,
+            rotation: Rotation3D::None,
+            decenter: Vec3::new(0.0, 0.0, 0.0),
+            rotation_offset: Rotation3D::None,
+        };
+    }
+
     // AT-9: serialize a Sphere with non-zero decenter and rotation_offset, then
     // deserialize; assert the round-tripped values are preserved.
+    #[cfg(feature = "serde")]
     #[test]
     fn at9_serde_round_trip_preserves_decenter_and_rotation_offset() {
         use crate::core::math::linalg::rotations::EulerAngles;
@@ -309,6 +322,7 @@ mod tests {
 
     // AT-10: deserializing a JSON string that omits decenter and rotation_offset
     // applies the correct defaults (zero vector and None).
+    #[cfg(feature = "serde")]
     #[test]
     fn at10_serde_default_decenter_and_rotation_offset() {
         let json = r#"{

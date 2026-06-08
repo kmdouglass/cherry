@@ -2,32 +2,28 @@ use anyhow::Result;
 
 use crate::{
     core::{Float, math::vec3::Vec3, ray::Ray},
-    specs::surfaces::{BeamSplitterPathKind, BoundaryKind, Mask},
+    specs::surfaces::{BoundaryKind, Mask},
 };
 
 use super::super::{Surface, SurfaceKind, solvers::flat_surface};
 
 /// A flat beam-splitting surface nominally tilted like a mirror.
 ///
-/// The `path_kind` field determines the optical behavior:
-/// - [`BeamSplitterPathKind::Transmitting`]: ray refracts (Snell's law); cursor
-///   frame is not redirected.
-/// - [`BeamSplitterPathKind::Reflecting`]: ray is reflected; cursor frame is
-///   deflected as for a mirror.
+/// The surface is purely geometric. Arm selection (transmitting vs. reflecting)
+/// is declared per path in [`PathSpec::beam_splitter_arms`] and exposed
+/// per iterator step via [`Step::bs_arm`]. Ray tracing callers use `bs_arm`
+/// to determine the appropriate optical behavior for each traversal.
 ///
-/// To model both paths of a beam splitter, build two separate
-/// `SequentialModel`s from the same surface list and set `path_kind`
-/// accordingly on this surface in each model.
+/// [`PathSpec::beam_splitter_arms`]: crate::specs::paths::PathSpec
+/// [`Step::bs_arm`]: crate::core::sequential_model::Step::bs_arm
 #[derive(Debug, Clone)]
 pub struct BeamSplitter {
-    path_kind: BeamSplitterPathKind,
     mask: Mask,
 }
 
 impl BeamSplitter {
-    pub fn new(semi_diameter: Float, path_kind: BeamSplitterPathKind) -> Self {
+    pub fn new(semi_diameter: Float) -> Self {
         Self {
-            path_kind,
             mask: Mask::Circular { semi_diameter },
         }
     }
@@ -35,10 +31,7 @@ impl BeamSplitter {
 
 impl Surface for BeamSplitter {
     fn boundary_kind(&self) -> BoundaryKind {
-        match self.path_kind {
-            BeamSplitterPathKind::Transmitting => BoundaryKind::Refracting,
-            BeamSplitterPathKind::Reflecting => BoundaryKind::Reflecting,
-        }
+        BoundaryKind::Refracting
     }
 
     fn intersect(&self, ray: &Ray, _max_iter: usize) -> Result<(Vec3, Vec3)> {
@@ -68,26 +61,20 @@ mod tests {
     use approx::assert_abs_diff_eq;
 
     #[test]
-    fn transmitting_path_has_refracting_boundary() {
-        let bs = BeamSplitter::new(5.0, BeamSplitterPathKind::Transmitting);
+    fn boundary_kind_is_refracting() {
+        let bs = BeamSplitter::new(5.0);
         assert!(matches!(bs.boundary_kind(), BoundaryKind::Refracting));
     }
 
     #[test]
-    fn reflecting_path_has_reflecting_boundary() {
-        let bs = BeamSplitter::new(5.0, BeamSplitterPathKind::Reflecting);
-        assert!(matches!(bs.boundary_kind(), BoundaryKind::Reflecting));
-    }
-
-    #[test]
     fn surface_kind_is_beam_splitter() {
-        let bs = BeamSplitter::new(5.0, BeamSplitterPathKind::Transmitting);
+        let bs = BeamSplitter::new(5.0);
         assert_eq!(bs.surface_kind(), SurfaceKind::BeamSplitter);
     }
 
     #[test]
     fn sag_is_zero_everywhere() {
-        let bs = BeamSplitter::new(5.0, BeamSplitterPathKind::Transmitting);
+        let bs = BeamSplitter::new(5.0);
         for pos in [
             Vec3::new(0.0, 0.0, 0.0),
             Vec3::new(3.0, 4.0, 0.0),
@@ -99,7 +86,7 @@ mod tests {
 
     #[test]
     fn norm_is_z_unit_vector() {
-        let bs = BeamSplitter::new(5.0, BeamSplitterPathKind::Reflecting);
+        let bs = BeamSplitter::new(5.0);
         for pos in [Vec3::new(0.0, 0.0, 0.0), Vec3::new(1.0, -2.0, 0.0)] {
             let n = bs.norm(pos);
             assert_abs_diff_eq!(n.x(), 0.0);
@@ -110,13 +97,13 @@ mod tests {
 
     #[test]
     fn mask_semi_diameter_is_preserved() {
-        let bs = BeamSplitter::new(7.5, BeamSplitterPathKind::Transmitting);
+        let bs = BeamSplitter::new(7.5);
         assert_abs_diff_eq!(bs.mask().semi_diameter(), 7.5);
     }
 
     #[test]
     fn roc_default_is_infinity() {
-        let bs = BeamSplitter::new(5.0, BeamSplitterPathKind::Transmitting);
+        let bs = BeamSplitter::new(5.0);
         assert!(bs.roc(0.0).is_infinite());
     }
 }

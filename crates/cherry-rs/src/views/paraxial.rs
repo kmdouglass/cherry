@@ -772,8 +772,8 @@ impl ParaxialSubView {
         let results = Self::trace(
             ray,
             &sequential_sub_model.slice(0..*aperture_stop),
-            &surfaces[0..aperture_stop + 1],
-            &placements[0..aperture_stop + 1],
+            surfaces,
+            placements,
             true,
         )?;
         let location = axis_intercepts(results.last_surface().unwrap())?[0];
@@ -823,8 +823,8 @@ impl ParaxialSubView {
         let results = Self::trace(
             ray,
             &sequential_sub_model.slice(*aperture_stop..sequential_sub_model.len()),
-            &surfaces[*aperture_stop..],
-            &placements[*aperture_stop..],
+            surfaces,
+            placements,
             false,
         )?;
 
