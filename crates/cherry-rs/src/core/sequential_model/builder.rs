@@ -3,10 +3,9 @@ use anyhow::{Result, anyhow};
 
 #[cfg(feature = "serde")]
 use crate::core::surfaces::SurfaceRegistry;
-use crate::specs::{gaps::GapSpec, surfaces::SurfaceSpec};
+use crate::specs::{gaps::GapSpec, paths::PathSpec, surfaces::SurfaceSpec};
 
-use super::SequentialModel;
-use super::solves::Solve;
+use super::{SequentialModel, solves::Solve};
 
 /// The output of a successful [`SequentialModelBuilder::build()`] call.
 /// Carries the model and the post-solve specs so callers can extract
@@ -30,6 +29,7 @@ pub struct SequentialModelBuilder {
     stop_surface: Option<usize>,
     wavelengths: Option<Vec<f64>>,
     solves: Vec<Box<dyn Solve>>,
+    paths: Option<Vec<PathSpec>>,
     #[cfg(feature = "serde")]
     registry: Option<SurfaceRegistry>,
 }
@@ -49,6 +49,7 @@ impl SequentialModelBuilder {
             stop_surface: None,
             wavelengths: None,
             solves: Vec::new(),
+            paths: None,
             #[cfg(feature = "serde")]
             registry: None,
         }
@@ -56,6 +57,26 @@ impl SequentialModelBuilder {
 
     pub fn build(self) -> Result<BuildResult> {
         self.validate()?;
+
+        if self.paths.is_some() {
+            let paths = self.paths.unwrap();
+            let wavelengths = self.wavelengths.unwrap();
+            let stop_surface = self.stop_surface;
+            #[cfg(feature = "serde")]
+            let model = SequentialModel::from_path_specs(
+                paths,
+                &wavelengths,
+                stop_surface,
+                self.registry.as_ref(),
+            )?;
+            #[cfg(not(feature = "serde"))]
+            let model = SequentialModel::from_path_specs(paths, &wavelengths, stop_surface)?;
+            return Ok(BuildResult {
+                model,
+                gap_specs: vec![],
+                surface_specs: vec![],
+            });
+        }
 
         // Destructure all fields before any partial moves.
         let mut gap_specs = self.gap_specs.unwrap();
@@ -125,6 +146,17 @@ impl SequentialModelBuilder {
         self
     }
 
+    /// Specifies optical paths for a multipath model.
+    ///
+    /// Mutually exclusive with [`gap_specs`] and [`surface_specs`].
+    ///
+    /// [`gap_specs`]: Self::gap_specs
+    /// [`surface_specs`]: Self::surface_specs
+    pub fn paths(mut self, paths: Vec<PathSpec>) -> Self {
+        self.paths = Some(paths);
+        self
+    }
+
     /// Sets the [`SurfaceRegistry`] used to resolve [`SurfaceSpec::Custom`]
     /// variants. Required when the system contains custom surfaces.
     #[cfg(feature = "serde")]
@@ -134,6 +166,19 @@ impl SequentialModelBuilder {
     }
 
     fn validate(&self) -> Result<()> {
+        if self.paths.is_some() && self.surface_specs.is_some() {
+            return Err(anyhow!("Cannot set both `paths` and `surface_specs`"));
+        }
+
+        if self.paths.is_some() {
+            if self.wavelengths.is_none() {
+                return Err(anyhow!("Wavelengths must be set"));
+            } else if self.wavelengths.as_ref().unwrap().is_empty() {
+                return Err(anyhow!("Wavelengths cannot be empty"));
+            }
+            return Ok(());
+        }
+
         if self.gap_specs.is_none() {
             return Err(anyhow!("Gap specs must be set"));
         }
@@ -544,5 +589,269 @@ mod tests {
 
         let thickness = model.submodel(0).unwrap().gaps()[1].thickness;
         assert_eq!(thickness, 77.0);
+    }
+
+    // ── Step 4: PathSpec validation and construction tests ───────────────
+
+    fn minimal_path_spec() -> PathSpec {
+        use crate::specs::paths::{PathSpec, PathSurfaceRef};
+        PathSpec {
+            surface_refs: vec![
+                PathSurfaceRef::New(SurfaceSpec::Object),
+                PathSurfaceRef::New(SurfaceSpec::Image {
+                    rotation: Rotation3D::None,
+                    decenter: Vec3::new(0.0, 0.0, 0.0),
+                    rotation_offset: Rotation3D::None,
+                }),
+            ],
+            gaps: vec![GapSpec {
+                thickness: f64::INFINITY,
+                refractive_index: n!(1.0),
+            }],
+            beam_splitter_arms: vec![],
+        }
+    }
+
+    #[test]
+    fn at11_path_not_starting_with_object_is_rejected() {
+        use crate::specs::paths::{PathSpec, PathSurfaceRef};
+        let bad_path = PathSpec {
+            surface_refs: vec![
+                PathSurfaceRef::New(SurfaceSpec::Image {
+                    rotation: Rotation3D::None,
+                    decenter: Vec3::new(0.0, 0.0, 0.0),
+                    rotation_offset: Rotation3D::None,
+                }),
+                PathSurfaceRef::New(SurfaceSpec::Image {
+                    rotation: Rotation3D::None,
+                    decenter: Vec3::new(0.0, 0.0, 0.0),
+                    rotation_offset: Rotation3D::None,
+                }),
+            ],
+            gaps: vec![GapSpec {
+                thickness: 10.0,
+                refractive_index: n!(1.0),
+            }],
+            beam_splitter_arms: vec![],
+        };
+        let result = SequentialModelBuilder::new()
+            .paths(vec![bad_path])
+            .wavelengths(vec![0.587])
+            .build();
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn at12_path_not_ending_with_image_is_rejected() {
+        use crate::specs::paths::{PathSpec, PathSurfaceRef};
+        let bad_path = PathSpec {
+            surface_refs: vec![
+                PathSurfaceRef::New(SurfaceSpec::Object),
+                PathSurfaceRef::New(SurfaceSpec::Object),
+            ],
+            gaps: vec![GapSpec {
+                thickness: f64::INFINITY,
+                refractive_index: n!(1.0),
+            }],
+            beam_splitter_arms: vec![],
+        };
+        let result = SequentialModelBuilder::new()
+            .paths(vec![bad_path])
+            .wavelengths(vec![0.587])
+            .build();
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn at10_gap_count_mismatch_is_rejected() {
+        use crate::specs::paths::{PathSpec, PathSurfaceRef};
+        let bad_path = PathSpec {
+            surface_refs: vec![
+                PathSurfaceRef::New(SurfaceSpec::Object),
+                PathSurfaceRef::New(SurfaceSpec::Image {
+                    rotation: Rotation3D::None,
+                    decenter: Vec3::new(0.0, 0.0, 0.0),
+                    rotation_offset: Rotation3D::None,
+                }),
+            ],
+            // Two surfaces need one gap; provide two instead.
+            gaps: vec![
+                GapSpec {
+                    thickness: f64::INFINITY,
+                    refractive_index: n!(1.0),
+                },
+                GapSpec {
+                    thickness: 10.0,
+                    refractive_index: n!(1.0),
+                },
+            ],
+            beam_splitter_arms: vec![],
+        };
+        let result = SequentialModelBuilder::new()
+            .paths(vec![bad_path])
+            .wavelengths(vec![0.587])
+            .build();
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn at9_shared_index_out_of_range_is_rejected() {
+        use crate::specs::paths::{PathSpec, PathSurfaceRef};
+        let path0 = minimal_path_spec(); // introduces store indices 0 and 1
+        let bad_path1 = PathSpec {
+            surface_refs: vec![
+                PathSurfaceRef::Shared(99), // index 99 doesn't exist
+                PathSurfaceRef::New(SurfaceSpec::Image {
+                    rotation: Rotation3D::None,
+                    decenter: Vec3::new(0.0, 0.0, 0.0),
+                    rotation_offset: Rotation3D::None,
+                }),
+            ],
+            gaps: vec![GapSpec {
+                thickness: 10.0,
+                refractive_index: n!(1.0),
+            }],
+            beam_splitter_arms: vec![],
+        };
+        let result = SequentialModelBuilder::new()
+            .paths(vec![path0, bad_path1])
+            .wavelengths(vec![0.587])
+            .build();
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn at8_beam_splitter_step_without_arm_declaration_is_rejected() {
+        use crate::core::math::linalg::rotations::EulerAngles;
+        use crate::specs::paths::{PathSpec, PathSurfaceRef};
+        let path = PathSpec {
+            surface_refs: vec![
+                PathSurfaceRef::New(SurfaceSpec::Object),
+                PathSurfaceRef::New(SurfaceSpec::BeamSplitter {
+                    semi_diameter: 10.0,
+                    rotation: Rotation3D::IntrinsicPassiveRUF(EulerAngles(
+                        (-45_f64).to_radians(),
+                        0.0,
+                        0.0,
+                    )),
+                    decenter: Vec3::new(0.0, 0.0, 0.0),
+                    rotation_offset: Rotation3D::None,
+                }),
+                PathSurfaceRef::New(SurfaceSpec::Image {
+                    rotation: Rotation3D::None,
+                    decenter: Vec3::new(0.0, 0.0, 0.0),
+                    rotation_offset: Rotation3D::None,
+                }),
+            ],
+            gaps: vec![
+                GapSpec {
+                    thickness: f64::INFINITY,
+                    refractive_index: n!(1.0),
+                },
+                GapSpec {
+                    thickness: 100.0,
+                    refractive_index: n!(1.0),
+                },
+            ],
+            beam_splitter_arms: vec![], // missing arm declaration for the BS
+        };
+        let result = SequentialModelBuilder::new()
+            .paths(vec![path])
+            .wavelengths(vec![0.587])
+            .build();
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn at1_single_path_spec_produces_same_result_as_convenience_constructor() {
+        use crate::specs::paths::{PathSpec, PathSurfaceRef};
+        use approx::assert_abs_diff_eq;
+
+        let air = n!(1.0);
+        let wls = [0.5876];
+
+        // Build via the old convenience API.
+        let model_old = SequentialModel::from_surface_specs(
+            &[
+                GapSpec {
+                    thickness: f64::INFINITY,
+                    refractive_index: air.clone(),
+                },
+                GapSpec {
+                    thickness: 100.0,
+                    refractive_index: air.clone(),
+                },
+            ],
+            &[
+                SurfaceSpec::Object,
+                SurfaceSpec::Sphere {
+                    semi_diameter: 12.7,
+                    radius_of_curvature: 65.22,
+                    surf_kind: BoundaryKind::Refracting,
+                    rotation: Rotation3D::None,
+                    decenter: Vec3::new(0.0, 0.0, 0.0),
+                    rotation_offset: Rotation3D::None,
+                },
+                SurfaceSpec::Image {
+                    rotation: Rotation3D::None,
+                    decenter: Vec3::new(0.0, 0.0, 0.0),
+                    rotation_offset: Rotation3D::None,
+                },
+            ],
+            &wls,
+            None,
+        )
+        .unwrap();
+
+        // Build the same system via the new PathSpec API.
+        let path = PathSpec {
+            surface_refs: vec![
+                PathSurfaceRef::New(SurfaceSpec::Object),
+                PathSurfaceRef::New(SurfaceSpec::Sphere {
+                    semi_diameter: 12.7,
+                    radius_of_curvature: 65.22,
+                    surf_kind: BoundaryKind::Refracting,
+                    rotation: Rotation3D::None,
+                    decenter: Vec3::new(0.0, 0.0, 0.0),
+                    rotation_offset: Rotation3D::None,
+                }),
+                PathSurfaceRef::New(SurfaceSpec::Image {
+                    rotation: Rotation3D::None,
+                    decenter: Vec3::new(0.0, 0.0, 0.0),
+                    rotation_offset: Rotation3D::None,
+                }),
+            ],
+            gaps: vec![
+                GapSpec {
+                    thickness: f64::INFINITY,
+                    refractive_index: air.clone(),
+                },
+                GapSpec {
+                    thickness: 100.0,
+                    refractive_index: air,
+                },
+            ],
+            beam_splitter_arms: vec![],
+        };
+        let model_new = SequentialModelBuilder::new()
+            .paths(vec![path])
+            .wavelengths(wls.to_vec())
+            .build()
+            .unwrap()
+            .model;
+
+        // Both models have 3 surfaces; compare the Image placement.
+        let n = model_new.surfaces().len();
+        assert_abs_diff_eq!(
+            model_old.placements()[n - 1].position.z(),
+            model_new.placements()[n - 1].position.z(),
+            epsilon = 1e-10
+        );
+        // Also compare the Sphere placement.
+        assert_abs_diff_eq!(
+            model_old.placements()[1].position.z(),
+            model_new.placements()[1].position.z(),
+            epsilon = 1e-10
+        );
     }
 }

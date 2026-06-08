@@ -5,15 +5,15 @@ use crate::{
     specs::surfaces::{BoundaryKind, Mask},
 };
 
-use super::{Surface, SurfaceKind, solvers::flat_surface};
+use super::super::{Surface, SurfaceKind, solvers::flat_surface};
 
-/// A probe surface — a flat, non-optical surface used to measure ray positions.
+/// The image plane — a flat surface with no optical effect on rays.
 #[derive(Debug, Clone)]
-pub struct Probe {
+pub struct Image {
     mask: Mask,
 }
 
-impl Probe {
+impl Image {
     pub fn new() -> Self {
         Self {
             mask: Mask::Unbounded,
@@ -21,34 +21,34 @@ impl Probe {
     }
 }
 
-impl Default for Probe {
+impl Default for Image {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl Surface for Probe {
-    fn boundary_kind(&self) -> BoundaryKind {
-        BoundaryKind::NoOp
-    }
-
+impl Surface for Image {
     fn intersect(&self, ray: &Ray, _max_iter: usize) -> Result<(Vec3, Vec3)> {
         flat_surface(ray, self, 0)
-    }
-
-    fn mask(&self) -> &Mask {
-        &self.mask
-    }
-
-    fn norm(&self, _pos: Vec3) -> Vec3 {
-        Vec3::new(0.0, 0.0, 1.0)
     }
 
     fn sag(&self, _pos: Vec3) -> Float {
         0.0
     }
 
+    fn norm(&self, _pos: Vec3) -> Vec3 {
+        Vec3::new(0.0, 0.0, 1.0)
+    }
+
+    fn mask(&self) -> &Mask {
+        &self.mask
+    }
+
+    fn boundary_kind(&self) -> BoundaryKind {
+        BoundaryKind::NoOp
+    }
+
     fn surface_kind(&self) -> SurfaceKind {
-        SurfaceKind::Probe
+        SurfaceKind::Image
     }
 }

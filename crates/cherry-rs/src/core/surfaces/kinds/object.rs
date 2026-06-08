@@ -5,15 +5,15 @@ use crate::{
     specs::surfaces::{BoundaryKind, Mask},
 };
 
-use super::{Surface, SurfaceKind, solvers::flat_surface};
+use super::super::{Surface, SurfaceKind, solvers::flat_surface};
 
-/// The image plane — a flat surface with no optical effect on rays.
+/// The object plane — a flat surface with no optical effect on rays.
 #[derive(Debug, Clone)]
-pub struct Image {
+pub struct Object {
     mask: Mask,
 }
 
-impl Image {
+impl Object {
     pub fn new() -> Self {
         Self {
             mask: Mask::Unbounded,
@@ -21,13 +21,13 @@ impl Image {
     }
 }
 
-impl Default for Image {
+impl Default for Object {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl Surface for Image {
+impl Surface for Object {
     fn intersect(&self, ray: &Ray, _max_iter: usize) -> Result<(Vec3, Vec3)> {
         flat_surface(ray, self, 0)
     }
@@ -49,6 +49,6 @@ impl Surface for Image {
     }
 
     fn surface_kind(&self) -> SurfaceKind {
-        SurfaceKind::Image
+        SurfaceKind::Object
     }
 }

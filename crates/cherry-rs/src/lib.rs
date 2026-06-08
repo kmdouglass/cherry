@@ -149,16 +149,17 @@ pub use core::{
     sequential_model::{
         SequentialModel, SequentialSubModel, Step,
         builder::{BuildResult, SequentialModelBuilder},
-        placement::{Placement, SurfacePlacement},
+        placement::Placement,
         solves::{FNumberSolve, MarginalRaySolve, Solve, SolveKind},
     },
-    surfaces::{Conic, Image, Iris, Object, Probe, Sphere, Surface, SurfaceKind},
+    surfaces::{BeamSplitter, Conic, Image, Iris, Object, Probe, Sphere, Surface, SurfaceKind},
 };
 pub use specs::{
     aperture::ApertureSpec,
     fields::{FieldSpec, PupilSampling},
     gaps::{ConstantRefractiveIndex, GapSpec, RefractiveIndexSpec},
-    surfaces::{BoundaryKind, Mask, SurfaceSpec},
+    paths::{PathSpec, PathSurfaceRef},
+    surfaces::{BeamSplitterPathKind, BoundaryKind, Mask, PlacementSpec, SurfaceSpec},
 };
 pub use views::{
     components::{Component, components_view},

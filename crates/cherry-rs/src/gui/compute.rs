@@ -265,6 +265,7 @@ fn build_surface_descs(seq: &SequentialModel) -> Vec<SurfaceDesc> {
         .enumerate()
         .map(|(i, (s, p))| {
             let name = match s.surface_kind() {
+                SurfaceKind::BeamSplitter => "Beam Splitter",
                 SurfaceKind::Conic => "Conic",
                 SurfaceKind::Image => "Image",
                 SurfaceKind::Object => "Object",

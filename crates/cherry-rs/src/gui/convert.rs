@@ -10,7 +10,7 @@ use crate::{
     views::components::{Component, components_view},
 };
 
-use super::model::{FieldMode, SolveSpec, SurfaceKind, SurfaceVariant, SystemSpecs};
+use super::model::{BoundaryVariant, FieldMode, SolveSpec, SurfaceVariant, SystemSpecs};
 
 /// Parsed core specs ready for model construction.
 pub struct ParsedSpecs {
@@ -77,9 +77,9 @@ fn convert_specs_inner(
                     .with_context(|| format!("surface {i}: radius of curvature"))?;
                 let conic = parse_float(&row.conic_constant)
                     .with_context(|| format!("surface {i}: conic constant"))?;
-                let surf_kind = match row.surface_kind {
-                    SurfaceKind::Refracting => BoundaryKind::Refracting,
-                    SurfaceKind::Reflecting => BoundaryKind::Reflecting,
+                let surf_kind = match row.boundary_variant {
+                    BoundaryVariant::Refracting => BoundaryKind::Refracting,
+                    BoundaryVariant::Reflecting => BoundaryKind::Reflecting,
                 };
                 let rotation = if matches!(surf_kind, BoundaryKind::Reflecting) {
                     let theta_deg =
@@ -113,9 +113,9 @@ fn convert_specs_inner(
                     .with_context(|| format!("surface {i}: semi-diameter"))?;
                 let roc = parse_float(&row.radius_of_curvature)
                     .with_context(|| format!("surface {i}: radius of curvature"))?;
-                let surf_kind = match row.surface_kind {
-                    SurfaceKind::Refracting => BoundaryKind::Refracting,
-                    SurfaceKind::Reflecting => BoundaryKind::Reflecting,
+                let surf_kind = match row.boundary_variant {
+                    BoundaryVariant::Refracting => BoundaryKind::Refracting,
+                    BoundaryVariant::Reflecting => BoundaryKind::Reflecting,
                 };
                 let rotation = if matches!(surf_kind, BoundaryKind::Reflecting) {
                     let theta_deg =
@@ -430,6 +430,11 @@ fn set_surface_displacement(
             ..
         }
         | SurfaceSpec::Image {
+            decenter: d,
+            rotation_offset: ro,
+            ..
+        }
+        | SurfaceSpec::BeamSplitter {
             decenter: d,
             rotation_offset: ro,
             ..

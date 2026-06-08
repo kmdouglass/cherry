@@ -8,48 +8,10 @@
 /// [`Surface`]: crate::core::surfaces::Surface
 use crate::core::{
     Float,
-    math::{linalg::mat3x3::Mat3x3, linalg::rotations::Rotation3D, vec3::Vec3},
+    math::{linalg::mat3x3::Mat3x3, vec3::Vec3},
 };
 
 use super::cursor::Cursor;
-
-/// Displacement and orientation parameters for one surface.
-///
-/// Used by [`SequentialModel::from_surfaces`] and internally by
-/// `build_placements_and_directions`.
-///
-/// [`SequentialModel::from_surfaces`]: super::SequentialModel::from_surfaces
-#[derive(Debug, Clone)]
-pub struct SurfacePlacement {
-    /// Vertex offset from the nominal cursor position, in cursor-frame (R, U,
-    /// F).
-    pub decenter: Vec3,
-    /// Nominal surface tilt; redirects the cursor for reflecting surfaces.
-    pub rotation: Rotation3D,
-    /// Additional surface-only rotation; never redirects the cursor.
-    pub rotation_offset: Rotation3D,
-}
-
-impl SurfacePlacement {
-    /// Returns a `SurfacePlacement` with no displacement.
-    pub fn none() -> Self {
-        Self {
-            decenter: Vec3::new(0.0, 0.0, 0.0),
-            rotation: Rotation3D::None,
-            rotation_offset: Rotation3D::None,
-        }
-    }
-
-    /// Returns a `SurfacePlacement` with the given nominal rotation and no
-    /// decenter or rotation offset.
-    pub fn from_rotation(rotation: Rotation3D) -> Self {
-        Self {
-            decenter: Vec3::new(0.0, 0.0, 0.0),
-            rotation,
-            rotation_offset: Rotation3D::None,
-        }
-    }
-}
 
 /// Position and orientation of a surface in the global coordinate system.
 #[derive(Debug, Clone)]

@@ -5,7 +5,7 @@ use crate::{
     specs::surfaces::{BoundaryKind, Mask},
 };
 
-use super::{Surface, SurfaceKind, solvers::flat_surface};
+use super::super::{Surface, SurfaceKind, solvers::flat_surface};
 
 /// A physical iris — a flat surface that clips rays by a circular aperture.
 #[derive(Debug, Clone)]

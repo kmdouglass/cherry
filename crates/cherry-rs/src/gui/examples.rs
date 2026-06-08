@@ -1,4 +1,4 @@
-use super::model::{FieldMode, FieldRow, SurfaceKind, SurfaceRow, SurfaceVariant, SystemSpecs};
+use super::model::{BoundaryVariant, FieldMode, FieldRow, SurfaceRow, SurfaceVariant, SystemSpecs};
 
 /// Figure-Z two-mirror system: two flat mirrors at 30° tilt, separated by 100
 /// mm, returning the beam parallel to the z-axis.
@@ -8,7 +8,7 @@ pub fn mirrors_figure_z() -> SystemSpecs {
             SurfaceRow::new_object("Infinity"),
             SurfaceRow {
                 variant: SurfaceVariant::Sphere,
-                surface_kind: SurfaceKind::Reflecting,
+                boundary_variant: BoundaryVariant::Reflecting,
                 refractive_index: "1.0".into(),
                 thickness: "100.0".into(),
                 semi_diameter: "12.7".into(),
@@ -20,7 +20,7 @@ pub fn mirrors_figure_z() -> SystemSpecs {
             },
             SurfaceRow {
                 variant: SurfaceVariant::Sphere,
-                surface_kind: SurfaceKind::Reflecting,
+                boundary_variant: BoundaryVariant::Reflecting,
                 refractive_index: "1.0".into(),
                 thickness: "50.0".into(),
                 semi_diameter: "12.7".into(),
@@ -142,7 +142,7 @@ pub fn convexplano_lens_with_materials() -> SystemSpecs {
         surfaces: vec![
             SurfaceRow {
                 variant: SurfaceVariant::Object,
-                surface_kind: SurfaceKind::Refracting,
+                boundary_variant: BoundaryVariant::Refracting,
                 refractive_index: "1.0".into(),
                 thickness: "Infinity".into(),
                 semi_diameter: "12.5".into(),
@@ -154,7 +154,7 @@ pub fn convexplano_lens_with_materials() -> SystemSpecs {
             },
             SurfaceRow {
                 variant: SurfaceVariant::Sphere,
-                surface_kind: SurfaceKind::Refracting,
+                boundary_variant: BoundaryVariant::Refracting,
                 refractive_index: "1.515".into(),
                 thickness: "5.3".into(),
                 semi_diameter: "12.5".into(),
@@ -166,7 +166,7 @@ pub fn convexplano_lens_with_materials() -> SystemSpecs {
             },
             SurfaceRow {
                 variant: SurfaceVariant::Sphere,
-                surface_kind: SurfaceKind::Refracting,
+                boundary_variant: BoundaryVariant::Refracting,
                 refractive_index: "1.0".into(),
                 thickness: "46.6".into(),
                 semi_diameter: "12.5".into(),
@@ -190,7 +190,7 @@ pub fn convexplano_lens_with_materials() -> SystemSpecs {
                 x: "0.0".into(),
             },
         ],
-        aperture_semi_diameter: "5.0".into(),
+        aperture_semi_diameter: "12.0".into(),
         wavelengths: vec!["0.4861".into(), "0.5876".into(), "0.6563".into()],
         field_mode: FieldMode::Angle,
         use_materials: true,
@@ -215,7 +215,7 @@ pub fn f_theta_scan_lens() -> SystemSpecs {
         surfaces: vec![
             SurfaceRow {
                 variant: SurfaceVariant::Object,
-                surface_kind: SurfaceKind::Refracting,
+                boundary_variant: BoundaryVariant::Refracting,
                 refractive_index: "1.0".into(),
                 thickness: "Infinity".into(),
                 semi_diameter: "12.5".into(),
@@ -227,7 +227,7 @@ pub fn f_theta_scan_lens() -> SystemSpecs {
             },
             SurfaceRow {
                 variant: SurfaceVariant::Iris,
-                surface_kind: SurfaceKind::Refracting,
+                boundary_variant: BoundaryVariant::Refracting,
                 refractive_index: "1.0".into(),
                 thickness: "5".into(),
                 semi_diameter: "0.5".into(),
@@ -239,7 +239,7 @@ pub fn f_theta_scan_lens() -> SystemSpecs {
             },
             SurfaceRow {
                 variant: SurfaceVariant::Sphere,
-                surface_kind: SurfaceKind::Refracting,
+                boundary_variant: BoundaryVariant::Refracting,
                 refractive_index: "1.0".into(),
                 thickness: "0.3".into(),
                 semi_diameter: "2".into(),
@@ -251,7 +251,7 @@ pub fn f_theta_scan_lens() -> SystemSpecs {
             },
             SurfaceRow {
                 variant: SurfaceVariant::Sphere,
-                surface_kind: SurfaceKind::Refracting,
+                boundary_variant: BoundaryVariant::Refracting,
                 refractive_index: "1.0".into(),
                 thickness: "0.02".into(),
                 semi_diameter: "2".into(),
@@ -263,7 +263,7 @@ pub fn f_theta_scan_lens() -> SystemSpecs {
             },
             SurfaceRow {
                 variant: SurfaceVariant::Sphere,
-                surface_kind: SurfaceKind::Refracting,
+                boundary_variant: BoundaryVariant::Refracting,
                 refractive_index: "1.0".into(),
                 thickness: "0.5292".into(),
                 semi_diameter: "2".into(),
@@ -275,7 +275,7 @@ pub fn f_theta_scan_lens() -> SystemSpecs {
             },
             SurfaceRow {
                 variant: SurfaceVariant::Sphere,
-                surface_kind: SurfaceKind::Refracting,
+                boundary_variant: BoundaryVariant::Refracting,
                 refractive_index: "1.0".into(),
                 thickness: "4.2927".into(),
                 semi_diameter: "2".into(),
@@ -287,7 +287,7 @@ pub fn f_theta_scan_lens() -> SystemSpecs {
             },
             SurfaceRow {
                 variant: SurfaceVariant::Sphere,
-                surface_kind: SurfaceKind::Refracting,
+                boundary_variant: BoundaryVariant::Refracting,
                 refractive_index: "1.0".into(),
                 thickness: "0.59".into(),
                 semi_diameter: "3".into(),
@@ -299,7 +299,7 @@ pub fn f_theta_scan_lens() -> SystemSpecs {
             },
             SurfaceRow {
                 variant: SurfaceVariant::Sphere,
-                surface_kind: SurfaceKind::Refracting,
+                boundary_variant: BoundaryVariant::Refracting,
                 refractive_index: "1.0".into(),
                 thickness: "17.6".into(),
                 semi_diameter: "3".into(),
@@ -345,7 +345,7 @@ pub fn galvo_scan_lens_negrean_mansvelder() -> SystemSpecs {
         surfaces: vec![
             SurfaceRow {
                 variant: SurfaceVariant::Object,
-                surface_kind: SurfaceKind::Refracting,
+                boundary_variant: BoundaryVariant::Refracting,
                 refractive_index: "1.0".into(),
                 thickness: "Infinity".into(),
                 semi_diameter: String::new(),
@@ -357,7 +357,7 @@ pub fn galvo_scan_lens_negrean_mansvelder() -> SystemSpecs {
             },
             SurfaceRow {
                 variant: SurfaceVariant::Sphere,
-                surface_kind: SurfaceKind::Reflecting,
+                boundary_variant: BoundaryVariant::Reflecting,
                 refractive_index: "1.0".into(),
                 thickness: "15.1986".into(),
                 semi_diameter: "2".into(),
@@ -369,7 +369,7 @@ pub fn galvo_scan_lens_negrean_mansvelder() -> SystemSpecs {
             },
             SurfaceRow {
                 variant: SurfaceVariant::Sphere,
-                surface_kind: SurfaceKind::Refracting,
+                boundary_variant: BoundaryVariant::Refracting,
                 refractive_index: "1.0".into(),
                 thickness: "9.0163".into(),
                 semi_diameter: "9".into(),
@@ -381,7 +381,7 @@ pub fn galvo_scan_lens_negrean_mansvelder() -> SystemSpecs {
             },
             SurfaceRow {
                 variant: SurfaceVariant::Sphere,
-                surface_kind: SurfaceKind::Refracting,
+                boundary_variant: BoundaryVariant::Refracting,
                 refractive_index: "1.0".into(),
                 thickness: "15.121".into(),
                 semi_diameter: "8".into(),
@@ -393,7 +393,7 @@ pub fn galvo_scan_lens_negrean_mansvelder() -> SystemSpecs {
             },
             SurfaceRow {
                 variant: SurfaceVariant::Sphere,
-                surface_kind: SurfaceKind::Refracting,
+                boundary_variant: BoundaryVariant::Refracting,
                 refractive_index: "1.0".into(),
                 thickness: "13.0006".into(),
                 semi_diameter: "15".into(),
@@ -405,7 +405,7 @@ pub fn galvo_scan_lens_negrean_mansvelder() -> SystemSpecs {
             },
             SurfaceRow {
                 variant: SurfaceVariant::Sphere,
-                surface_kind: SurfaceKind::Refracting,
+                boundary_variant: BoundaryVariant::Refracting,
                 refractive_index: "1.0".into(),
                 thickness: "0.2".into(),
                 semi_diameter: "15".into(),
@@ -417,7 +417,7 @@ pub fn galvo_scan_lens_negrean_mansvelder() -> SystemSpecs {
             },
             SurfaceRow {
                 variant: SurfaceVariant::Sphere,
-                surface_kind: SurfaceKind::Refracting,
+                boundary_variant: BoundaryVariant::Refracting,
                 refractive_index: "1.0".into(),
                 thickness: "8.6136".into(),
                 semi_diameter: "15".into(),
@@ -429,7 +429,7 @@ pub fn galvo_scan_lens_negrean_mansvelder() -> SystemSpecs {
             },
             SurfaceRow {
                 variant: SurfaceVariant::Sphere,
-                surface_kind: SurfaceKind::Refracting,
+                boundary_variant: BoundaryVariant::Refracting,
                 refractive_index: "1.0".into(),
                 thickness: "6.0003".into(),
                 semi_diameter: "15".into(),
@@ -441,7 +441,7 @@ pub fn galvo_scan_lens_negrean_mansvelder() -> SystemSpecs {
             },
             SurfaceRow {
                 variant: SurfaceVariant::Sphere,
-                surface_kind: SurfaceKind::Refracting,
+                boundary_variant: BoundaryVariant::Refracting,
                 refractive_index: "1.0".into(),
                 thickness: "41.1639".into(),
                 semi_diameter: "15".into(),
@@ -492,7 +492,7 @@ pub fn concave_mirror() -> SystemSpecs {
             SurfaceRow::new_object("Infinity"),
             SurfaceRow {
                 variant: SurfaceVariant::Sphere,
-                surface_kind: SurfaceKind::Reflecting,
+                boundary_variant: BoundaryVariant::Reflecting,
                 refractive_index: "1.0".into(),
                 thickness: "100.0".into(),
                 semi_diameter: "12.5".into(),

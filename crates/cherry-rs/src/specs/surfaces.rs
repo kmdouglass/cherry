@@ -12,6 +12,23 @@ pub enum BoundaryKind {
     NoOp,
 }
 
+/// Selects which optical path a [`BeamSplitter`] surface models.
+///
+/// A beam splitter creates two output paths from one input. Because
+/// [`SequentialModel`] is single-path, each path is a separate model whose
+/// beam splitter surface is configured with the appropriate variant here.
+///
+/// [`BeamSplitter`]: crate::core::surfaces::BeamSplitter
+/// [`SequentialModel`]: crate::core::sequential_model::SequentialModel
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum BeamSplitterPathKind {
+    /// Transmitted path: ray refracts (Snell's law); cursor continues straight.
+    Transmitting,
+    /// Reflected path: ray reflects (law of reflection); cursor is deflected.
+    Reflecting,
+}
+
 /// Specifies the clear aperture of a surface.
 ///
 /// This is referred to as a "mask" to avoid confusion with
@@ -23,6 +40,57 @@ pub enum BoundaryKind {
 pub enum Mask {
     Circular { semi_diameter: Float },
     Unbounded,
+}
+
+/// Tilt and decenter input spec for one surface.
+///
+/// This is the *input* passed to [`SequentialModel::from_surfaces`] and used
+/// internally when converting [`SurfaceSpec`]s into a model. It is distinct
+/// from the computed [`Placement`], which records the surface's resolved
+/// position and orientation in the global frame.
+///
+/// The three fields have distinct roles:
+/// - `rotation` — nominal cursor-redirecting tilt (e.g., 45° for a fold
+///   mirror); a first-order design parameter, not a perturbation.
+/// - `rotation_offset` — additional surface-only tilt that never redirects the
+///   cursor; a true perturbation in the classical tilt/decenter sense.
+/// - `decenter` — vertex offset from the nominal cursor position, in
+///   cursor-frame (R, U, F); a true decenter in the classical sense.
+///
+/// [`SequentialModel::from_surfaces`]:
+///     crate::core::sequential_model::SequentialModel::from_surfaces
+/// [`Placement`]: crate::core::sequential_model::placement::Placement
+#[derive(Debug, Clone)]
+pub struct PlacementSpec {
+    /// Nominal surface tilt; redirects the cursor for reflecting surfaces.
+    pub rotation: Rotation3D,
+    /// Additional surface-only rotation; never redirects the cursor.
+    pub rotation_offset: Rotation3D,
+    /// Vertex offset from the nominal cursor position, in cursor-frame (R, U,
+    /// F).
+    pub decenter: Vec3,
+}
+
+impl PlacementSpec {
+    /// Returns a `PlacementSpec` with no tilt, no rotation offset, and no
+    /// decenter.
+    pub fn none() -> Self {
+        Self {
+            rotation: Rotation3D::None,
+            rotation_offset: Rotation3D::None,
+            decenter: Vec3::new(0.0, 0.0, 0.0),
+        }
+    }
+
+    /// Returns a `PlacementSpec` with the given nominal rotation and no
+    /// decenter or rotation offset.
+    pub fn from_rotation(rotation: Rotation3D) -> Self {
+        Self {
+            rotation,
+            rotation_offset: Rotation3D::None,
+            decenter: Vec3::new(0.0, 0.0, 0.0),
+        }
+    }
 }
 
 /// Specifies a surface in a sequential optical system.
@@ -90,6 +158,21 @@ pub enum SurfaceSpec {
         #[cfg_attr(feature = "serde", serde(default = "default_rotation3d_none"))]
         rotation_offset: Rotation3D,
     },
+    /// A flat beam-splitting surface nominally tilted like a mirror.
+    ///
+    /// The surface is purely geometric. Arm selection (transmitting vs.
+    /// reflecting) is declared per path via
+    /// [`PathSpec::beam_splitter_arms`].
+    ///
+    /// [`PathSpec::beam_splitter_arms`]: crate::specs::paths::PathSpec
+    BeamSplitter {
+        semi_diameter: Float,
+        rotation: Rotation3D,
+        #[cfg_attr(feature = "serde", serde(default = "default_zero_vec3"))]
+        decenter: Vec3,
+        #[cfg_attr(feature = "serde", serde(default = "default_rotation3d_none"))]
+        rotation_offset: Rotation3D,
+    },
 }
 
 #[cfg(feature = "serde")]
@@ -110,7 +193,8 @@ impl SurfaceSpec {
             | SurfaceSpec::Sphere { rotation, .. }
             | SurfaceSpec::Image { rotation, .. }
             | SurfaceSpec::Probe { rotation, .. }
-            | SurfaceSpec::Iris { rotation, .. } => rotation.clone(),
+            | SurfaceSpec::Iris { rotation, .. }
+            | SurfaceSpec::BeamSplitter { rotation, .. } => rotation.clone(),
             SurfaceSpec::Object => Rotation3D::None,
             #[cfg(feature = "serde")]
             SurfaceSpec::Custom { rotation, .. } => rotation.clone(),
@@ -134,6 +218,9 @@ impl SurfaceSpec {
             }
             | SurfaceSpec::Iris {
                 rotation_offset, ..
+            }
+            | SurfaceSpec::BeamSplitter {
+                rotation_offset, ..
             } => rotation_offset.clone(),
             SurfaceSpec::Object => Rotation3D::None,
             #[cfg(feature = "serde")]
@@ -149,7 +236,8 @@ impl SurfaceSpec {
             | SurfaceSpec::Sphere { decenter, .. }
             | SurfaceSpec::Image { decenter, .. }
             | SurfaceSpec::Probe { decenter, .. }
-            | SurfaceSpec::Iris { decenter, .. } => *decenter,
+            | SurfaceSpec::Iris { decenter, .. }
+            | SurfaceSpec::BeamSplitter { decenter, .. } => *decenter,
             SurfaceSpec::Object => Vec3::new(0.0, 0.0, 0.0),
             #[cfg(feature = "serde")]
             SurfaceSpec::Custom { .. } => Vec3::new(0.0, 0.0, 0.0),
@@ -182,12 +270,24 @@ impl Mask {
     }
 }
 
-#[cfg(all(test, feature = "serde"))]
+#[cfg(test)]
 mod tests {
     use super::*;
 
+    // Step 3: SurfaceSpec::BeamSplitter can be constructed without path_kind.
+    #[test]
+    fn beam_splitter_spec_has_no_path_kind() {
+        let _ = SurfaceSpec::BeamSplitter {
+            semi_diameter: 10.0,
+            rotation: Rotation3D::None,
+            decenter: Vec3::new(0.0, 0.0, 0.0),
+            rotation_offset: Rotation3D::None,
+        };
+    }
+
     // AT-9: serialize a Sphere with non-zero decenter and rotation_offset, then
     // deserialize; assert the round-tripped values are preserved.
+    #[cfg(feature = "serde")]
     #[test]
     fn at9_serde_round_trip_preserves_decenter_and_rotation_offset() {
         use crate::core::math::linalg::rotations::EulerAngles;
@@ -222,6 +322,7 @@ mod tests {
 
     // AT-10: deserializing a JSON string that omits decenter and rotation_offset
     // applies the correct defaults (zero vector and None).
+    #[cfg(feature = "serde")]
     #[test]
     fn at10_serde_default_decenter_and_rotation_offset() {
         let json = r#"{

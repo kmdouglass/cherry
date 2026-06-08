@@ -65,31 +65,33 @@ Cherry might be for you if:
 ## Roadmap
 
 ### Now
+- [ ] Systems with beam splitters
+- [ ] Paraxial surface types
+- [ ] Surface coatings
+- [ ] Encode designs into URLs and enable sharing via tiny URLs
+
+### Next
+
+- [ ] **Help Wanted** mdbook to serve as the app's user documentation
+- [ ] Paraxial Gaussian beam propagation
+- [ ] Microscope objective example (see <https://opg.optica.org/josaa/fulltext.cfm?uri=josaa-32-11-2082>)
+
+### Later
+
+- [ ] Cooke triplet example
+- [ ] Lens library/explorer
+- [ ] Backwards compatibility with saved designs
+- [ ] **Help Wanted** 3D views
+- [ ] **Help Wanted** Fuzzy search for materials
+- [ ] [Cardinal lens](https://opg.optica.org/ao/fulltext.cfm?uri=ao-63-4-1110) surface type for ideal objective models
+
+### Done
 
 - [X] Decenters/rotational offsets on surfaces
 - [X] Lens view for manipulating systems by lens instead of by surface
 - [X] Decenters/rotational offsets on lenses
 - [X] **Help Wanted** Annotate coordinate axes and the optical axis in the cross-section view
 - [X] Galvo plus scan lens example
-
-### Next
-
-- [ ] Encode designs into URLs and enable sharing via tiny URLs
-- [ ] Cooke triplet example
-- [ ] **Help Wanted** mdbook to serve as the app's user documentation
-- [ ] Surface coatings
-- [ ] Systems with beam splitters
-
-### Later
-
-- [ ] Lens library/explorer
-- [ ] Paraxial Gaussian beam propagation
-- [ ] Backwards compatibility with saved designs
-- [ ] **Help Wanted** 3D views
-- [ ] **Help Wanted** Fuzzy search for materials
-- [ ] Paraxial surface types
-- [ ] [Cardinal lens](https://opg.optica.org/ao/fulltext.cfm?uri=ao-63-4-1110) surface type for ideal objective models
-- [ ] Microscope objective example (see <https://opg.optica.org/josaa/fulltext.cfm?uri=josaa-32-11-2082>)
 
 ## License
 
