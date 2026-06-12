@@ -200,6 +200,11 @@ impl Vec3 {
         vecs
     }
 
+    /// Returns `true` if all three components are finite (not infinite or NaN).
+    pub fn is_finite(&self) -> bool {
+        self.e[0].is_finite() && self.e[1].is_finite() && self.e[2].is_finite()
+    }
+
     pub fn approx_eq(&self, rhs: &Self, tol: Float) -> bool {
         (self.e[0] - rhs.e[0]).abs() < tol
             && (self.e[1] - rhs.e[1]).abs() < tol

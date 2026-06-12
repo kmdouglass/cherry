@@ -16,6 +16,19 @@ pub enum GlobalAxis {
 const N_PTS: usize = 64;
 const EPS: f64 = 1e-6;
 
+/// Project a 3D cursor position onto the cross-section plane.
+/// Returns `None` for positions at infinity (e.g. object at infinity).
+fn to_plot_point(p: Vec3, axis: GlobalAxis) -> Option<[f64; 2]> {
+    if !p.is_finite() {
+        return None;
+    }
+    let t = match axis {
+        GlobalAxis::Y => p.y(),
+        GlobalAxis::X => p.x(),
+    };
+    Some([p.z(), t])
+}
+
 /// The complete 2D cross-section view of a sequential optical system.
 pub struct CrossSectionView {
     pub wavelengths: Vec<f64>,
@@ -54,11 +67,10 @@ pub struct PlaneGeometry {
     pub elements: Vec<DrawElement>,
     /// ray_paths[wavelength_idx][path_idx] = Vec<[z, transverse]>
     pub ray_paths: Vec<Vec<Vec<[f64; 2]>>>,
-    /// On-axis positions [z, transverse] from the first finite surface to the
-    /// image surface. Starts at the object surface for finite-conjugate
-    /// systems, or at the first lens surface for infinite-conjugate systems
-    /// (where the object placement is infinite).
-    pub axis_path: Vec<[f64; 2]>,
+    /// On-axis positions [z, transverse] per optical path.
+    /// Each inner `Vec` lists [z, transverse] points from the first finite
+    /// surface to the image surface for that path.
+    pub axis_paths: Vec<Vec<[f64; 2]>>,
     /// Per-surface local RUF frame in 2D plot coordinates, indexed by surface
     /// index. `None` for surfaces with an infinite vertex position.
     pub surface_frames: Vec<Option<SurfaceFrame2D>>,
@@ -126,7 +138,6 @@ pub fn cross_section_view(
     components: &[Component],
 ) -> CrossSectionView {
     let wavelengths = model.wavelengths().to_vec();
-    let axis_dirs = model.axis_directions();
     let placements = model.placements();
 
     // A plane is valid when (a) the optical axis lies in it, (b) every surface
@@ -135,16 +146,24 @@ pub fn cross_section_view(
     // the plane). The surface normal in global coords is
     // `rotation_matrix.transpose() * local_z` because `rotation_matrix` maps
     // global→local.
-    let yz_valid = axis_dirs.iter().all(|d| d.x().abs() < EPS)
-        && placements.iter().all(|p| {
-            let n = p.rotation_matrix.transpose() * Vec3::new(0.0, 0.0, 1.0);
-            p.position.x().abs() < EPS && n.x().abs() < EPS
-        });
-    let xz_valid = axis_dirs.iter().all(|d| d.y().abs() < EPS)
-        && placements.iter().all(|p| {
-            let n = p.rotation_matrix.transpose() * Vec3::new(0.0, 0.0, 1.0);
-            p.position.y().abs() < EPS && n.y().abs() < EPS
-        });
+    let yz_valid = (0..model.path_count()).all(|pid| {
+        model
+            .path_steps(pid)
+            .iter()
+            .all(|s| s.axis_direction.x().abs() < EPS)
+    }) && placements.iter().all(|p| {
+        let n = p.rotation_matrix.transpose() * Vec3::new(0.0, 0.0, 1.0);
+        p.position.x().abs() < EPS && n.x().abs() < EPS
+    });
+    let xz_valid = (0..model.path_count()).all(|pid| {
+        model
+            .path_steps(pid)
+            .iter()
+            .all(|s| s.axis_direction.y().abs() < EPS)
+    }) && placements.iter().all(|p| {
+        let n = p.rotation_matrix.transpose() * Vec3::new(0.0, 0.0, 1.0);
+        p.position.y().abs() < EPS && n.y().abs() < EPS
+    });
 
     let yz = build_plane_geometry(model, cross_section_rays, GlobalAxis::Y, components);
     let xz = build_plane_geometry(model, cross_section_rays, GlobalAxis::X, components);
@@ -332,16 +351,13 @@ fn build_plane_geometry(
         }
     }
 
-    let axis_path: Vec<[f64; 2]> = model
-        .cursor_positions()
-        .iter()
-        .filter(|p| p.x().is_finite() && p.y().is_finite() && p.z().is_finite())
-        .map(|p| {
-            let t = match axis {
-                GlobalAxis::Y => p.y(),
-                GlobalAxis::X => p.x(),
-            };
-            [p.z(), t]
+    let axis_paths: Vec<Vec<[f64; 2]>> = (0..model.path_count())
+        .map(|path_id| {
+            model
+                .path_steps(path_id)
+                .iter()
+                .filter_map(|s| to_plot_point(s.cursor_position, axis))
+                .collect()
         })
         .collect();
 
@@ -398,7 +414,7 @@ fn build_plane_geometry(
         bounding_box,
         elements,
         ray_paths,
-        axis_path,
+        axis_paths,
         surface_frames,
     }
 }
@@ -859,21 +875,24 @@ mod tests {
         let components = components_view(&model, air).unwrap();
         let cs = cross_section_view(&model, None, &components);
 
-        // Object is infinite → axis_path must not contain an infinite coordinate.
+        // Object is infinite → axis_paths[0] must not contain an infinite coordinate.
         assert!(
-            cs.yz
-                .axis_path
+            cs.yz.axis_paths[0]
                 .iter()
                 .all(|&[z, t]| z.is_finite() && t.is_finite()),
-            "axis_path must not contain infinite coordinates"
+            "axis_paths[0] must not contain infinite coordinates"
         );
         // For a straight system every on-axis transverse coordinate is zero.
-        for &[_z, t] in &cs.yz.axis_path {
+        for &[_z, t] in &cs.yz.axis_paths[0] {
             assert!(t.abs() < EPS, "expected on-axis transverse ≈ 0, got {t}");
         }
         // The path should include the two lens surfaces plus the image surface
         // (3 finite surfaces: front lens, back lens, image).
-        assert_eq!(cs.yz.axis_path.len(), 3, "expected 3 points in axis_path");
+        assert_eq!(
+            cs.yz.axis_paths[0].len(),
+            3,
+            "expected 3 points in axis_paths[0]"
+        );
     }
 
     #[test]
@@ -886,18 +905,17 @@ mod tests {
 
         // Object(finite) + Sphere + Image = 3 surfaces.
         assert_eq!(
-            cs.yz.axis_path.len(),
+            cs.yz.axis_paths[0].len(),
             3,
             "expected 3 points: object, sphere, image; got {}",
-            cs.yz.axis_path.len()
+            cs.yz.axis_paths[0].len()
         );
         // All coordinates must be finite.
         assert!(
-            cs.yz
-                .axis_path
+            cs.yz.axis_paths[0]
                 .iter()
                 .all(|&[z, t]| z.is_finite() && t.is_finite()),
-            "axis_path must not contain infinite coordinates"
+            "axis_paths[0] must not contain infinite coordinates"
         );
     }
 
@@ -1071,10 +1089,10 @@ mod tests {
         let components = components_view(&model, n!(1.0)).unwrap();
         let cs = cross_section_view(&model, None, &components);
 
-        for &[_z, t] in &cs.yz.axis_path {
+        for &[_z, t] in &cs.yz.axis_paths[0] {
             assert!(
                 t.abs() < EPS,
-                "axis_path must stay on-axis despite decenter, got t={t}"
+                "axis_paths[0] must stay on-axis despite decenter, got t={t}"
             );
         }
     }
@@ -1158,10 +1176,10 @@ mod tests {
 
         // After the fold, at least one point in axis_path must have non-zero
         // transverse.
-        let has_nonzero_t = cs.yz.axis_path.iter().any(|&[_z, t]| t.abs() > 0.1);
+        let has_nonzero_t = cs.yz.axis_paths[0].iter().any(|&[_z, t]| t.abs() > 0.1);
         assert!(
             has_nonzero_t,
-            "expected non-zero transverse in axis_path after 45° fold"
+            "expected non-zero transverse in axis_paths[0] after 45° fold"
         );
     }
 
@@ -1245,6 +1263,25 @@ mod tests {
         assert!(
             !lens_groups[0][0].is_empty(),
             "inner surface profile must be non-empty"
+        );
+    }
+
+    #[test]
+    fn multipath_produces_two_axis_paths() {
+        use crate::examples::beam_splitter;
+        use crate::specs::gaps::ConstantRefractiveIndex;
+        use std::rc::Rc;
+
+        let n_air: Rc<dyn crate::RefractiveIndexSpec> =
+            Rc::new(ConstantRefractiveIndex::new(1.0, 0.0));
+        let model = beam_splitter::two_path_model(n_air.clone(), &[0.5876], 10.0, 10.0);
+        let components = components_view(&model, n_air).unwrap();
+        let cs = cross_section_view(&model, None, &components);
+
+        assert_eq!(
+            cs.yz.axis_paths.len(),
+            2,
+            "expected one axis_path per optical path"
         );
     }
 }

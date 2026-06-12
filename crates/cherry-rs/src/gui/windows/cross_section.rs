@@ -212,7 +212,9 @@ impl CrossSectionWindow {
 
         // Draw annotations.
         if self.annotations.show_axis {
-            draw_axis(&painter, &geom.axis_path, &w2s);
+            for path in &geom.axis_paths {
+                draw_axis(&painter, path, &w2s);
+            }
         }
         if self.annotations.show_scalebar {
             draw_scalebar(&painter, rect, &geom.bounding_box);
@@ -852,7 +854,9 @@ fn render_svg(
         r#"<rect width="{w}" height="{h}" fill="none" stroke="{border}" stroke-width="1"/>"#
     ));
 
-    svg_axis(&mut s, &geom.axis_path, &w2s, scalebar_color);
+    for path in &geom.axis_paths {
+        svg_axis(&mut s, path, &w2s, scalebar_color);
+    }
 
     for elem in &geom.elements {
         match elem {
@@ -1196,7 +1200,7 @@ mod tests {
                 },
                 elements: Vec::new(),
                 ray_paths: Vec::new(),
-                axis_path: Vec::new(),
+                axis_paths: Vec::new(),
                 surface_frames: Vec::new(),
             },
             xz: PlaneGeometry {
@@ -1206,7 +1210,7 @@ mod tests {
                 },
                 elements: Vec::new(),
                 ray_paths: Vec::new(),
-                axis_path: Vec::new(),
+                axis_paths: Vec::new(),
                 surface_frames: Vec::new(),
             },
         };

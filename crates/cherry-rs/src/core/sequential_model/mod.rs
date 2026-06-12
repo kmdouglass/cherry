@@ -50,12 +50,27 @@ struct SurfaceStore {
     cursor_positions: Vec<Vec3>,
 }
 
+/// Per-step cursor state recorded along one optical path.
+///
+/// Captured before any reflection at each surface, for both `New` and
+/// `Shared` steps.
+#[derive(Debug, Clone, Copy)]
+pub struct PathStep {
+    /// Cursor forward direction (unit vector) as the beam approaches this
+    /// surface.
+    pub axis_direction: Vec3,
+    /// Nominal on-axis cursor position before any decenter.
+    pub cursor_position: Vec3,
+}
+
 /// One optical path through the system.
 #[derive(Debug)]
 struct OpticalPath {
     submodels: Vec<SequentialSubModelBase>,
     /// User-specified aperture stop as a store index, or `None` for auto.
     stop_surface: Option<usize>,
+    /// Step-indexed cursor state, parallel to `submodels[0].surface_indices`.
+    steps: Vec<PathStep>,
 }
 
 /// A gap between two surfaces in a sequential system.
@@ -344,6 +359,14 @@ impl SequentialModel {
                     bs_arms.clone(),
                 ));
             }
+            let steps: Vec<PathStep> = axis_directions
+                .iter()
+                .zip(cursor_positions.iter())
+                .map(|(&ad, &cp)| PathStep {
+                    axis_direction: ad,
+                    cursor_position: cp,
+                })
+                .collect();
             let store = SurfaceStore {
                 surfaces,
                 placements,
@@ -353,6 +376,7 @@ impl SequentialModel {
             let path = OpticalPath {
                 submodels,
                 stop_surface,
+                steps,
             };
             Ok(Self {
                 store,
@@ -391,6 +415,14 @@ impl SequentialModel {
                 bs_arms.clone(),
             ));
         }
+        let steps: Vec<PathStep> = axis_directions
+            .iter()
+            .zip(cursor_positions.iter())
+            .map(|(&ad, &cp)| PathStep {
+                axis_direction: ad,
+                cursor_position: cp,
+            })
+            .collect();
         let store = SurfaceStore {
             surfaces,
             placements,
@@ -400,6 +432,7 @@ impl SequentialModel {
         let path = OpticalPath {
             submodels,
             stop_surface,
+            steps,
         };
         Ok(Self {
             store,
@@ -465,6 +498,14 @@ impl SequentialModel {
             ));
         }
 
+        let steps: Vec<PathStep> = axis_directions
+            .iter()
+            .zip(cursor_positions.iter())
+            .map(|(&ad, &cp)| PathStep {
+                axis_direction: ad,
+                cursor_position: cp,
+            })
+            .collect();
         let store = SurfaceStore {
             surfaces,
             placements,
@@ -474,6 +515,7 @@ impl SequentialModel {
         let path = OpticalPath {
             submodels,
             stop_surface,
+            steps,
         };
         Ok(Self {
             store,
@@ -524,6 +566,7 @@ impl SequentialModel {
 
             let mut cursor = Cursor::new(-ps.gaps[0].thickness);
             let mut surface_indices: Vec<usize> = Vec::new();
+            let mut path_steps: Vec<PathStep> = Vec::new();
 
             for (step, sref) in ps.surface_refs.iter().enumerate() {
                 let is_first = step == 0;
@@ -552,6 +595,12 @@ impl SequentialModel {
                     None
                 };
                 dense_bs_arms.push(bs_arm);
+
+                // Record cursor state before any reflection at this surface.
+                path_steps.push(PathStep {
+                    axis_direction: cursor.forward(),
+                    cursor_position: cursor.pos(),
+                });
 
                 match sref {
                     PathSurfaceRef::New(spec) => {
@@ -663,6 +712,7 @@ impl SequentialModel {
             optical_paths.push(OpticalPath {
                 submodels,
                 stop_surface,
+                steps: path_steps,
             });
         }
 
@@ -757,6 +807,20 @@ impl SequentialModel {
     /// Returns the aperture stop for the given path index.
     pub fn stop_surface_for_path(&self, path_id: usize) -> Option<usize> {
         self.paths[path_id].stop_surface
+    }
+
+    /// Returns the per-step cursor data for path `path_id`.
+    ///
+    /// Each entry corresponds to one surface in that path's traversal order,
+    /// and records the cursor state as the beam *approaches* that surface
+    /// (before any reflection).
+    pub fn path_steps(&self, path_id: usize) -> &[PathStep] {
+        &self.paths[path_id].steps
+    }
+
+    /// Returns all wavelength submodels for path `path_id`.
+    pub fn submodels_for_path(&self, path_id: usize) -> &[SequentialSubModelBase] {
+        &self.paths[path_id].submodels
     }
 
     /// Returns the largest semi-diameter of any surface in the system.
@@ -1952,5 +2016,79 @@ mod tests {
             img_no.z(),
             img_with.z()
         );
+    }
+
+    // AT: path 0 cursor positions lie along +Z; path 1 cursor positions
+    // diverge to +Y after the beam splitter.
+    #[test]
+    fn path_steps_cursor_positions_two_path_model() {
+        use crate::examples::beam_splitter;
+        use crate::specs::gaps::ConstantRefractiveIndex;
+        use std::rc::Rc;
+
+        let n_air: Rc<dyn crate::RefractiveIndexSpec> =
+            Rc::new(ConstantRefractiveIndex::new(1.0, 0.0));
+        let model = beam_splitter::two_path_model(n_air, &[0.5876], 10.0, 10.0);
+
+        let tol = 1e-10;
+
+        // Path 0: Object(z=−inf), BS(z=0), Image_T(z=10)
+        let steps0 = model.path_steps(0);
+        assert_eq!(steps0.len(), 3);
+        // Object cursor is at −∞ along Z.
+        assert!(steps0[0].cursor_position.z().is_infinite());
+        // BS cursor at z=0.
+        assert!((steps0[1].cursor_position.z()).abs() < tol);
+        // Image_T cursor at z=10.
+        assert!((steps0[2].cursor_position.z() - 10.0).abs() < tol);
+        // All path-0 cursor positions have zero x and y.
+        for s in steps0.iter().filter(|s| s.cursor_position.z().is_finite()) {
+            assert!(s.cursor_position.x().abs() < tol);
+            assert!(s.cursor_position.y().abs() < tol);
+        }
+
+        // Path 1: Object(shared), BS(shared, reflected to −Y), Image_R
+        // The BS uses a −45° rotation about R, so the reflected arm travels in −Y.
+        let steps1 = model.path_steps(1);
+        assert_eq!(steps1.len(), 3);
+        // Image_R cursor position diverges to −Y: x=0, y=−10, z=0.
+        assert!(
+            steps1[2].cursor_position.x().abs() < tol,
+            "x={}",
+            steps1[2].cursor_position.x()
+        );
+        assert!(
+            (steps1[2].cursor_position.y() + 10.0).abs() < tol,
+            "y={}",
+            steps1[2].cursor_position.y()
+        );
+        assert!(
+            steps1[2].cursor_position.z().abs() < tol,
+            "z={}",
+            steps1[2].cursor_position.z()
+        );
+    }
+
+    // AT: path 1's axis direction at the Image_R step points along −Y after a
+    // −45° BS rotation about R.
+    #[test]
+    fn path_steps_axis_direction_reflected_arm() {
+        use crate::examples::beam_splitter;
+        use crate::specs::gaps::ConstantRefractiveIndex;
+        use std::rc::Rc;
+
+        let n_air: Rc<dyn crate::RefractiveIndexSpec> =
+            Rc::new(ConstantRefractiveIndex::new(1.0, 0.0));
+        let model = beam_splitter::two_path_model(n_air, &[0.5876], 10.0, 10.0);
+
+        let tol = 1e-10;
+        let steps1 = model.path_steps(1);
+
+        // The BS example uses a −45° rotation about R, so the reflected arm
+        // travels in the −Y direction.
+        let d = steps1[2].axis_direction;
+        assert!(d.x().abs() < tol, "x={}", d.x());
+        assert!((d.y() + 1.0).abs() < tol, "y={}", d.y());
+        assert!(d.z().abs() < tol, "z={}", d.z());
     }
 }

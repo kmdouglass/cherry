@@ -62,11 +62,13 @@ pub struct TraceResultsCollection {
 /// The results of a 3D ray trace.
 ///
 /// This represents the results of a 3D ray trace for a single set of values of
-/// 1. wavelength ID and
-/// 2. field ID.
+/// 1. path ID,
+/// 2. wavelength ID, and
+/// 3. field ID.
 #[derive(Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize))]
 pub struct TraceResults {
+    path_id: usize,
     wavelength_id: usize,
     field_id: usize,
 
@@ -246,6 +248,7 @@ pub fn ray_trace_3d_view(
             );
 
             Ok(TraceResults {
+                path_id: 0,
                 wavelength_id,
                 field_id,
                 chief_ray,
@@ -264,11 +267,21 @@ impl TraceResultsCollection {
         Self { results }
     }
 
-    /// Get results for a specific field and wavelength.
+    /// Get results for path 0, a specific field, and wavelength.
     pub fn get(&self, field_id: usize, wavelength_id: usize) -> Option<&TraceResults> {
-        self.results
-            .iter()
-            .find(|r| r.field_id == field_id && r.wavelength_id == wavelength_id)
+        self.get_for_path(0, field_id, wavelength_id)
+    }
+
+    /// Get results for a specific path, field, and wavelength.
+    pub fn get_for_path(
+        &self,
+        path_id: usize,
+        field_id: usize,
+        wavelength_id: usize,
+    ) -> Option<&TraceResults> {
+        self.results.iter().find(|r| {
+            r.path_id == path_id && r.field_id == field_id && r.wavelength_id == wavelength_id
+        })
     }
 
     /// Get all results for a given wavelength.
@@ -309,6 +322,11 @@ impl TraceResultsCollection {
 }
 
 impl TraceResults {
+    /// Returns the path ID of this result.
+    pub fn path_id(&self) -> usize {
+        self.path_id
+    }
+
     // Returns the field ID of the ray bundle.
     pub fn field_id(&self) -> usize {
         self.field_id

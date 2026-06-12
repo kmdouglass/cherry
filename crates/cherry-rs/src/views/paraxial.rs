@@ -118,11 +118,12 @@ pub struct ParaxialViewDescription {
 
 /// A paraxial subview of an optical system.
 ///
-/// A paraxial subview is identified by a wavelength index and a tangential
-/// direction index. It is not created by the user, but rather by instantiating
-/// a new ParaxialView struct.
+/// A paraxial subview is identified by a path index, a wavelength index, and a
+/// tangential direction index. It is not created by the user, but rather by
+/// instantiating a new ParaxialView struct.
 #[derive(Debug)]
 pub struct ParaxialSubView {
+    path_id: usize,
     wavelength_id: usize,
     tangential_vec_id: usize,
     is_obj_space_telecentric: bool,
@@ -148,6 +149,7 @@ pub struct ParaxialSubView {
 #[derive(Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize))]
 pub struct ParaxialSubViewDescription {
+    path_id: usize,
     wavelength_id: usize,
     tangential_vec_id: usize,
     aperture_stop: usize,
@@ -284,9 +286,14 @@ impl ParaxialView {
                 unique_tangential_vecs(field_specs)
             };
 
-        let stop_surface = sequential_model.stop_surface();
+        // TODO(multipath-paraxial): loop over all paths once the paraxial
+        // internals are refactored to use per-path surface slices instead of
+        // the full store. Currently `calc_front_focal_distance` and friends use
+        // `surfaces.len()` + `reversed_surface_id` which conflates store index
+        // with step index; for path 0 they are equal, for path N>0 they are not.
+        let stop_surface = sequential_model.stop_surface_for_path(0);
         let mut subviews = Vec::new();
-        for (wav_idx, submodel) in sequential_model.submodels().iter().enumerate() {
+        for (wav_idx, submodel) in sequential_model.submodels_for_path(0).iter().enumerate() {
             for (v_idx, &v) in tangential_vecs.iter().enumerate() {
                 let data = SubModelData {
                     sequential_sub_model: submodel as &dyn SequentialSubModel,
@@ -295,8 +302,14 @@ impl ParaxialView {
                     field_specs,
                     stop_surface,
                 };
-                let subview =
-                    ParaxialSubView::new(wav_idx, v_idx, &data, v, is_obj_space_telecentric)?;
+                let subview = ParaxialSubView::new(
+                    0, // path_id
+                    wav_idx,
+                    v_idx,
+                    &data,
+                    v,
+                    is_obj_space_telecentric,
+                )?;
                 subviews.push(subview);
             }
         }
@@ -318,11 +331,24 @@ impl ParaxialView {
         }
     }
 
-    /// Returns the subview for the given wavelength and tangential-direction
-    /// indices, or `None` if no such subview exists.
+    /// Returns the subview for path 0, the given wavelength, and
+    /// tangential-direction indices, or `None` if no such subview exists.
     pub fn get(&self, wavelength_id: usize, tangential_vec_id: usize) -> Option<&ParaxialSubView> {
+        self.get_for_path(0, wavelength_id, tangential_vec_id)
+    }
+
+    /// Returns the subview for the given path, wavelength, and
+    /// tangential-direction indices, or `None` if no such subview exists.
+    pub fn get_for_path(
+        &self,
+        path_id: usize,
+        wavelength_id: usize,
+        tangential_vec_id: usize,
+    ) -> Option<&ParaxialSubView> {
         self.subviews.iter().find(|sv| {
-            sv.wavelength_id == wavelength_id && sv.tangential_vec_id == tangential_vec_id
+            sv.path_id == path_id
+                && sv.wavelength_id == wavelength_id
+                && sv.tangential_vec_id == tangential_vec_id
         })
     }
 
@@ -435,6 +461,7 @@ impl ParaxialSubView {
     /// plane (e.g. `(0,1,0)` for phi=90°). It is propagated through mirror
     /// surfaces internally to compute per-surface foreshortening.
     fn new(
+        path_id: usize,
         wavelength_id: usize,
         tangential_vec_id: usize,
         data: &SubModelData<'_>,
@@ -517,6 +544,7 @@ impl ParaxialSubView {
         let image_space_fno = effective_focal_length / (2.0 * entrance_pupil.semi_diameter);
 
         Ok(Self {
+            path_id,
             wavelength_id,
             tangential_vec_id,
             is_obj_space_telecentric,
@@ -539,6 +567,7 @@ impl ParaxialSubView {
 
     fn describe(&self) -> ParaxialSubViewDescription {
         ParaxialSubViewDescription {
+            path_id: self.path_id,
             wavelength_id: self.wavelength_id,
             tangential_vec_id: self.tangential_vec_id,
             aperture_stop: self.aperture_stop,
@@ -555,6 +584,10 @@ impl ParaxialSubView {
             paraxial_fno: self.paraxial_fno,
             paraxial_image_plane: self.paraxial_image_plane.clone(),
         }
+    }
+
+    pub fn path_id(&self) -> usize {
+        self.path_id
     }
 
     pub fn wavelength_id(&self) -> usize {
@@ -1301,6 +1334,7 @@ mod test {
         };
         (
             ParaxialSubView::new(
+                0, // path_id
                 0,
                 0,
                 &data,
@@ -1488,7 +1522,7 @@ mod test {
             stop_surface: None,
         };
 
-        let view = ParaxialSubView::new(0, 0, &data, Vec3::new(0.0, 1.0, 0.0), false).unwrap();
+        let view = ParaxialSubView::new(0, 0, 0, &data, Vec3::new(0.0, 1.0, 0.0), false).unwrap();
 
         assert_eq!(*view.aperture_stop(), 2);
     }
@@ -1567,4 +1601,12 @@ mod test {
         let expected = *sub.effective_focal_length() / (2.0 * sub.entrance_pupil().semi_diameter);
         assert_abs_diff_eq!(sub.image_space_fno(), expected, epsilon = 1e-6);
     }
+
+    // NOTE: paraxial_view_two_path_model_has_subviews_for_both_paths is
+    // deferred. The paraxial internals (calc_front_focal_distance,
+    // calc_back_focal_distance, etc.) use surfaces.len() +
+    // reversed_surface_id treating store index as step index. This holds
+    // for path 0 but breaks for path N>0 where shared surfaces cause store
+    // index ≠ step index. Required fix: pass per-path surface slices
+    // instead of the full store to SubModelData. See §3 TODO in paraxial loop.
 }
