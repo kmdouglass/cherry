@@ -23,7 +23,10 @@ use crate::{
         },
         surfaces::Surface,
     },
-    specs::{fields::unique_tangential_vecs, surfaces::BoundaryKind},
+    specs::{
+        fields::unique_tangential_vecs,
+        surfaces::{BeamSplitterPathKind, BoundaryKind},
+    },
 };
 
 const DEFAULT_THICKNESS: Float = 0.0;
@@ -291,6 +294,8 @@ impl ParaxialView {
         for path_id in 0..sequential_model.path_count() {
             let stop_surface = sequential_model.stop_surface_for_path(path_id);
             let path_steps = sequential_model.path_steps(path_id);
+            let surface_indices = sequential_model.path_surface_indices(path_id);
+            let beam_splitter_arms = sequential_model.path_beam_splitter_arms(path_id);
             for (wav_idx, submodel) in sequential_model
                 .submodels_for_path(path_id)
                 .iter()
@@ -301,6 +306,8 @@ impl ParaxialView {
                         sequential_sub_model: submodel as &dyn SequentialSubModel,
                         surfaces,
                         placements,
+                        surface_indices,
+                        beam_splitter_arms,
                         path_steps,
                         cursor_rotation_matrices: &cursor_rotation_matrices,
                         field_specs,
@@ -455,6 +462,8 @@ struct SubModelData<'a> {
     sequential_sub_model: &'a dyn SequentialSubModel,
     surfaces: &'a [Box<dyn Surface>],
     placements: &'a [SurfacePlacement],
+    surface_indices: &'a [usize],
+    beam_splitter_arms: &'a [Option<BeamSplitterPathKind>],
     path_steps: &'a [CursorPlacement],
     cursor_rotation_matrices: &'a [Mat3x3],
     field_specs: &'a [FieldSpec],
@@ -478,20 +487,36 @@ impl ParaxialSubView {
         let sequential_sub_model = data.sequential_sub_model;
         let surfaces = data.surfaces;
         let placements = data.placements;
+        let surface_indices = data.surface_indices;
+        let beam_splitter_arms = data.beam_splitter_arms;
         let path_steps = data.path_steps;
         let cursor_rotation_matrices = data.cursor_rotation_matrices;
         let field_specs = data.field_specs;
         // Propagate v through mirror surfaces to get per-surface tangential vectors.
         let per_surf_v: Vec<TangentialVector> = propagate_tangential_vec(v, surfaces, placements);
 
-        let pseudo_marginal_ray =
-            Self::calc_pseudo_marginal_ray(sequential_sub_model, surfaces, placements, path_steps)?;
-        let parallel_ray =
-            Self::calc_parallel_ray(sequential_sub_model, surfaces, placements, path_steps)?;
+        let pseudo_marginal_ray = Self::calc_pseudo_marginal_ray(
+            sequential_sub_model,
+            surfaces,
+            placements,
+            surface_indices,
+            beam_splitter_arms,
+            path_steps,
+        )?;
+        let parallel_ray = Self::calc_parallel_ray(
+            sequential_sub_model,
+            surfaces,
+            placements,
+            surface_indices,
+            beam_splitter_arms,
+            path_steps,
+        )?;
         let reverse_parallel_ray = Self::calc_reverse_parallel_ray(
             sequential_sub_model,
             surfaces,
             placements,
+            surface_indices,
+            beam_splitter_arms,
             path_steps,
         )?;
 
@@ -506,9 +531,13 @@ impl ParaxialSubView {
             ),
         };
         let back_focal_distance =
-            Self::calc_back_focal_distance(sequential_sub_model, surfaces, &parallel_ray)?;
-        let front_focal_distance =
-            Self::calc_front_focal_distance(sequential_sub_model, surfaces, &reverse_parallel_ray)?;
+            Self::calc_back_focal_distance(surfaces, surface_indices, &parallel_ray)?;
+        let front_focal_distance = Self::calc_front_focal_distance(
+            sequential_sub_model,
+            surfaces,
+            surface_indices,
+            &reverse_parallel_ray,
+        )?;
         let marginal_ray = Self::calc_marginal_ray(
             surfaces,
             placements,
@@ -521,6 +550,8 @@ impl ParaxialSubView {
             sequential_sub_model,
             surfaces,
             placements,
+            surface_indices,
+            beam_splitter_arms,
             cursor_rotation_matrices,
             path_steps,
             is_obj_space_telecentric,
@@ -532,6 +563,8 @@ impl ParaxialSubView {
             sequential_sub_model,
             surfaces,
             placements,
+            surface_indices,
+            beam_splitter_arms,
             path_steps,
             &aperture_stop,
             &marginal_ray,
@@ -547,20 +580,22 @@ impl ParaxialSubView {
             surfaces,
             sequential_sub_model,
             placements,
+            surface_indices,
+            beam_splitter_arms,
             path_steps,
             v,
             field_specs,
             &entrance_pupil,
         )?;
         let paraxial_image_plane = Self::calc_paraxial_image_plane(
-            sequential_sub_model,
             surfaces,
             placements,
+            surface_indices,
             &marginal_ray,
             &chief_ray,
         )?;
 
-        let last_phys_id = last_physical_step(sequential_sub_model.surface_indices(), surfaces)
+        let last_phys_id = last_physical_step(surface_indices, surfaces)
             .ok_or_else(|| anyhow!("There are no physical surfaces"))?;
         let n_image = sequential_sub_model
             .gaps()
@@ -700,13 +735,12 @@ impl ParaxialSubView {
     }
 
     fn calc_back_focal_distance(
-        sequential_sub_model: &dyn SequentialSubModel,
         surfaces: &[Box<dyn Surface>],
+        surface_indices: &[usize],
         parallel_ray: &ParaxialRayBundle,
     ) -> Result<Float> {
-        let last_physical_step_index =
-            last_physical_step(sequential_sub_model.surface_indices(), surfaces)
-                .ok_or(anyhow!("There are no physical surfaces"))?;
+        let last_physical_step_index = last_physical_step(surface_indices, surfaces)
+            .ok_or(anyhow!("There are no physical surfaces"))?;
         let intercepts = axis_intercepts(parallel_ray.rays_at_surface(last_physical_step_index))?;
 
         let bfd = intercepts[0];
@@ -742,10 +776,13 @@ impl ParaxialSubView {
     /// Only field specs whose phi angle matches `v` are used. This ensures each
     /// submodel's chief ray is computed from the fields that lie in its
     /// meridional plane.
+    #[allow(clippy::too_many_arguments)]
     fn calc_chief_ray(
         surfaces: &[Box<dyn Surface>],
         sequential_sub_model: &dyn SequentialSubModel,
         placements: &[SurfacePlacement],
+        surface_indices: &[usize],
+        beam_splitter_arms: &[Option<BeamSplitterPathKind>],
         path_steps: &[CursorPlacement],
         v: TangentialVector,
         field_specs: &[FieldSpec],
@@ -787,6 +824,8 @@ impl ParaxialSubView {
             sequential_sub_model,
             surfaces,
             placements,
+            surface_indices,
+            beam_splitter_arms,
             path_steps,
             false,
         )
@@ -809,10 +848,13 @@ impl ParaxialSubView {
         efl.abs()
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn calc_entrance_pupil(
         sequential_sub_model: &dyn SequentialSubModel,
         surfaces: &[Box<dyn Surface>],
         placements: &[SurfacePlacement],
+        surface_indices: &[usize],
+        beam_splitter_arms: &[Option<BeamSplitterPathKind>],
         cursor_rotation_matrices: &[Mat3x3],
         path_steps: &[CursorPlacement],
         is_obj_space_telecentric: bool,
@@ -849,9 +891,11 @@ impl ParaxialSubView {
         }];
         let results = Self::trace(
             ray,
-            &sequential_sub_model.slice(0..*aperture_stop),
+            &sequential_sub_model.slice(0..*aperture_stop, surface_indices, beam_splitter_arms),
             surfaces,
             placements,
+            surface_indices,
+            beam_splitter_arms,
             path_steps,
             true,
         )?;
@@ -877,19 +921,21 @@ impl ParaxialSubView {
         })
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn calc_exit_pupil(
         sequential_sub_model: &dyn SequentialSubModel,
         surfaces: &[Box<dyn Surface>],
         placements: &[SurfacePlacement],
+        surface_indices: &[usize],
+        beam_splitter_arms: &[Option<BeamSplitterPathKind>],
         path_steps: &[CursorPlacement],
         aperture_stop: &usize,
         marginal_ray: &ParaxialRayBundle,
     ) -> Result<Pupil> {
-        let last_physical_step_id =
-            last_physical_step(sequential_sub_model.surface_indices(), surfaces)
-                .ok_or(anyhow!("There are no physical surfaces"))?;
+        let last_physical_step_id = last_physical_step(surface_indices, surfaces)
+            .ok_or(anyhow!("There are no physical surfaces"))?;
         if last_physical_step_id == *aperture_stop {
-            let store_idx = sequential_sub_model.surface_indices()[last_physical_step_id];
+            let store_idx = surface_indices[last_physical_step_id];
             return Ok(Pupil {
                 location: 0.0,
                 semi_diameter: surfaces[store_idx].mask().semi_diameter(),
@@ -904,9 +950,15 @@ impl ParaxialSubView {
 
         let results = Self::trace(
             ray,
-            &sequential_sub_model.slice(*aperture_stop..sequential_sub_model.len()),
+            &sequential_sub_model.slice(
+                *aperture_stop..sequential_sub_model.len(),
+                surface_indices,
+                beam_splitter_arms,
+            ),
             surfaces,
             placements,
+            surface_indices,
+            beam_splitter_arms,
             path_steps,
             false,
         )?;
@@ -931,11 +983,11 @@ impl ParaxialSubView {
     fn calc_front_focal_distance(
         sequential_sub_model: &dyn SequentialSubModel,
         surfaces: &[Box<dyn Surface>],
+        surface_indices: &[usize],
         reverse_parallel_ray: &ParaxialRayBundle,
     ) -> Result<Float> {
-        let first_physical_step_index =
-            first_physical_step(sequential_sub_model.surface_indices(), surfaces)
-                .ok_or(anyhow!("There are no physical surfaces"))?;
+        let first_physical_step_index = first_physical_step(surface_indices, surfaces)
+            .ok_or(anyhow!("There are no physical surfaces"))?;
         let index = reversed_surface_id(sequential_sub_model.len() + 1, first_physical_step_index);
         let intercepts = axis_intercepts(reverse_parallel_ray.rays_at_surface(index))?;
 
@@ -985,6 +1037,8 @@ impl ParaxialSubView {
         sequential_sub_model: &dyn SequentialSubModel,
         surfaces: &[Box<dyn Surface>],
         placements: &[SurfacePlacement],
+        surface_indices: &[usize],
+        beam_splitter_arms: &[Option<BeamSplitterPathKind>],
         path_steps: &[CursorPlacement],
     ) -> Result<ParaxialRayBundle> {
         let ray = vec![ParaxialRay {
@@ -997,6 +1051,8 @@ impl ParaxialSubView {
             sequential_sub_model,
             surfaces,
             placements,
+            surface_indices,
+            beam_splitter_arms,
             path_steps,
             false,
         )
@@ -1004,16 +1060,15 @@ impl ParaxialSubView {
 
     /// Compute the paraxial image plane.
     fn calc_paraxial_image_plane(
-        sequential_sub_model: &dyn SequentialSubModel,
         surfaces: &[Box<dyn Surface>],
         placements: &[SurfacePlacement],
+        surface_indices: &[usize],
         marginal_ray: &ParaxialRayBundle,
         chief_ray: &ParaxialRayBundle,
     ) -> Result<ImagePlane> {
-        let last_physical_step_id =
-            last_physical_step(sequential_sub_model.surface_indices(), surfaces)
-                .ok_or(anyhow!("There are no physical surfaces"))?;
-        let store_idx = sequential_sub_model.surface_indices()[last_physical_step_id];
+        let last_physical_step_id = last_physical_step(surface_indices, surfaces)
+            .ok_or(anyhow!("There are no physical surfaces"))?;
+        let store_idx = surface_indices[last_physical_step_id];
 
         let d_axis = axis_intercepts(marginal_ray.rays_at_surface(last_physical_step_id))?[0];
         let location = if d_axis.is_infinite() {
@@ -1039,9 +1094,18 @@ impl ParaxialSubView {
         sequential_sub_model: &dyn SequentialSubModel,
         surfaces: &[Box<dyn Surface>],
         placements: &[SurfacePlacement],
+        surface_indices: &[usize],
+        beam_splitter_arms: &[Option<BeamSplitterPathKind>],
         path_steps: &[CursorPlacement],
     ) -> Result<ParaxialRayBundle> {
-        calc_pseudo_marginal_ray(sequential_sub_model, surfaces, placements, path_steps)
+        calc_pseudo_marginal_ray(
+            sequential_sub_model,
+            surfaces,
+            placements,
+            surface_indices,
+            beam_splitter_arms,
+            path_steps,
+        )
     }
 
     /// Compute the reverse parallel ray.
@@ -1049,6 +1113,8 @@ impl ParaxialSubView {
         sequential_sub_model: &dyn SequentialSubModel,
         surfaces: &[Box<dyn Surface>],
         placements: &[SurfacePlacement],
+        surface_indices: &[usize],
+        beam_splitter_arms: &[Option<BeamSplitterPathKind>],
         path_steps: &[CursorPlacement],
     ) -> Result<ParaxialRayBundle> {
         let ray = vec![ParaxialRay {
@@ -1061,6 +1127,8 @@ impl ParaxialSubView {
             sequential_sub_model,
             surfaces,
             placements,
+            surface_indices,
+            beam_splitter_arms,
             path_steps,
             true,
         )
@@ -1071,6 +1139,8 @@ impl ParaxialSubView {
         sequential_sub_model: &dyn SequentialSubModel,
         surfaces: &[Box<dyn Surface>],
         placements: &[SurfacePlacement],
+        surface_indices: &[usize],
+        beam_splitter_arms: &[Option<BeamSplitterPathKind>],
         path_steps: &[CursorPlacement],
         reverse: bool,
     ) -> Result<Vec<RayTransferMatrix>> {
@@ -1079,11 +1149,23 @@ impl ParaxialSubView {
         let mut reverse_iter;
         let steps: &mut dyn Iterator<Item = Step> = if reverse {
             reverse_iter = sequential_sub_model
-                .try_iter(surfaces, placements, path_steps)?
+                .try_iter(
+                    surfaces,
+                    placements,
+                    surface_indices,
+                    beam_splitter_arms,
+                    path_steps,
+                )?
                 .try_reverse()?;
             &mut reverse_iter
         } else {
-            forward_iter = sequential_sub_model.try_iter(surfaces, placements, path_steps)?;
+            forward_iter = sequential_sub_model.try_iter(
+                surfaces,
+                placements,
+                surface_indices,
+                beam_splitter_arms,
+                path_steps,
+            )?;
             &mut forward_iter
         };
         for Step {
@@ -1119,11 +1201,14 @@ impl ParaxialSubView {
         Ok(txs)
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn trace(
         initial_rays: Vec<ParaxialRay>,
         sequential_sub_model: &dyn SequentialSubModel,
         surfaces: &[Box<dyn Surface>],
         placements: &[SurfacePlacement],
+        surface_indices: &[usize],
+        beam_splitter_arms: &[Option<BeamSplitterPathKind>],
         path_steps: &[CursorPlacement],
         reverse: bool,
     ) -> Result<ParaxialRayBundle> {
@@ -1131,6 +1216,8 @@ impl ParaxialSubView {
             sequential_sub_model,
             surfaces,
             placements,
+            surface_indices,
+            beam_splitter_arms,
             path_steps,
             reverse,
         )?;
@@ -1185,6 +1272,8 @@ pub(crate) fn calc_pseudo_marginal_ray(
     sequential_sub_model: &dyn SequentialSubModel,
     surfaces: &[Box<dyn Surface>],
     placements: &[SurfacePlacement],
+    surface_indices: &[usize],
+    beam_splitter_arms: &[Option<BeamSplitterPathKind>],
     path_steps: &[CursorPlacement],
 ) -> Result<ParaxialRayBundle> {
     let ray = if sequential_sub_model.is_obj_at_inf() {
@@ -1203,6 +1292,8 @@ pub(crate) fn calc_pseudo_marginal_ray(
         sequential_sub_model,
         surfaces,
         placements,
+        surface_indices,
+        beam_splitter_arms,
         path_steps,
         false,
     )
@@ -1281,10 +1372,19 @@ pub(crate) fn marginal_ray_bundle(
     let placements = model.placements();
     let cursor_rotation_matrices = model.cursor_rotation_matrices();
     let path_steps = model.path_steps(0);
+    let surface_indices = model.path_surface_indices(0);
+    let beam_splitter_arms = model.path_beam_splitter_arms(0);
 
     let v = Vec3::new(0.0, 1.0, 0.0);
     let per_surf_v = propagate_tangential_vec(v, surfaces, placements);
-    let pseudo = calc_pseudo_marginal_ray(submodel, surfaces, placements, path_steps)?;
+    let pseudo = calc_pseudo_marginal_ray(
+        submodel,
+        surfaces,
+        placements,
+        surface_indices,
+        beam_splitter_arms,
+        path_steps,
+    )?;
     let stop = match model.stop_surface() {
         Some(i) => i,
         None => calc_aperture_stop(
@@ -1432,6 +1532,8 @@ mod test {
             sequential_sub_model: seq_sub_model as &dyn SequentialSubModel,
             surfaces: sequential_model.surfaces(),
             placements: sequential_model.placements(),
+            surface_indices: sequential_model.path_surface_indices(0),
+            beam_splitter_arms: sequential_model.path_beam_splitter_arms(0),
             path_steps: sequential_model.path_steps(0),
             cursor_rotation_matrices: &crms,
             field_specs: &field_specs,
@@ -1509,6 +1611,8 @@ mod test {
             seq_sub_model,
             sequential_model.surfaces(),
             sequential_model.placements(),
+            sequential_model.path_surface_indices(0),
+            sequential_model.path_beam_splitter_arms(0),
             sequential_model.path_steps(0),
         )
         .unwrap();
@@ -1540,6 +1644,8 @@ mod test {
             seq_sub_model,
             sequential_model.surfaces(),
             sequential_model.placements(),
+            sequential_model.path_surface_indices(0),
+            sequential_model.path_beam_splitter_arms(0),
             sequential_model.path_steps(0),
         )
         .unwrap();
@@ -1626,6 +1732,8 @@ mod test {
             sequential_sub_model: seq_sub_model as &dyn SequentialSubModel,
             surfaces: sequential_model.surfaces(),
             placements: sequential_model.placements(),
+            surface_indices: sequential_model.path_surface_indices(0),
+            beam_splitter_arms: sequential_model.path_beam_splitter_arms(0),
             path_steps: sequential_model.path_steps(0),
             cursor_rotation_matrices: &crms,
             field_specs: &field_specs,

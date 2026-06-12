@@ -22,6 +22,7 @@ use crate::{
     specs::{
         aperture::ApertureSpec,
         fields::{FieldSpec, PupilSampling},
+        surfaces::BeamSplitterPathKind,
     },
 };
 
@@ -138,6 +139,8 @@ pub fn trace_ray_bundle(
                     sequential_submodel,
                     sequential_model.surfaces(),
                     sequential_model.placements(),
+                    sequential_model.path_surface_indices(0),
+                    sequential_model.path_beam_splitter_arms(0),
                     sequential_model.path_steps(0),
                     aperture_spec,
                     &field_specs[field_id],
@@ -204,12 +207,16 @@ pub fn ray_trace_3d_view(
                 let field_spec = &field_specs[field_id];
                 let surfaces = sequential_model.surfaces();
                 let placements = sequential_model.placements();
+                let surface_indices = sequential_model.path_surface_indices(path_id);
+                let beam_splitter_arms = sequential_model.path_beam_splitter_arms(path_id);
                 let path_steps = sequential_model.path_steps(path_id);
 
                 let chief_ray = ray_trace_submodel(
                     sequential_submodel,
                     surfaces,
                     placements,
+                    surface_indices,
+                    beam_splitter_arms,
                     path_steps,
                     aperture_spec,
                     field_spec,
@@ -220,6 +227,8 @@ pub fn ray_trace_3d_view(
                     sequential_submodel,
                     surfaces,
                     placements,
+                    surface_indices,
+                    beam_splitter_arms,
                     path_steps,
                     aperture_spec,
                     field_spec,
@@ -232,6 +241,8 @@ pub fn ray_trace_3d_view(
                     sequential_submodel,
                     surfaces,
                     placements,
+                    surface_indices,
+                    beam_splitter_arms,
                     path_steps,
                     aperture_spec,
                     field_spec,
@@ -244,6 +255,8 @@ pub fn ray_trace_3d_view(
                     sequential_submodel,
                     surfaces,
                     placements,
+                    surface_indices,
+                    beam_splitter_arms,
                     path_steps,
                     aperture_spec,
                     field_spec,
@@ -381,10 +394,13 @@ impl TraceResults {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn ray_trace_submodel(
     sequential_submodel: &impl SequentialSubModel,
     surfaces: &[Box<dyn Surface>],
     placements: &[SurfacePlacement],
+    surface_indices: &[usize],
+    beam_splitter_arms: &[Option<BeamSplitterPathKind>],
     path_steps: &[CursorPlacement],
     aperture_spec: &ApertureSpec,
     field_spec: &FieldSpec,
@@ -399,8 +415,13 @@ fn ray_trace_submodel(
         pupil_sampling,
     )?;
 
-    let mut sequential_sub_model_iter =
-        sequential_submodel.try_iter(surfaces, placements, path_steps)?;
+    let mut sequential_sub_model_iter = sequential_submodel.try_iter(
+        surfaces,
+        placements,
+        surface_indices,
+        beam_splitter_arms,
+        path_steps,
+    )?;
     Ok(trace(&mut sequential_sub_model_iter, rays))
 }
 
