@@ -170,93 +170,101 @@ pub fn ray_trace_3d_view(
     // For rotationally symmetric systems only Axis::U exists; for non-symmetric
     // systems this is the fallback that is always present.
     let n_wavelengths = sequential_model.wavelengths().len();
-    let pairs: Vec<(usize, usize)> = (0..field_specs.len())
-        .flat_map(|f| (0..n_wavelengths).map(move |w| (f, w)))
+    let triples: Vec<(usize, usize, usize)> = (0..sequential_model.path_count())
+        .flat_map(|p| {
+            (0..field_specs.len()).flat_map(move |f| (0..n_wavelengths).map(move |w| (p, f, w)))
+        })
         .collect();
 
-    let results: Vec<TraceResults> = pairs
+    let results: Vec<TraceResults> = triples
         .into_par_iter()
-        .map(|(field_id, wavelength_id)| -> Result<TraceResults> {
-            tracing::trace!(
-                "Tracing rays for field_id={}, wavelength_id={}",
-                field_id,
-                wavelength_id,
-            );
+        .map(
+            |(path_id, field_id, wavelength_id)| -> Result<TraceResults> {
+                tracing::trace!(
+                    "Tracing rays for path_id={}, field_id={}, wavelength_id={}",
+                    path_id,
+                    field_id,
+                    wavelength_id,
+                );
 
-            let sequential_submodel = sequential_model
-                .submodel(wavelength_id)
-                .ok_or_else(|| anyhow!("Submodel not found"))?;
-            let tangential_vec_id =
-                paraxial_view.tangential_vec_id_for_phi(field_specs[field_id].tangential_fan_phi());
-            let paraxial_subview = paraxial_view
-                .get(wavelength_id, tangential_vec_id)
-                .ok_or_else(|| anyhow!("Submodel not found"))?;
+                let sequential_submodel = sequential_model
+                    .submodels_for_path(path_id)
+                    .get(wavelength_id)
+                    .ok_or_else(|| anyhow!("Submodel not found"))?;
+                let tangential_vec_id = paraxial_view
+                    .tangential_vec_id_for_phi(field_specs[field_id].tangential_fan_phi());
+                let paraxial_subview = paraxial_view
+                    .get_for_path(path_id, wavelength_id, tangential_vec_id)
+                    .ok_or_else(|| anyhow!("Paraxial subview not found"))?;
 
-            let field_spec = &field_specs[field_id];
-            let surfaces = sequential_model.surfaces();
-            let placements = sequential_model.placements();
+                let field_spec = &field_specs[field_id];
+                let surfaces = sequential_model.surfaces();
+                let placements = sequential_model.placements();
 
-            let chief_ray = ray_trace_submodel(
-                sequential_submodel,
-                surfaces,
-                placements,
-                aperture_spec,
-                field_spec,
-                paraxial_subview,
-                PupilSampling::ChiefRay,
-            )?;
-            let full_pupil = ray_trace_submodel(
-                sequential_submodel,
-                surfaces,
-                placements,
-                aperture_spec,
-                field_spec,
-                paraxial_subview,
-                PupilSampling::SquareGrid {
-                    spacing: config.full_pupil_spacing,
-                },
-            )?;
-            let tangential_fan = ray_trace_submodel(
-                sequential_submodel,
-                surfaces,
-                placements,
-                aperture_spec,
-                field_spec,
-                paraxial_subview,
-                PupilSampling::TangentialRayFan {
-                    n: config.n_fan_rays,
-                },
-            )?;
-            let sagittal_fan = ray_trace_submodel(
-                sequential_submodel,
-                surfaces,
-                placements,
-                aperture_spec,
-                field_spec,
-                paraxial_subview,
-                PupilSampling::SagittalRayFan {
-                    n: config.n_fan_rays,
-                },
-            )?;
+                let chief_ray = ray_trace_submodel(
+                    sequential_submodel,
+                    surfaces,
+                    placements,
+                    aperture_spec,
+                    field_spec,
+                    paraxial_subview,
+                    PupilSampling::ChiefRay,
+                )?;
+                let full_pupil = ray_trace_submodel(
+                    sequential_submodel,
+                    surfaces,
+                    placements,
+                    aperture_spec,
+                    field_spec,
+                    paraxial_subview,
+                    PupilSampling::SquareGrid {
+                        spacing: config.full_pupil_spacing,
+                    },
+                )?;
+                let tangential_fan = ray_trace_submodel(
+                    sequential_submodel,
+                    surfaces,
+                    placements,
+                    aperture_spec,
+                    field_spec,
+                    paraxial_subview,
+                    PupilSampling::TangentialRayFan {
+                        n: config.n_fan_rays,
+                    },
+                )?;
+                let sagittal_fan = ray_trace_submodel(
+                    sequential_submodel,
+                    surfaces,
+                    placements,
+                    aperture_spec,
+                    field_spec,
+                    paraxial_subview,
+                    PupilSampling::SagittalRayFan {
+                        n: config.n_fan_rays,
+                    },
+                )?;
 
-            trace!(
-                field_id,
-                wavelength_id,
-                "Finished tracing all bundles for field {}, wavelength {}",
-                field_id,
-                wavelength_id
-            );
+                trace!(
+                    path_id,
+                    field_id,
+                    wavelength_id,
+                    "Finished tracing all bundles for path {}, field {}, wavelength {}",
+                    path_id,
+                    field_id,
+                    wavelength_id
+                );
 
-            Ok(TraceResults {
-                path_id: 0,
-                wavelength_id,
-                field_id,
-                chief_ray,
-                full_pupil,
-                tangential_fan,
-                sagittal_fan,
-            })
-        })
+                Ok(TraceResults {
+                    path_id,
+                    wavelength_id,
+                    field_id,
+                    chief_ray,
+                    full_pupil,
+                    tangential_fan,
+                    sagittal_fan,
+                })
+            },
+        )
         .collect::<Result<Vec<_>>>()?;
 
     Ok(TraceResultsCollection::new(results))
@@ -1338,6 +1346,40 @@ mod tests {
 
         // For a 45° fan, dy/dx should equal tan(45°) = 1.0
         approx::assert_abs_diff_eq!(dy / dx, 1.0, epsilon = 1e-6);
+    }
+
+    #[test]
+    fn ray_trace_two_path_model_produces_results_for_both_paths() {
+        use std::rc::Rc;
+
+        use crate::examples::beam_splitter::two_path_model;
+        use crate::specs::gaps::ConstantRefractiveIndex;
+
+        let n_air = Rc::new(ConstantRefractiveIndex::new(1.0, 0.0));
+        let model = two_path_model(n_air, &[0.5876e-3], 10.0, 10.0);
+        let field_specs = vec![FieldSpec::Angle {
+            chi: 0.0,
+            phi: 90.0,
+        }];
+        let aperture_spec = ApertureSpec::EntrancePupil { semi_diameter: 5.0 };
+        let paraxial_view = ParaxialView::new(&model, &field_specs, false).unwrap();
+        let config = SamplingConfig {
+            n_fan_rays: 3,
+            full_pupil_spacing: 0.5,
+        };
+
+        let results =
+            ray_trace_3d_view(&aperture_spec, &field_specs, &model, &paraxial_view, config)
+                .unwrap();
+
+        assert!(
+            results.get_for_path(0, 0, 0).is_some(),
+            "path 0 results missing"
+        );
+        assert!(
+            results.get_for_path(1, 0, 0).is_some(),
+            "path 1 results missing"
+        );
     }
 
     #[test]

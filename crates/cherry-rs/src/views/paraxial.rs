@@ -17,9 +17,8 @@ use crate::{
         Float,
         math::{linalg::mat2x2::Mat2x2, vec3::Vec3},
         sequential_model::{
-            SequentialModel, SequentialSubModel, Step, first_physical_surface,
-            last_physical_surface, placement::Placement, propagate_tangential_vec,
-            reversed_surface_id,
+            SequentialModel, SequentialSubModel, Step, first_physical_step, last_physical_step,
+            placement::Placement, propagate_tangential_vec, reversed_surface_id,
         },
         surfaces::Surface,
     },
@@ -286,31 +285,39 @@ impl ParaxialView {
                 unique_tangential_vecs(field_specs)
             };
 
-        // TODO(multipath-paraxial): loop over all paths once the paraxial
-        // internals are refactored to use per-path surface slices instead of
-        // the full store. Currently `calc_front_focal_distance` and friends use
-        // `surfaces.len()` + `reversed_surface_id` which conflates store index
-        // with step index; for path 0 they are equal, for path N>0 they are not.
-        let stop_surface = sequential_model.stop_surface_for_path(0);
+        // NOTE: `propagate_tangential_vec` and `calc_aperture_stop` still
+        // iterate over the full surface store rather than per-path step slices.
+        // For any model where all physical surfaces share the same step and store
+        // index across paths (e.g. a beam-splitter model where only the image
+        // planes differ), the results are correct. A future refactor should pass
+        // step-indexed surface/placement slices to SubModelData for full
+        // generality. See §2.5 of the multipath views design doc.
         let mut subviews = Vec::new();
-        for (wav_idx, submodel) in sequential_model.submodels_for_path(0).iter().enumerate() {
-            for (v_idx, &v) in tangential_vecs.iter().enumerate() {
-                let data = SubModelData {
-                    sequential_sub_model: submodel as &dyn SequentialSubModel,
-                    surfaces,
-                    placements,
-                    field_specs,
-                    stop_surface,
-                };
-                let subview = ParaxialSubView::new(
-                    0, // path_id
-                    wav_idx,
-                    v_idx,
-                    &data,
-                    v,
-                    is_obj_space_telecentric,
-                )?;
-                subviews.push(subview);
+        for path_id in 0..sequential_model.path_count() {
+            let stop_surface = sequential_model.stop_surface_for_path(path_id);
+            for (wav_idx, submodel) in sequential_model
+                .submodels_for_path(path_id)
+                .iter()
+                .enumerate()
+            {
+                for (v_idx, &v) in tangential_vecs.iter().enumerate() {
+                    let data = SubModelData {
+                        sequential_sub_model: submodel as &dyn SequentialSubModel,
+                        surfaces,
+                        placements,
+                        field_specs,
+                        stop_surface,
+                    };
+                    let subview = ParaxialSubView::new(
+                        path_id,
+                        wav_idx,
+                        v_idx,
+                        &data,
+                        v,
+                        is_obj_space_telecentric,
+                    )?;
+                    subviews.push(subview);
+                }
             }
         }
 
@@ -487,9 +494,10 @@ impl ParaxialSubView {
                 Self::calc_aperture_stop(surfaces, placements, &pseudo_marginal_ray, &per_surf_v)
             }
         };
-        let back_focal_distance = Self::calc_back_focal_distance(surfaces, &parallel_ray)?;
+        let back_focal_distance =
+            Self::calc_back_focal_distance(sequential_sub_model, surfaces, &parallel_ray)?;
         let front_focal_distance =
-            Self::calc_front_focal_distance(surfaces, &reverse_parallel_ray)?;
+            Self::calc_front_focal_distance(sequential_sub_model, surfaces, &reverse_parallel_ray)?;
         let marginal_ray = Self::calc_marginal_ray(
             surfaces,
             placements,
@@ -528,10 +536,15 @@ impl ParaxialSubView {
             field_specs,
             &entrance_pupil,
         )?;
-        let paraxial_image_plane =
-            Self::calc_paraxial_image_plane(surfaces, placements, &marginal_ray, &chief_ray)?;
+        let paraxial_image_plane = Self::calc_paraxial_image_plane(
+            sequential_sub_model,
+            surfaces,
+            placements,
+            &marginal_ray,
+            &chief_ray,
+        )?;
 
-        let last_phys_id = last_physical_surface(surfaces)
+        let last_phys_id = last_physical_step(sequential_sub_model.surface_indices(), surfaces)
             .ok_or_else(|| anyhow!("There are no physical surfaces"))?;
         let n_image = sequential_sub_model
             .gaps()
@@ -664,13 +677,14 @@ impl ParaxialSubView {
     }
 
     fn calc_back_focal_distance(
+        sequential_sub_model: &dyn SequentialSubModel,
         surfaces: &[Box<dyn Surface>],
         parallel_ray: &ParaxialRayBundle,
     ) -> Result<Float> {
-        let last_physical_surface_index =
-            last_physical_surface(surfaces).ok_or(anyhow!("There are no physical surfaces"))?;
-        let intercepts =
-            axis_intercepts(parallel_ray.rays_at_surface(last_physical_surface_index))?;
+        let last_physical_step_index =
+            last_physical_step(sequential_sub_model.surface_indices(), surfaces)
+                .ok_or(anyhow!("There are no physical surfaces"))?;
+        let intercepts = axis_intercepts(parallel_ray.rays_at_surface(last_physical_step_index))?;
 
         let bfd = intercepts[0];
 
@@ -838,12 +852,14 @@ impl ParaxialSubView {
         aperture_stop: &usize,
         marginal_ray: &ParaxialRayBundle,
     ) -> Result<Pupil> {
-        let last_physical_surface_id =
-            last_physical_surface(surfaces).ok_or(anyhow!("There are no physical surfaces"))?;
-        if last_physical_surface_id == *aperture_stop {
+        let last_physical_step_id =
+            last_physical_step(sequential_sub_model.surface_indices(), surfaces)
+                .ok_or(anyhow!("There are no physical surfaces"))?;
+        if last_physical_step_id == *aperture_stop {
+            let store_idx = sequential_sub_model.surface_indices()[last_physical_step_id];
             return Ok(Pupil {
                 location: 0.0,
-                semi_diameter: surfaces[last_physical_surface_id].mask().semi_diameter(),
+                semi_diameter: surfaces[store_idx].mask().semi_diameter(),
             });
         }
 
@@ -861,14 +877,13 @@ impl ParaxialSubView {
             false,
         )?;
 
-        // Distance is relative to the last physical surface
-        let sliced_last_physical_surface_id = last_physical_surface_id - aperture_stop;
-        let distance =
-            axis_intercepts(results.rays_at_surface(sliced_last_physical_surface_id))?[0];
+        // Distance is relative to the last physical surface (step-indexed in the slice)
+        let sliced_last_physical_step_id = last_physical_step_id - aperture_stop;
+        let distance = axis_intercepts(results.rays_at_surface(sliced_last_physical_step_id))?[0];
 
         // Propagate the marginal ray to the exit pupil location and find its height
         let semi_diameter = propagate(
-            marginal_ray.rays_at_surface(last_physical_surface_id),
+            marginal_ray.rays_at_surface(last_physical_step_id),
             distance,
         )[0]
         .height;
@@ -880,12 +895,14 @@ impl ParaxialSubView {
     }
 
     fn calc_front_focal_distance(
+        sequential_sub_model: &dyn SequentialSubModel,
         surfaces: &[Box<dyn Surface>],
         reverse_parallel_ray: &ParaxialRayBundle,
     ) -> Result<Float> {
-        let first_physical_surface_index =
-            first_physical_surface(surfaces).ok_or(anyhow!("There are no physical surfaces"))?;
-        let index = reversed_surface_id(surfaces.len(), first_physical_surface_index);
+        let first_physical_step_index =
+            first_physical_step(sequential_sub_model.surface_indices(), surfaces)
+                .ok_or(anyhow!("There are no physical surfaces"))?;
+        let index = reversed_surface_id(sequential_sub_model.len() + 1, first_physical_step_index);
         let intercepts = axis_intercepts(reverse_parallel_ray.rays_at_surface(index))?;
 
         let ffd = intercepts[0];
@@ -943,25 +960,28 @@ impl ParaxialSubView {
 
     /// Compute the paraxial image plane.
     fn calc_paraxial_image_plane(
+        sequential_sub_model: &dyn SequentialSubModel,
         surfaces: &[Box<dyn Surface>],
         placements: &[Placement],
         marginal_ray: &ParaxialRayBundle,
         chief_ray: &ParaxialRayBundle,
     ) -> Result<ImagePlane> {
-        let last_physical_surface_id =
-            last_physical_surface(surfaces).ok_or(anyhow!("There are no physical surfaces"))?;
+        let last_physical_step_id =
+            last_physical_step(sequential_sub_model.surface_indices(), surfaces)
+                .ok_or(anyhow!("There are no physical surfaces"))?;
+        let store_idx = sequential_sub_model.surface_indices()[last_physical_step_id];
 
-        let d_axis = axis_intercepts(marginal_ray.rays_at_surface(last_physical_surface_id))?[0];
+        let d_axis = axis_intercepts(marginal_ray.rays_at_surface(last_physical_step_id))?[0];
         let location = if d_axis.is_infinite() {
             // Ensure positive infinity is returned for infinite image planes
             Float::INFINITY
         } else {
-            placements[last_physical_surface_id].track + d_axis
+            placements[store_idx].track + d_axis
         };
 
         // Propagate the chief ray from the last physical surface to the image plane to
         // determine its semi-diameter.
-        let propagated = propagate(chief_ray.rays_at_surface(last_physical_surface_id), d_axis);
+        let propagated = propagate(chief_ray.rays_at_surface(last_physical_step_id), d_axis);
         let semi_diameter = propagated[0].height.abs();
 
         Ok(ImagePlane {
@@ -1602,11 +1622,22 @@ mod test {
         assert_abs_diff_eq!(sub.image_space_fno(), expected, epsilon = 1e-6);
     }
 
-    // NOTE: paraxial_view_two_path_model_has_subviews_for_both_paths is
-    // deferred. The paraxial internals (calc_front_focal_distance,
-    // calc_back_focal_distance, etc.) use surfaces.len() +
-    // reversed_surface_id treating store index as step index. This holds
-    // for path 0 but breaks for path N>0 where shared surfaces cause store
-    // index ≠ step index. Required fix: pass per-path surface slices
-    // instead of the full store to SubModelData. See §3 TODO in paraxial loop.
+    #[test]
+    fn paraxial_view_two_path_model_has_subviews_for_both_paths() {
+        use std::rc::Rc;
+
+        use crate::examples::beam_splitter::two_path_model;
+        use crate::specs::gaps::ConstantRefractiveIndex;
+
+        let n_air = Rc::new(ConstantRefractiveIndex::new(1.0, 0.0));
+        let model = two_path_model(n_air, &[0.5876e-3], 10.0, 10.0);
+        let field = vec![FieldSpec::Angle {
+            chi: 0.0,
+            phi: 90.0,
+        }];
+        let pv = ParaxialView::new(&model, &field, false).unwrap();
+
+        assert!(pv.get_for_path(0, 0, 0).is_some(), "path 0 subview missing");
+        assert!(pv.get_for_path(1, 0, 0).is_some(), "path 1 subview missing");
+    }
 }

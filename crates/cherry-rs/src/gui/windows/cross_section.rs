@@ -200,6 +200,13 @@ impl CrossSectionWindow {
             draw_element(&painter, elem, &w2s, ui.visuals());
         }
 
+        // Draw optical axis before rays so rays appear on top.
+        if self.annotations.show_axis {
+            for path in &geom.axis_paths {
+                draw_axis(&painter, path, &w2s);
+            }
+        }
+
         // Draw rays.
         for (wl_idx, paths) in geom.ray_paths.iter().enumerate() {
             let color = wavelengths
@@ -210,12 +217,7 @@ impl CrossSectionWindow {
             draw_rays(&painter, paths, &w2s, color);
         }
 
-        // Draw annotations.
-        if self.annotations.show_axis {
-            for path in &geom.axis_paths {
-                draw_axis(&painter, path, &w2s);
-            }
-        }
+        // Draw remaining annotations.
         if self.annotations.show_scalebar {
             draw_scalebar(&painter, rect, &geom.bounding_box);
         }

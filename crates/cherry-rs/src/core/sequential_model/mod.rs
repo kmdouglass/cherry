@@ -179,6 +179,13 @@ pub trait SequentialSubModel {
     ) -> Result<SequentialSubModelIter<'a>>;
 
     fn slice(&self, idx: Range<usize>) -> SequentialSubModelSlice<'_>;
+
+    /// Ordered store indices visited by this submodel, one per step.
+    ///
+    /// `surface_indices()[0]` is the Object surface (never stepped through by
+    /// the iterator); `surface_indices()[1..]` correspond to iterator steps.
+    /// Length equals `len() + 1`.
+    fn surface_indices(&self) -> &[usize];
 }
 
 #[derive(Debug)]
@@ -272,24 +279,34 @@ pub(crate) fn propagate_tangential_vec(
         .collect()
 }
 
-/// Returns the index of the first physical surface in the system.
+/// Returns the step index of the first physical surface visited by
+/// `surface_indices`.
 ///
-/// A physical surface is one that has a finite semi-diameter,
-/// i.e., a Conic or Iris. Object, Image, and Probe surfaces are excluded.
-pub(crate) fn first_physical_surface(surfaces: &[Box<dyn Surface>]) -> Option<usize> {
-    surfaces
+/// A physical surface has a finite semi-diameter (Conic or Iris). Object,
+/// Image, and Probe surfaces are excluded. Returns the position within
+/// `surface_indices` (i.e. a step index), not a store index.
+pub(crate) fn first_physical_step(
+    surface_indices: &[usize],
+    surfaces: &[Box<dyn Surface>],
+) -> Option<usize> {
+    surface_indices
         .iter()
-        .position(|surf| surf.mask().semi_diameter().is_finite())
+        .position(|&i| surfaces[i].mask().semi_diameter().is_finite())
 }
 
-/// Returns the index of the last physical surface in the system.
+/// Returns the step index of the last physical surface visited by
+/// `surface_indices`.
 ///
-/// A physical surface is one that limits the has a finite semi-diameter,
-/// i.e., a Conic or Iris. Object, Image, and Probe surfaces are excluded.
-pub fn last_physical_surface(surfaces: &[Box<dyn Surface>]) -> Option<usize> {
-    surfaces
+/// A physical surface has a finite semi-diameter (Conic or Iris). Object,
+/// Image, and Probe surfaces are excluded. Returns the position within
+/// `surface_indices` (i.e. a step index), not a store index.
+pub(crate) fn last_physical_step(
+    surface_indices: &[usize],
+    surfaces: &[Box<dyn Surface>],
+) -> Option<usize> {
+    surface_indices
         .iter()
-        .rposition(|surf| surf.mask().semi_diameter().is_finite())
+        .rposition(|&i| surfaces[i].mask().semi_diameter().is_finite())
 }
 
 /// Returns the id of a surface in a reversed system.
@@ -1088,6 +1105,10 @@ impl SequentialSubModel for SequentialSubModelBase {
             gaps: &self.gaps[idx],
         }
     }
+
+    fn surface_indices(&self) -> &[usize] {
+        &self.surface_indices
+    }
 }
 
 impl SequentialSubModel for SequentialSubModelSlice<'_> {
@@ -1124,6 +1145,10 @@ impl SequentialSubModel for SequentialSubModelSlice<'_> {
             beam_splitter_arms: &self.beam_splitter_arms[si_range],
             gaps: &self.gaps[idx],
         }
+    }
+
+    fn surface_indices(&self) -> &[usize] {
+        self.surface_indices
     }
 }
 
@@ -1512,8 +1537,8 @@ mod tests {
     }
 
     #[test]
-    fn test_first_physical_surface() {
-        // Object(0), Probe(1), Sphere(2), Sphere(3), Image(4) — first physical is index
+    fn test_first_physical_step() {
+        // Object(0), Probe(1), Sphere(2), Sphere(3), Image(4) — first physical step is
         // 2.
         let surfaces: Vec<Box<dyn Surface>> = vec![
             Box::new(Object::new()),
@@ -1522,14 +1547,15 @@ mod tests {
             Box::new(Sphere::new(1.0, 1.0, BoundaryKind::Refracting)),
             Box::new(Image::new()),
         ];
+        let surface_indices: Vec<usize> = (0..surfaces.len()).collect();
 
-        let result = first_physical_surface(&surfaces);
+        let result = first_physical_step(&surface_indices, &surfaces);
         assert_eq!(result, Some(2));
     }
 
     #[test]
-    fn test_last_physical_surface() {
-        // Object(0), Sphere(1), Sphere(2), Probe(3), Image(4) — last physical is index
+    fn test_last_physical_step() {
+        // Object(0), Sphere(1), Sphere(2), Probe(3), Image(4) — last physical step is
         // 2.
         let surfaces: Vec<Box<dyn Surface>> = vec![
             Box::new(Object::new()),
@@ -1538,8 +1564,9 @@ mod tests {
             Box::new(Probe::new()),
             Box::new(Image::new()),
         ];
+        let surface_indices: Vec<usize> = (0..surfaces.len()).collect();
 
-        let result = last_physical_surface(&surfaces);
+        let result = last_physical_step(&surface_indices, &surfaces);
         assert_eq!(result, Some(2));
     }
 
