@@ -36,9 +36,6 @@ type SurfaceStoreContents = (
 struct SurfaceStore {
     surfaces: Vec<Box<dyn Surface>>,
     placements: Vec<SurfacePlacement>,
-    /// Cursor state at each surface vertex (first-path walk, or at
-    /// introduction time for path-N New surfaces).
-    cursor_placements: Vec<CursorPlacement>,
 }
 
 /// Per-step cursor state recorded along one optical path.
@@ -262,13 +259,15 @@ pub(crate) fn propagate_tangential_vec(
     v_init: Vec3,
     surfaces: &[Box<dyn Surface>],
     placements: &[SurfacePlacement],
+    surface_indices: &[usize],
 ) -> Vec<Vec3> {
     use crate::specs::surfaces::BoundaryKind;
     let mut v = v_init;
-    surfaces
+    surface_indices
         .iter()
-        .zip(placements.iter())
-        .map(|(surf, placement)| {
+        .map(|&idx| {
+            let surf = &surfaces[idx];
+            let placement = &placements[idx];
             let v_incident = v;
             if let BoundaryKind::Reflecting = surf.boundary_kind() {
                 // Normal in global frame derived from the *nominal* orientation
@@ -382,7 +381,6 @@ impl SequentialModel {
             let store = SurfaceStore {
                 surfaces,
                 placements,
-                cursor_placements: cursor_placements.clone(),
             };
             let path = OpticalPath {
                 surface_indices,
@@ -427,7 +425,6 @@ impl SequentialModel {
         let store = SurfaceStore {
             surfaces,
             placements,
-            cursor_placements: cursor_placements.clone(),
         };
         let path = OpticalPath {
             surface_indices,
@@ -499,7 +496,6 @@ impl SequentialModel {
         let store = SurfaceStore {
             surfaces,
             placements,
-            cursor_placements: cursor_placements.clone(),
         };
         let path = OpticalPath {
             surface_indices,
@@ -532,7 +528,6 @@ impl SequentialModel {
 
         let mut store_surfaces: Vec<Box<dyn Surface>> = Vec::new();
         let mut store_placements: Vec<SurfacePlacement> = Vec::new();
-        let mut store_cursor_placements: Vec<CursorPlacement> = Vec::new();
         let mut optical_paths: Vec<OpticalPath> = Vec::new();
 
         for ps in paths {
@@ -610,12 +605,6 @@ impl SequentialModel {
                                  surface, got {surf_kind:?}"
                             ));
                         }
-
-                        store_cursor_placements.push(CursorPlacement {
-                            axis_direction: cursor.forward(),
-                            cursor_position: cursor.pos(),
-                            cursor_rotation_matrix: cursor.rotation_matrix(),
-                        });
 
                         let nominal_rot = spec.rotation().rotation_matrix();
                         let actual_rot = spec.rotation_offset().rotation_matrix() * nominal_rot;
@@ -715,7 +704,6 @@ impl SequentialModel {
         let store = SurfaceStore {
             surfaces: store_surfaces,
             placements: store_placements,
-            cursor_placements: store_cursor_placements,
         };
         Ok(Self {
             store,
@@ -813,19 +801,6 @@ impl SequentialModel {
         &self.paths[path_id].steps
     }
 
-    /// Returns the cursor rotation matrix at each surface in store order.
-    ///
-    /// Recorded at surface introduction time (first-path walk for `New`
-    /// surfaces on path 0; introduction-path walk for later paths). Useful for
-    /// store-indexed lookups that do not iterate a specific optical path.
-    pub fn cursor_rotation_matrices(&self) -> Vec<Mat3x3> {
-        self.store
-            .cursor_placements
-            .iter()
-            .map(|cp| cp.cursor_rotation_matrix)
-            .collect()
-    }
-
     /// Returns all wavelength submodels for path `path_id`.
     pub fn submodels_for_path(&self, path_id: usize) -> &[SequentialSubModelBase] {
         &self.paths[path_id].submodels
@@ -886,23 +861,6 @@ impl SequentialModel {
         &self.wavelengths
     }
 
-    /// Returns the optical axis directions at each surface vertex.
-    pub fn axis_directions(&self) -> Vec<Vec3> {
-        self.store
-            .cursor_placements
-            .iter()
-            .map(|cp| cp.axis_direction)
-            .collect()
-    }
-
-    pub fn cursor_positions(&self) -> Vec<Vec3> {
-        self.store
-            .cursor_placements
-            .iter()
-            .map(|cp| cp.cursor_position)
-            .collect()
-    }
-
     fn gap_specs_to_gaps(gap_specs: &[GapSpec], wavelength: Float) -> Result<Vec<Gap>> {
         let mut gaps = Vec::new();
         for gap_spec in gap_specs.iter() {
@@ -915,21 +873,24 @@ impl SequentialModel {
     /// Returns true if the system is rotationally symmetric about the optical
     /// axis.
     ///
-    /// A system is rotationally symmetric if no physical surface has a tilt
-    /// relative to the optical axis, i.e., the surface-tilt rotation equals
-    /// the cursor rotation at every physical surface.
-    pub fn is_rotationally_symmetric(
-        placements: &[SurfacePlacement],
-        cursor_rotation_matrices: &[Mat3x3],
-    ) -> bool {
-        !placements
-            .iter()
-            .zip(cursor_rotation_matrices.iter())
-            .any(|(p, &crm)| {
+    /// A system is rotationally symmetric if no surface has a tilt relative to
+    /// the cursor approaching it on any path, i.e., the surface-tilt rotation
+    /// equals the cursor rotation at every step across all paths.
+    pub fn is_rotationally_symmetric(&self) -> bool {
+        let placements = &self.store.placements;
+        for path_id in 0..self.path_count() {
+            let steps = self.path_steps(path_id);
+            let indices = self.path_surface_indices(path_id);
+            for (step, &idx) in steps.iter().zip(indices.iter()) {
+                let p = &placements[idx];
                 // R_surf = surface_tilt × cursor = global_to_local · cursor_to_global
-                let r_surf = p.rotation_matrix * crm.transpose();
-                !r_surf.approx_eq(&Mat3x3::identity(), 1e-10)
-            })
+                let r_surf = p.rotation_matrix * step.cursor_rotation_matrix.transpose();
+                if !r_surf.approx_eq(&Mat3x3::identity(), 1e-10) {
+                    return false;
+                }
+            }
+        }
+        true
     }
 
     /// Walks the cursor through the system, building placements and axis
@@ -1494,7 +1455,7 @@ mod tests {
         let model = mirrors_figure_z::sequential_model(air, &wavelengths);
         let surfaces = model.surfaces();
         let placements = model.placements();
-        let crms = model.cursor_rotation_matrices();
+        let path_steps = model.path_steps(0);
         let r = 12.7_f64;
         let expected_u = r * (30.0_f64.to_radians()).cos();
         let tol = 1e-10;
@@ -1505,7 +1466,7 @@ mod tests {
         for &mirror_idx in &[1usize, 2usize] {
             let sd = surfaces[mirror_idx].mask().semi_diameter();
             let placement = &placements[mirror_idx];
-            let crm = crms[mirror_idx];
+            let crm = path_steps[mirror_idx].cursor_rotation_matrix;
             assert!(
                 (placement.projected_semi_diameter(crm, sd, v_u) - expected_u).abs() < tol,
                 "Mirror {mirror_idx} U: expected {expected_u}, got {}",
@@ -1535,7 +1496,13 @@ mod tests {
         let model = mirrors_figure_z::sequential_model(n!(1.0), &[0.5876]);
         let v_init = Vec3::new(0.0, 1.0, 0.0); // phi = 90°
 
-        let vecs = propagate_tangential_vec(v_init, model.surfaces(), model.placements());
+        let surface_indices: Vec<usize> = (0..model.surfaces().len()).collect();
+        let vecs = propagate_tangential_vec(
+            v_init,
+            model.surfaces(),
+            model.placements(),
+            &surface_indices,
+        );
 
         let sqrt3_over_2 = (3.0_f64 / 4.0_f64).sqrt();
 
@@ -1552,27 +1519,49 @@ mod tests {
 
     #[test]
     fn is_rotationally_symmetric() {
-        // A system with identity rotations is rotationally symmetric.
-        let id = Mat3x3::identity();
-        let placements = vec![
-            SurfacePlacement::new(Vec3::new(0.0, 0.0, 0.0), 0.0, id, id),
-            SurfacePlacement::new(Vec3::new(0.0, 0.0, 0.0), 0.0, id, id),
+        // A simple on-axis system (Object → Sphere → Image) is symmetric.
+        use crate::{GapSpec, SurfaceSpec, specs::surfaces::BoundaryKind};
+        let air = n!(1.0);
+        let glass = n!(1.5);
+        let gaps = vec![
+            GapSpec {
+                thickness: f64::INFINITY,
+                refractive_index: air.clone(),
+            },
+            GapSpec {
+                thickness: 5.0,
+                refractive_index: glass,
+            },
+            GapSpec {
+                thickness: 50.0,
+                refractive_index: air,
+            },
         ];
-        let crms = vec![id, id];
-        assert!(SequentialModel::is_rotationally_symmetric(
-            &placements,
-            &crms
-        ));
+        let surfaces = vec![
+            SurfaceSpec::Object,
+            SurfaceSpec::Sphere {
+                semi_diameter: 12.5,
+                radius_of_curvature: 25.8,
+                surf_kind: BoundaryKind::Refracting,
+                rotation: Rotation3D::None,
+                decenter: Vec3::new(0.0, 0.0, 0.0),
+                rotation_offset: Rotation3D::None,
+            },
+            SurfaceSpec::Image {
+                rotation: Rotation3D::None,
+                decenter: Vec3::new(0.0, 0.0, 0.0),
+                rotation_offset: Rotation3D::None,
+            },
+        ];
+        let simple =
+            SequentialModel::from_surface_specs(&gaps, &surfaces, &[0.5876], None).unwrap();
+        assert!(simple.is_rotationally_symmetric());
 
         // A system with tilted surfaces is not rotationally symmetric.
         use crate::examples::mirrors_figure_z;
-        let air = n!(1.0);
-        let wavelengths = [0.5876];
-        let figure_z = mirrors_figure_z::sequential_model(air, &wavelengths);
-        assert!(!SequentialModel::is_rotationally_symmetric(
-            figure_z.placements(),
-            &figure_z.cursor_rotation_matrices(),
-        ));
+        let air2 = n!(1.0);
+        let figure_z = mirrors_figure_z::sequential_model(air2, &[0.5876]);
+        assert!(!figure_z.is_rotationally_symmetric());
     }
 
     #[test]

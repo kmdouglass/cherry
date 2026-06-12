@@ -74,9 +74,10 @@ pub struct PlaneGeometry {
     /// Each inner `Vec` lists [z, transverse] points from the first finite
     /// surface to the image surface for that path.
     pub axis_paths: Vec<Vec<[f64; 2]>>,
-    /// Per-surface local RUF frame in 2D plot coordinates, indexed by surface
-    /// index. `None` for surfaces with an infinite vertex position.
-    pub surface_frames: Vec<Option<SurfaceFrame2D>>,
+    /// Per-path, per-step local RUF frame in 2D plot coordinates.
+    /// `surface_frames[path_id][step_id]` is `None` for steps whose surface
+    /// has an infinite vertex position (e.g. object/image at infinity).
+    pub surface_frames: Vec<Vec<Option<SurfaceFrame2D>>>,
 }
 
 /// Axis-aligned bounding box in the (z, transverse) 2D coordinate system.
@@ -366,52 +367,56 @@ fn build_plane_geometry(
 
     let bounding_box = compute_bounds(&elements, &ray_paths);
 
-    // Use cursor_positions (axis position before any decenter) rather than
+    // Use cursor_position (axis position before any decenter) rather than
     // placement.position (physical vertex) so that group tilts and decenters
     // don't displace the annotation away from the optical axis.
-    let cursor_positions = model.cursor_positions();
-    let cursor_rotation_matrices = model.cursor_rotation_matrices();
-    let surface_frames: Vec<Option<SurfaceFrame2D>> = placements
-        .iter()
-        .zip(cursor_positions.iter())
-        .zip(cursor_rotation_matrices.iter())
-        .map(|((p, cursor_pos), &crm)| {
-            if p.is_infinite() {
-                return None;
-            }
-            let crm_t = crm.transpose();
-            let f = crm_t * Vec3::new(0.0, 0.0, 1.0);
-            let r = crm_t * Vec3::new(1.0, 0.0, 0.0);
-            let u = crm_t * Vec3::new(0.0, 1.0, 0.0);
-            let (vertex_z, vertex_t, f_z, f_t, t_z, t_t, oop_out_of_screen) = match axis {
-                GlobalAxis::Y => (
-                    cursor_pos.z(),
-                    cursor_pos.y(),
-                    f.z(),
-                    f.y(),
-                    u.z(),
-                    u.y(),
-                    r.x() < 0.0,
-                ),
-                GlobalAxis::X => (
-                    cursor_pos.z(),
-                    cursor_pos.x(),
-                    f.z(),
-                    f.x(),
-                    r.z(),
-                    r.x(),
-                    u.y() > 0.0,
-                ),
-            };
-            Some(SurfaceFrame2D {
-                vertex_z,
-                vertex_t,
-                f_z,
-                f_t,
-                t_z,
-                t_t,
-                oop_out_of_screen,
-            })
+    // Frames are per-path and per-step; cursor data is path-specific.
+    let surface_frames: Vec<Vec<Option<SurfaceFrame2D>>> = (0..model.path_count())
+        .map(|path_id| {
+            model
+                .path_steps(path_id)
+                .iter()
+                .zip(model.path_surface_indices(path_id).iter())
+                .map(|(step, &idx)| {
+                    if placements[idx].is_infinite() {
+                        return None;
+                    }
+                    let crm_t = step.cursor_rotation_matrix.transpose();
+                    let cursor_pos = step.cursor_position;
+                    let f = crm_t * Vec3::new(0.0, 0.0, 1.0);
+                    let r = crm_t * Vec3::new(1.0, 0.0, 0.0);
+                    let u = crm_t * Vec3::new(0.0, 1.0, 0.0);
+                    let (vertex_z, vertex_t, f_z, f_t, t_z, t_t, oop_out_of_screen) = match axis {
+                        GlobalAxis::Y => (
+                            cursor_pos.z(),
+                            cursor_pos.y(),
+                            f.z(),
+                            f.y(),
+                            u.z(),
+                            u.y(),
+                            r.x() < 0.0,
+                        ),
+                        GlobalAxis::X => (
+                            cursor_pos.z(),
+                            cursor_pos.x(),
+                            f.z(),
+                            f.x(),
+                            r.z(),
+                            r.x(),
+                            u.y() > 0.0,
+                        ),
+                    };
+                    Some(SurfaceFrame2D {
+                        vertex_z,
+                        vertex_t,
+                        f_z,
+                        f_t,
+                        t_z,
+                        t_t,
+                        oop_out_of_screen,
+                    })
+                })
+                .collect()
         })
         .collect();
 
@@ -931,8 +936,13 @@ mod tests {
         let cs = cross_section_view(&model, None, &components);
         assert_eq!(
             cs.yz.surface_frames.len(),
-            model.surfaces().len(),
-            "surface_frames must have one entry per surface"
+            model.path_count(),
+            "surface_frames outer length must equal path count"
+        );
+        assert_eq!(
+            cs.yz.surface_frames[0].len(),
+            model.path_steps(0).len(),
+            "surface_frames[0] inner length must equal step count for path 0"
         );
     }
 
@@ -947,7 +957,7 @@ mod tests {
         let components = components_view(&model, air).unwrap();
         let cs = cross_section_view(&model, None, &components);
         assert!(
-            cs.yz.surface_frames[0].is_none(),
+            cs.yz.surface_frames[0][0].is_none(),
             "object at infinity must produce a None surface frame"
         );
     }
@@ -963,7 +973,7 @@ mod tests {
 
         // Surface 1 is the sphere. Check directions; don't assert specific z since
         // Cherry places the first refracting surface at z=0.
-        let frame = cs.yz.surface_frames[1]
+        let frame = cs.yz.surface_frames[0][1]
             .as_ref()
             .expect("sphere surface frame must be Some");
         assert!(
@@ -1060,7 +1070,7 @@ mod tests {
 
         // Iris is at index 3, after the 45° fold — its cursor F should point in
         // the transverse direction (f_z ≈ 0, |f_t| ≈ 1).
-        let frame = cs.yz.surface_frames[3]
+        let frame = cs.yz.surface_frames[0][3]
             .as_ref()
             .expect("iris surface frame must be Some");
         assert!(
@@ -1109,7 +1119,7 @@ mod tests {
         let model = straight_sphere_model(Vec3::new(0.0, 2.0, 0.0), Rotation3D::None);
         let components = components_view(&model, n!(1.0)).unwrap();
         let cs = cross_section_view(&model, None, &components);
-        let frame = cs.yz.surface_frames[1]
+        let frame = cs.yz.surface_frames[0][1]
             .as_ref()
             .expect("sphere surface frame must be Some");
         assert!(

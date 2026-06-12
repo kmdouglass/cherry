@@ -233,9 +233,11 @@ impl CrossSectionWindow {
             d.remove::<usize>(hover_id);
             v
         });
+        // surface_frames is path × step; for the hover annotation use path 0
+        // (single-path systems: step == store idx; multipath GUI TBD).
         if self.annotations.show_ruf_axes
             && let Some(idx) = hover_idx
-            && let Some(Some(frame)) = geom.surface_frames.get(idx)
+            && let Some(Some(frame)) = geom.surface_frames.first().and_then(|p| p.get(idx))
         {
             draw_ruf_axes(&painter, frame, &w2s, self.cutting_plane);
         }

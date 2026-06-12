@@ -464,7 +464,6 @@ mod tests {
             id: 1,
             wavelengths: seq.wavelengths().to_vec(),
             surfaces: {
-                let crms = seq.cursor_rotation_matrices();
                 seq.surfaces()
                     .iter()
                     .zip(seq.placements().iter())
@@ -474,7 +473,6 @@ mod tests {
                         label: format!("S{i}"),
                         pos: p.position,
                         rot_mat: p.rotation_matrix,
-                        cursor_rot_mat: crms[i],
                     })
                     .collect()
             },

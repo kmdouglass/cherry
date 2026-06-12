@@ -528,7 +528,6 @@ mod tests {
 
         // Build surface descs manually (mirrors compute.rs logic).
         use crate::{SurfaceKind, gui::result_package::SurfaceDesc};
-        let crms = seq.cursor_rotation_matrices();
         let surfaces: Vec<SurfaceDesc> = seq
             .surfaces()
             .iter()
@@ -550,7 +549,6 @@ mod tests {
                     label: format!("{name} [{i}]"),
                     pos: p.position,
                     rot_mat: p.rotation_matrix,
-                    cursor_rot_mat: crms[i],
                 }
             })
             .collect();

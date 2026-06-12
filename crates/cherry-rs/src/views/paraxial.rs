@@ -15,7 +15,7 @@ use crate::{
     FieldSpec,
     core::{
         Float,
-        math::{linalg::mat2x2::Mat2x2, linalg::mat3x3::Mat3x3, vec3::Vec3},
+        math::{linalg::mat2x2::Mat2x2, vec3::Vec3},
         sequential_model::{
             CursorPlacement, SequentialModel, SequentialSubModel, Step, first_physical_step,
             last_physical_step, propagate_tangential_vec, reversed_surface_id,
@@ -282,13 +282,12 @@ impl ParaxialView {
     ) -> Result<Self> {
         let surfaces = sequential_model.surfaces();
         let placements = sequential_model.placements();
-        let cursor_rotation_matrices = sequential_model.cursor_rotation_matrices();
-        let tangential_vecs: Vec<TangentialVector> =
-            if SequentialModel::is_rotationally_symmetric(placements, &cursor_rotation_matrices) {
-                vec![Vec3::new(0.0, 1.0, 0.0)]
-            } else {
-                unique_tangential_vecs(field_specs)
-            };
+        let tangential_vecs: Vec<TangentialVector> = if sequential_model.is_rotationally_symmetric()
+        {
+            vec![Vec3::new(0.0, 1.0, 0.0)]
+        } else {
+            unique_tangential_vecs(field_specs)
+        };
 
         let mut subviews = Vec::new();
         for path_id in 0..sequential_model.path_count() {
@@ -309,7 +308,6 @@ impl ParaxialView {
                         surface_indices,
                         beam_splitter_arms,
                         path_steps,
-                        cursor_rotation_matrices: &cursor_rotation_matrices,
                         field_specs,
                         stop_surface,
                     };
@@ -465,7 +463,6 @@ struct SubModelData<'a> {
     surface_indices: &'a [usize],
     beam_splitter_arms: &'a [Option<BeamSplitterPathKind>],
     path_steps: &'a [CursorPlacement],
-    cursor_rotation_matrices: &'a [Mat3x3],
     field_specs: &'a [FieldSpec],
     stop_surface: Option<usize>,
 }
@@ -490,10 +487,11 @@ impl ParaxialSubView {
         let surface_indices = data.surface_indices;
         let beam_splitter_arms = data.beam_splitter_arms;
         let path_steps = data.path_steps;
-        let cursor_rotation_matrices = data.cursor_rotation_matrices;
         let field_specs = data.field_specs;
-        // Propagate v through mirror surfaces to get per-surface tangential vectors.
-        let per_surf_v: Vec<TangentialVector> = propagate_tangential_vec(v, surfaces, placements);
+        // Propagate v through this path's mirror surfaces to get per-step tangential
+        // vectors.
+        let per_surf_v: Vec<TangentialVector> =
+            propagate_tangential_vec(v, surfaces, placements, surface_indices);
 
         let pseudo_marginal_ray = Self::calc_pseudo_marginal_ray(
             sequential_sub_model,
@@ -525,7 +523,8 @@ impl ParaxialSubView {
             None => Self::calc_aperture_stop(
                 surfaces,
                 placements,
-                cursor_rotation_matrices,
+                surface_indices,
+                path_steps,
                 &pseudo_marginal_ray,
                 &per_surf_v,
             ),
@@ -541,7 +540,8 @@ impl ParaxialSubView {
         let marginal_ray = Self::calc_marginal_ray(
             surfaces,
             placements,
-            cursor_rotation_matrices,
+            surface_indices,
+            path_steps,
             &pseudo_marginal_ray,
             &aperture_stop,
             &per_surf_v,
@@ -552,7 +552,6 @@ impl ParaxialSubView {
             placements,
             surface_indices,
             beam_splitter_arms,
-            cursor_rotation_matrices,
             path_steps,
             is_obj_space_telecentric,
             &aperture_stop,
@@ -721,14 +720,16 @@ impl ParaxialSubView {
     fn calc_aperture_stop(
         surfaces: &[Box<dyn Surface>],
         placements: &[SurfacePlacement],
-        cursor_rotation_matrices: &[Mat3x3],
+        surface_indices: &[usize],
+        path_steps: &[CursorPlacement],
         pseudo_marginal_ray: &ParaxialRayBundle,
         per_surf_v: &[TangentialVector],
     ) -> usize {
         calc_aperture_stop(
             surfaces,
             placements,
-            cursor_rotation_matrices,
+            surface_indices,
+            path_steps,
             pseudo_marginal_ray,
             per_surf_v,
         )
@@ -855,7 +856,6 @@ impl ParaxialSubView {
         placements: &[SurfacePlacement],
         surface_indices: &[usize],
         beam_splitter_arms: &[Option<BeamSplitterPathKind>],
-        cursor_rotation_matrices: &[Mat3x3],
         path_steps: &[CursorPlacement],
         is_obj_space_telecentric: bool,
         aperture_stop: &usize,
@@ -870,14 +870,15 @@ impl ParaxialSubView {
             });
         }
 
-        // In case the aperture stop is the first surface.
+        // In case the aperture stop is the first surface (step 1).
         if *aperture_stop == 1usize {
-            let crm = cursor_rotation_matrices[1];
+            let store_idx = surface_indices[1];
+            let crm = path_steps[1].cursor_rotation_matrix;
             return Ok(Pupil {
                 location: 0.0,
-                semi_diameter: placements[1].projected_semi_diameter(
+                semi_diameter: placements[store_idx].projected_semi_diameter(
                     crm,
-                    surfaces[1].mask().semi_diameter(),
+                    surfaces[store_idx].mask().semi_diameter(),
                     per_surf_v[1],
                 ),
             });
@@ -1017,7 +1018,8 @@ impl ParaxialSubView {
     fn calc_marginal_ray(
         surfaces: &[Box<dyn Surface>],
         placements: &[SurfacePlacement],
-        cursor_rotation_matrices: &[Mat3x3],
+        surface_indices: &[usize],
+        path_steps: &[CursorPlacement],
         pseudo_marginal_ray: &ParaxialRayBundle,
         aperture_stop: &usize,
         per_surf_v: &[TangentialVector],
@@ -1025,7 +1027,8 @@ impl ParaxialSubView {
         calc_marginal_ray(
             surfaces,
             placements,
-            cursor_rotation_matrices,
+            surface_indices,
+            path_steps,
             pseudo_marginal_ray,
             aperture_stop,
             per_surf_v,
@@ -1299,22 +1302,29 @@ pub(crate) fn calc_pseudo_marginal_ray(
     )
 }
 
-/// Compute the aperture stop surface index using the minimum aperture-ratio
+/// Compute the aperture stop step index using the minimum aperture-ratio
 /// heuristic.
+///
+/// Returns a step index (position within the path's traversal), not a store
+/// index. `per_surf_v` must be step-indexed, as returned by
+/// `propagate_tangential_vec` with the path's `surface_indices`.
 pub(crate) fn calc_aperture_stop(
     surfaces: &[Box<dyn Surface>],
     placements: &[SurfacePlacement],
-    cursor_rotation_matrices: &[Mat3x3],
+    surface_indices: &[usize],
+    path_steps: &[CursorPlacement],
     pseudo_marginal_ray: &ParaxialRayBundle,
     per_surf_v: &[TangentialVector],
 ) -> usize {
-    let ratios: Vec<Float> = surfaces
+    let ratios: Vec<Float> = surface_indices
         .iter()
-        .zip(placements.iter())
-        .zip(cursor_rotation_matrices.iter())
+        .zip(path_steps.iter())
         .zip(pseudo_marginal_ray.iter_surfaces())
         .zip(per_surf_v.iter())
-        .map(|((((s, p), &crm), rays), &v)| {
+        .map(|(((idx, step), rays), &v)| {
+            let s = &surfaces[*idx];
+            let p = &placements[*idx];
+            let crm = step.cursor_rotation_matrix;
             (p.projected_semi_diameter(crm, s.mask().semi_diameter(), v) / rays[0].height).abs()
         })
         .collect();
@@ -1322,21 +1332,27 @@ pub(crate) fn calc_aperture_stop(
 }
 
 /// Scale the pseudo-marginal ray to match the aperture stop semi-diameter.
+///
+/// `aperture_stop` is a step index. `per_surf_v` must be step-indexed, as
+/// returned by `propagate_tangential_vec` with the path's `surface_indices`.
 pub(crate) fn calc_marginal_ray(
     surfaces: &[Box<dyn Surface>],
     placements: &[SurfacePlacement],
-    cursor_rotation_matrices: &[Mat3x3],
+    surface_indices: &[usize],
+    path_steps: &[CursorPlacement],
     pseudo_marginal_ray: &ParaxialRayBundle,
     aperture_stop: &usize,
     per_surf_v: &[TangentialVector],
 ) -> ParaxialRayBundle {
-    let ratios: Vec<Float> = surfaces
+    let ratios: Vec<Float> = surface_indices
         .iter()
-        .zip(placements.iter())
-        .zip(cursor_rotation_matrices.iter())
+        .zip(path_steps.iter())
         .zip(pseudo_marginal_ray.iter_surfaces())
         .zip(per_surf_v.iter())
-        .map(|((((s, p), &crm), rays), &v)| {
+        .map(|(((idx, step), rays), &v)| {
+            let s = &surfaces[*idx];
+            let p = &placements[*idx];
+            let crm = step.cursor_rotation_matrix;
             p.projected_semi_diameter(crm, s.mask().semi_diameter(), v) / rays[0].height
         })
         .collect();
@@ -1370,13 +1386,12 @@ pub(crate) fn marginal_ray_bundle(
         .ok_or_else(|| anyhow!("wavelength_id {wavelength_id} out of range"))?;
     let surfaces = model.surfaces();
     let placements = model.placements();
-    let cursor_rotation_matrices = model.cursor_rotation_matrices();
     let path_steps = model.path_steps(0);
     let surface_indices = model.path_surface_indices(0);
     let beam_splitter_arms = model.path_beam_splitter_arms(0);
 
     let v = Vec3::new(0.0, 1.0, 0.0);
-    let per_surf_v = propagate_tangential_vec(v, surfaces, placements);
+    let per_surf_v = propagate_tangential_vec(v, surfaces, placements, surface_indices);
     let pseudo = calc_pseudo_marginal_ray(
         submodel,
         surfaces,
@@ -1390,7 +1405,8 @@ pub(crate) fn marginal_ray_bundle(
         None => calc_aperture_stop(
             surfaces,
             placements,
-            &cursor_rotation_matrices,
+            surface_indices,
+            path_steps,
             &pseudo,
             &per_surf_v,
         ),
@@ -1398,7 +1414,8 @@ pub(crate) fn marginal_ray_bundle(
     Ok(calc_marginal_ray(
         surfaces,
         placements,
-        &cursor_rotation_matrices,
+        surface_indices,
+        path_steps,
         &pseudo,
         &stop,
         &per_surf_v,
@@ -1527,7 +1544,6 @@ mod test {
             },
         ];
 
-        let crms = sequential_model.cursor_rotation_matrices();
         let data = SubModelData {
             sequential_sub_model: seq_sub_model as &dyn SequentialSubModel,
             surfaces: sequential_model.surfaces(),
@@ -1535,7 +1551,6 @@ mod test {
             surface_indices: sequential_model.path_surface_indices(0),
             beam_splitter_arms: sequential_model.path_beam_splitter_arms(0),
             path_steps: sequential_model.path_steps(0),
-            cursor_rotation_matrices: &crms,
             field_specs: &field_specs,
             stop_surface: None,
         };
@@ -1727,7 +1742,6 @@ mod test {
         let seq_sub_model = sequential_model.submodel(0).expect("Submodel not found.");
         let field_specs = vec![crate::FieldSpec::PointSource { x: 0.0, y: 0.0 }];
 
-        let crms = sequential_model.cursor_rotation_matrices();
         let data = SubModelData {
             sequential_sub_model: seq_sub_model as &dyn SequentialSubModel,
             surfaces: sequential_model.surfaces(),
@@ -1735,7 +1749,6 @@ mod test {
             surface_indices: sequential_model.path_surface_indices(0),
             beam_splitter_arms: sequential_model.path_beam_splitter_arms(0),
             path_steps: sequential_model.path_steps(0),
-            cursor_rotation_matrices: &crms,
             field_specs: &field_specs,
             stop_surface: None,
         };
@@ -1837,5 +1850,107 @@ mod test {
 
         assert!(pv.get_for_path(0, 0, 0).is_some(), "path 0 subview missing");
         assert!(pv.get_for_path(1, 0, 0).is_some(), "path 1 subview missing");
+    }
+
+    /// The aperture stop for each path must be computed from that path's own
+    /// surfaces, not the store-indexed surface list. This test uses two paths
+    /// with different irises in each arm: path 0 (Iris SD=5) and path 1
+    /// (Iris SD=15), with a shared BS (SD=10). The BS is the most constraining
+    /// surface on path 1, so its aperture stop must be at step 1 (BS), not
+    /// step 2.
+    #[test]
+    fn paraxial_aperture_stop_uses_path_specific_surfaces() {
+        use std::rc::Rc;
+
+        use crate::{
+            BeamSplitterPathKind, EulerAngles, GapSpec, PathSpec, PathSurfaceRef, Rotation3D,
+            SurfaceSpec, Vec3, core::sequential_model::builder::SequentialModelBuilder,
+            specs::gaps::ConstantRefractiveIndex,
+        };
+
+        let n_air = Rc::new(ConstantRefractiveIndex::new(1.0, 0.0));
+        let bs_rotation =
+            Rotation3D::IntrinsicPassiveRUF(EulerAngles((-45_f64 as Float).to_radians(), 0.0, 0.0));
+        let gap_inf = || GapSpec {
+            thickness: Float::INFINITY,
+            refractive_index: n_air.clone(),
+        };
+        let gap_50 = || GapSpec {
+            thickness: 50.0,
+            refractive_index: n_air.clone(),
+        };
+        let img = || SurfaceSpec::Image {
+            rotation: Rotation3D::None,
+            decenter: Vec3::new(0.0, 0.0, 0.0),
+            rotation_offset: Rotation3D::None,
+        };
+        let iris = |sd: Float| SurfaceSpec::Iris {
+            semi_diameter: sd,
+            rotation: Rotation3D::None,
+            decenter: Vec3::new(0.0, 0.0, 0.0),
+            rotation_offset: Rotation3D::None,
+        };
+
+        // Path 0: Object → BS(SD=10) → Iris1(SD=5) → Image_0
+        // Store: Object(0), BS(1), Iris1(2), Image_0(3)
+        let path_t = PathSpec {
+            surface_refs: vec![
+                PathSurfaceRef::New(SurfaceSpec::Object),
+                PathSurfaceRef::New(SurfaceSpec::BeamSplitter {
+                    semi_diameter: 10.0,
+                    rotation: bs_rotation,
+                    decenter: Vec3::new(0.0, 0.0, 0.0),
+                    rotation_offset: Rotation3D::None,
+                }),
+                PathSurfaceRef::New(iris(5.0)),
+                PathSurfaceRef::New(img()),
+            ],
+            gaps: vec![gap_inf(), gap_50(), gap_50()],
+            beam_splitter_arms: vec![BeamSplitterPathKind::Transmitting],
+        };
+
+        // Path 1: Object(Shared) → BS(Shared) → Iris2(SD=15) → Image_1
+        // Store: ..., Iris2(4), Image_1(5)
+        let path_r = PathSpec {
+            surface_refs: vec![
+                PathSurfaceRef::Shared(0),
+                PathSurfaceRef::Shared(1),
+                PathSurfaceRef::New(iris(15.0)),
+                PathSurfaceRef::New(img()),
+            ],
+            gaps: vec![gap_inf(), gap_50(), gap_50()],
+            beam_splitter_arms: vec![BeamSplitterPathKind::Reflecting],
+        };
+
+        let model = SequentialModelBuilder::new()
+            .paths(vec![path_t, path_r])
+            .wavelengths(vec![0.5876e-3])
+            .build()
+            .unwrap()
+            .model;
+
+        let field = vec![FieldSpec::Angle {
+            chi: 0.0,
+            phi: 90.0,
+        }];
+        let pv = ParaxialView::new(&model, &field, false).unwrap();
+
+        // Path 0: BS(SD=10) at step 1, Iris1(SD=5) at step 2. Iris1 is the stop.
+        let path0 = pv.get_for_path(0, 0, 0).expect("path 0 subview");
+        assert_eq!(
+            *path0.aperture_stop(),
+            2,
+            "path 0 stop should be Iris1 (step 2)"
+        );
+
+        // Path 1: BS(SD=10) at step 1, Iris2(SD=15) at step 2. BS is the stop.
+        // Bug: if calc_aperture_stop uses store-indexed surfaces, it sees Iris1
+        // (SD=5) at step 2 position and incorrectly identifies step 2 as the stop.
+        let path1 = pv.get_for_path(1, 0, 0).expect("path 1 subview");
+        assert_eq!(
+            *path1.aperture_stop(),
+            1,
+            "path 1 stop should be BS (step 1)"
+        );
     }
 }

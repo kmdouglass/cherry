@@ -297,7 +297,6 @@ fn apply_group_transforms(
         Err(_) => return Ok(()), // nominal model failed; skip transforms silently
     };
     let placements = nominal.placements();
-    let crms = nominal.cursor_rotation_matrices();
 
     // Derive the component map so we can map component_first_surfs → surf_idxs.
     let components = components_view(&nominal, background).unwrap_or_default();
@@ -328,9 +327,10 @@ fn apply_group_transforms(
         // The first surface in the group is the pivot / coordinate-frame origin.
         let s1 = *all_surfs.first().unwrap();
         let p = placements[s1].position; // pivot vertex, global frame
-        let c_s1 = crms[s1]; // passive global→cursor at s1
+        let c_s1 = placements[s1].rotation_matrix; // passive global→surface local at s1
 
-        // Convert group rotation (degrees, cursor frame at s1) to passive matrix.
+        // Convert group rotation (degrees, surface-local frame at s1) to passive
+        // matrix.
         let [theta_deg, psi_deg, phi_deg] = group.rotation;
         let r_cursor_passive = Rotation3D::IntrinsicPassiveRUF(EulerAngles(
             theta_deg.to_radians(),
@@ -340,11 +340,12 @@ fn apply_group_transforms(
         .rotation_matrix();
 
         // R_group: passive rotation in global frame.
-        // R_group = C_{s1}^T · R_cursor_passive · C_{s1}
+        // R_group = C_{s1}^T · R_local_passive · C_{s1}
         let c_s1_t = c_s1.transpose();
         let r_group = c_s1_t * r_cursor_passive * c_s1;
 
-        // d_global: group decenter converted from cursor frame of s1 to global frame.
+        // d_global: group decenter converted from surface-local frame of s1 to global
+        // frame.
         let [dr, du, df] = group.decenter;
         let d_user = Vec3::new(dr, du, df);
         let d_global = c_s1_t * d_user;
@@ -354,16 +355,16 @@ fn apply_group_transforms(
                 continue;
             }
             let v_i = placements[i].position; // nominal vertex, global frame
-            let c_i = crms[i];
+            let c_i = placements[i].rotation_matrix;
 
             // Rotate about pivot (active = r_group^T), then translate.
             let rotated = r_group.transpose() * (v_i - p);
             let v_i_prime = p + rotated + d_global;
 
-            // Per-surface decenter in cursor frame i.
+            // Per-surface decenter in surface-local frame i.
             let decenter_i = c_i * (v_i_prime - v_i);
 
-            // Per-surface rotation_offset in cursor frame i (passive).
+            // Per-surface rotation_offset in surface-local frame i (passive).
             let rot_off_mat = c_i * r_group * c_i.transpose();
             let rotation_offset_i = mat3x3_to_rotation3d(rot_off_mat);
 
