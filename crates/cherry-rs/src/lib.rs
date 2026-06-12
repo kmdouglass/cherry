@@ -147,10 +147,10 @@ pub use core::{
     math::vec3::Vec3,
     ray::Ray,
     sequential_model::{
-        SequentialModel, SequentialSubModel, Step,
+        CursorPlacement, SequentialModel, SequentialSubModel, Step,
         builder::{BuildResult, SequentialModelBuilder},
-        placement::Placement,
         solves::{FNumberSolve, MarginalRaySolve, Solve, SolveKind},
+        surface_placement::SurfacePlacement,
     },
     surfaces::{BeamSplitter, Conic, Image, Iris, Object, Probe, Sphere, Surface, SurfaceKind},
 };

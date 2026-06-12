@@ -15,10 +15,11 @@ use crate::{
     FieldSpec,
     core::{
         Float,
-        math::{linalg::mat2x2::Mat2x2, vec3::Vec3},
+        math::{linalg::mat2x2::Mat2x2, linalg::mat3x3::Mat3x3, vec3::Vec3},
         sequential_model::{
-            SequentialModel, SequentialSubModel, Step, first_physical_step, last_physical_step,
-            placement::Placement, propagate_tangential_vec, reversed_surface_id,
+            CursorPlacement, SequentialModel, SequentialSubModel, Step, first_physical_step,
+            last_physical_step, propagate_tangential_vec, reversed_surface_id,
+            surface_placement::SurfacePlacement,
         },
         surfaces::Surface,
     },
@@ -278,23 +279,18 @@ impl ParaxialView {
     ) -> Result<Self> {
         let surfaces = sequential_model.surfaces();
         let placements = sequential_model.placements();
+        let cursor_rotation_matrices = sequential_model.cursor_rotation_matrices();
         let tangential_vecs: Vec<TangentialVector> =
-            if SequentialModel::is_rotationally_symmetric(placements) {
+            if SequentialModel::is_rotationally_symmetric(placements, &cursor_rotation_matrices) {
                 vec![Vec3::new(0.0, 1.0, 0.0)]
             } else {
                 unique_tangential_vecs(field_specs)
             };
 
-        // NOTE: `propagate_tangential_vec` and `calc_aperture_stop` still
-        // iterate over the full surface store rather than per-path step slices.
-        // For any model where all physical surfaces share the same step and store
-        // index across paths (e.g. a beam-splitter model where only the image
-        // planes differ), the results are correct. A future refactor should pass
-        // step-indexed surface/placement slices to SubModelData for full
-        // generality. See §2.5 of the multipath views design doc.
         let mut subviews = Vec::new();
         for path_id in 0..sequential_model.path_count() {
             let stop_surface = sequential_model.stop_surface_for_path(path_id);
+            let path_steps = sequential_model.path_steps(path_id);
             for (wav_idx, submodel) in sequential_model
                 .submodels_for_path(path_id)
                 .iter()
@@ -305,6 +301,8 @@ impl ParaxialView {
                         sequential_sub_model: submodel as &dyn SequentialSubModel,
                         surfaces,
                         placements,
+                        path_steps,
+                        cursor_rotation_matrices: &cursor_rotation_matrices,
                         field_specs,
                         stop_surface,
                     };
@@ -456,7 +454,9 @@ impl ParaxialView {
 struct SubModelData<'a> {
     sequential_sub_model: &'a dyn SequentialSubModel,
     surfaces: &'a [Box<dyn Surface>],
-    placements: &'a [Placement],
+    placements: &'a [SurfacePlacement],
+    path_steps: &'a [CursorPlacement],
+    cursor_rotation_matrices: &'a [Mat3x3],
     field_specs: &'a [FieldSpec],
     stop_surface: Option<usize>,
 }
@@ -478,21 +478,32 @@ impl ParaxialSubView {
         let sequential_sub_model = data.sequential_sub_model;
         let surfaces = data.surfaces;
         let placements = data.placements;
+        let path_steps = data.path_steps;
+        let cursor_rotation_matrices = data.cursor_rotation_matrices;
         let field_specs = data.field_specs;
         // Propagate v through mirror surfaces to get per-surface tangential vectors.
         let per_surf_v: Vec<TangentialVector> = propagate_tangential_vec(v, surfaces, placements);
 
         let pseudo_marginal_ray =
-            Self::calc_pseudo_marginal_ray(sequential_sub_model, surfaces, placements)?;
-        let parallel_ray = Self::calc_parallel_ray(sequential_sub_model, surfaces, placements)?;
-        let reverse_parallel_ray =
-            Self::calc_reverse_parallel_ray(sequential_sub_model, surfaces, placements)?;
+            Self::calc_pseudo_marginal_ray(sequential_sub_model, surfaces, placements, path_steps)?;
+        let parallel_ray =
+            Self::calc_parallel_ray(sequential_sub_model, surfaces, placements, path_steps)?;
+        let reverse_parallel_ray = Self::calc_reverse_parallel_ray(
+            sequential_sub_model,
+            surfaces,
+            placements,
+            path_steps,
+        )?;
 
         let aperture_stop = match data.stop_surface {
             Some(i) => i,
-            None => {
-                Self::calc_aperture_stop(surfaces, placements, &pseudo_marginal_ray, &per_surf_v)
-            }
+            None => Self::calc_aperture_stop(
+                surfaces,
+                placements,
+                cursor_rotation_matrices,
+                &pseudo_marginal_ray,
+                &per_surf_v,
+            ),
         };
         let back_focal_distance =
             Self::calc_back_focal_distance(sequential_sub_model, surfaces, &parallel_ray)?;
@@ -501,6 +512,7 @@ impl ParaxialSubView {
         let marginal_ray = Self::calc_marginal_ray(
             surfaces,
             placements,
+            cursor_rotation_matrices,
             &pseudo_marginal_ray,
             &aperture_stop,
             &per_surf_v,
@@ -509,6 +521,8 @@ impl ParaxialSubView {
             sequential_sub_model,
             surfaces,
             placements,
+            cursor_rotation_matrices,
+            path_steps,
             is_obj_space_telecentric,
             &aperture_stop,
             &per_surf_v,
@@ -518,6 +532,7 @@ impl ParaxialSubView {
             sequential_sub_model,
             surfaces,
             placements,
+            path_steps,
             &aperture_stop,
             &marginal_ray,
         )?;
@@ -532,6 +547,7 @@ impl ParaxialSubView {
             surfaces,
             sequential_sub_model,
             placements,
+            path_steps,
             v,
             field_specs,
             &entrance_pupil,
@@ -669,11 +685,18 @@ impl ParaxialSubView {
 
     fn calc_aperture_stop(
         surfaces: &[Box<dyn Surface>],
-        placements: &[Placement],
+        placements: &[SurfacePlacement],
+        cursor_rotation_matrices: &[Mat3x3],
         pseudo_marginal_ray: &ParaxialRayBundle,
         per_surf_v: &[TangentialVector],
     ) -> usize {
-        calc_aperture_stop(surfaces, placements, pseudo_marginal_ray, per_surf_v)
+        calc_aperture_stop(
+            surfaces,
+            placements,
+            cursor_rotation_matrices,
+            pseudo_marginal_ray,
+            per_surf_v,
+        )
     }
 
     fn calc_back_focal_distance(
@@ -722,7 +745,8 @@ impl ParaxialSubView {
     fn calc_chief_ray(
         surfaces: &[Box<dyn Surface>],
         sequential_sub_model: &dyn SequentialSubModel,
-        placements: &[Placement],
+        placements: &[SurfacePlacement],
+        path_steps: &[CursorPlacement],
         v: TangentialVector,
         field_specs: &[FieldSpec],
         entrance_pupil: &Pupil,
@@ -763,6 +787,7 @@ impl ParaxialSubView {
             sequential_sub_model,
             surfaces,
             placements,
+            path_steps,
             false,
         )
     }
@@ -787,7 +812,9 @@ impl ParaxialSubView {
     fn calc_entrance_pupil(
         sequential_sub_model: &dyn SequentialSubModel,
         surfaces: &[Box<dyn Surface>],
-        placements: &[Placement],
+        placements: &[SurfacePlacement],
+        cursor_rotation_matrices: &[Mat3x3],
+        path_steps: &[CursorPlacement],
         is_obj_space_telecentric: bool,
         aperture_stop: &usize,
         per_surf_v: &[TangentialVector],
@@ -803,10 +830,14 @@ impl ParaxialSubView {
 
         // In case the aperture stop is the first surface.
         if *aperture_stop == 1usize {
+            let crm = cursor_rotation_matrices[1];
             return Ok(Pupil {
                 location: 0.0,
-                semi_diameter: placements[1]
-                    .projected_semi_diameter(surfaces[1].mask().semi_diameter(), per_surf_v[1]),
+                semi_diameter: placements[1].projected_semi_diameter(
+                    crm,
+                    surfaces[1].mask().semi_diameter(),
+                    per_surf_v[1],
+                ),
             });
         }
 
@@ -821,6 +852,7 @@ impl ParaxialSubView {
             &sequential_sub_model.slice(0..*aperture_stop),
             surfaces,
             placements,
+            path_steps,
             true,
         )?;
         let location = axis_intercepts(results.last_surface().unwrap())?[0];
@@ -848,7 +880,8 @@ impl ParaxialSubView {
     fn calc_exit_pupil(
         sequential_sub_model: &dyn SequentialSubModel,
         surfaces: &[Box<dyn Surface>],
-        placements: &[Placement],
+        placements: &[SurfacePlacement],
+        path_steps: &[CursorPlacement],
         aperture_stop: &usize,
         marginal_ray: &ParaxialRayBundle,
     ) -> Result<Pupil> {
@@ -874,6 +907,7 @@ impl ParaxialSubView {
             &sequential_sub_model.slice(*aperture_stop..sequential_sub_model.len()),
             surfaces,
             placements,
+            path_steps,
             false,
         )?;
 
@@ -930,7 +964,8 @@ impl ParaxialSubView {
 
     fn calc_marginal_ray(
         surfaces: &[Box<dyn Surface>],
-        placements: &[Placement],
+        placements: &[SurfacePlacement],
+        cursor_rotation_matrices: &[Mat3x3],
         pseudo_marginal_ray: &ParaxialRayBundle,
         aperture_stop: &usize,
         per_surf_v: &[TangentialVector],
@@ -938,6 +973,7 @@ impl ParaxialSubView {
         calc_marginal_ray(
             surfaces,
             placements,
+            cursor_rotation_matrices,
             pseudo_marginal_ray,
             aperture_stop,
             per_surf_v,
@@ -948,21 +984,29 @@ impl ParaxialSubView {
     fn calc_parallel_ray(
         sequential_sub_model: &dyn SequentialSubModel,
         surfaces: &[Box<dyn Surface>],
-        placements: &[Placement],
+        placements: &[SurfacePlacement],
+        path_steps: &[CursorPlacement],
     ) -> Result<ParaxialRayBundle> {
         let ray = vec![ParaxialRay {
             height: 1.0,
             angle: 0.0,
         }];
 
-        Self::trace(ray, sequential_sub_model, surfaces, placements, false)
+        Self::trace(
+            ray,
+            sequential_sub_model,
+            surfaces,
+            placements,
+            path_steps,
+            false,
+        )
     }
 
     /// Compute the paraxial image plane.
     fn calc_paraxial_image_plane(
         sequential_sub_model: &dyn SequentialSubModel,
         surfaces: &[Box<dyn Surface>],
-        placements: &[Placement],
+        placements: &[SurfacePlacement],
         marginal_ray: &ParaxialRayBundle,
         chief_ray: &ParaxialRayBundle,
     ) -> Result<ImagePlane> {
@@ -994,30 +1038,40 @@ impl ParaxialSubView {
     fn calc_pseudo_marginal_ray(
         sequential_sub_model: &dyn SequentialSubModel,
         surfaces: &[Box<dyn Surface>],
-        placements: &[Placement],
+        placements: &[SurfacePlacement],
+        path_steps: &[CursorPlacement],
     ) -> Result<ParaxialRayBundle> {
-        calc_pseudo_marginal_ray(sequential_sub_model, surfaces, placements)
+        calc_pseudo_marginal_ray(sequential_sub_model, surfaces, placements, path_steps)
     }
 
     /// Compute the reverse parallel ray.
     fn calc_reverse_parallel_ray(
         sequential_sub_model: &dyn SequentialSubModel,
         surfaces: &[Box<dyn Surface>],
-        placements: &[Placement],
+        placements: &[SurfacePlacement],
+        path_steps: &[CursorPlacement],
     ) -> Result<ParaxialRayBundle> {
         let ray = vec![ParaxialRay {
             height: 1.0,
             angle: 0.0,
         }];
 
-        Self::trace(ray, sequential_sub_model, surfaces, placements, true)
+        Self::trace(
+            ray,
+            sequential_sub_model,
+            surfaces,
+            placements,
+            path_steps,
+            true,
+        )
     }
 
     /// Compute the ray transfer matrix for each gap/surface pair.
     fn rtms(
         sequential_sub_model: &dyn SequentialSubModel,
         surfaces: &[Box<dyn Surface>],
-        placements: &[Placement],
+        placements: &[SurfacePlacement],
+        path_steps: &[CursorPlacement],
         reverse: bool,
     ) -> Result<Vec<RayTransferMatrix>> {
         let mut txs: Vec<RayTransferMatrix> = Vec::new();
@@ -1025,11 +1079,11 @@ impl ParaxialSubView {
         let mut reverse_iter;
         let steps: &mut dyn Iterator<Item = Step> = if reverse {
             reverse_iter = sequential_sub_model
-                .try_iter(surfaces, placements)?
+                .try_iter(surfaces, placements, path_steps)?
                 .try_reverse()?;
             &mut reverse_iter
         } else {
-            forward_iter = sequential_sub_model.try_iter(surfaces, placements)?;
+            forward_iter = sequential_sub_model.try_iter(surfaces, placements, path_steps)?;
             &mut forward_iter
         };
         for Step {
@@ -1069,10 +1123,17 @@ impl ParaxialSubView {
         initial_rays: Vec<ParaxialRay>,
         sequential_sub_model: &dyn SequentialSubModel,
         surfaces: &[Box<dyn Surface>],
-        placements: &[Placement],
+        placements: &[SurfacePlacement],
+        path_steps: &[CursorPlacement],
         reverse: bool,
     ) -> Result<ParaxialRayBundle> {
-        let txs = Self::rtms(sequential_sub_model, surfaces, placements, reverse)?;
+        let txs = Self::rtms(
+            sequential_sub_model,
+            surfaces,
+            placements,
+            path_steps,
+            reverse,
+        )?;
         let num_surfaces = txs.len() + 1;
         let num_rays = initial_rays.len();
         let mut flat: Vec<ParaxialRay> = Vec::with_capacity(num_surfaces * num_rays);
@@ -1123,7 +1184,8 @@ fn surface_to_rtm(
 pub(crate) fn calc_pseudo_marginal_ray(
     sequential_sub_model: &dyn SequentialSubModel,
     surfaces: &[Box<dyn Surface>],
-    placements: &[Placement],
+    placements: &[SurfacePlacement],
+    path_steps: &[CursorPlacement],
 ) -> Result<ParaxialRayBundle> {
     let ray = if sequential_sub_model.is_obj_at_inf() {
         vec![ParaxialRay {
@@ -1136,24 +1198,33 @@ pub(crate) fn calc_pseudo_marginal_ray(
             angle: 1.0,
         }]
     };
-    ParaxialSubView::trace(ray, sequential_sub_model, surfaces, placements, false)
+    ParaxialSubView::trace(
+        ray,
+        sequential_sub_model,
+        surfaces,
+        placements,
+        path_steps,
+        false,
+    )
 }
 
 /// Compute the aperture stop surface index using the minimum aperture-ratio
 /// heuristic.
 pub(crate) fn calc_aperture_stop(
     surfaces: &[Box<dyn Surface>],
-    placements: &[Placement],
+    placements: &[SurfacePlacement],
+    cursor_rotation_matrices: &[Mat3x3],
     pseudo_marginal_ray: &ParaxialRayBundle,
     per_surf_v: &[TangentialVector],
 ) -> usize {
     let ratios: Vec<Float> = surfaces
         .iter()
         .zip(placements.iter())
+        .zip(cursor_rotation_matrices.iter())
         .zip(pseudo_marginal_ray.iter_surfaces())
         .zip(per_surf_v.iter())
-        .map(|(((s, p), rays), &v)| {
-            (p.projected_semi_diameter(s.mask().semi_diameter(), v) / rays[0].height).abs()
+        .map(|((((s, p), &crm), rays), &v)| {
+            (p.projected_semi_diameter(crm, s.mask().semi_diameter(), v) / rays[0].height).abs()
         })
         .collect();
     argmin(&ratios[1..ratios.len() - 1]) + 1
@@ -1162,7 +1233,8 @@ pub(crate) fn calc_aperture_stop(
 /// Scale the pseudo-marginal ray to match the aperture stop semi-diameter.
 pub(crate) fn calc_marginal_ray(
     surfaces: &[Box<dyn Surface>],
-    placements: &[Placement],
+    placements: &[SurfacePlacement],
+    cursor_rotation_matrices: &[Mat3x3],
     pseudo_marginal_ray: &ParaxialRayBundle,
     aperture_stop: &usize,
     per_surf_v: &[TangentialVector],
@@ -1170,10 +1242,11 @@ pub(crate) fn calc_marginal_ray(
     let ratios: Vec<Float> = surfaces
         .iter()
         .zip(placements.iter())
+        .zip(cursor_rotation_matrices.iter())
         .zip(pseudo_marginal_ray.iter_surfaces())
         .zip(per_surf_v.iter())
-        .map(|(((s, p), rays), &v)| {
-            p.projected_semi_diameter(s.mask().semi_diameter(), v) / rays[0].height
+        .map(|((((s, p), &crm), rays), &v)| {
+            p.projected_semi_diameter(crm, s.mask().semi_diameter(), v) / rays[0].height
         })
         .collect();
     let scale_factor = ratios[*aperture_stop];
@@ -1206,17 +1279,26 @@ pub(crate) fn marginal_ray_bundle(
         .ok_or_else(|| anyhow!("wavelength_id {wavelength_id} out of range"))?;
     let surfaces = model.surfaces();
     let placements = model.placements();
+    let cursor_rotation_matrices = model.cursor_rotation_matrices();
+    let path_steps = model.path_steps(0);
 
     let v = Vec3::new(0.0, 1.0, 0.0);
     let per_surf_v = propagate_tangential_vec(v, surfaces, placements);
-    let pseudo = calc_pseudo_marginal_ray(submodel, surfaces, placements)?;
+    let pseudo = calc_pseudo_marginal_ray(submodel, surfaces, placements, path_steps)?;
     let stop = match model.stop_surface() {
         Some(i) => i,
-        None => calc_aperture_stop(surfaces, placements, &pseudo, &per_surf_v),
+        None => calc_aperture_stop(
+            surfaces,
+            placements,
+            &cursor_rotation_matrices,
+            &pseudo,
+            &per_surf_v,
+        ),
     };
     Ok(calc_marginal_ray(
         surfaces,
         placements,
+        &cursor_rotation_matrices,
         &pseudo,
         &stop,
         &per_surf_v,
@@ -1345,10 +1427,13 @@ mod test {
             },
         ];
 
+        let crms = sequential_model.cursor_rotation_matrices();
         let data = SubModelData {
             sequential_sub_model: seq_sub_model as &dyn SequentialSubModel,
             surfaces: sequential_model.surfaces(),
             placements: sequential_model.placements(),
+            path_steps: sequential_model.path_steps(0),
+            cursor_rotation_matrices: &crms,
             field_specs: &field_specs,
             stop_surface: None,
         };
@@ -1424,6 +1509,7 @@ mod test {
             seq_sub_model,
             sequential_model.surfaces(),
             sequential_model.placements(),
+            sequential_model.path_steps(0),
         )
         .unwrap();
 
@@ -1454,6 +1540,7 @@ mod test {
             seq_sub_model,
             sequential_model.surfaces(),
             sequential_model.placements(),
+            sequential_model.path_steps(0),
         )
         .unwrap();
 
@@ -1534,10 +1621,13 @@ mod test {
         let seq_sub_model = sequential_model.submodel(0).expect("Submodel not found.");
         let field_specs = vec![crate::FieldSpec::PointSource { x: 0.0, y: 0.0 }];
 
+        let crms = sequential_model.cursor_rotation_matrices();
         let data = SubModelData {
             sequential_sub_model: seq_sub_model as &dyn SequentialSubModel,
             surfaces: sequential_model.surfaces(),
             placements: sequential_model.placements(),
+            path_steps: sequential_model.path_steps(0),
+            cursor_rotation_matrices: &crms,
             field_specs: &field_specs,
             stop_surface: None,
         };

@@ -13,7 +13,10 @@ use crate::{
         Float, PI,
         math::vec3::Vec3,
         ray::Ray,
-        sequential_model::{SequentialModel, SequentialSubModel, placement::Placement},
+        sequential_model::{
+            CursorPlacement, SequentialModel, SequentialSubModel,
+            surface_placement::SurfacePlacement,
+        },
         surfaces::Surface,
     },
     specs::{
@@ -135,6 +138,7 @@ pub fn trace_ray_bundle(
                     sequential_submodel,
                     sequential_model.surfaces(),
                     sequential_model.placements(),
+                    sequential_model.path_steps(0),
                     aperture_spec,
                     &field_specs[field_id],
                     paraxial_subview,
@@ -200,11 +204,13 @@ pub fn ray_trace_3d_view(
                 let field_spec = &field_specs[field_id];
                 let surfaces = sequential_model.surfaces();
                 let placements = sequential_model.placements();
+                let path_steps = sequential_model.path_steps(path_id);
 
                 let chief_ray = ray_trace_submodel(
                     sequential_submodel,
                     surfaces,
                     placements,
+                    path_steps,
                     aperture_spec,
                     field_spec,
                     paraxial_subview,
@@ -214,6 +220,7 @@ pub fn ray_trace_3d_view(
                     sequential_submodel,
                     surfaces,
                     placements,
+                    path_steps,
                     aperture_spec,
                     field_spec,
                     paraxial_subview,
@@ -225,6 +232,7 @@ pub fn ray_trace_3d_view(
                     sequential_submodel,
                     surfaces,
                     placements,
+                    path_steps,
                     aperture_spec,
                     field_spec,
                     paraxial_subview,
@@ -236,6 +244,7 @@ pub fn ray_trace_3d_view(
                     sequential_submodel,
                     surfaces,
                     placements,
+                    path_steps,
                     aperture_spec,
                     field_spec,
                     paraxial_subview,
@@ -375,7 +384,8 @@ impl TraceResults {
 fn ray_trace_submodel(
     sequential_submodel: &impl SequentialSubModel,
     surfaces: &[Box<dyn Surface>],
-    placements: &[Placement],
+    placements: &[SurfacePlacement],
+    path_steps: &[CursorPlacement],
     aperture_spec: &ApertureSpec,
     field_spec: &FieldSpec,
     paraxial_subview: &ParaxialSubView,
@@ -389,7 +399,8 @@ fn ray_trace_submodel(
         pupil_sampling,
     )?;
 
-    let mut sequential_sub_model_iter = sequential_submodel.try_iter(surfaces, placements)?;
+    let mut sequential_sub_model_iter =
+        sequential_submodel.try_iter(surfaces, placements, path_steps)?;
     Ok(trace(&mut sequential_sub_model_iter, rays))
 }
 
@@ -404,7 +415,7 @@ fn ray_trace_submodel(
 /// * `field_spec` - The field specification.
 /// * `sampling` - The pupil sampling method.
 fn rays(
-    placements: &[Placement],
+    placements: &[SurfacePlacement],
     aperture_spec: &ApertureSpec,
     paraxial_subview: &ParaxialSubView,
     field_spec: &FieldSpec,
@@ -505,7 +516,7 @@ fn rays(
 /// * `phi` - The azimuthal angle of the ray in the x-y plane, radians.
 /// * `chi` - The zenith angle of the ray w.r.t. the z-axis, radians.
 fn chief_ray_from_angle(
-    placements: &[Placement],
+    placements: &[SurfacePlacement],
     aperture_spec: &ApertureSpec,
     paraxial_subview: &ParaxialSubView,
     phi: Float,
@@ -551,7 +562,7 @@ fn chief_ray_from_pos(
 /// * `chi` - The zenith angle of the ray w.r.t. the z-axis, radians.
 #[allow(clippy::too_many_arguments)]
 fn parallel_ray_fan(
-    placements: &[Placement],
+    placements: &[SurfacePlacement],
     aperture_spec: &ApertureSpec,
     paraxial_subview: &ParaxialSubView,
     num_rays: usize,
@@ -612,7 +623,7 @@ fn parallel_ray_fan(
 ///   (marginal rays).
 /// * `chi` - The zenith angle of the ray bundle w.r.t. the z-axis in radians.
 fn parallel_ray_bundle_on_sq_grid(
-    placements: &[Placement],
+    placements: &[SurfacePlacement],
     aperture_spec: &ApertureSpec,
     paraxial_subview: &ParaxialSubView,
     spacing: Float,
@@ -796,7 +807,7 @@ fn axial_launch_point(obj_z: Float, sur_z: Float, enp_z: Float) -> Float {
 /// * `phi` - The azimuthal angle of the ray fan in the x-y plane, radians.
 /// * `chi` - The zenith angle of the ray w.r.t. the z-axis, radians.
 fn parallel_ray_bundle_origin(
-    placements: &[Placement],
+    placements: &[SurfacePlacement],
     aperture_spec: &ApertureSpec,
     paraxial_subview: &ParaxialSubView,
     phi: Float,

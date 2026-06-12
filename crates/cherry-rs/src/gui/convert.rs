@@ -297,6 +297,7 @@ fn apply_group_transforms(
         Err(_) => return Ok(()), // nominal model failed; skip transforms silently
     };
     let placements = nominal.placements();
+    let crms = nominal.cursor_rotation_matrices();
 
     // Derive the component map so we can map component_first_surfs → surf_idxs.
     let components = components_view(&nominal, background).unwrap_or_default();
@@ -327,7 +328,7 @@ fn apply_group_transforms(
         // The first surface in the group is the pivot / coordinate-frame origin.
         let s1 = *all_surfs.first().unwrap();
         let p = placements[s1].position; // pivot vertex, global frame
-        let c_s1 = placements[s1].cursor_rotation_matrix; // passive global→cursor at s1
+        let c_s1 = crms[s1]; // passive global→cursor at s1
 
         // Convert group rotation (degrees, cursor frame at s1) to passive matrix.
         let [theta_deg, psi_deg, phi_deg] = group.rotation;
@@ -353,7 +354,7 @@ fn apply_group_transforms(
                 continue;
             }
             let v_i = placements[i].position; // nominal vertex, global frame
-            let c_i = placements[i].cursor_rotation_matrix;
+            let c_i = crms[i];
 
             // Rotate about pivot (active = r_group^T), then translate.
             let rotated = r_group.transpose() * (v_i - p);

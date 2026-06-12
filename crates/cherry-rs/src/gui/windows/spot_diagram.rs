@@ -463,19 +463,21 @@ mod tests {
         let result = ResultPackage {
             id: 1,
             wavelengths: seq.wavelengths().to_vec(),
-            surfaces: seq
-                .surfaces()
-                .iter()
-                .zip(seq.placements().iter())
-                .enumerate()
-                .map(|(i, (_s, p))| crate::gui::result_package::SurfaceDesc {
-                    index: i,
-                    label: format!("S{i}"),
-                    pos: p.position,
-                    rot_mat: p.rotation_matrix,
-                    cursor_rot_mat: p.cursor_rotation_matrix,
-                })
-                .collect(),
+            surfaces: {
+                let crms = seq.cursor_rotation_matrices();
+                seq.surfaces()
+                    .iter()
+                    .zip(seq.placements().iter())
+                    .enumerate()
+                    .map(|(i, (_s, p))| crate::gui::result_package::SurfaceDesc {
+                        index: i,
+                        label: format!("S{i}"),
+                        pos: p.position,
+                        rot_mat: p.rotation_matrix,
+                        cursor_rot_mat: crms[i],
+                    })
+                    .collect()
+            },
             fields: vec![
                 FieldDesc {
                     label: "0.000\u{00b0}".into(),

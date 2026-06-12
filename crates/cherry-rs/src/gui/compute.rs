@@ -259,6 +259,7 @@ fn roc_from_spec(spec: Option<&SurfaceSpec>) -> Option<f64> {
 
 fn build_surface_descs(seq: &SequentialModel) -> Vec<SurfaceDesc> {
     use crate::SurfaceKind;
+    let crms = seq.cursor_rotation_matrices();
     seq.surfaces()
         .iter()
         .zip(seq.placements().iter())
@@ -279,7 +280,7 @@ fn build_surface_descs(seq: &SequentialModel) -> Vec<SurfaceDesc> {
                 label: format!("{name} [{i}]"),
                 pos: p.position,
                 rot_mat: p.rotation_matrix,
-                cursor_rot_mat: p.cursor_rotation_matrix,
+                cursor_rot_mat: crms[i],
             }
         })
         .collect()

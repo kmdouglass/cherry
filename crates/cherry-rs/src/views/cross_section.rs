@@ -2,7 +2,10 @@
 
 use crate::{
     SequentialModel, SurfaceKind,
-    core::{Float, math::vec3::Vec3, sequential_model::placement::Placement, surfaces::Surface},
+    core::{
+        Float, math::vec3::Vec3, sequential_model::surface_placement::SurfacePlacement,
+        surfaces::Surface,
+    },
     views::{components::Component, ray_trace_3d::RayBundle},
 };
 
@@ -367,14 +370,16 @@ fn build_plane_geometry(
     // placement.position (physical vertex) so that group tilts and decenters
     // don't displace the annotation away from the optical axis.
     let cursor_positions = model.cursor_positions();
+    let cursor_rotation_matrices = model.cursor_rotation_matrices();
     let surface_frames: Vec<Option<SurfaceFrame2D>> = placements
         .iter()
         .zip(cursor_positions.iter())
-        .map(|(p, cursor_pos)| {
+        .zip(cursor_rotation_matrices.iter())
+        .map(|((p, cursor_pos), &crm)| {
             if p.is_infinite() {
                 return None;
             }
-            let crm_t = p.cursor_rotation_matrix.transpose();
+            let crm_t = crm.transpose();
             let f = crm_t * Vec3::new(0.0, 0.0, 1.0);
             let r = crm_t * Vec3::new(1.0, 0.0, 0.0);
             let u = crm_t * Vec3::new(0.0, 1.0, 0.0);
@@ -426,7 +431,7 @@ fn build_plane_geometry(
 /// (z, x) pairs.
 fn sample_surface(
     surf: &dyn Surface,
-    placement: &Placement,
+    placement: &SurfacePlacement,
     axis: GlobalAxis,
     n_pts: usize,
 ) -> Vec<[f64; 2]> {
