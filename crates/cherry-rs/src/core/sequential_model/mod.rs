@@ -16,7 +16,9 @@ use crate::core::{
     Float,
     math::{linalg::mat3x3::Mat3x3, vec3::Vec3},
     refractive_index::RefractiveIndex,
-    surfaces::{BeamSplitter, Conic, Image, Iris, Object, Probe, Sphere, Surface, SurfaceKind},
+    surfaces::{
+        BeamSplitter, Conic, Image, Iris, Object, Probe, Sphere, Surface, SurfaceKind, ThinLens,
+    },
 };
 use crate::specs::surfaces::PlacementSpec;
 use crate::specs::{
@@ -1300,6 +1302,11 @@ pub(crate) fn surface_from_spec(
             *radius_of_curvature,
             *surf_kind,
         ))),
+        SurfaceSpec::ThinLens {
+            semi_diameter,
+            focal_length,
+            ..
+        } => Ok(Box::new(ThinLens::new(*semi_diameter, *focal_length))),
         SurfaceSpec::Custom {
             type_id, params, ..
         } => registry
@@ -1346,6 +1353,11 @@ pub(crate) fn surface_from_spec(spec: &SurfaceSpec) -> Result<Box<dyn Surface>> 
             *radius_of_curvature,
             *surf_kind,
         ))),
+        SurfaceSpec::ThinLens {
+            semi_diameter,
+            focal_length,
+            ..
+        } => Ok(Box::new(ThinLens::new(*semi_diameter, *focal_length))),
         SurfaceSpec::Image { .. } => Ok(Box::new(Image::new())),
         SurfaceSpec::Object => Ok(Box::new(Object::new())),
         SurfaceSpec::Probe { .. } => Ok(Box::new(Probe::new())),

@@ -121,6 +121,17 @@ pub enum SurfaceSpec {
         #[cfg_attr(feature = "serde", serde(default = "default_rotation3d_none"))]
         rotation_offset: Rotation3D,
     },
+    /// An idealized thin lens with a focal length independent of the
+    /// surrounding media.
+    ThinLens {
+        semi_diameter: Float,
+        focal_length: Float,
+        rotation: Rotation3D,
+        #[cfg_attr(feature = "serde", serde(default = "default_zero_vec3"))]
+        decenter: Vec3,
+        #[cfg_attr(feature = "serde", serde(default = "default_rotation3d_none"))]
+        rotation_offset: Rotation3D,
+    },
     /// A user-defined surface type registered with a [`SurfaceRegistry`].
     ///
     /// `type_id` must match a key registered via
@@ -191,6 +202,7 @@ impl SurfaceSpec {
         match self {
             SurfaceSpec::Conic { rotation, .. }
             | SurfaceSpec::Sphere { rotation, .. }
+            | SurfaceSpec::ThinLens { rotation, .. }
             | SurfaceSpec::Image { rotation, .. }
             | SurfaceSpec::Probe { rotation, .. }
             | SurfaceSpec::Iris { rotation, .. }
@@ -208,6 +220,9 @@ impl SurfaceSpec {
                 rotation_offset, ..
             }
             | SurfaceSpec::Sphere {
+                rotation_offset, ..
+            }
+            | SurfaceSpec::ThinLens {
                 rotation_offset, ..
             }
             | SurfaceSpec::Image {
@@ -234,6 +249,7 @@ impl SurfaceSpec {
         match self {
             SurfaceSpec::Conic { decenter, .. }
             | SurfaceSpec::Sphere { decenter, .. }
+            | SurfaceSpec::ThinLens { decenter, .. }
             | SurfaceSpec::Image { decenter, .. }
             | SurfaceSpec::Probe { decenter, .. }
             | SurfaceSpec::Iris { decenter, .. }
@@ -318,6 +334,43 @@ mod tests {
             }
             other => panic!("unexpected rotation_offset variant: {:?}", other),
         }
+    }
+
+    // ThinLens: serialize then deserialize a ThinLens spec with non-zero
+    // decenter and rotation_offset; assert the round-tripped values match,
+    // and that focal_length survives the round trip.
+    #[cfg(feature = "serde")]
+    #[test]
+    fn thin_lens_serde_round_trip_preserves_focal_length_and_decenter() {
+        use crate::core::math::linalg::rotations::EulerAngles;
+
+        let phi = 0.2_f64;
+        let spec = SurfaceSpec::ThinLens {
+            semi_diameter: 25.0,
+            focal_length: 100.0,
+            rotation: Rotation3D::None,
+            decenter: Vec3::new(0.1, 0.2, 0.0),
+            rotation_offset: Rotation3D::IntrinsicPassiveRUF(EulerAngles(phi, 0.0, 0.0)),
+        };
+
+        let json = serde_json::to_string(&spec).expect("serialize");
+        let back: SurfaceSpec = serde_json::from_str(&json).expect("deserialize");
+
+        match back {
+            SurfaceSpec::ThinLens {
+                focal_length,
+                semi_diameter,
+                ..
+            } => {
+                assert!((focal_length - 100.0).abs() < 1e-15);
+                assert!((semi_diameter - 25.0).abs() < 1e-15);
+            }
+            other => panic!("unexpected spec variant: {:?}", other),
+        }
+
+        let d = back.decenter();
+        assert!((d.x() - 0.1).abs() < 1e-15, "decenter x: {}", d.x());
+        assert!((d.y() - 0.2).abs() < 1e-15, "decenter y: {}", d.y());
     }
 
     // AT-10: deserializing a JSON string that omits decenter and rotation_offset

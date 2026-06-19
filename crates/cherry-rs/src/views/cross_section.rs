@@ -119,6 +119,20 @@ pub enum DrawElement {
         p2: [f64; 2],
         kind: FlatPlaneKind,
     },
+    ThinLens {
+        center_z: f64,
+        /// Transverse position of the surface vertex (non-zero when the
+        /// lens has a decenter along the cross-section's transverse axis).
+        center_t: f64,
+        /// Forward (optical-axis) direction at this surface in (z, t) plot
+        /// space.
+        fwd_z: f64,
+        fwd_t: f64,
+        half_gap: f64,
+        /// True for a positive (converging) focal length — drawn with
+        /// outward-pointing arrowheads; false (diverging) draws inward.
+        converging: bool,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -242,6 +256,32 @@ fn build_plane_geometry(
                     fwd_t,
                     half_gap: sd,
                     extent: largest_sd * 1.5,
+                });
+            }
+            Component::ThinLens { surf_idx } => {
+                let placement = &placements[*surf_idx];
+                let center_z = placement.position.z();
+                let center_t = match axis {
+                    GlobalAxis::Y => placement.position.y(),
+                    GlobalAxis::X => placement.position.x(),
+                };
+                let fwd = placement.inv_rotation_matrix * Vec3::new(0.0, 0.0, 1.0);
+                let fwd_z = fwd.z();
+                let fwd_t = match axis {
+                    GlobalAxis::Y => fwd.y(),
+                    GlobalAxis::X => fwd.x(),
+                };
+                let sd = surfaces[*surf_idx].mask().semi_diameter();
+                // n_0 = n_1 = 1.0 is safe here: ThinLens::power() ignores
+                // both arguments, so this just recovers 1/focal_length's sign.
+                let converging = surfaces[*surf_idx].power(0.0, 1.0, 1.0).is_sign_positive();
+                elements.push(DrawElement::ThinLens {
+                    center_z,
+                    center_t,
+                    fwd_z,
+                    fwd_t,
+                    half_gap: sd,
+                    converging,
                 });
             }
             Component::Mirror { surf_idx } => {
@@ -539,6 +579,33 @@ fn compute_bounds(elements: &[DrawElement], ray_paths: &[Vec<Vec<[f64; 2]>>]) ->
             DrawElement::FlatPlane { p1, p2, .. } => {
                 update(p1[0], p1[1], &mut z_min, &mut z_max, &mut t_min, &mut t_max);
                 update(p2[0], p2[1], &mut z_min, &mut z_max, &mut t_min, &mut t_max);
+            }
+            DrawElement::ThinLens {
+                center_z,
+                center_t,
+                fwd_z,
+                fwd_t,
+                half_gap,
+                ..
+            } => {
+                let perp_z = -fwd_t;
+                let perp_t = fwd_z;
+                update(
+                    center_z + perp_z * half_gap,
+                    center_t + perp_t * half_gap,
+                    &mut z_min,
+                    &mut z_max,
+                    &mut t_min,
+                    &mut t_max,
+                );
+                update(
+                    center_z - perp_z * half_gap,
+                    center_t - perp_t * half_gap,
+                    &mut z_min,
+                    &mut z_max,
+                    &mut t_min,
+                    &mut t_max,
+                );
             }
         }
     }
@@ -871,6 +938,74 @@ mod tests {
         assert!(
             fwd_t.abs() > 0.99,
             "after fold, iris fwd_t should be ~±1, got {fwd_t}"
+        );
+    }
+
+    fn thin_lens_model(focal_length: Float) -> SequentialModel {
+        let air = n!(1.0);
+        let gaps = vec![
+            GapSpec {
+                thickness: Float::INFINITY,
+                refractive_index: air.clone(),
+            },
+            GapSpec {
+                thickness: 100.0,
+                refractive_index: air,
+            },
+        ];
+        let surfs = vec![
+            SurfaceSpec::Object,
+            SurfaceSpec::ThinLens {
+                semi_diameter: 12.5,
+                focal_length,
+                rotation: Rotation3D::None,
+                decenter: Vec3::new(0.0, 0.0, 0.0),
+                rotation_offset: Rotation3D::None,
+            },
+            SurfaceSpec::Image {
+                rotation: Rotation3D::None,
+                decenter: Vec3::new(0.0, 0.0, 0.0),
+                rotation_offset: Rotation3D::None,
+            },
+        ];
+        SequentialModel::from_surface_specs(&gaps, &surfs, &[0.5876], None)
+            .expect("build thin lens model")
+    }
+
+    fn find_thin_lens(cs: &CrossSectionView) -> Option<(f64, bool)> {
+        cs.yz.elements.iter().find_map(|e| match e {
+            DrawElement::ThinLens {
+                half_gap,
+                converging,
+                ..
+            } => Some((*half_gap, *converging)),
+            _ => None,
+        })
+    }
+
+    #[test]
+    fn thin_lens_draws_as_standalone_element_with_correct_semi_diameter() {
+        let model = thin_lens_model(100.0);
+        let components = components_view(&model, n!(1.0)).unwrap();
+        let cs = cross_section_view(&model, None, &components);
+
+        let (half_gap, converging) =
+            find_thin_lens(&cs).expect("ThinLens DrawElement not found in YZ plane");
+        assert!((half_gap - 12.5).abs() < 1e-9, "half_gap: {half_gap}");
+        assert!(converging, "positive focal length should be converging");
+    }
+
+    #[test]
+    fn thin_lens_diverging_for_negative_focal_length() {
+        let model = thin_lens_model(-100.0);
+        let components = components_view(&model, n!(1.0)).unwrap();
+        let cs = cross_section_view(&model, None, &components);
+
+        let (_, converging) =
+            find_thin_lens(&cs).expect("ThinLens DrawElement not found in YZ plane");
+        assert!(
+            !converging,
+            "negative focal length should be diverging (converging == false)"
         );
     }
 

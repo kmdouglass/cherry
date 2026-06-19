@@ -542,6 +542,7 @@ mod tests {
                     SurfaceKind::Probe => "Probe",
                     SurfaceKind::Iris => "Iris",
                     SurfaceKind::Sphere => "Sphere",
+                    SurfaceKind::ThinLens => "Thin Lens",
                     SurfaceKind::Custom => "Custom",
                 };
                 SurfaceDesc {

@@ -33,6 +33,10 @@ pub fn surfaces_panel(
         .surfaces
         .iter()
         .any(|s| s.variant == SurfaceVariant::Conic);
+    let has_thin_lens = specs
+        .surfaces
+        .iter()
+        .any(|s| s.variant == SurfaceVariant::ThinLens);
 
     egui::ScrollArea::horizontal().show(ui, |ui| {
         let ctx = ui.ctx().clone();
@@ -49,6 +53,12 @@ pub fn surfaces_panel(
 
         let table = if has_conic {
             table.column(Column::initial(80.0).resizable(true)) // Conic
+        } else {
+            table
+        };
+
+        let table = if has_thin_lens {
+            table.column(Column::initial(90.0).resizable(true)) // Focal Length
         } else {
             table
         };
@@ -80,6 +90,9 @@ pub fn surfaces_panel(
                 header.col(|ui| header_cell(ui, None, "RoC"));
                 if has_conic {
                     header.col(|ui| header_cell(ui, None, "Conic"));
+                }
+                if has_thin_lens {
+                    header.col(|ui| header_cell(ui, None, "Focal Length"));
                 }
                 header.col(|ui| header_cell(ui, None, "Thickness"));
                 header.col(|ui| header_cell(ui, None, "n"));
@@ -115,6 +128,7 @@ pub fn surfaces_panel(
                         let is_image = surf.variant == SurfaceVariant::Image;
                         let is_conic = surf.variant == SurfaceVariant::Conic;
                         let is_sphere = surf.variant == SurfaceVariant::Sphere;
+                        let is_thin_lens = surf.variant == SurfaceVariant::ThinLens;
                         let is_curved = is_conic || is_sphere;
                         let is_locked = is_object || is_image;
 
@@ -258,6 +272,30 @@ pub fn surfaces_panel(
                                         "cc",
                                         -10.0..=10.0,
                                         0.01,
+                                    );
+                                }
+                            });
+                        }
+
+                        // Focal Length (only when the system has Thin Lens surfaces)
+                        if has_thin_lens {
+                            row.col(|ui| {
+                                if is_thin_lens {
+                                    // Normalize empty string to a sensible nonzero
+                                    // default so the stored value is always valid
+                                    // (unlike RoC/conic constant, 0 is not a legal
+                                    // focal length).
+                                    if surf.focal_length.is_empty() {
+                                        surf.focal_length = "100".into();
+                                        changed = true;
+                                    }
+                                    changed |= drag_inf(
+                                        ui,
+                                        &mut surf.focal_length,
+                                        row_idx,
+                                        "fl",
+                                        f64::NEG_INFINITY..=f64::INFINITY,
+                                        1.0,
                                     );
                                 }
                             });
@@ -636,6 +674,80 @@ mod tests {
             });
         harness.run();
         harness.get_by_label("Nominal Rotation");
+    }
+
+    /// The "Focal Length" column is absent without a thin lens.
+    #[test]
+    fn focal_length_column_absent_without_thin_lens() {
+        let mut specs = minimal_specs();
+        let mut harness = Harness::builder()
+            .with_size(egui::vec2(2000.0, 600.0))
+            .build_ui(|ui| {
+                default_panel(ui, &mut specs);
+            });
+        harness.run();
+        assert!(
+            harness.query_all_by_label("Focal Length").next().is_none(),
+            "Focal Length column should not appear without a thin lens"
+        );
+    }
+
+    /// The "Focal Length" column appears, and is editable, when a thin lens
+    /// surface exists.
+    #[test]
+    fn focal_length_column_present_with_thin_lens() {
+        let mut specs = SystemSpecs {
+            surfaces: vec![
+                SurfaceRow::new_object("Infinity"),
+                SurfaceRow::new_thin_lens("12.5", "100.0", "100.0", "1.0"),
+                SurfaceRow::new_image(),
+            ],
+            ..Default::default()
+        };
+        let mut harness = Harness::builder()
+            .with_size(egui::vec2(2000.0, 600.0))
+            .build_ui(|ui| {
+                default_panel(ui, &mut specs);
+            });
+        harness.run();
+        harness.get_by_label("Focal Length");
+    }
+
+    /// Regression: a thin lens row with an empty `focal_length` (e.g. just
+    /// switched from another variant via the dropdown, which doesn't reset
+    /// fields) must self-heal to a nonzero default on render, the same way
+    /// the Conic Constant column self-heals to "0". An empty string is
+    /// rejected downstream by `convert.rs::parse_float`, unlike "0" which
+    /// would be silently accepted but physically invalid for a focal length.
+    #[test]
+    fn focal_length_empty_string_self_heals_to_nonzero_default() {
+        let mut specs = SystemSpecs {
+            surfaces: vec![
+                SurfaceRow::new_object("Infinity"),
+                SurfaceRow::new_thin_lens("12.5", "", "100.0", "1.0"),
+                SurfaceRow::new_image(),
+            ],
+            ..Default::default()
+        };
+        {
+            let mut harness = Harness::builder()
+                .with_size(egui::vec2(2000.0, 600.0))
+                .build_ui(|ui| {
+                    default_panel(ui, &mut specs);
+                });
+            harness.run();
+        }
+
+        let focal_length = &specs.surfaces[1].focal_length;
+        assert!(
+            !focal_length.is_empty(),
+            "focal_length should self-heal to a nonzero default, not stay empty"
+        );
+        assert_ne!(
+            focal_length.as_str(),
+            "0",
+            "focal_length must not default to 0 (infinite power, divide-by-zero downstream)"
+        );
     }
 
     fn lens_specs() -> SystemSpecs {

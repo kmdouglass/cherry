@@ -1188,8 +1188,6 @@ impl ParaxialSubView {
                 gap_0.thickness
             };
 
-            let roc = surface.roc(0.0);
-
             let n_0 = gap_0.refractive_index.n();
             let n_1 = if let Some(gap_1) = gap_1 {
                 gap_1.refractive_index.n()
@@ -1197,7 +1195,7 @@ impl ParaxialSubView {
                 gap_0.refractive_index.n()
             };
 
-            let rtm = surface_to_rtm(surface, t, roc, n_0, n_1);
+            let rtm = surface_to_rtm(surface, t, n_0, n_1);
             txs.push(rtm);
         }
 
@@ -1251,21 +1249,16 @@ impl ParaxialSubView {
 
 /// Compute the ray transfer matrix for propagation to and interaction with a
 /// surface.
-fn surface_to_rtm(
-    surface: &dyn Surface,
-    t: Float,
-    roc: Float,
-    n_0: Float,
-    n_1: Float,
-) -> RayTransferMatrix {
+fn surface_to_rtm(surface: &dyn Surface, t: Float, n_0: Float, n_1: Float) -> RayTransferMatrix {
     match surface.boundary_kind() {
-        BoundaryKind::Refracting => Mat2x2::new(
-            1.0,
-            t,
-            (n_0 - n_1) / n_1 / roc,
-            t * (n_0 - n_1) / n_1 / roc + n_0 / n_1,
-        ),
-        BoundaryKind::Reflecting => Mat2x2::new(1.0, t, 2.0 / roc, 2.0 * t / roc + 1.0),
+        BoundaryKind::Refracting => {
+            let phi = surface.power(0.0, n_0, n_1);
+            Mat2x2::new(1.0, t, -phi / n_1, -phi * t / n_1 + n_0 / n_1)
+        }
+        BoundaryKind::Reflecting => {
+            let roc = surface.roc(0.0);
+            Mat2x2::new(1.0, t, 2.0 / roc, 2.0 * t / roc + 1.0)
+        }
         BoundaryKind::NoOp => Mat2x2::new(1.0, t, 0.0, 1.0),
     }
 }

@@ -272,6 +272,7 @@ fn build_surface_descs(seq: &SequentialModel) -> Vec<SurfaceDesc> {
                 SurfaceKind::Probe => "Probe",
                 SurfaceKind::Iris => "Iris",
                 SurfaceKind::Sphere => "Sphere",
+                SurfaceKind::ThinLens => "Thin Lens",
                 SurfaceKind::Custom => "Custom",
             };
             SurfaceDesc {

@@ -143,6 +143,19 @@ fn convert_specs_inner(
                     rotation_offset: Rotation3D::None,
                 }
             }
+            SurfaceVariant::ThinLens => {
+                let semi_diameter = parse_float(&row.semi_diameter)
+                    .with_context(|| format!("surface {i}: semi-diameter"))?;
+                let focal_length = parse_float(&row.focal_length)
+                    .with_context(|| format!("surface {i}: focal length"))?;
+                SurfaceSpec::ThinLens {
+                    semi_diameter,
+                    focal_length,
+                    rotation: Rotation3D::None,
+                    decenter: Vec3::new(0.0, 0.0, 0.0),
+                    rotation_offset: Rotation3D::None,
+                }
+            }
             SurfaceVariant::Iris => {
                 let semi_diameter = parse_float(&row.semi_diameter)
                     .with_context(|| format!("surface {i}: semi-diameter"))?;
@@ -313,6 +326,7 @@ fn apply_group_transforms(
                     Component::Element { surf_idxs } => all_surfs.extend(surf_idxs),
                     Component::Iris { stop_idx } => all_surfs.push(*stop_idx),
                     Component::Mirror { surf_idx } => all_surfs.push(*surf_idx),
+                    Component::ThinLens { surf_idx } => all_surfs.push(*surf_idx),
                     Component::UnpairedSurface { surf_idx } => all_surfs.push(*surf_idx),
                 }
             }
@@ -380,6 +394,7 @@ fn component_first_idx(c: &Component) -> usize {
         Component::Element { surf_idxs } => *surf_idxs.first().unwrap_or(&usize::MAX),
         Component::Iris { stop_idx } => *stop_idx,
         Component::Mirror { surf_idx } => *surf_idx,
+        Component::ThinLens { surf_idx } => *surf_idx,
         Component::UnpairedSurface { surf_idx } => *surf_idx,
     }
 }
@@ -417,6 +432,11 @@ fn set_surface_displacement(
             ..
         }
         | SurfaceSpec::Sphere {
+            decenter: d,
+            rotation_offset: ro,
+            ..
+        }
+        | SurfaceSpec::ThinLens {
             decenter: d,
             rotation_offset: ro,
             ..

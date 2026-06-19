@@ -66,7 +66,7 @@ Cherry might be for you if:
 
 ### Now
 - [ ] Systems with beam splitters
-- [ ] Paraxial surface types
+- [X] Thin lens surface types
 - [ ] Surface coatings
 - [ ] Encode designs into URLs and enable sharing via tiny URLs
 

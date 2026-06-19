@@ -152,7 +152,9 @@ pub use core::{
         solves::{FNumberSolve, MarginalRaySolve, Solve, SolveKind},
         surface_placement::SurfacePlacement,
     },
-    surfaces::{BeamSplitter, Conic, Image, Iris, Object, Probe, Sphere, Surface, SurfaceKind},
+    surfaces::{
+        BeamSplitter, Conic, Image, Iris, Object, Probe, Sphere, Surface, SurfaceKind, ThinLens,
+    },
 };
 pub use specs::{
     aperture::ApertureSpec,

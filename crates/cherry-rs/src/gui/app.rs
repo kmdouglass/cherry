@@ -474,6 +474,10 @@ impl eframe::App for CherryApp {
 
                 ui.menu_button("Examples", |ui| {
                     ui.label("Simple");
+                    if ui.button("Thin Lens").clicked() {
+                        self.load_specs(examples::thin_lens());
+                        ui.close();
+                    }
                     if ui.button("Convexplano Lens").clicked() {
                         self.load_specs(SystemSpecs::default());
                         ui.close();
