@@ -13,12 +13,16 @@ use crate::{
         Float, PI,
         math::vec3::Vec3,
         ray::Ray,
-        sequential_model::{SequentialModel, SequentialSubModel, placement::Placement},
+        sequential_model::{
+            CursorPlacement, SequentialModel, SequentialSubModel,
+            surface_placement::SurfacePlacement,
+        },
         surfaces::Surface,
     },
     specs::{
         aperture::ApertureSpec,
         fields::{FieldSpec, PupilSampling},
+        surfaces::BeamSplitterPathKind,
     },
 };
 
@@ -62,11 +66,13 @@ pub struct TraceResultsCollection {
 /// The results of a 3D ray trace.
 ///
 /// This represents the results of a 3D ray trace for a single set of values of
-/// 1. wavelength ID and
-/// 2. field ID.
+/// 1. path ID,
+/// 2. wavelength ID, and
+/// 3. field ID.
 #[derive(Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize))]
 pub struct TraceResults {
+    path_id: usize,
     wavelength_id: usize,
     field_id: usize,
 
@@ -133,6 +139,9 @@ pub fn trace_ray_bundle(
                     sequential_submodel,
                     sequential_model.surfaces(),
                     sequential_model.placements(),
+                    sequential_model.path_surface_indices(0),
+                    sequential_model.path_beam_splitter_arms(0),
+                    sequential_model.path_steps(0),
                     aperture_spec,
                     &field_specs[field_id],
                     paraxial_subview,
@@ -168,92 +177,116 @@ pub fn ray_trace_3d_view(
     // For rotationally symmetric systems only Axis::U exists; for non-symmetric
     // systems this is the fallback that is always present.
     let n_wavelengths = sequential_model.wavelengths().len();
-    let pairs: Vec<(usize, usize)> = (0..field_specs.len())
-        .flat_map(|f| (0..n_wavelengths).map(move |w| (f, w)))
+    let triples: Vec<(usize, usize, usize)> = (0..sequential_model.path_count())
+        .flat_map(|p| {
+            (0..field_specs.len()).flat_map(move |f| (0..n_wavelengths).map(move |w| (p, f, w)))
+        })
         .collect();
 
-    let results: Vec<TraceResults> = pairs
+    let results: Vec<TraceResults> = triples
         .into_par_iter()
-        .map(|(field_id, wavelength_id)| -> Result<TraceResults> {
-            tracing::trace!(
-                "Tracing rays for field_id={}, wavelength_id={}",
-                field_id,
-                wavelength_id,
-            );
+        .map(
+            |(path_id, field_id, wavelength_id)| -> Result<TraceResults> {
+                tracing::trace!(
+                    "Tracing rays for path_id={}, field_id={}, wavelength_id={}",
+                    path_id,
+                    field_id,
+                    wavelength_id,
+                );
 
-            let sequential_submodel = sequential_model
-                .submodel(wavelength_id)
-                .ok_or_else(|| anyhow!("Submodel not found"))?;
-            let tangential_vec_id =
-                paraxial_view.tangential_vec_id_for_phi(field_specs[field_id].tangential_fan_phi());
-            let paraxial_subview = paraxial_view
-                .get(wavelength_id, tangential_vec_id)
-                .ok_or_else(|| anyhow!("Submodel not found"))?;
+                let sequential_submodel = sequential_model
+                    .submodels_for_path(path_id)
+                    .get(wavelength_id)
+                    .ok_or_else(|| anyhow!("Submodel not found"))?;
+                let tangential_vec_id = paraxial_view
+                    .tangential_vec_id_for_phi(field_specs[field_id].tangential_fan_phi());
+                let paraxial_subview = paraxial_view
+                    .get_for_path(path_id, wavelength_id, tangential_vec_id)
+                    .ok_or_else(|| anyhow!("Paraxial subview not found"))?;
 
-            let field_spec = &field_specs[field_id];
-            let surfaces = sequential_model.surfaces();
-            let placements = sequential_model.placements();
+                let field_spec = &field_specs[field_id];
+                let surfaces = sequential_model.surfaces();
+                let placements = sequential_model.placements();
+                let surface_indices = sequential_model.path_surface_indices(path_id);
+                let beam_splitter_arms = sequential_model.path_beam_splitter_arms(path_id);
+                let path_steps = sequential_model.path_steps(path_id);
 
-            let chief_ray = ray_trace_submodel(
-                sequential_submodel,
-                surfaces,
-                placements,
-                aperture_spec,
-                field_spec,
-                paraxial_subview,
-                PupilSampling::ChiefRay,
-            )?;
-            let full_pupil = ray_trace_submodel(
-                sequential_submodel,
-                surfaces,
-                placements,
-                aperture_spec,
-                field_spec,
-                paraxial_subview,
-                PupilSampling::SquareGrid {
-                    spacing: config.full_pupil_spacing,
-                },
-            )?;
-            let tangential_fan = ray_trace_submodel(
-                sequential_submodel,
-                surfaces,
-                placements,
-                aperture_spec,
-                field_spec,
-                paraxial_subview,
-                PupilSampling::TangentialRayFan {
-                    n: config.n_fan_rays,
-                },
-            )?;
-            let sagittal_fan = ray_trace_submodel(
-                sequential_submodel,
-                surfaces,
-                placements,
-                aperture_spec,
-                field_spec,
-                paraxial_subview,
-                PupilSampling::SagittalRayFan {
-                    n: config.n_fan_rays,
-                },
-            )?;
+                let chief_ray = ray_trace_submodel(
+                    sequential_submodel,
+                    surfaces,
+                    placements,
+                    surface_indices,
+                    beam_splitter_arms,
+                    path_steps,
+                    aperture_spec,
+                    field_spec,
+                    paraxial_subview,
+                    PupilSampling::ChiefRay,
+                )?;
+                let full_pupil = ray_trace_submodel(
+                    sequential_submodel,
+                    surfaces,
+                    placements,
+                    surface_indices,
+                    beam_splitter_arms,
+                    path_steps,
+                    aperture_spec,
+                    field_spec,
+                    paraxial_subview,
+                    PupilSampling::SquareGrid {
+                        spacing: config.full_pupil_spacing,
+                    },
+                )?;
+                let tangential_fan = ray_trace_submodel(
+                    sequential_submodel,
+                    surfaces,
+                    placements,
+                    surface_indices,
+                    beam_splitter_arms,
+                    path_steps,
+                    aperture_spec,
+                    field_spec,
+                    paraxial_subview,
+                    PupilSampling::TangentialRayFan {
+                        n: config.n_fan_rays,
+                    },
+                )?;
+                let sagittal_fan = ray_trace_submodel(
+                    sequential_submodel,
+                    surfaces,
+                    placements,
+                    surface_indices,
+                    beam_splitter_arms,
+                    path_steps,
+                    aperture_spec,
+                    field_spec,
+                    paraxial_subview,
+                    PupilSampling::SagittalRayFan {
+                        n: config.n_fan_rays,
+                    },
+                )?;
 
-            trace!(
-                field_id,
-                wavelength_id,
-                "Finished tracing all bundles for field {}, wavelength {}",
-                field_id,
-                wavelength_id
-            );
+                trace!(
+                    path_id,
+                    field_id,
+                    wavelength_id,
+                    "Finished tracing all bundles for path {}, field {}, wavelength {}",
+                    path_id,
+                    field_id,
+                    wavelength_id
+                );
 
-            Ok(TraceResults {
-                wavelength_id,
-                field_id,
-                chief_ray,
-                full_pupil,
-                tangential_fan,
-                sagittal_fan,
-            })
-        })
+                Ok(TraceResults {
+                    path_id,
+                    wavelength_id,
+                    field_id,
+                    chief_ray,
+                    full_pupil,
+                    tangential_fan,
+                    sagittal_fan,
+                })
+            },
+        )
         .collect::<Result<Vec<_>>>()?;
 
     Ok(TraceResultsCollection::new(results))
@@ -264,11 +297,21 @@ impl TraceResultsCollection {
         Self { results }
     }
 
-    /// Get results for a specific field and wavelength.
+    /// Get results for path 0, a specific field, and wavelength.
     pub fn get(&self, field_id: usize, wavelength_id: usize) -> Option<&TraceResults> {
-        self.results
-            .iter()
-            .find(|r| r.field_id == field_id && r.wavelength_id == wavelength_id)
+        self.get_for_path(0, field_id, wavelength_id)
+    }
+
+    /// Get results for a specific path, field, and wavelength.
+    pub fn get_for_path(
+        &self,
+        path_id: usize,
+        field_id: usize,
+        wavelength_id: usize,
+    ) -> Option<&TraceResults> {
+        self.results.iter().find(|r| {
+            r.path_id == path_id && r.field_id == field_id && r.wavelength_id == wavelength_id
+        })
     }
 
     /// Get all results for a given wavelength.
@@ -309,6 +352,11 @@ impl TraceResultsCollection {
 }
 
 impl TraceResults {
+    /// Returns the path ID of this result.
+    pub fn path_id(&self) -> usize {
+        self.path_id
+    }
+
     // Returns the field ID of the ray bundle.
     pub fn field_id(&self) -> usize {
         self.field_id
@@ -346,10 +394,14 @@ impl TraceResults {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn ray_trace_submodel(
     sequential_submodel: &impl SequentialSubModel,
     surfaces: &[Box<dyn Surface>],
-    placements: &[Placement],
+    placements: &[SurfacePlacement],
+    surface_indices: &[usize],
+    beam_splitter_arms: &[Option<BeamSplitterPathKind>],
+    path_steps: &[CursorPlacement],
     aperture_spec: &ApertureSpec,
     field_spec: &FieldSpec,
     paraxial_subview: &ParaxialSubView,
@@ -363,7 +415,13 @@ fn ray_trace_submodel(
         pupil_sampling,
     )?;
 
-    let mut sequential_sub_model_iter = sequential_submodel.try_iter(surfaces, placements)?;
+    let mut sequential_sub_model_iter = sequential_submodel.try_iter(
+        surfaces,
+        placements,
+        surface_indices,
+        beam_splitter_arms,
+        path_steps,
+    )?;
     Ok(trace(&mut sequential_sub_model_iter, rays))
 }
 
@@ -378,7 +436,7 @@ fn ray_trace_submodel(
 /// * `field_spec` - The field specification.
 /// * `sampling` - The pupil sampling method.
 fn rays(
-    placements: &[Placement],
+    placements: &[SurfacePlacement],
     aperture_spec: &ApertureSpec,
     paraxial_subview: &ParaxialSubView,
     field_spec: &FieldSpec,
@@ -479,7 +537,7 @@ fn rays(
 /// * `phi` - The azimuthal angle of the ray in the x-y plane, radians.
 /// * `chi` - The zenith angle of the ray w.r.t. the z-axis, radians.
 fn chief_ray_from_angle(
-    placements: &[Placement],
+    placements: &[SurfacePlacement],
     aperture_spec: &ApertureSpec,
     paraxial_subview: &ParaxialSubView,
     phi: Float,
@@ -525,7 +583,7 @@ fn chief_ray_from_pos(
 /// * `chi` - The zenith angle of the ray w.r.t. the z-axis, radians.
 #[allow(clippy::too_many_arguments)]
 fn parallel_ray_fan(
-    placements: &[Placement],
+    placements: &[SurfacePlacement],
     aperture_spec: &ApertureSpec,
     paraxial_subview: &ParaxialSubView,
     num_rays: usize,
@@ -586,7 +644,7 @@ fn parallel_ray_fan(
 ///   (marginal rays).
 /// * `chi` - The zenith angle of the ray bundle w.r.t. the z-axis in radians.
 fn parallel_ray_bundle_on_sq_grid(
-    placements: &[Placement],
+    placements: &[SurfacePlacement],
     aperture_spec: &ApertureSpec,
     paraxial_subview: &ParaxialSubView,
     spacing: Float,
@@ -770,7 +828,7 @@ fn axial_launch_point(obj_z: Float, sur_z: Float, enp_z: Float) -> Float {
 /// * `phi` - The azimuthal angle of the ray fan in the x-y plane, radians.
 /// * `chi` - The zenith angle of the ray w.r.t. the z-axis, radians.
 fn parallel_ray_bundle_origin(
-    placements: &[Placement],
+    placements: &[SurfacePlacement],
     aperture_spec: &ApertureSpec,
     paraxial_subview: &ParaxialSubView,
     phi: Float,
@@ -1320,6 +1378,40 @@ mod tests {
 
         // For a 45° fan, dy/dx should equal tan(45°) = 1.0
         approx::assert_abs_diff_eq!(dy / dx, 1.0, epsilon = 1e-6);
+    }
+
+    #[test]
+    fn ray_trace_two_path_model_produces_results_for_both_paths() {
+        use std::rc::Rc;
+
+        use crate::examples::beam_splitter::two_path_model;
+        use crate::specs::gaps::ConstantRefractiveIndex;
+
+        let n_air = Rc::new(ConstantRefractiveIndex::new(1.0, 0.0));
+        let model = two_path_model(n_air, &[0.5876e-3], 10.0, 10.0);
+        let field_specs = vec![FieldSpec::Angle {
+            chi: 0.0,
+            phi: 90.0,
+        }];
+        let aperture_spec = ApertureSpec::EntrancePupil { semi_diameter: 5.0 };
+        let paraxial_view = ParaxialView::new(&model, &field_specs, false).unwrap();
+        let config = SamplingConfig {
+            n_fan_rays: 3,
+            full_pupil_spacing: 0.5,
+        };
+
+        let results =
+            ray_trace_3d_view(&aperture_spec, &field_specs, &model, &paraxial_view, config)
+                .unwrap();
+
+        assert!(
+            results.get_for_path(0, 0, 0).is_some(),
+            "path 0 results missing"
+        );
+        assert!(
+            results.get_for_path(1, 0, 0).is_some(),
+            "path 1 results missing"
+        );
     }
 
     #[test]

@@ -1,7 +1,9 @@
 #[cfg(feature = "serde")]
 use serde::Serialize;
 
-use crate::core::{Float, PI, math::vec3::Vec3, sequential_model::placement::Placement};
+use crate::core::{
+    Float, PI, math::vec3::Vec3, sequential_model::surface_placement::SurfacePlacement,
+};
 
 /// A single ray to be traced through an optical system.
 ///
@@ -45,14 +47,14 @@ impl Ray {
 
     /// Transform a ray into the local coordinate system of a surface from the
     /// global system.
-    pub fn transform(&mut self, placement: &Placement) {
+    pub fn transform(&mut self, placement: &SurfacePlacement) {
         self.pos = placement.rotation_matrix * (self.pos - placement.position);
         self.dir = placement.rotation_matrix * self.dir;
     }
 
     /// Transform a ray from the local coordinate system of a surface into the
     /// global system.
-    pub fn i_transform(&mut self, placement: &Placement) {
+    pub fn i_transform(&mut self, placement: &SurfacePlacement) {
         self.pos = (placement.inv_rotation_matrix * self.pos) + placement.position;
         self.dir = placement.inv_rotation_matrix * self.dir;
     }

@@ -52,7 +52,7 @@ pub fn trace(sequential_submodel: &mut SequentialSubModelIter, mut rays: Vec<Ray
             }
 
             // Transform into coordinate system of the surface
-            ray.transform(step.placement);
+            ray.transform(step.surface_placement);
 
             // Find the ray intersection with the surface.
             // Errors if the intersection point does not converge.
@@ -91,7 +91,7 @@ pub fn trace(sequential_submodel: &mut SequentialSubModelIter, mut rays: Vec<Ray
             step.surface.interact(ray, n_0, n_1, norm);
 
             // Transform back to the global coordinate system
-            ray.i_transform(step.placement);
+            ray.i_transform(step.surface_placement);
 
             rays_at_surface[ray_id] = ray.clone();
         }

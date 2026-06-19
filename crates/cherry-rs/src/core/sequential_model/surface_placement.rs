@@ -1,11 +1,17 @@
 /// Placement of a surface in a sequential optical system.
 ///
-/// A [`Placement`] describes *where* a surface sits in 3D space and how the
-/// optical axis (cursor) is oriented when it arrives at that surface. It is
-/// intentionally separate from surface geometry ([`Surface`]) so that
-/// coordinate-system operations and intrinsic-geometry operations do not mix.
+/// A [`SurfacePlacement`] describes *where* a surface sits in 3D space and
+/// how its rotation relates to the global frame. It is intentionally separate
+/// from surface geometry ([`Surface`]) so that coordinate-system operations
+/// and intrinsic-geometry operations do not mix.
+///
+/// The cursor-frame state (axis direction, cursor position, cursor rotation
+/// matrix) is path-specific and is carried in [`CursorPlacement`] on each
+/// iterator [`Step`] rather than stored here.
 ///
 /// [`Surface`]: crate::core::surfaces::Surface
+/// [`CursorPlacement`]: crate::core::sequential_model::CursorPlacement
+/// [`Step`]: crate::core::sequential_model::Step
 use crate::core::{
     Float,
     math::{linalg::mat3x3::Mat3x3, vec3::Vec3},
@@ -15,7 +21,7 @@ use super::cursor::Cursor;
 
 /// Position and orientation of a surface in the global coordinate system.
 #[derive(Debug, Clone)]
-pub struct Placement {
+pub struct SurfacePlacement {
     /// Vertex position in the global coordinate system.
     pub position: Vec3,
 
@@ -39,18 +45,12 @@ pub struct Placement {
     /// `rotation_offset` is `None`. Used by `propagate_tangential_vec` so
     /// that the paraxial tangential axis follows the nominal system.
     pub nominal_inv_rotation_matrix: Mat3x3,
-
-    /// Rotation from the global frame into the optical-axis (cursor) frame
-    /// only, without any surface tilt applied.
-    ///
-    /// Needed for aperture-projection calculations (`projected_semi_diameter`)
-    /// and for `is_rotationally_symmetric`.
-    pub cursor_rotation_matrix: Mat3x3,
 }
 
-impl Placement {
-    /// Build a [`Placement`] from a pre-composed surface rotation matrix, the
-    /// nominal rotation matrix, a decenter, and the current cursor state.
+impl SurfacePlacement {
+    /// Build a [`SurfacePlacement`] from a pre-composed surface rotation
+    /// matrix, the nominal rotation matrix, a decenter, and the current cursor
+    /// state.
     ///
     /// `actual_rotation_matrix` is
     /// `rotation_offset.rotation_matrix() * rotation.rotation_matrix()`.
@@ -69,22 +69,15 @@ impl Placement {
         let nom_rot_matrix = nominal_rotation_matrix * cursor_rotation_matrix;
         let offset_global = cursor_rotation_matrix.transpose() * decenter;
         let position = cursor.pos() + offset_global;
-        Self::new(
-            position,
-            cursor.track(),
-            rotation_matrix,
-            nom_rot_matrix,
-            cursor_rotation_matrix,
-        )
+        Self::new(position, cursor.track(), rotation_matrix, nom_rot_matrix)
     }
 
-    /// Create a new [`Placement`] from its constituent parts.
+    /// Create a new [`SurfacePlacement`] from its constituent parts.
     pub fn new(
         position: Vec3,
         track: Float,
         rotation_matrix: Mat3x3,
         nominal_rotation_matrix: Mat3x3,
-        cursor_rotation_matrix: Mat3x3,
     ) -> Self {
         let inv_rotation_matrix = rotation_matrix.transpose();
         let nominal_inv_rotation_matrix = nominal_rotation_matrix.transpose();
@@ -94,7 +87,6 @@ impl Placement {
             rotation_matrix,
             inv_rotation_matrix,
             nominal_inv_rotation_matrix,
-            cursor_rotation_matrix,
         }
     }
 
@@ -113,40 +105,32 @@ impl Placement {
             || self.position.z().is_infinite()
     }
 
-    /// Returns the unit vector pointing along the optical axis (cursor forward
-    /// direction) at this surface, expressed in the global frame.
-    pub fn axis_direction(&self) -> Vec3 {
-        // The third row of cursor_rotation_matrix is the forward direction in
-        // global coords when the matrix is global-to-cursor.
-        // Transposing maps it back to global, giving the forward vector.
-        self.cursor_rotation_matrix.transpose() * Vec3::new(0.0, 0.0, 1.0)
-    }
-
     /// Returns the semi-diameter as seen by a paraxial ray travelling along
     /// the cursor axis in the tangential plane defined by `v`.
     ///
-    /// `r` is the surface's clear-aperture semi-diameter (from
-    /// [`Surface::semi_diameter`]). `v` is a unit vector in the global
-    /// frame that lies in the transverse plane and defines the meridional
-    /// plane of interest.
-    ///
-    /// For a tilted surface the effective limit on cursor height is
-    /// `r · |n_F| / sqrt(n_φ² + n_F²)` where `(n_R, n_U, n_F)` are the
-    /// surface-normal components in the cursor frame and
-    /// `n_φ = n_R · v_x + n_U · v_y` is the component along `v`.
+    /// `cursor_rotation_matrix` is the path-specific cursor orientation at
+    /// this step (from [`CursorPlacement::cursor_rotation_matrix`]).
+    /// `r` is the surface's clear-aperture semi-diameter. `v` is a unit
+    /// vector in the global frame that lies in the transverse plane and
+    /// defines the meridional plane of interest.
     ///
     /// Returns [`Float::INFINITY`] when `r` is infinite (non-aperture
     /// surfaces).
     ///
-    /// [`Surface::semi_diameter`]: crate::core::surfaces::Surface::semi_diameter
-    pub fn projected_semi_diameter(&self, r: Float, v: Vec3) -> Float {
+    /// [`CursorPlacement::cursor_rotation_matrix`]: crate::core::sequential_model::CursorPlacement::cursor_rotation_matrix
+    pub fn projected_semi_diameter(
+        &self,
+        cursor_rotation_matrix: Mat3x3,
+        r: Float,
+        v: Vec3,
+    ) -> Float {
         if r.is_infinite() {
             return Float::INFINITY;
         }
 
         // R_surf = cursor_to_local = global_to_local · cursor_to_global
         //        = rotation_matrix · cursor_rotation_matrix.transpose()
-        let r_surf = self.rotation_matrix * self.cursor_rotation_matrix.transpose();
+        let r_surf = self.rotation_matrix * cursor_rotation_matrix.transpose();
 
         // Third row of R_surf is the surface normal expressed in cursor frame:
         // (n_R, n_U, n_F)
@@ -185,7 +169,8 @@ mod tests {
     fn at1_zero_displacement_identity_cursor() {
         let id = Mat3x3::identity();
         let cursor = identity_cursor();
-        let p = Placement::from_decenter_and_rotation(Vec3::new(0.0, 0.0, 0.0), id, id, &cursor);
+        let p =
+            SurfacePlacement::from_decenter_and_rotation(Vec3::new(0.0, 0.0, 0.0), id, id, &cursor);
         assert!(
             p.position.approx_eq(&Vec3::new(0.0, 0.0, 0.0), 1e-15),
             "position: {:?}",
@@ -193,7 +178,6 @@ mod tests {
         );
         assert!(p.rotation_matrix.approx_eq(&id, 1e-15));
         assert!(p.nominal_inv_rotation_matrix.approx_eq(&id, 1e-15));
-        assert!(p.cursor_rotation_matrix.approx_eq(&id, 1e-15));
         assert!((p.track - 0.0).abs() < 1e-15);
     }
 
@@ -203,7 +187,8 @@ mod tests {
         let id = Mat3x3::identity();
         let dx = 2.5;
         let cursor = cursor_at(10.0);
-        let p = Placement::from_decenter_and_rotation(Vec3::new(dx, 0.0, 0.0), id, id, &cursor);
+        let p =
+            SurfacePlacement::from_decenter_and_rotation(Vec3::new(dx, 0.0, 0.0), id, id, &cursor);
         let tol = 1e-15;
         assert!((p.position.x() - dx).abs() < tol, "x: {}", p.position.x());
         assert!(p.position.y().abs() < tol, "y: {}", p.position.y());
@@ -216,7 +201,8 @@ mod tests {
         let id = Mat3x3::identity();
         let dy = -1.3;
         let cursor = cursor_at(5.0);
-        let p = Placement::from_decenter_and_rotation(Vec3::new(0.0, dy, 0.0), id, id, &cursor);
+        let p =
+            SurfacePlacement::from_decenter_and_rotation(Vec3::new(0.0, dy, 0.0), id, id, &cursor);
         let tol = 1e-15;
         assert!(p.position.x().abs() < tol, "x: {}", p.position.x());
         assert!((p.position.y() - dy).abs() < tol, "y: {}", p.position.y());
@@ -230,7 +216,8 @@ mod tests {
         let dz = 3.0;
         let nominal_z = 7.0;
         let cursor = cursor_at(nominal_z);
-        let p = Placement::from_decenter_and_rotation(Vec3::new(0.0, 0.0, dz), id, id, &cursor);
+        let p =
+            SurfacePlacement::from_decenter_and_rotation(Vec3::new(0.0, 0.0, dz), id, id, &cursor);
         let tol = 1e-15;
         assert!(p.position.x().abs() < tol, "x: {}", p.position.x());
         assert!(p.position.y().abs() < tol, "y: {}", p.position.y());
@@ -244,7 +231,8 @@ mod tests {
     // AT-5: F-axis decenter after a 90° fold shifts along the post-fold axis,
     // not along global Z. After a 90° fold about the R-axis the cursor
     // forward direction is (0, -1, 0), so a cursor-F decenter of dz moves the
-    // vertex by (0, -dz, 0) in global coordinates.
+    // vertex by (0, -dz, 0) in global coords relative to the mirror without
+    // decenter.
     #[test]
     fn at5_axial_decenter_after_fold() {
         // Build a 3-surface system: Object — flat mirror (45° theta fold) — Image

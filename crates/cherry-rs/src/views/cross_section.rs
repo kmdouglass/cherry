@@ -2,7 +2,10 @@
 
 use crate::{
     SequentialModel, SurfaceKind,
-    core::{Float, math::vec3::Vec3, sequential_model::placement::Placement, surfaces::Surface},
+    core::{
+        Float, math::vec3::Vec3, sequential_model::surface_placement::SurfacePlacement,
+        surfaces::Surface,
+    },
     views::{components::Component, ray_trace_3d::RayBundle},
 };
 
@@ -15,6 +18,19 @@ pub enum GlobalAxis {
 
 const N_PTS: usize = 64;
 const EPS: f64 = 1e-6;
+
+/// Project a 3D cursor position onto the cross-section plane.
+/// Returns `None` for positions at infinity (e.g. object at infinity).
+fn to_plot_point(p: Vec3, axis: GlobalAxis) -> Option<[f64; 2]> {
+    if !p.is_finite() {
+        return None;
+    }
+    let t = match axis {
+        GlobalAxis::Y => p.y(),
+        GlobalAxis::X => p.x(),
+    };
+    Some([p.z(), t])
+}
 
 /// The complete 2D cross-section view of a sequential optical system.
 pub struct CrossSectionView {
@@ -54,14 +70,14 @@ pub struct PlaneGeometry {
     pub elements: Vec<DrawElement>,
     /// ray_paths[wavelength_idx][path_idx] = Vec<[z, transverse]>
     pub ray_paths: Vec<Vec<Vec<[f64; 2]>>>,
-    /// On-axis positions [z, transverse] from the first finite surface to the
-    /// image surface. Starts at the object surface for finite-conjugate
-    /// systems, or at the first lens surface for infinite-conjugate systems
-    /// (where the object placement is infinite).
-    pub axis_path: Vec<[f64; 2]>,
-    /// Per-surface local RUF frame in 2D plot coordinates, indexed by surface
-    /// index. `None` for surfaces with an infinite vertex position.
-    pub surface_frames: Vec<Option<SurfaceFrame2D>>,
+    /// On-axis positions [z, transverse] per optical path.
+    /// Each inner `Vec` lists [z, transverse] points from the first finite
+    /// surface to the image surface for that path.
+    pub axis_paths: Vec<Vec<[f64; 2]>>,
+    /// Per-path, per-step local RUF frame in 2D plot coordinates.
+    /// `surface_frames[path_id][step_id]` is `None` for steps whose surface
+    /// has an infinite vertex position (e.g. object/image at infinity).
+    pub surface_frames: Vec<Vec<Option<SurfaceFrame2D>>>,
 }
 
 /// Axis-aligned bounding box in the (z, transverse) 2D coordinate system.
@@ -103,6 +119,20 @@ pub enum DrawElement {
         p2: [f64; 2],
         kind: FlatPlaneKind,
     },
+    ThinLens {
+        center_z: f64,
+        /// Transverse position of the surface vertex (non-zero when the
+        /// lens has a decenter along the cross-section's transverse axis).
+        center_t: f64,
+        /// Forward (optical-axis) direction at this surface in (z, t) plot
+        /// space.
+        fwd_z: f64,
+        fwd_t: f64,
+        half_gap: f64,
+        /// True for a positive (converging) focal length — drawn with
+        /// outward-pointing arrowheads; false (diverging) draws inward.
+        converging: bool,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -126,7 +156,6 @@ pub fn cross_section_view(
     components: &[Component],
 ) -> CrossSectionView {
     let wavelengths = model.wavelengths().to_vec();
-    let axis_dirs = model.axis_directions();
     let placements = model.placements();
 
     // A plane is valid when (a) the optical axis lies in it, (b) every surface
@@ -135,16 +164,24 @@ pub fn cross_section_view(
     // the plane). The surface normal in global coords is
     // `rotation_matrix.transpose() * local_z` because `rotation_matrix` maps
     // global→local.
-    let yz_valid = axis_dirs.iter().all(|d| d.x().abs() < EPS)
-        && placements.iter().all(|p| {
-            let n = p.rotation_matrix.transpose() * Vec3::new(0.0, 0.0, 1.0);
-            p.position.x().abs() < EPS && n.x().abs() < EPS
-        });
-    let xz_valid = axis_dirs.iter().all(|d| d.y().abs() < EPS)
-        && placements.iter().all(|p| {
-            let n = p.rotation_matrix.transpose() * Vec3::new(0.0, 0.0, 1.0);
-            p.position.y().abs() < EPS && n.y().abs() < EPS
-        });
+    let yz_valid = (0..model.path_count()).all(|pid| {
+        model
+            .path_steps(pid)
+            .iter()
+            .all(|s| s.axis_direction.x().abs() < EPS)
+    }) && placements.iter().all(|p| {
+        let n = p.rotation_matrix.transpose() * Vec3::new(0.0, 0.0, 1.0);
+        p.position.x().abs() < EPS && n.x().abs() < EPS
+    });
+    let xz_valid = (0..model.path_count()).all(|pid| {
+        model
+            .path_steps(pid)
+            .iter()
+            .all(|s| s.axis_direction.y().abs() < EPS)
+    }) && placements.iter().all(|p| {
+        let n = p.rotation_matrix.transpose() * Vec3::new(0.0, 0.0, 1.0);
+        p.position.y().abs() < EPS && n.y().abs() < EPS
+    });
 
     let yz = build_plane_geometry(model, cross_section_rays, GlobalAxis::Y, components);
     let xz = build_plane_geometry(model, cross_section_rays, GlobalAxis::X, components);
@@ -219,6 +256,32 @@ fn build_plane_geometry(
                     fwd_t,
                     half_gap: sd,
                     extent: largest_sd * 1.5,
+                });
+            }
+            Component::ThinLens { surf_idx } => {
+                let placement = &placements[*surf_idx];
+                let center_z = placement.position.z();
+                let center_t = match axis {
+                    GlobalAxis::Y => placement.position.y(),
+                    GlobalAxis::X => placement.position.x(),
+                };
+                let fwd = placement.inv_rotation_matrix * Vec3::new(0.0, 0.0, 1.0);
+                let fwd_z = fwd.z();
+                let fwd_t = match axis {
+                    GlobalAxis::Y => fwd.y(),
+                    GlobalAxis::X => fwd.x(),
+                };
+                let sd = surfaces[*surf_idx].mask().semi_diameter();
+                // n_0 = n_1 = 1.0 is safe here: ThinLens::power() ignores
+                // both arguments, so this just recovers 1/focal_length's sign.
+                let converging = surfaces[*surf_idx].power(0.0, 1.0, 1.0).is_sign_positive();
+                elements.push(DrawElement::ThinLens {
+                    center_z,
+                    center_t,
+                    fwd_z,
+                    fwd_t,
+                    half_gap: sd,
+                    converging,
                 });
             }
             Component::Mirror { surf_idx } => {
@@ -332,65 +395,68 @@ fn build_plane_geometry(
         }
     }
 
-    let axis_path: Vec<[f64; 2]> = model
-        .cursor_positions()
-        .iter()
-        .filter(|p| p.x().is_finite() && p.y().is_finite() && p.z().is_finite())
-        .map(|p| {
-            let t = match axis {
-                GlobalAxis::Y => p.y(),
-                GlobalAxis::X => p.x(),
-            };
-            [p.z(), t]
+    let axis_paths: Vec<Vec<[f64; 2]>> = (0..model.path_count())
+        .map(|path_id| {
+            model
+                .path_steps(path_id)
+                .iter()
+                .filter_map(|s| to_plot_point(s.cursor_position, axis))
+                .collect()
         })
         .collect();
 
     let bounding_box = compute_bounds(&elements, &ray_paths);
 
-    // Use cursor_positions (axis position before any decenter) rather than
+    // Use cursor_position (axis position before any decenter) rather than
     // placement.position (physical vertex) so that group tilts and decenters
     // don't displace the annotation away from the optical axis.
-    let cursor_positions = model.cursor_positions();
-    let surface_frames: Vec<Option<SurfaceFrame2D>> = placements
-        .iter()
-        .zip(cursor_positions.iter())
-        .map(|(p, cursor_pos)| {
-            if p.is_infinite() {
-                return None;
-            }
-            let crm_t = p.cursor_rotation_matrix.transpose();
-            let f = crm_t * Vec3::new(0.0, 0.0, 1.0);
-            let r = crm_t * Vec3::new(1.0, 0.0, 0.0);
-            let u = crm_t * Vec3::new(0.0, 1.0, 0.0);
-            let (vertex_z, vertex_t, f_z, f_t, t_z, t_t, oop_out_of_screen) = match axis {
-                GlobalAxis::Y => (
-                    cursor_pos.z(),
-                    cursor_pos.y(),
-                    f.z(),
-                    f.y(),
-                    u.z(),
-                    u.y(),
-                    r.x() < 0.0,
-                ),
-                GlobalAxis::X => (
-                    cursor_pos.z(),
-                    cursor_pos.x(),
-                    f.z(),
-                    f.x(),
-                    r.z(),
-                    r.x(),
-                    u.y() > 0.0,
-                ),
-            };
-            Some(SurfaceFrame2D {
-                vertex_z,
-                vertex_t,
-                f_z,
-                f_t,
-                t_z,
-                t_t,
-                oop_out_of_screen,
-            })
+    // Frames are per-path and per-step; cursor data is path-specific.
+    let surface_frames: Vec<Vec<Option<SurfaceFrame2D>>> = (0..model.path_count())
+        .map(|path_id| {
+            model
+                .path_steps(path_id)
+                .iter()
+                .zip(model.path_surface_indices(path_id).iter())
+                .map(|(step, &idx)| {
+                    if placements[idx].is_infinite() {
+                        return None;
+                    }
+                    let crm_t = step.cursor_rotation_matrix.transpose();
+                    let cursor_pos = step.cursor_position;
+                    let f = crm_t * Vec3::new(0.0, 0.0, 1.0);
+                    let r = crm_t * Vec3::new(1.0, 0.0, 0.0);
+                    let u = crm_t * Vec3::new(0.0, 1.0, 0.0);
+                    let (vertex_z, vertex_t, f_z, f_t, t_z, t_t, oop_out_of_screen) = match axis {
+                        GlobalAxis::Y => (
+                            cursor_pos.z(),
+                            cursor_pos.y(),
+                            f.z(),
+                            f.y(),
+                            u.z(),
+                            u.y(),
+                            r.x() < 0.0,
+                        ),
+                        GlobalAxis::X => (
+                            cursor_pos.z(),
+                            cursor_pos.x(),
+                            f.z(),
+                            f.x(),
+                            r.z(),
+                            r.x(),
+                            u.y() > 0.0,
+                        ),
+                    };
+                    Some(SurfaceFrame2D {
+                        vertex_z,
+                        vertex_t,
+                        f_z,
+                        f_t,
+                        t_z,
+                        t_t,
+                        oop_out_of_screen,
+                    })
+                })
+                .collect()
         })
         .collect();
 
@@ -398,7 +464,7 @@ fn build_plane_geometry(
         bounding_box,
         elements,
         ray_paths,
-        axis_path,
+        axis_paths,
         surface_frames,
     }
 }
@@ -410,7 +476,7 @@ fn build_plane_geometry(
 /// (z, x) pairs.
 fn sample_surface(
     surf: &dyn Surface,
-    placement: &Placement,
+    placement: &SurfacePlacement,
     axis: GlobalAxis,
     n_pts: usize,
 ) -> Vec<[f64; 2]> {
@@ -513,6 +579,33 @@ fn compute_bounds(elements: &[DrawElement], ray_paths: &[Vec<Vec<[f64; 2]>>]) ->
             DrawElement::FlatPlane { p1, p2, .. } => {
                 update(p1[0], p1[1], &mut z_min, &mut z_max, &mut t_min, &mut t_max);
                 update(p2[0], p2[1], &mut z_min, &mut z_max, &mut t_min, &mut t_max);
+            }
+            DrawElement::ThinLens {
+                center_z,
+                center_t,
+                fwd_z,
+                fwd_t,
+                half_gap,
+                ..
+            } => {
+                let perp_z = -fwd_t;
+                let perp_t = fwd_z;
+                update(
+                    center_z + perp_z * half_gap,
+                    center_t + perp_t * half_gap,
+                    &mut z_min,
+                    &mut z_max,
+                    &mut t_min,
+                    &mut t_max,
+                );
+                update(
+                    center_z - perp_z * half_gap,
+                    center_t - perp_t * half_gap,
+                    &mut z_min,
+                    &mut z_max,
+                    &mut t_min,
+                    &mut t_max,
+                );
             }
         }
     }
@@ -848,6 +941,74 @@ mod tests {
         );
     }
 
+    fn thin_lens_model(focal_length: Float) -> SequentialModel {
+        let air = n!(1.0);
+        let gaps = vec![
+            GapSpec {
+                thickness: Float::INFINITY,
+                refractive_index: air.clone(),
+            },
+            GapSpec {
+                thickness: 100.0,
+                refractive_index: air,
+            },
+        ];
+        let surfs = vec![
+            SurfaceSpec::Object,
+            SurfaceSpec::ThinLens {
+                semi_diameter: 12.5,
+                focal_length,
+                rotation: Rotation3D::None,
+                decenter: Vec3::new(0.0, 0.0, 0.0),
+                rotation_offset: Rotation3D::None,
+            },
+            SurfaceSpec::Image {
+                rotation: Rotation3D::None,
+                decenter: Vec3::new(0.0, 0.0, 0.0),
+                rotation_offset: Rotation3D::None,
+            },
+        ];
+        SequentialModel::from_surface_specs(&gaps, &surfs, &[0.5876], None)
+            .expect("build thin lens model")
+    }
+
+    fn find_thin_lens(cs: &CrossSectionView) -> Option<(f64, bool)> {
+        cs.yz.elements.iter().find_map(|e| match e {
+            DrawElement::ThinLens {
+                half_gap,
+                converging,
+                ..
+            } => Some((*half_gap, *converging)),
+            _ => None,
+        })
+    }
+
+    #[test]
+    fn thin_lens_draws_as_standalone_element_with_correct_semi_diameter() {
+        let model = thin_lens_model(100.0);
+        let components = components_view(&model, n!(1.0)).unwrap();
+        let cs = cross_section_view(&model, None, &components);
+
+        let (half_gap, converging) =
+            find_thin_lens(&cs).expect("ThinLens DrawElement not found in YZ plane");
+        assert!((half_gap - 12.5).abs() < 1e-9, "half_gap: {half_gap}");
+        assert!(converging, "positive focal length should be converging");
+    }
+
+    #[test]
+    fn thin_lens_diverging_for_negative_focal_length() {
+        let model = thin_lens_model(-100.0);
+        let components = components_view(&model, n!(1.0)).unwrap();
+        let cs = cross_section_view(&model, None, &components);
+
+        let (_, converging) =
+            find_thin_lens(&cs).expect("ThinLens DrawElement not found in YZ plane");
+        assert!(
+            !converging,
+            "negative focal length should be diverging (converging == false)"
+        );
+    }
+
     #[test]
     fn axis_path_starts_at_first_lens_for_infinite_object() {
         // convexplano_lens uses INFINITY for the first gap, so the object
@@ -859,21 +1020,24 @@ mod tests {
         let components = components_view(&model, air).unwrap();
         let cs = cross_section_view(&model, None, &components);
 
-        // Object is infinite → axis_path must not contain an infinite coordinate.
+        // Object is infinite → axis_paths[0] must not contain an infinite coordinate.
         assert!(
-            cs.yz
-                .axis_path
+            cs.yz.axis_paths[0]
                 .iter()
                 .all(|&[z, t]| z.is_finite() && t.is_finite()),
-            "axis_path must not contain infinite coordinates"
+            "axis_paths[0] must not contain infinite coordinates"
         );
         // For a straight system every on-axis transverse coordinate is zero.
-        for &[_z, t] in &cs.yz.axis_path {
+        for &[_z, t] in &cs.yz.axis_paths[0] {
             assert!(t.abs() < EPS, "expected on-axis transverse ≈ 0, got {t}");
         }
         // The path should include the two lens surfaces plus the image surface
         // (3 finite surfaces: front lens, back lens, image).
-        assert_eq!(cs.yz.axis_path.len(), 3, "expected 3 points in axis_path");
+        assert_eq!(
+            cs.yz.axis_paths[0].len(),
+            3,
+            "expected 3 points in axis_paths[0]"
+        );
     }
 
     #[test]
@@ -886,18 +1050,17 @@ mod tests {
 
         // Object(finite) + Sphere + Image = 3 surfaces.
         assert_eq!(
-            cs.yz.axis_path.len(),
+            cs.yz.axis_paths[0].len(),
             3,
             "expected 3 points: object, sphere, image; got {}",
-            cs.yz.axis_path.len()
+            cs.yz.axis_paths[0].len()
         );
         // All coordinates must be finite.
         assert!(
-            cs.yz
-                .axis_path
+            cs.yz.axis_paths[0]
                 .iter()
                 .all(|&[z, t]| z.is_finite() && t.is_finite()),
-            "axis_path must not contain infinite coordinates"
+            "axis_paths[0] must not contain infinite coordinates"
         );
     }
 
@@ -908,8 +1071,13 @@ mod tests {
         let cs = cross_section_view(&model, None, &components);
         assert_eq!(
             cs.yz.surface_frames.len(),
-            model.surfaces().len(),
-            "surface_frames must have one entry per surface"
+            model.path_count(),
+            "surface_frames outer length must equal path count"
+        );
+        assert_eq!(
+            cs.yz.surface_frames[0].len(),
+            model.path_steps(0).len(),
+            "surface_frames[0] inner length must equal step count for path 0"
         );
     }
 
@@ -924,7 +1092,7 @@ mod tests {
         let components = components_view(&model, air).unwrap();
         let cs = cross_section_view(&model, None, &components);
         assert!(
-            cs.yz.surface_frames[0].is_none(),
+            cs.yz.surface_frames[0][0].is_none(),
             "object at infinity must produce a None surface frame"
         );
     }
@@ -940,7 +1108,7 @@ mod tests {
 
         // Surface 1 is the sphere. Check directions; don't assert specific z since
         // Cherry places the first refracting surface at z=0.
-        let frame = cs.yz.surface_frames[1]
+        let frame = cs.yz.surface_frames[0][1]
             .as_ref()
             .expect("sphere surface frame must be Some");
         assert!(
@@ -1037,7 +1205,7 @@ mod tests {
 
         // Iris is at index 3, after the 45° fold — its cursor F should point in
         // the transverse direction (f_z ≈ 0, |f_t| ≈ 1).
-        let frame = cs.yz.surface_frames[3]
+        let frame = cs.yz.surface_frames[0][3]
             .as_ref()
             .expect("iris surface frame must be Some");
         assert!(
@@ -1071,10 +1239,10 @@ mod tests {
         let components = components_view(&model, n!(1.0)).unwrap();
         let cs = cross_section_view(&model, None, &components);
 
-        for &[_z, t] in &cs.yz.axis_path {
+        for &[_z, t] in &cs.yz.axis_paths[0] {
             assert!(
                 t.abs() < EPS,
-                "axis_path must stay on-axis despite decenter, got t={t}"
+                "axis_paths[0] must stay on-axis despite decenter, got t={t}"
             );
         }
     }
@@ -1086,7 +1254,7 @@ mod tests {
         let model = straight_sphere_model(Vec3::new(0.0, 2.0, 0.0), Rotation3D::None);
         let components = components_view(&model, n!(1.0)).unwrap();
         let cs = cross_section_view(&model, None, &components);
-        let frame = cs.yz.surface_frames[1]
+        let frame = cs.yz.surface_frames[0][1]
             .as_ref()
             .expect("sphere surface frame must be Some");
         assert!(
@@ -1158,10 +1326,10 @@ mod tests {
 
         // After the fold, at least one point in axis_path must have non-zero
         // transverse.
-        let has_nonzero_t = cs.yz.axis_path.iter().any(|&[_z, t]| t.abs() > 0.1);
+        let has_nonzero_t = cs.yz.axis_paths[0].iter().any(|&[_z, t]| t.abs() > 0.1);
         assert!(
             has_nonzero_t,
-            "expected non-zero transverse in axis_path after 45° fold"
+            "expected non-zero transverse in axis_paths[0] after 45° fold"
         );
     }
 
@@ -1245,6 +1413,25 @@ mod tests {
         assert!(
             !lens_groups[0][0].is_empty(),
             "inner surface profile must be non-empty"
+        );
+    }
+
+    #[test]
+    fn multipath_produces_two_axis_paths() {
+        use crate::examples::beam_splitter;
+        use crate::specs::gaps::ConstantRefractiveIndex;
+        use std::rc::Rc;
+
+        let n_air: Rc<dyn crate::RefractiveIndexSpec> =
+            Rc::new(ConstantRefractiveIndex::new(1.0, 0.0));
+        let model = beam_splitter::two_path_model(n_air.clone(), &[0.5876], 10.0, 10.0);
+        let components = components_view(&model, n_air).unwrap();
+        let cs = cross_section_view(&model, None, &components);
+
+        assert_eq!(
+            cs.yz.axis_paths.len(),
+            2,
+            "expected one axis_path per optical path"
         );
     }
 }

@@ -1,22 +1,24 @@
 /// Data types for modeling sequential ray tracing systems.
 pub mod builder;
 pub(crate) mod cursor;
-pub mod placement;
 pub mod solves;
+pub mod surface_placement;
 
 use std::ops::Range;
 
 use anyhow::{Result, anyhow};
 
 use self::cursor::Cursor;
-use self::placement::Placement;
+use self::surface_placement::SurfacePlacement;
 #[cfg(feature = "serde")]
 use crate::core::surfaces::SurfaceRegistry;
 use crate::core::{
     Float,
     math::{linalg::mat3x3::Mat3x3, vec3::Vec3},
     refractive_index::RefractiveIndex,
-    surfaces::{BeamSplitter, Conic, Image, Iris, Object, Probe, Sphere, Surface, SurfaceKind},
+    surfaces::{
+        BeamSplitter, Conic, Image, Iris, Object, Probe, Sphere, Surface, SurfaceKind, ThinLens,
+    },
 };
 use crate::specs::surfaces::PlacementSpec;
 use crate::specs::{
@@ -25,37 +27,48 @@ use crate::specs::{
     surfaces::{BeamSplitterPathKind, BoundaryKind, SurfaceSpec},
 };
 
-/// Cursor forward direction at each surface.
-type AxisDirections = Vec<Vec3>;
-/// Nominal on-axis cursor position at each surface, before any decenter is
-/// applied.
-type CursorPositions = Vec<Vec3>;
-
-type SurfsPlacementsDirs = (
+type SurfaceStoreContents = (
     Vec<Box<dyn Surface>>,
-    Vec<Placement>,
-    AxisDirections,
-    CursorPositions,
+    Vec<SurfacePlacement>,
+    Vec<CursorPlacement>,
 );
 
 /// Owns all surface objects and their computed placements.
 #[derive(Debug)]
 struct SurfaceStore {
     surfaces: Vec<Box<dyn Surface>>,
-    placements: Vec<Placement>,
-    /// Cursor forward direction at each surface vertex (first-path walk).
-    axis_directions: Vec<Vec3>,
-    /// Nominal on-axis cursor position at each surface before any decenter
-    /// (first-path walk).
-    cursor_positions: Vec<Vec3>,
+    placements: Vec<SurfacePlacement>,
+}
+
+/// Per-step cursor state recorded along one optical path.
+///
+/// Captures the cursor orientation, position, and rotation matrix before any
+/// reflection at each surface, for both `New` and `Shared` steps. Carried by
+/// each iterator [`Step`] so that views have fully path-specific cursor data
+/// without separately querying the model.
+#[derive(Debug, Clone, Copy)]
+pub struct CursorPlacement {
+    /// Cursor forward direction (unit vector) as the beam approaches this
+    /// surface.
+    pub axis_direction: Vec3,
+    /// Nominal on-axis cursor position before any decenter.
+    pub cursor_position: Vec3,
+    /// Rotation from the global frame into the cursor frame at this step.
+    pub cursor_rotation_matrix: Mat3x3,
 }
 
 /// One optical path through the system.
 #[derive(Debug)]
 struct OpticalPath {
+    /// Ordered store indices visited by this path, one per step.
+    surface_indices: Vec<usize>,
+    /// Beam-splitter arm kind per step; parallel to `surface_indices`.
+    beam_splitter_arms: Vec<Option<BeamSplitterPathKind>>,
     submodels: Vec<SequentialSubModelBase>,
     /// User-specified aperture stop as a store index, or `None` for auto.
     stop_surface: Option<usize>,
+    /// Step-indexed cursor state, parallel to `surface_indices`.
+    steps: Vec<CursorPlacement>,
 }
 
 /// A gap between two surfaces in a sequential system.
@@ -160,19 +173,23 @@ pub trait SequentialSubModel {
     fn try_iter<'a>(
         &'a self,
         surfaces: &'a [Box<dyn Surface>],
-        placements: &'a [Placement],
+        placements: &'a [SurfacePlacement],
+        surface_indices: &'a [usize],
+        beam_splitter_arms: &'a [Option<BeamSplitterPathKind>],
+        path_steps: &'a [CursorPlacement],
     ) -> Result<SequentialSubModelIter<'a>>;
 
-    fn slice(&self, idx: Range<usize>) -> SequentialSubModelSlice<'_>;
+    fn slice<'a>(
+        &'a self,
+        idx: Range<usize>,
+        surface_indices: &'a [usize],
+        beam_splitter_arms: &'a [Option<BeamSplitterPathKind>],
+    ) -> SequentialSubModelSlice<'a>;
 }
 
 #[derive(Debug)]
 pub struct SequentialSubModelBase {
-    /// Ordered sequence of store indices visited by this path.
-    surface_indices: Vec<usize>,
     gaps: Vec<Gap>,
-    /// Dense arm kind per step; parallel to `surface_indices`.
-    beam_splitter_arms: Vec<Option<BeamSplitterPathKind>>,
 }
 
 /// A view of a single submodel in a sequential system.
@@ -183,6 +200,10 @@ pub struct SequentialSubModelSlice<'a> {
     surface_indices: &'a [usize],
     beam_splitter_arms: &'a [Option<BeamSplitterPathKind>],
     gaps: &'a [Gap],
+    /// First step index of this slice within the full path's step list.
+    /// Used by the iterator to correctly index into the caller-supplied
+    /// `path_steps` slice.
+    step_offset: usize,
 }
 
 /// An iterator over the surfaces and gaps in a submodel.
@@ -190,20 +211,24 @@ pub struct SequentialSubModelSlice<'a> {
 /// Most operations in sequential modeling involve use of this iterator.
 pub struct SequentialSubModelIter<'a> {
     surfaces: &'a [Box<dyn Surface>],
-    placements: &'a [Placement],
+    placements: &'a [SurfacePlacement],
     surface_indices: &'a [usize],
     beam_splitter_arms: &'a [Option<BeamSplitterPathKind>],
     gaps: &'a [Gap],
+    path_steps: &'a [CursorPlacement],
+    step_offset: usize,
     index: usize,
 }
 
 /// A reverse iterator over the surfaces and gaps in a submodel.
 pub struct SequentialSubModelReverseIter<'a> {
     surfaces: &'a [Box<dyn Surface>],
-    placements: &'a [Placement],
+    placements: &'a [SurfacePlacement],
     surface_indices: &'a [usize],
     beam_splitter_arms: &'a [Option<BeamSplitterPathKind>],
     gaps: &'a [Gap],
+    path_steps: &'a [CursorPlacement],
+    step_offset: usize,
     index: usize,
 }
 
@@ -215,10 +240,13 @@ pub struct Step<'a> {
     pub gap_before: &'a Gap,
     pub surface: &'a dyn Surface,
     pub gap_after: Option<&'a Gap>,
-    pub placement: &'a Placement,
+    pub surface_placement: &'a SurfacePlacement,
     /// The beam-splitter arm traversed at this step, or `None` for non-BS
     /// surfaces. Set from the path's `beam_splitter_arms` declaration.
     pub bs_arm: Option<BeamSplitterPathKind>,
+    /// Path-specific cursor state at this step (orientation, position, rotation
+    /// matrix of the cursor as it arrives at this surface).
+    pub cursor_placement: CursorPlacement,
 }
 
 /// Propagates a tangential direction unit vector through the mirror surfaces of
@@ -232,14 +260,16 @@ pub struct Step<'a> {
 pub(crate) fn propagate_tangential_vec(
     v_init: Vec3,
     surfaces: &[Box<dyn Surface>],
-    placements: &[Placement],
+    placements: &[SurfacePlacement],
+    surface_indices: &[usize],
 ) -> Vec<Vec3> {
     use crate::specs::surfaces::BoundaryKind;
     let mut v = v_init;
-    surfaces
+    surface_indices
         .iter()
-        .zip(placements.iter())
-        .map(|(surf, placement)| {
+        .map(|&idx| {
+            let surf = &surfaces[idx];
+            let placement = &placements[idx];
             let v_incident = v;
             if let BoundaryKind::Reflecting = surf.boundary_kind() {
                 // Normal in global frame derived from the *nominal* orientation
@@ -257,24 +287,34 @@ pub(crate) fn propagate_tangential_vec(
         .collect()
 }
 
-/// Returns the index of the first physical surface in the system.
+/// Returns the step index of the first physical surface visited by
+/// `surface_indices`.
 ///
-/// A physical surface is one that has a finite semi-diameter,
-/// i.e., a Conic or Iris. Object, Image, and Probe surfaces are excluded.
-pub(crate) fn first_physical_surface(surfaces: &[Box<dyn Surface>]) -> Option<usize> {
-    surfaces
+/// A physical surface has a finite semi-diameter (Conic or Iris). Object,
+/// Image, and Probe surfaces are excluded. Returns the position within
+/// `surface_indices` (i.e. a step index), not a store index.
+pub(crate) fn first_physical_step(
+    surface_indices: &[usize],
+    surfaces: &[Box<dyn Surface>],
+) -> Option<usize> {
+    surface_indices
         .iter()
-        .position(|surf| surf.mask().semi_diameter().is_finite())
+        .position(|&i| surfaces[i].mask().semi_diameter().is_finite())
 }
 
-/// Returns the index of the last physical surface in the system.
+/// Returns the step index of the last physical surface visited by
+/// `surface_indices`.
 ///
-/// A physical surface is one that limits the has a finite semi-diameter,
-/// i.e., a Conic or Iris. Object, Image, and Probe surfaces are excluded.
-pub fn last_physical_surface(surfaces: &[Box<dyn Surface>]) -> Option<usize> {
-    surfaces
+/// A physical surface has a finite semi-diameter (Conic or Iris). Object,
+/// Image, and Probe surfaces are excluded. Returns the position within
+/// `surface_indices` (i.e. a step index), not a store index.
+pub(crate) fn last_physical_step(
+    surface_indices: &[usize],
+    surfaces: &[Box<dyn Surface>],
+) -> Option<usize> {
+    surface_indices
         .iter()
-        .rposition(|surf| surf.mask().semi_diameter().is_finite())
+        .rposition(|&i| surfaces[i].mask().semi_diameter().is_finite())
 }
 
 /// Returns the id of a surface in a reversed system.
@@ -328,7 +368,7 @@ impl SequentialModel {
         #[cfg(not(feature = "serde"))]
         {
             Self::validate_specs(gap_specs, wavelengths)?;
-            let (surfaces, placements, axis_directions, cursor_positions) =
+            let (surfaces, placements, cursor_placements) =
                 Self::surf_specs_to_surfs(surface_specs, gap_specs)?;
             if let Some(i) = stop_surface {
                 Self::validate_stop_surface(&surfaces, i)?;
@@ -338,21 +378,18 @@ impl SequentialModel {
             let mut submodels: Vec<SequentialSubModelBase> = Vec::new();
             for &wavelength in wavelengths.iter() {
                 let gaps = Self::gap_specs_to_gaps(gap_specs, wavelength)?;
-                submodels.push(SequentialSubModelBase::new(
-                    surface_indices.clone(),
-                    gaps,
-                    bs_arms.clone(),
-                ));
+                submodels.push(SequentialSubModelBase::new(gaps));
             }
             let store = SurfaceStore {
                 surfaces,
                 placements,
-                axis_directions,
-                cursor_positions,
             };
             let path = OpticalPath {
+                surface_indices,
+                beam_splitter_arms: bs_arms,
                 submodels,
                 stop_surface,
+                steps: cursor_placements,
             };
             Ok(Self {
                 store,
@@ -375,7 +412,7 @@ impl SequentialModel {
         registry: Option<&SurfaceRegistry>,
     ) -> Result<Self> {
         Self::validate_specs(gap_specs, wavelengths)?;
-        let (surfaces, placements, axis_directions, cursor_positions) =
+        let (surfaces, placements, cursor_placements) =
             Self::surf_specs_to_surfs(surface_specs, gap_specs, registry)?;
         if let Some(i) = stop_surface {
             Self::validate_stop_surface(&surfaces, i)?;
@@ -385,21 +422,18 @@ impl SequentialModel {
         let mut submodels: Vec<SequentialSubModelBase> = Vec::new();
         for &wavelength in wavelengths.iter() {
             let gaps = Self::gap_specs_to_gaps(gap_specs, wavelength)?;
-            submodels.push(SequentialSubModelBase::new(
-                surface_indices.clone(),
-                gaps,
-                bs_arms.clone(),
-            ));
+            submodels.push(SequentialSubModelBase::new(gaps));
         }
         let store = SurfaceStore {
             surfaces,
             placements,
-            axis_directions,
-            cursor_positions,
         };
         let path = OpticalPath {
+            surface_indices,
+            beam_splitter_arms: bs_arms,
             submodels,
             stop_surface,
+            steps: cursor_placements,
         };
         Ok(Self {
             store,
@@ -446,7 +480,7 @@ impl SequentialModel {
         }
         Self::validate_specs(gap_specs, wavelengths)?;
 
-        let (placements, axis_directions, cursor_positions) =
+        let (placements, cursor_placements) =
             Self::build_placements_and_directions(&surfaces, placement_specs, gap_specs);
 
         if let Some(i) = stop_surface {
@@ -458,22 +492,19 @@ impl SequentialModel {
         let mut submodels: Vec<SequentialSubModelBase> = Vec::new();
         for &wavelength in wavelengths.iter() {
             let gaps = Self::gap_specs_to_gaps(gap_specs, wavelength)?;
-            submodels.push(SequentialSubModelBase::new(
-                surface_indices.clone(),
-                gaps,
-                bs_arms.clone(),
-            ));
+            submodels.push(SequentialSubModelBase::new(gaps));
         }
 
         let store = SurfaceStore {
             surfaces,
             placements,
-            axis_directions,
-            cursor_positions,
         };
         let path = OpticalPath {
+            surface_indices,
+            beam_splitter_arms: bs_arms,
             submodels,
             stop_surface,
+            steps: cursor_placements,
         };
         Ok(Self {
             store,
@@ -498,9 +529,7 @@ impl SequentialModel {
         }
 
         let mut store_surfaces: Vec<Box<dyn Surface>> = Vec::new();
-        let mut store_placements: Vec<Placement> = Vec::new();
-        let mut store_axis_directions: Vec<Vec3> = Vec::new();
-        let mut store_cursor_positions: Vec<Vec3> = Vec::new();
+        let mut store_placements: Vec<SurfacePlacement> = Vec::new();
         let mut optical_paths: Vec<OpticalPath> = Vec::new();
 
         for ps in paths {
@@ -524,6 +553,7 @@ impl SequentialModel {
 
             let mut cursor = Cursor::new(-ps.gaps[0].thickness);
             let mut surface_indices: Vec<usize> = Vec::new();
+            let mut path_steps: Vec<CursorPlacement> = Vec::new();
 
             for (step, sref) in ps.surface_refs.iter().enumerate() {
                 let is_first = step == 0;
@@ -553,6 +583,13 @@ impl SequentialModel {
                 };
                 dense_bs_arms.push(bs_arm);
 
+                // Record cursor state before any reflection at this surface.
+                path_steps.push(CursorPlacement {
+                    axis_direction: cursor.forward(),
+                    cursor_position: cursor.pos(),
+                    cursor_rotation_matrix: cursor.rotation_matrix(),
+                });
+
                 match sref {
                     PathSurfaceRef::New(spec) => {
                         let surface = build_surface(spec)?;
@@ -571,12 +608,9 @@ impl SequentialModel {
                             ));
                         }
 
-                        store_axis_directions.push(cursor.forward());
-                        store_cursor_positions.push(cursor.pos());
-
                         let nominal_rot = spec.rotation().rotation_matrix();
                         let actual_rot = spec.rotation_offset().rotation_matrix() * nominal_rot;
-                        let placement = Placement::from_decenter_and_rotation(
+                        let placement = SurfacePlacement::from_decenter_and_rotation(
                             spec.decenter(),
                             actual_rot,
                             nominal_rot,
@@ -654,15 +688,14 @@ impl SequentialModel {
             let mut submodels: Vec<SequentialSubModelBase> = Vec::new();
             for &wavelength in wavelengths.iter() {
                 let gaps = Self::gap_specs_to_gaps(&ps.gaps, wavelength)?;
-                submodels.push(SequentialSubModelBase::new(
-                    surface_indices.clone(),
-                    gaps,
-                    dense_bs_arms.clone(),
-                ));
+                submodels.push(SequentialSubModelBase::new(gaps));
             }
             optical_paths.push(OpticalPath {
+                surface_indices,
+                beam_splitter_arms: dense_bs_arms,
                 submodels,
                 stop_surface,
+                steps: path_steps,
             });
         }
 
@@ -673,8 +706,6 @@ impl SequentialModel {
         let store = SurfaceStore {
             surfaces: store_surfaces,
             placements: store_placements,
-            axis_directions: store_axis_directions,
-            cursor_positions: store_cursor_positions,
         };
         Ok(Self {
             store,
@@ -711,16 +742,20 @@ impl SequentialModel {
         self.paths.len()
     }
 
-    /// Ordered store indices visited by path `path_id` (identical for every
-    /// wavelength submodel within that path).
+    /// Ordered store indices visited by path `path_id`.
     pub fn path_surface_indices(&self, path_id: usize) -> &[usize] {
-        &self.paths[path_id].submodels[0].surface_indices
+        &self.paths[path_id].surface_indices
+    }
+
+    /// Beam-splitter arm kind per step for path `path_id`.
+    pub fn path_beam_splitter_arms(&self, path_id: usize) -> &[Option<BeamSplitterPathKind>] {
+        &self.paths[path_id].beam_splitter_arms
     }
 
     /// Placement of the surface at `step` in path `path_id`, looked up from
     /// the store via that path's `surface_indices`.
-    pub fn path_placement(&self, path_id: usize, step: usize) -> &Placement {
-        let store_idx = self.paths[path_id].submodels[0].surface_indices[step];
+    pub fn path_placement(&self, path_id: usize, step: usize) -> &SurfacePlacement {
+        let store_idx = self.paths[path_id].surface_indices[step];
         &self.store.placements[store_idx]
     }
 
@@ -759,6 +794,20 @@ impl SequentialModel {
         self.paths[path_id].stop_surface
     }
 
+    /// Returns the per-step cursor data for path `path_id`.
+    ///
+    /// Each entry corresponds to one surface in that path's traversal order,
+    /// and records the cursor state as the beam *approaches* that surface
+    /// (before any reflection).
+    pub fn path_steps(&self, path_id: usize) -> &[CursorPlacement] {
+        &self.paths[path_id].steps
+    }
+
+    /// Returns all wavelength submodels for path `path_id`.
+    pub fn submodels_for_path(&self, path_id: usize) -> &[SequentialSubModelBase] {
+        &self.paths[path_id].submodels
+    }
+
     /// Returns the largest semi-diameter of any surface in the system.
     ///
     /// This ignores surfaces without any size, such as object, probe, and image
@@ -786,7 +835,7 @@ impl SequentialModel {
     ///
     /// The i-th placement corresponds to the i-th surface returned by
     /// [`surfaces()`](Self::surfaces).
-    pub fn placements(&self) -> &[Placement] {
+    pub fn placements(&self) -> &[SurfacePlacement] {
         &self.store.placements
     }
 
@@ -814,15 +863,6 @@ impl SequentialModel {
         &self.wavelengths
     }
 
-    /// Returns the optical axis directions at each surface vertex.
-    pub fn axis_directions(&self) -> &[Vec3] {
-        &self.store.axis_directions
-    }
-
-    pub fn cursor_positions(&self) -> &[Vec3] {
-        &self.store.cursor_positions
-    }
-
     fn gap_specs_to_gaps(gap_specs: &[GapSpec], wavelength: Float) -> Result<Vec<Gap>> {
         let mut gaps = Vec::new();
         for gap_spec in gap_specs.iter() {
@@ -835,15 +875,24 @@ impl SequentialModel {
     /// Returns true if the system is rotationally symmetric about the optical
     /// axis.
     ///
-    /// A system is rotationally symmetric if no physical surface has a tilt
-    /// relative to the optical axis, i.e., the surface-tilt rotation equals
-    /// the cursor rotation at every physical surface.
-    pub fn is_rotationally_symmetric(placements: &[Placement]) -> bool {
-        !placements.iter().any(|p| {
-            // R_surf = surface_tilt × cursor = global_to_local · cursor_to_global
-            let r_surf = p.rotation_matrix * p.cursor_rotation_matrix.transpose();
-            !r_surf.approx_eq(&Mat3x3::identity(), 1e-10)
-        })
+    /// A system is rotationally symmetric if no surface has a tilt relative to
+    /// the cursor approaching it on any path, i.e., the surface-tilt rotation
+    /// equals the cursor rotation at every step across all paths.
+    pub fn is_rotationally_symmetric(&self) -> bool {
+        let placements = &self.store.placements;
+        for path_id in 0..self.path_count() {
+            let steps = self.path_steps(path_id);
+            let indices = self.path_surface_indices(path_id);
+            for (step, &idx) in steps.iter().zip(indices.iter()) {
+                let p = &placements[idx];
+                // R_surf = surface_tilt × cursor = global_to_local · cursor_to_global
+                let r_surf = p.rotation_matrix * step.cursor_rotation_matrix.transpose();
+                if !r_surf.approx_eq(&Mat3x3::identity(), 1e-10) {
+                    return false;
+                }
+            }
+        }
+        true
     }
 
     /// Walks the cursor through the system, building placements and axis
@@ -855,10 +904,9 @@ impl SequentialModel {
         surfaces: &[Box<dyn Surface>],
         surface_placements: &[PlacementSpec],
         gap_specs: &[GapSpec],
-    ) -> (Vec<Placement>, Vec<Vec3>, Vec<Vec3>) {
+    ) -> (Vec<SurfacePlacement>, Vec<CursorPlacement>) {
         let mut placements = Vec::new();
-        let mut axis_directions = Vec::new();
-        let mut cursor_positions = Vec::new();
+        let mut cursor_placements = Vec::new();
         let mut cursor = Cursor::new(-gap_specs[0].thickness);
 
         // Surfaces 0 to N-2 (each paired with a gap that follows it).
@@ -867,12 +915,15 @@ impl SequentialModel {
             .zip(surface_placements.iter())
             .zip(gap_specs.iter())
         {
-            axis_directions.push(cursor.forward());
-            cursor_positions.push(cursor.pos());
+            cursor_placements.push(CursorPlacement {
+                axis_direction: cursor.forward(),
+                cursor_position: cursor.pos(),
+                cursor_rotation_matrix: cursor.rotation_matrix(),
+            });
 
             let nominal_rot = sp.rotation.rotation_matrix();
             let actual_rot = sp.rotation_offset.rotation_matrix() * nominal_rot;
-            let placement = Placement::from_decenter_and_rotation(
+            let placement = SurfacePlacement::from_decenter_and_rotation(
                 sp.decenter,
                 actual_rot,
                 nominal_rot,
@@ -893,19 +944,22 @@ impl SequentialModel {
         }
 
         // Last surface - no gap after it.
-        axis_directions.push(cursor.forward());
-        cursor_positions.push(cursor.pos());
+        cursor_placements.push(CursorPlacement {
+            axis_direction: cursor.forward(),
+            cursor_position: cursor.pos(),
+            cursor_rotation_matrix: cursor.rotation_matrix(),
+        });
         let sp = surface_placements.last().expect("at least one surface");
         let nominal_rot = sp.rotation.rotation_matrix();
         let actual_rot = sp.rotation_offset.rotation_matrix() * nominal_rot;
-        placements.push(Placement::from_decenter_and_rotation(
+        placements.push(SurfacePlacement::from_decenter_and_rotation(
             sp.decenter,
             actual_rot,
             nominal_rot,
             &cursor,
         ));
 
-        (placements, axis_directions, cursor_positions)
+        (placements, cursor_placements)
     }
 
     #[cfg(feature = "serde")]
@@ -913,7 +967,7 @@ impl SequentialModel {
         surf_specs: &[SurfaceSpec],
         gap_specs: &[GapSpec],
         registry: Option<&SurfaceRegistry>,
-    ) -> Result<SurfsPlacementsDirs> {
+    ) -> Result<SurfaceStoreContents> {
         let surfaces: Vec<Box<dyn Surface>> = surf_specs
             .iter()
             .map(|s| surface_from_spec(s, registry))
@@ -926,16 +980,16 @@ impl SequentialModel {
                 rotation_offset: spec.rotation_offset(),
             })
             .collect();
-        let (placements, axis_directions, cursor_positions) =
+        let (placements, cursor_placements) =
             Self::build_placements_and_directions(&surfaces, &surface_placements, gap_specs);
-        Ok((surfaces, placements, axis_directions, cursor_positions))
+        Ok((surfaces, placements, cursor_placements))
     }
 
     #[cfg(not(feature = "serde"))]
     fn surf_specs_to_surfs(
         surf_specs: &[SurfaceSpec],
         gap_specs: &[GapSpec],
-    ) -> Result<SurfsPlacementsDirs> {
+    ) -> Result<SurfaceStoreContents> {
         let surfaces: Vec<Box<dyn Surface>> = surf_specs
             .iter()
             .map(surface_from_spec)
@@ -948,9 +1002,9 @@ impl SequentialModel {
                 rotation_offset: spec.rotation_offset(),
             })
             .collect();
-        let (placements, axis_directions, cursor_positions) =
+        let (placements, cursor_placements) =
             Self::build_placements_and_directions(&surfaces, &surface_placements, gap_specs);
-        Ok((surfaces, placements, axis_directions, cursor_positions))
+        Ok((surfaces, placements, cursor_placements))
     }
 
     fn validate_gaps(gaps: &[GapSpec]) -> Result<()> {
@@ -976,16 +1030,8 @@ impl SequentialModel {
 }
 
 impl SequentialSubModelBase {
-    pub(crate) fn new(
-        surface_indices: Vec<usize>,
-        gaps: Vec<Gap>,
-        beam_splitter_arms: Vec<Option<BeamSplitterPathKind>>,
-    ) -> Self {
-        Self {
-            surface_indices,
-            gaps,
-            beam_splitter_arms,
-        }
+    pub(crate) fn new(gaps: Vec<Gap>) -> Self {
+        Self { gaps }
     }
 }
 
@@ -1005,23 +1051,34 @@ impl SequentialSubModel for SequentialSubModelBase {
     fn try_iter<'a>(
         &'a self,
         surfaces: &'a [Box<dyn Surface>],
-        placements: &'a [Placement],
+        placements: &'a [SurfacePlacement],
+        surface_indices: &'a [usize],
+        beam_splitter_arms: &'a [Option<BeamSplitterPathKind>],
+        path_steps: &'a [CursorPlacement],
     ) -> Result<SequentialSubModelIter<'a>> {
         SequentialSubModelIter::new(
             surfaces,
             placements,
-            &self.surface_indices,
-            &self.beam_splitter_arms,
+            surface_indices,
+            beam_splitter_arms,
             &self.gaps,
+            path_steps,
+            0,
         )
     }
 
-    fn slice(&self, idx: Range<usize>) -> SequentialSubModelSlice<'_> {
+    fn slice<'a>(
+        &'a self,
+        idx: Range<usize>,
+        surface_indices: &'a [usize],
+        beam_splitter_arms: &'a [Option<BeamSplitterPathKind>],
+    ) -> SequentialSubModelSlice<'a> {
         let si_range = idx.start..=idx.end;
         SequentialSubModelSlice {
-            surface_indices: &self.surface_indices[si_range.clone()],
-            beam_splitter_arms: &self.beam_splitter_arms[si_range],
-            gaps: &self.gaps[idx],
+            surface_indices: &surface_indices[si_range.clone()],
+            beam_splitter_arms: &beam_splitter_arms[si_range],
+            gaps: &self.gaps[idx.clone()],
+            step_offset: idx.start,
         }
     }
 }
@@ -1042,7 +1099,10 @@ impl SequentialSubModel for SequentialSubModelSlice<'_> {
     fn try_iter<'b>(
         &'b self,
         surfaces: &'b [Box<dyn Surface>],
-        placements: &'b [Placement],
+        placements: &'b [SurfacePlacement],
+        _surface_indices: &'b [usize],
+        _beam_splitter_arms: &'b [Option<BeamSplitterPathKind>],
+        path_steps: &'b [CursorPlacement],
     ) -> Result<SequentialSubModelIter<'b>> {
         SequentialSubModelIter::new(
             surfaces,
@@ -1050,15 +1110,23 @@ impl SequentialSubModel for SequentialSubModelSlice<'_> {
             self.surface_indices,
             self.beam_splitter_arms,
             self.gaps,
+            path_steps,
+            self.step_offset,
         )
     }
 
-    fn slice(&self, idx: Range<usize>) -> SequentialSubModelSlice<'_> {
+    fn slice<'b>(
+        &'b self,
+        idx: Range<usize>,
+        _surface_indices: &'b [usize],
+        _beam_splitter_arms: &'b [Option<BeamSplitterPathKind>],
+    ) -> SequentialSubModelSlice<'b> {
         let si_range = idx.start..=idx.end;
         SequentialSubModelSlice {
             surface_indices: &self.surface_indices[si_range.clone()],
             beam_splitter_arms: &self.beam_splitter_arms[si_range],
-            gaps: &self.gaps[idx],
+            gaps: &self.gaps[idx.clone()],
+            step_offset: self.step_offset + idx.start,
         }
     }
 }
@@ -1066,10 +1134,12 @@ impl SequentialSubModel for SequentialSubModelSlice<'_> {
 impl<'a> SequentialSubModelIter<'a> {
     fn new(
         surfaces: &'a [Box<dyn Surface>],
-        placements: &'a [Placement],
+        placements: &'a [SurfacePlacement],
         surface_indices: &'a [usize],
         beam_splitter_arms: &'a [Option<BeamSplitterPathKind>],
         gaps: &'a [Gap],
+        path_steps: &'a [CursorPlacement],
+        step_offset: usize,
     ) -> Result<Self> {
         if surface_indices.len() != gaps.len() + 1 {
             return Err(anyhow!(
@@ -1083,6 +1153,8 @@ impl<'a> SequentialSubModelIter<'a> {
             surface_indices,
             beam_splitter_arms,
             gaps,
+            path_steps,
+            step_offset,
             index: 0,
         })
     }
@@ -1094,6 +1166,8 @@ impl<'a> SequentialSubModelIter<'a> {
             self.surface_indices,
             self.beam_splitter_arms,
             self.gaps,
+            self.path_steps,
+            self.step_offset,
         )
     }
 }
@@ -1108,22 +1182,25 @@ impl<'a> Iterator for SequentialSubModelIter<'a> {
         let path_pos = self.index + 1;
         let store_idx = self.surface_indices[path_pos];
         let bs_arm = self.beam_splitter_arms[path_pos];
+        let cursor_placement = self.path_steps[self.step_offset + path_pos];
         let result = if self.index == self.gaps.len() - 1 {
             // We are at the image space gap
             Step {
                 gap_before: &self.gaps[self.index],
                 surface: self.surfaces[store_idx].as_ref(),
                 gap_after: None,
-                placement: &self.placements[store_idx],
+                surface_placement: &self.placements[store_idx],
                 bs_arm,
+                cursor_placement,
             }
         } else {
             Step {
                 gap_before: &self.gaps[self.index],
                 surface: self.surfaces[store_idx].as_ref(),
                 gap_after: Some(&self.gaps[self.index + 1]),
-                placement: &self.placements[store_idx],
+                surface_placement: &self.placements[store_idx],
                 bs_arm,
+                cursor_placement,
             }
         };
         self.index += 1;
@@ -1140,10 +1217,12 @@ impl ExactSizeIterator for SequentialSubModelIter<'_> {
 impl<'a> SequentialSubModelReverseIter<'a> {
     fn new(
         surfaces: &'a [Box<dyn Surface>],
-        placements: &'a [Placement],
+        placements: &'a [SurfacePlacement],
         surface_indices: &'a [usize],
         beam_splitter_arms: &'a [Option<BeamSplitterPathKind>],
         gaps: &'a [Gap],
+        path_steps: &'a [CursorPlacement],
+        step_offset: usize,
     ) -> Result<Self> {
         // Note that this requirement is different than the forward iterator.
         if surface_indices.len() != gaps.len() + 1 {
@@ -1158,6 +1237,8 @@ impl<'a> SequentialSubModelReverseIter<'a> {
             surface_indices,
             beam_splitter_arms,
             gaps,
+            path_steps,
+            step_offset,
             // We will never iterate from the image space surface in reverse.
             index: 1,
         })
@@ -1174,13 +1255,15 @@ impl<'a> Iterator for SequentialSubModelReverseIter<'a> {
         if self.index < n {
             let store_idx = self.surface_indices[forward_index];
             let bs_arm = self.beam_splitter_arms[forward_index];
+            let cursor_placement = self.path_steps[self.step_offset + forward_index];
             // We are somewhere in the middle of the system or at the object space gap.
             let result = Some(Step {
                 gap_before: &self.gaps[forward_index],
                 surface: self.surfaces[store_idx].as_ref(),
                 gap_after: Some(&self.gaps[forward_index - 1]),
-                placement: &self.placements[store_idx],
+                surface_placement: &self.placements[store_idx],
                 bs_arm,
+                cursor_placement,
             });
             self.index += 1;
             result
@@ -1219,6 +1302,11 @@ pub(crate) fn surface_from_spec(
             *radius_of_curvature,
             *surf_kind,
         ))),
+        SurfaceSpec::ThinLens {
+            semi_diameter,
+            focal_length,
+            ..
+        } => Ok(Box::new(ThinLens::new(*semi_diameter, *focal_length))),
         SurfaceSpec::Custom {
             type_id, params, ..
         } => registry
@@ -1265,6 +1353,11 @@ pub(crate) fn surface_from_spec(spec: &SurfaceSpec) -> Result<Box<dyn Surface>> 
             *radius_of_curvature,
             *surf_kind,
         ))),
+        SurfaceSpec::ThinLens {
+            semi_diameter,
+            focal_length,
+            ..
+        } => Ok(Box::new(ThinLens::new(*semi_diameter, *focal_length))),
         SurfaceSpec::Image { .. } => Ok(Box::new(Image::new())),
         SurfaceSpec::Object => Ok(Box::new(Object::new())),
         SurfaceSpec::Probe { .. } => Ok(Box::new(Probe::new())),
@@ -1283,36 +1376,37 @@ mod tests {
         specs::surfaces::BoundaryKind,
     };
 
-    // Helper: build a Placement for a surface with the given rotation, in an
-    // identity cursor frame (cursor aligned with global axes, origin at (0,0,0)).
-    fn placement_with_rotation(rotation: Rotation3D) -> Placement {
+    // Helper: build a SurfacePlacement for a surface with the given rotation, in
+    // an identity cursor frame (cursor aligned with global axes, origin at
+    // (0,0,0)).
+    fn placement_with_rotation(rotation: Rotation3D) -> (SurfacePlacement, Mat3x3) {
         let cursor_rotation_matrix = Mat3x3::identity();
         let rotation_matrix = rotation.rotation_matrix() * cursor_rotation_matrix;
-        Placement::new(
+        let sp = SurfacePlacement::new(
             Vec3::new(0.0, 0.0, 0.0),
             0.0,
             rotation_matrix,
             rotation_matrix,
-            cursor_rotation_matrix,
-        )
+        );
+        (sp, cursor_rotation_matrix)
     }
 
     #[test]
     fn projected_sd_untilted_surface() {
         let r = 10.0;
-        let placement = placement_with_rotation(Rotation3D::None);
+        let (placement, crm) = placement_with_rotation(Rotation3D::None);
         let tol = 1e-12;
         let v_u = Vec3::new(0.0, 1.0, 0.0);
         let v_r = Vec3::new(1.0, 0.0, 0.0);
         assert!(
-            (placement.projected_semi_diameter(r, v_u) - r).abs() < tol,
+            (placement.projected_semi_diameter(crm, r, v_u) - r).abs() < tol,
             "U axis: expected {r}, got {}",
-            placement.projected_semi_diameter(r, v_u)
+            placement.projected_semi_diameter(crm, r, v_u)
         );
         assert!(
-            (placement.projected_semi_diameter(r, v_r) - r).abs() < tol,
+            (placement.projected_semi_diameter(crm, r, v_r) - r).abs() < tol,
             "R axis: expected {r}, got {}",
-            placement.projected_semi_diameter(r, v_r)
+            placement.projected_semi_diameter(crm, r, v_r)
         );
     }
 
@@ -1321,22 +1415,22 @@ mod tests {
         // 45° rotation about cursor-R; foreshortens only the U axis.
         let r = 10.0;
         let theta = 45.0_f64.to_radians();
-        let placement = placement_with_rotation(Rotation3D::IntrinsicPassiveRUF(EulerAngles(
-            theta, 0.0, 0.0,
-        )));
+        let (placement, crm) = placement_with_rotation(Rotation3D::IntrinsicPassiveRUF(
+            EulerAngles(theta, 0.0, 0.0),
+        ));
         let tol = 1e-10;
         let v_u = Vec3::new(0.0, 1.0, 0.0);
         let v_r = Vec3::new(1.0, 0.0, 0.0);
         assert!(
-            (placement.projected_semi_diameter(r, v_u) - r * theta.cos()).abs() < tol,
+            (placement.projected_semi_diameter(crm, r, v_u) - r * theta.cos()).abs() < tol,
             "U axis: expected {}, got {}",
             r * theta.cos(),
-            placement.projected_semi_diameter(r, v_u)
+            placement.projected_semi_diameter(crm, r, v_u)
         );
         assert!(
-            (placement.projected_semi_diameter(r, v_r) - r).abs() < tol,
+            (placement.projected_semi_diameter(crm, r, v_r) - r).abs() < tol,
             "R axis: expected {r}, got {}",
-            placement.projected_semi_diameter(r, v_r)
+            placement.projected_semi_diameter(crm, r, v_r)
         );
     }
 
@@ -1345,21 +1439,21 @@ mod tests {
         // 30° rotation about cursor-U; foreshortens only the R axis.
         let r = 10.0;
         let psi = 30.0_f64.to_radians();
-        let placement =
+        let (placement, crm) =
             placement_with_rotation(Rotation3D::IntrinsicPassiveRUF(EulerAngles(0.0, psi, 0.0)));
         let tol = 1e-10;
         let v_u = Vec3::new(0.0, 1.0, 0.0);
         let v_r = Vec3::new(1.0, 0.0, 0.0);
         assert!(
-            (placement.projected_semi_diameter(r, v_r) - r * psi.cos()).abs() < tol,
+            (placement.projected_semi_diameter(crm, r, v_r) - r * psi.cos()).abs() < tol,
             "R axis: expected {}, got {}",
             r * psi.cos(),
-            placement.projected_semi_diameter(r, v_r)
+            placement.projected_semi_diameter(crm, r, v_r)
         );
         assert!(
-            (placement.projected_semi_diameter(r, v_u) - r).abs() < tol,
+            (placement.projected_semi_diameter(crm, r, v_u) - r).abs() < tol,
             "U axis: expected {r}, got {}",
-            placement.projected_semi_diameter(r, v_u)
+            placement.projected_semi_diameter(crm, r, v_u)
         );
     }
 
@@ -1373,6 +1467,7 @@ mod tests {
         let model = mirrors_figure_z::sequential_model(air, &wavelengths);
         let surfaces = model.surfaces();
         let placements = model.placements();
+        let path_steps = model.path_steps(0);
         let r = 12.7_f64;
         let expected_u = r * (30.0_f64.to_radians()).cos();
         let tol = 1e-10;
@@ -1383,15 +1478,16 @@ mod tests {
         for &mirror_idx in &[1usize, 2usize] {
             let sd = surfaces[mirror_idx].mask().semi_diameter();
             let placement = &placements[mirror_idx];
+            let crm = path_steps[mirror_idx].cursor_rotation_matrix;
             assert!(
-                (placement.projected_semi_diameter(sd, v_u) - expected_u).abs() < tol,
+                (placement.projected_semi_diameter(crm, sd, v_u) - expected_u).abs() < tol,
                 "Mirror {mirror_idx} U: expected {expected_u}, got {}",
-                placement.projected_semi_diameter(sd, v_u)
+                placement.projected_semi_diameter(crm, sd, v_u)
             );
             assert!(
-                (placement.projected_semi_diameter(sd, v_r) - r).abs() < tol,
+                (placement.projected_semi_diameter(crm, sd, v_r) - r).abs() < tol,
                 "Mirror {mirror_idx} R: expected {r}, got {}",
-                placement.projected_semi_diameter(sd, v_r)
+                placement.projected_semi_diameter(crm, sd, v_r)
             );
         }
     }
@@ -1412,7 +1508,13 @@ mod tests {
         let model = mirrors_figure_z::sequential_model(n!(1.0), &[0.5876]);
         let v_init = Vec3::new(0.0, 1.0, 0.0); // phi = 90°
 
-        let vecs = propagate_tangential_vec(v_init, model.surfaces(), model.placements());
+        let surface_indices: Vec<usize> = (0..model.surfaces().len()).collect();
+        let vecs = propagate_tangential_vec(
+            v_init,
+            model.surfaces(),
+            model.placements(),
+            &surface_indices,
+        );
 
         let sqrt3_over_2 = (3.0_f64 / 4.0_f64).sqrt();
 
@@ -1429,27 +1531,54 @@ mod tests {
 
     #[test]
     fn is_rotationally_symmetric() {
-        // A system with identity rotations is rotationally symmetric.
-        let id = Mat3x3::identity();
-        let placements = vec![
-            Placement::new(Vec3::new(0.0, 0.0, 0.0), 0.0, id, id, id),
-            Placement::new(Vec3::new(0.0, 0.0, 0.0), 0.0, id, id, id),
+        // A simple on-axis system (Object → Sphere → Image) is symmetric.
+        use crate::{GapSpec, SurfaceSpec, specs::surfaces::BoundaryKind};
+        let air = n!(1.0);
+        let glass = n!(1.5);
+        let gaps = vec![
+            GapSpec {
+                thickness: f64::INFINITY,
+                refractive_index: air.clone(),
+            },
+            GapSpec {
+                thickness: 5.0,
+                refractive_index: glass,
+            },
+            GapSpec {
+                thickness: 50.0,
+                refractive_index: air,
+            },
         ];
-        assert!(SequentialModel::is_rotationally_symmetric(&placements));
+        let surfaces = vec![
+            SurfaceSpec::Object,
+            SurfaceSpec::Sphere {
+                semi_diameter: 12.5,
+                radius_of_curvature: 25.8,
+                surf_kind: BoundaryKind::Refracting,
+                rotation: Rotation3D::None,
+                decenter: Vec3::new(0.0, 0.0, 0.0),
+                rotation_offset: Rotation3D::None,
+            },
+            SurfaceSpec::Image {
+                rotation: Rotation3D::None,
+                decenter: Vec3::new(0.0, 0.0, 0.0),
+                rotation_offset: Rotation3D::None,
+            },
+        ];
+        let simple =
+            SequentialModel::from_surface_specs(&gaps, &surfaces, &[0.5876], None).unwrap();
+        assert!(simple.is_rotationally_symmetric());
 
         // A system with tilted surfaces is not rotationally symmetric.
         use crate::examples::mirrors_figure_z;
-        let air = n!(1.0);
-        let wavelengths = [0.5876];
-        let figure_z = mirrors_figure_z::sequential_model(air, &wavelengths);
-        assert!(!SequentialModel::is_rotationally_symmetric(
-            figure_z.placements()
-        ));
+        let air2 = n!(1.0);
+        let figure_z = mirrors_figure_z::sequential_model(air2, &[0.5876]);
+        assert!(!figure_z.is_rotationally_symmetric());
     }
 
     #[test]
-    fn test_first_physical_surface() {
-        // Object(0), Probe(1), Sphere(2), Sphere(3), Image(4) — first physical is index
+    fn test_first_physical_step() {
+        // Object(0), Probe(1), Sphere(2), Sphere(3), Image(4) — first physical step is
         // 2.
         let surfaces: Vec<Box<dyn Surface>> = vec![
             Box::new(Object::new()),
@@ -1458,14 +1587,15 @@ mod tests {
             Box::new(Sphere::new(1.0, 1.0, BoundaryKind::Refracting)),
             Box::new(Image::new()),
         ];
+        let surface_indices: Vec<usize> = (0..surfaces.len()).collect();
 
-        let result = first_physical_surface(&surfaces);
+        let result = first_physical_step(&surface_indices, &surfaces);
         assert_eq!(result, Some(2));
     }
 
     #[test]
-    fn test_last_physical_surface() {
-        // Object(0), Sphere(1), Sphere(2), Probe(3), Image(4) — last physical is index
+    fn test_last_physical_step() {
+        // Object(0), Sphere(1), Sphere(2), Probe(3), Image(4) — last physical step is
         // 2.
         let surfaces: Vec<Box<dyn Surface>> = vec![
             Box::new(Object::new()),
@@ -1474,8 +1604,9 @@ mod tests {
             Box::new(Probe::new()),
             Box::new(Image::new()),
         ];
+        let surface_indices: Vec<usize> = (0..surfaces.len()).collect();
 
-        let result = last_physical_surface(&surfaces);
+        let result = last_physical_step(&surface_indices, &surfaces);
         assert_eq!(result, Some(2));
     }
 
@@ -1494,19 +1625,19 @@ mod tests {
         let id = Mat3x3::identity();
 
         // z-coordinate infinite
-        let p = Placement::new(Vec3::new(0.0, 0.0, Float::INFINITY), 0.0, id, id, id);
+        let p = SurfacePlacement::new(Vec3::new(0.0, 0.0, Float::INFINITY), 0.0, id, id);
         assert!(p.is_infinite());
 
         // y-coordinate infinite
-        let p = Placement::new(Vec3::new(0.0, Float::INFINITY, 0.0), 0.0, id, id, id);
+        let p = SurfacePlacement::new(Vec3::new(0.0, Float::INFINITY, 0.0), 0.0, id, id);
         assert!(p.is_infinite());
 
         // x-coordinate infinite
-        let p = Placement::new(Vec3::new(Float::INFINITY, 0.0, 0.0), 0.0, id, id, id);
+        let p = SurfacePlacement::new(Vec3::new(Float::INFINITY, 0.0, 0.0), 0.0, id, id);
         assert!(p.is_infinite());
 
         // finite
-        let p = Placement::new(Vec3::new(0.0, 0.0, 0.0), 0.0, id, id, id);
+        let p = SurfacePlacement::new(Vec3::new(0.0, 0.0, 0.0), 0.0, id, id);
         assert!(!p.is_infinite());
     }
 
@@ -1531,15 +1662,14 @@ mod tests {
 
     /// For a straight system, axis_direction should equal (0, 0, 1) everywhere.
     #[test]
-    fn placement_axis_direction_straight_system() {
+    fn cursor_placement_axis_direction_straight_system() {
         use crate::examples::convexplano_lens;
         use approx::assert_abs_diff_eq;
         let model = convexplano_lens::sequential_model(n!(1.0), n!(1.515), &[0.5876]);
-        for placement in model.placements() {
-            let axis = placement.axis_direction();
-            assert_abs_diff_eq!(axis.x(), 0.0, epsilon = 1e-12);
-            assert_abs_diff_eq!(axis.y(), 0.0, epsilon = 1e-12);
-            assert_abs_diff_eq!(axis.z(), 1.0, epsilon = 1e-12);
+        for cp in model.path_steps(0) {
+            assert_abs_diff_eq!(cp.axis_direction.x(), 0.0, epsilon = 1e-12);
+            assert_abs_diff_eq!(cp.axis_direction.y(), 0.0, epsilon = 1e-12);
+            assert_abs_diff_eq!(cp.axis_direction.z(), 1.0, epsilon = 1e-12);
         }
     }
 
@@ -1733,11 +1863,18 @@ mod tests {
         ];
         let id = Mat3x3::identity();
         let placements = vec![
-            Placement::new(Vec3::new(0., 0., 0.), 0., id, id, id),
-            Placement::new(Vec3::new(0., 0., 5.), 5., id, id, id),
-            Placement::new(Vec3::new(0., 0., 10.), 10., id, id, id),
-            Placement::new(Vec3::new(0., 0., 15.), 15., id, id, id),
+            SurfacePlacement::new(Vec3::new(0., 0., 0.), 0., id, id),
+            SurfacePlacement::new(Vec3::new(0., 0., 5.), 5., id, id),
+            SurfacePlacement::new(Vec3::new(0., 0., 10.), 10., id, id),
+            SurfacePlacement::new(Vec3::new(0., 0., 15.), 15., id, id),
         ];
+        let path_steps: Vec<CursorPlacement> = (0..4)
+            .map(|_| CursorPlacement {
+                axis_direction: Vec3::new(0.0, 0.0, 1.0),
+                cursor_position: Vec3::new(0.0, 0.0, 0.0),
+                cursor_rotation_matrix: id,
+            })
+            .collect();
         let gaps = vec![
             Gap {
                 thickness: 5.0,
@@ -1752,8 +1889,18 @@ mod tests {
                 refractive_index: RefractiveIndex::try_from_spec(n!(1.0).as_ref(), 0.5876).unwrap(),
             },
         ];
-        let submodel = SequentialSubModelBase::new(vec![0, 2, 1, 3], gaps, vec![None; 4]);
-        let mut iter = submodel.try_iter(&surfaces, &placements).unwrap();
+        let surface_indices = vec![0, 2, 1, 3];
+        let bs_arms = vec![None; 4];
+        let submodel = SequentialSubModelBase::new(gaps);
+        let mut iter = submodel
+            .try_iter(
+                &surfaces,
+                &placements,
+                &surface_indices,
+                &bs_arms,
+                &path_steps,
+            )
+            .unwrap();
 
         let step0 = iter.next().unwrap();
         // step0 surface should be Sphere at index 2 (sd = 20.0)
@@ -1775,10 +1922,17 @@ mod tests {
         ];
         let id = Mat3x3::identity();
         let placements = vec![
-            Placement::new(Vec3::new(0., 0., 0.), 0., id, id, id),
-            Placement::new(Vec3::new(0., 0., 5.), 5., id, id, id),
-            Placement::new(Vec3::new(0., 0., 10.), 10., id, id, id),
+            SurfacePlacement::new(Vec3::new(0., 0., 0.), 0., id, id),
+            SurfacePlacement::new(Vec3::new(0., 0., 5.), 5., id, id),
+            SurfacePlacement::new(Vec3::new(0., 0., 10.), 10., id, id),
         ];
+        let path_steps: Vec<CursorPlacement> = (0..4)
+            .map(|_| CursorPlacement {
+                axis_direction: Vec3::new(0.0, 0.0, 1.0),
+                cursor_position: Vec3::new(0.0, 0.0, 0.0),
+                cursor_rotation_matrix: id,
+            })
+            .collect();
         let gaps = vec![
             Gap {
                 thickness: 5.0,
@@ -1793,9 +1947,20 @@ mod tests {
                 refractive_index: RefractiveIndex::try_from_spec(n!(1.0).as_ref(), 0.5876).unwrap(),
             },
         ];
-        let submodel = SequentialSubModelBase::new(vec![0, 1, 1, 2], gaps, vec![None; 4]);
+        let surface_indices = vec![0, 1, 1, 2];
+        let bs_arms = vec![None; 4];
+        let submodel = SequentialSubModelBase::new(gaps);
         // Must not panic or error — iteration visits index 1 twice.
-        let count = submodel.try_iter(&surfaces, &placements).unwrap().count();
+        let count = submodel
+            .try_iter(
+                &surfaces,
+                &placements,
+                &surface_indices,
+                &bs_arms,
+                &path_steps,
+            )
+            .unwrap()
+            .count();
         assert_eq!(count, 3); // 3 gaps → 3 steps
     }
 
@@ -1813,11 +1978,18 @@ mod tests {
         ];
         let id = Mat3x3::identity();
         let placements = vec![
-            Placement::new(Vec3::new(0., 0., 0.), 0., id, id, id),
-            Placement::new(Vec3::new(0., 0., 10.), 10., id, id, id),
-            Placement::new(Vec3::new(0., 0., 20.), 20., id, id, id),
-            Placement::new(Vec3::new(0., 0., 30.), 30., id, id, id),
+            SurfacePlacement::new(Vec3::new(0., 0., 0.), 0., id, id),
+            SurfacePlacement::new(Vec3::new(0., 0., 10.), 10., id, id),
+            SurfacePlacement::new(Vec3::new(0., 0., 20.), 20., id, id),
+            SurfacePlacement::new(Vec3::new(0., 0., 30.), 30., id, id),
         ];
+        let path_steps: Vec<CursorPlacement> = (0..4)
+            .map(|_| CursorPlacement {
+                axis_direction: Vec3::new(0.0, 0.0, 1.0),
+                cursor_position: Vec3::new(0.0, 0.0, 0.0),
+                cursor_rotation_matrix: id,
+            })
+            .collect();
         let gaps = vec![
             Gap {
                 thickness: 10.0,
@@ -1832,9 +2004,18 @@ mod tests {
                 refractive_index: RefractiveIndex::try_from_spec(n!(1.0).as_ref(), 0.5876).unwrap(),
             },
         ];
+        let surface_indices = vec![0, 1, 2, 3];
         let bs_arms = vec![None, None, Some(BeamSplitterPathKind::Transmitting), None];
-        let submodel = SequentialSubModelBase::new(vec![0, 1, 2, 3], gaps, bs_arms);
-        let mut iter = submodel.try_iter(&surfaces, &placements).unwrap();
+        let submodel = SequentialSubModelBase::new(gaps);
+        let mut iter = submodel
+            .try_iter(
+                &surfaces,
+                &placements,
+                &surface_indices,
+                &bs_arms,
+                &path_steps,
+            )
+            .unwrap();
 
         let step0 = iter.next().unwrap(); // Sphere
         assert_eq!(step0.bs_arm, None);
@@ -1952,5 +2133,79 @@ mod tests {
             img_no.z(),
             img_with.z()
         );
+    }
+
+    // AT: path 0 cursor positions lie along +Z; path 1 cursor positions
+    // diverge to +Y after the beam splitter.
+    #[test]
+    fn path_steps_cursor_positions_two_path_model() {
+        use crate::examples::beam_splitter;
+        use crate::specs::gaps::ConstantRefractiveIndex;
+        use std::rc::Rc;
+
+        let n_air: Rc<dyn crate::RefractiveIndexSpec> =
+            Rc::new(ConstantRefractiveIndex::new(1.0, 0.0));
+        let model = beam_splitter::two_path_model(n_air, &[0.5876], 10.0, 10.0);
+
+        let tol = 1e-10;
+
+        // Path 0: Object(z=−inf), BS(z=0), Image_T(z=10)
+        let steps0 = model.path_steps(0);
+        assert_eq!(steps0.len(), 3);
+        // Object cursor is at −∞ along Z.
+        assert!(steps0[0].cursor_position.z().is_infinite());
+        // BS cursor at z=0.
+        assert!((steps0[1].cursor_position.z()).abs() < tol);
+        // Image_T cursor at z=10.
+        assert!((steps0[2].cursor_position.z() - 10.0).abs() < tol);
+        // All path-0 cursor positions have zero x and y.
+        for s in steps0.iter().filter(|s| s.cursor_position.z().is_finite()) {
+            assert!(s.cursor_position.x().abs() < tol);
+            assert!(s.cursor_position.y().abs() < tol);
+        }
+
+        // Path 1: Object(shared), BS(shared, reflected to −Y), Image_R
+        // The BS uses a −45° rotation about R, so the reflected arm travels in −Y.
+        let steps1 = model.path_steps(1);
+        assert_eq!(steps1.len(), 3);
+        // Image_R cursor position diverges to −Y: x=0, y=−10, z=0.
+        assert!(
+            steps1[2].cursor_position.x().abs() < tol,
+            "x={}",
+            steps1[2].cursor_position.x()
+        );
+        assert!(
+            (steps1[2].cursor_position.y() + 10.0).abs() < tol,
+            "y={}",
+            steps1[2].cursor_position.y()
+        );
+        assert!(
+            steps1[2].cursor_position.z().abs() < tol,
+            "z={}",
+            steps1[2].cursor_position.z()
+        );
+    }
+
+    // AT: path 1's axis direction at the Image_R step points along −Y after a
+    // −45° BS rotation about R.
+    #[test]
+    fn path_steps_axis_direction_reflected_arm() {
+        use crate::examples::beam_splitter;
+        use crate::specs::gaps::ConstantRefractiveIndex;
+        use std::rc::Rc;
+
+        let n_air: Rc<dyn crate::RefractiveIndexSpec> =
+            Rc::new(ConstantRefractiveIndex::new(1.0, 0.0));
+        let model = beam_splitter::two_path_model(n_air, &[0.5876], 10.0, 10.0);
+
+        let tol = 1e-10;
+        let steps1 = model.path_steps(1);
+
+        // The BS example uses a −45° rotation about R, so the reflected arm
+        // travels in the −Y direction.
+        let d = steps1[2].axis_direction;
+        assert!(d.x().abs() < tol, "x={}", d.x());
+        assert!((d.y() + 1.0).abs() < tol, "y={}", d.y());
+        assert!(d.z().abs() < tol, "z={}", d.z());
     }
 }

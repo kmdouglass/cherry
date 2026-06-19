@@ -10,7 +10,7 @@ pub mod solvers;
 #[cfg(feature = "serde")]
 pub mod surface_registry;
 
-pub use kinds::{BeamSplitter, Conic, Image, Iris, Object, Probe, Sphere};
+pub use kinds::{BeamSplitter, Conic, Image, Iris, Object, Probe, Sphere, ThinLens};
 #[cfg(feature = "serde")]
 pub use surface_registry::{SurfaceConstructor, SurfaceRegistry};
 
@@ -31,6 +31,7 @@ pub enum SurfaceKind {
     Object,
     Probe,
     Sphere,
+    ThinLens,
     Custom,
 }
 
@@ -81,6 +82,19 @@ pub trait Surface: std::fmt::Debug + Send + Sync {
     /// the physically correct value and the default implementation.
     fn roc(&self, _azimuth_rad: Float) -> Float {
         Float::INFINITY
+    }
+
+    /// Returns the surface's contribution to paraxial refracting power.
+    ///
+    /// The default implementation is the standard single-interface power
+    /// formula, `(n_1 - n_0) / roc(azimuth_rad)`, used by [`ParaxialView`] to
+    /// build ray transfer matrices. Surfaces whose power is not determined by
+    /// curvature and surrounding media (e.g. an idealized thin lens) override
+    /// this directly instead of trying to encode their power into `roc()`.
+    ///
+    /// [`ParaxialView`]: crate::views::paraxial::ParaxialView
+    fn power(&self, azimuth_rad: Float, n_0: Float, n_1: Float) -> Float {
+        (n_1 - n_0) / self.roc(azimuth_rad)
     }
 
     /// Returns the surface sag at a given position in local coordinates.

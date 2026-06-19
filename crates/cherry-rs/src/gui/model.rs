@@ -142,6 +142,7 @@ pub enum SurfaceVariant {
     Object,
     Sphere,
     Conic,
+    ThinLens,
     Iris,
     Probe,
     Image,
@@ -153,6 +154,7 @@ impl SurfaceVariant {
     pub const SELECTABLE: &[SurfaceVariant] = &[
         SurfaceVariant::Sphere,
         SurfaceVariant::Conic,
+        SurfaceVariant::ThinLens,
         SurfaceVariant::Iris,
         SurfaceVariant::Probe,
     ];
@@ -164,6 +166,7 @@ impl std::fmt::Display for SurfaceVariant {
             SurfaceVariant::Object => write!(f, "Object"),
             SurfaceVariant::Sphere => write!(f, "Sphere"),
             SurfaceVariant::Conic => write!(f, "Conic"),
+            SurfaceVariant::ThinLens => write!(f, "Thin Lens"),
             SurfaceVariant::Iris => write!(f, "Iris"),
             SurfaceVariant::Probe => write!(f, "Probe"),
             SurfaceVariant::Image => write!(f, "Image"),
@@ -202,6 +205,9 @@ pub struct SurfaceRow {
     pub semi_diameter: String,
     pub radius_of_curvature: String,
     pub conic_constant: String,
+    /// Focal length. Only meaningful for `SurfaceVariant::ThinLens`.
+    #[serde(default)]
+    pub focal_length: String,
     /// Tilt in UF plane (about cursor-R axis), degrees. Only meaningful for
     /// reflecting Conic surfaces.
     #[serde(default = "default_zero")]
@@ -226,6 +232,7 @@ impl SurfaceRow {
             semi_diameter: String::new(),
             radius_of_curvature: String::new(),
             conic_constant: String::new(),
+            focal_length: String::new(),
             theta: "0".into(),
             psi: "0".into(),
             material_key: None,
@@ -247,6 +254,7 @@ impl SurfaceRow {
             semi_diameter: semi_diameter.into(),
             radius_of_curvature: radius_of_curvature.into(),
             conic_constant: conic_constant.into(),
+            focal_length: String::new(),
             theta: "0".into(),
             psi: "0".into(),
             material_key: None,
@@ -267,6 +275,28 @@ impl SurfaceRow {
             semi_diameter: semi_diameter.into(),
             radius_of_curvature: radius_of_curvature.into(),
             conic_constant: String::new(),
+            focal_length: String::new(),
+            theta: "0".into(),
+            psi: "0".into(),
+            material_key: None,
+        }
+    }
+
+    pub fn new_thin_lens(
+        semi_diameter: &str,
+        focal_length: &str,
+        thickness: &str,
+        refractive_index: &str,
+    ) -> Self {
+        Self {
+            variant: SurfaceVariant::ThinLens,
+            boundary_variant: BoundaryVariant::Refracting,
+            refractive_index: refractive_index.into(),
+            thickness: thickness.into(),
+            semi_diameter: semi_diameter.into(),
+            radius_of_curvature: String::new(),
+            conic_constant: String::new(),
+            focal_length: focal_length.into(),
             theta: "0".into(),
             psi: "0".into(),
             material_key: None,
@@ -282,6 +312,7 @@ impl SurfaceRow {
             semi_diameter: semi_diameter.into(),
             radius_of_curvature: String::new(),
             conic_constant: String::new(),
+            focal_length: String::new(),
             theta: "0".into(),
             psi: "0".into(),
             material_key: None,
@@ -297,6 +328,7 @@ impl SurfaceRow {
             semi_diameter: String::new(),
             radius_of_curvature: String::new(),
             conic_constant: String::new(),
+            focal_length: String::new(),
             theta: "0".into(),
             psi: "0".into(),
             material_key: None,

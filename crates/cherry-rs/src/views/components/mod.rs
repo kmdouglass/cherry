@@ -35,6 +35,11 @@ pub enum Component {
     Mirror {
         surf_idx: usize,
     },
+    /// An idealized thin lens, detected by `surface_kind()` rather than by
+    /// gap-pairing (it normally sits between two equal-index gaps).
+    ThinLens {
+        surf_idx: usize,
+    },
     UnpairedSurface {
         surf_idx: usize,
     },
@@ -88,6 +93,9 @@ pub fn components_view(
             claimed.insert(i);
         } else if kind == SurfaceKind::Iris {
             non_elements.push(Component::Iris { stop_idx: i });
+            claimed.insert(i);
+        } else if kind == SurfaceKind::ThinLens {
+            non_elements.push(Component::ThinLens { surf_idx: i });
             claimed.insert(i);
         }
     }
@@ -203,6 +211,7 @@ pub fn components_view(
         Component::Element { surf_idxs } => *surf_idxs.first().unwrap_or(&usize::MAX),
         Component::Iris { stop_idx } => *stop_idx,
         Component::Mirror { surf_idx } => *surf_idx,
+        Component::ThinLens { surf_idx } => *surf_idx,
         Component::UnpairedSurface { surf_idx } => *surf_idx,
     });
     Ok(result)
@@ -521,6 +530,50 @@ mod tests {
         assert!(components.contains(&Component::Element {
             surf_idxs: vec![1, 2]
         }));
+    }
+
+    pub fn thin_lens_singlet() -> SequentialModel {
+        // A thin lens borders equal-index (air) gaps on both sides, so it
+        // can't be detected by the gap-pairing logic used for glass
+        // elements — it must be classified by surface_kind() instead.
+        let air = n!(1.0);
+
+        let surf_0 = SurfaceSpec::Object;
+        let gap_0 = GapSpec {
+            thickness: Float::INFINITY,
+            refractive_index: air.clone(),
+        };
+        let surf_1 = SurfaceSpec::ThinLens {
+            semi_diameter: 12.5,
+            focal_length: 100.0,
+            rotation: Rotation3D::None,
+            decenter: Vec3::new(0.0, 0.0, 0.0),
+            rotation_offset: Rotation3D::None,
+        };
+        let gap_1 = GapSpec {
+            thickness: 100.0,
+            refractive_index: air,
+        };
+        let surf_2 = SurfaceSpec::Image {
+            rotation: Rotation3D::None,
+            decenter: Vec3::new(0.0, 0.0, 0.0),
+            rotation_offset: Rotation3D::None,
+        };
+
+        let surfaces = vec![surf_0, surf_1, surf_2];
+        let gaps = vec![gap_0, gap_1];
+        let wavelengths = vec![0.5876];
+
+        SequentialModel::from_surface_specs(&gaps, &surfaces, &wavelengths, None).unwrap()
+    }
+
+    #[test]
+    fn test_thin_lens_is_standalone_component() {
+        let sequential_model = thin_lens_singlet();
+        let components = components_view(&sequential_model, n!(1.0)).unwrap();
+
+        assert_eq!(components.len(), 1);
+        assert!(components.contains(&Component::ThinLens { surf_idx: 1 }));
     }
 
     #[test]

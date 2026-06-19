@@ -1,4 +1,43 @@
-use super::model::{BoundaryVariant, FieldMode, FieldRow, SurfaceRow, SurfaceVariant, SystemSpecs};
+use super::model::{
+    BoundaryVariant, FieldMode, FieldRow, SolveSpec, SurfaceRow, SurfaceVariant, SystemSpecs,
+};
+
+/// Simple thin lens: f = 100 mm, object at infinity.
+///
+/// Carries an M (marginal ray height) solve on the lens-to-image gap with a
+/// target height of 0, demonstrating how to keep the image plane at the
+/// lens's focus instead of hand-entering the back focal distance.
+pub fn thin_lens() -> SystemSpecs {
+    SystemSpecs {
+        surfaces: vec![
+            SurfaceRow::new_object("Infinity"),
+            SurfaceRow::new_thin_lens("12.5", "100.0", "50.0", "1.0"),
+            SurfaceRow::new_image(),
+        ],
+        fields: vec![FieldRow {
+            chi: "0.0".into(),
+            phi: "90.0".into(),
+            x: "0.0".into(),
+        }],
+        aperture_semi_diameter: "12.5".into(),
+        wavelengths: vec!["0.5876".into()],
+        field_mode: FieldMode::Angle,
+        use_materials: false,
+        selected_materials: Vec::new(),
+        cross_section_n_rays: 3,
+        full_pupil_spacing: "0.1".into(),
+        n_fan_rays: 65,
+        background_n: "1.0".into(),
+        background_material_key: None,
+        stop_surface: None,
+        solves: vec![SolveSpec::MarginalRayHeight {
+            gap_index: 1,
+            target_height: 0.0,
+            wavelength_id: 0,
+        }],
+        lens_groups: Vec::new(),
+    }
+}
 
 /// Figure-Z two-mirror system: two flat mirrors at 30° tilt, separated by 100
 /// mm, returning the beam parallel to the z-axis.
@@ -14,6 +53,7 @@ pub fn mirrors_figure_z() -> SystemSpecs {
                 semi_diameter: "12.7".into(),
                 radius_of_curvature: "Infinity".into(),
                 conic_constant: String::new(),
+                focal_length: String::new(),
                 theta: "30".into(),
                 psi: "0".into(),
                 material_key: None,
@@ -26,6 +66,7 @@ pub fn mirrors_figure_z() -> SystemSpecs {
                 semi_diameter: "12.7".into(),
                 radius_of_curvature: "Infinity".into(),
                 conic_constant: String::new(),
+                focal_length: String::new(),
                 theta: "30".into(),
                 psi: "0".into(),
                 material_key: None,
@@ -148,6 +189,7 @@ pub fn convexplano_lens_with_materials() -> SystemSpecs {
                 semi_diameter: "12.5".into(),
                 radius_of_curvature: "Infinity".into(),
                 conic_constant: "0.0".into(),
+                focal_length: String::new(),
                 theta: "0".into(),
                 psi: "0".into(),
                 material_key: Some("other:air:Ciddor".into()),
@@ -160,6 +202,7 @@ pub fn convexplano_lens_with_materials() -> SystemSpecs {
                 semi_diameter: "12.5".into(),
                 radius_of_curvature: "25.8".into(),
                 conic_constant: String::new(),
+                focal_length: String::new(),
                 theta: "0".into(),
                 psi: "0".into(),
                 material_key: Some("popular_glass:BK7:SCHOTT".into()),
@@ -172,6 +215,7 @@ pub fn convexplano_lens_with_materials() -> SystemSpecs {
                 semi_diameter: "12.5".into(),
                 radius_of_curvature: "Infinity".into(),
                 conic_constant: String::new(),
+                focal_length: String::new(),
                 theta: "0".into(),
                 psi: "0".into(),
                 material_key: Some("other:air:Ciddor".into()),
@@ -221,6 +265,7 @@ pub fn f_theta_scan_lens() -> SystemSpecs {
                 semi_diameter: "12.5".into(),
                 radius_of_curvature: "Infinity".into(),
                 conic_constant: "0.0".into(),
+                focal_length: String::new(),
                 theta: "0".into(),
                 psi: "0".into(),
                 material_key: Some("other:air:Ciddor".into()),
@@ -233,6 +278,7 @@ pub fn f_theta_scan_lens() -> SystemSpecs {
                 semi_diameter: "0.5".into(),
                 radius_of_curvature: "Infinity".into(),
                 conic_constant: "0.0".into(),
+                focal_length: String::new(),
                 theta: "0".into(),
                 psi: "0".into(),
                 material_key: Some("other:air:Ciddor".into()),
@@ -245,6 +291,7 @@ pub fn f_theta_scan_lens() -> SystemSpecs {
                 semi_diameter: "2".into(),
                 radius_of_curvature: "-2.2136".into(),
                 conic_constant: String::new(),
+                focal_length: String::new(),
                 theta: "0".into(),
                 psi: "0".into(),
                 material_key: Some("specs:SCHOTT-optical:N-SF57".into()),
@@ -257,6 +304,7 @@ pub fn f_theta_scan_lens() -> SystemSpecs {
                 semi_diameter: "2".into(),
                 radius_of_curvature: "-2.6575".into(),
                 conic_constant: String::new(),
+                focal_length: String::new(),
                 theta: "0".into(),
                 psi: "0".into(),
                 material_key: Some("other:air:Ciddor".into()),
@@ -269,6 +317,7 @@ pub fn f_theta_scan_lens() -> SystemSpecs {
                 semi_diameter: "2".into(),
                 radius_of_curvature: "-5.5022".into(),
                 conic_constant: String::new(),
+                focal_length: String::new(),
                 theta: "0".into(),
                 psi: "0".into(),
                 material_key: Some("specs:SCHOTT-optical:N-SF57".into()),
@@ -281,6 +330,7 @@ pub fn f_theta_scan_lens() -> SystemSpecs {
                 semi_diameter: "2".into(),
                 radius_of_curvature: "-3.8129".into(),
                 conic_constant: String::new(),
+                focal_length: String::new(),
                 theta: "0".into(),
                 psi: "0".into(),
                 material_key: Some("other:air:Ciddor".into()),
@@ -293,6 +343,7 @@ pub fn f_theta_scan_lens() -> SystemSpecs {
                 semi_diameter: "3".into(),
                 radius_of_curvature: "7.9951".into(),
                 conic_constant: String::new(),
+                focal_length: String::new(),
                 theta: "0".into(),
                 psi: "0".into(),
                 material_key: Some("specs:SCHOTT-optical:N-SF57".into()),
@@ -305,6 +356,7 @@ pub fn f_theta_scan_lens() -> SystemSpecs {
                 semi_diameter: "3".into(),
                 radius_of_curvature: "8.3651".into(),
                 conic_constant: String::new(),
+                focal_length: String::new(),
                 theta: "0".into(),
                 psi: "0".into(),
                 material_key: Some("other:air:Ciddor".into()),
@@ -351,6 +403,7 @@ pub fn galvo_scan_lens_negrean_mansvelder() -> SystemSpecs {
                 semi_diameter: String::new(),
                 radius_of_curvature: String::new(),
                 conic_constant: String::new(),
+                focal_length: String::new(),
                 theta: "0".into(),
                 psi: "0".into(),
                 material_key: Some("other:air:Ciddor".into()),
@@ -363,6 +416,7 @@ pub fn galvo_scan_lens_negrean_mansvelder() -> SystemSpecs {
                 semi_diameter: "2".into(),
                 radius_of_curvature: "Infinity".into(),
                 conic_constant: String::new(),
+                focal_length: String::new(),
                 theta: "-45".into(),
                 psi: "0".into(),
                 material_key: Some("other:air:Ciddor".into()),
@@ -375,6 +429,7 @@ pub fn galvo_scan_lens_negrean_mansvelder() -> SystemSpecs {
                 semi_diameter: "9".into(),
                 radius_of_curvature: "21.423".into(),
                 conic_constant: String::new(),
+                focal_length: String::new(),
                 theta: "0".into(),
                 psi: "0".into(),
                 material_key: Some("specs:SCHOTT-optical:N-KZFS5".into()),
@@ -387,6 +442,7 @@ pub fn galvo_scan_lens_negrean_mansvelder() -> SystemSpecs {
                 semi_diameter: "8".into(),
                 radius_of_curvature: "13.471".into(),
                 conic_constant: String::new(),
+                focal_length: String::new(),
                 theta: "0".into(),
                 psi: "0".into(),
                 material_key: Some("other:air:Ciddor".into()),
@@ -399,6 +455,7 @@ pub fn galvo_scan_lens_negrean_mansvelder() -> SystemSpecs {
                 semi_diameter: "15".into(),
                 radius_of_curvature: "88.222".into(),
                 conic_constant: String::new(),
+                focal_length: String::new(),
                 theta: "0".into(),
                 psi: "0".into(),
                 material_key: Some("specs:SCHOTT-optical:N-PK51".into()),
@@ -411,6 +468,7 @@ pub fn galvo_scan_lens_negrean_mansvelder() -> SystemSpecs {
                 semi_diameter: "15".into(),
                 radius_of_curvature: "-23.392".into(),
                 conic_constant: String::new(),
+                focal_length: String::new(),
                 theta: "0".into(),
                 psi: "0".into(),
                 material_key: Some("other:air:Ciddor".into()),
@@ -423,6 +481,7 @@ pub fn galvo_scan_lens_negrean_mansvelder() -> SystemSpecs {
                 semi_diameter: "15".into(),
                 radius_of_curvature: "211.304".into(),
                 conic_constant: String::new(),
+                focal_length: String::new(),
                 theta: "0".into(),
                 psi: "0".into(),
                 material_key: Some("specs:OHARA-optical:S-FPM2".into()),
@@ -435,6 +494,7 @@ pub fn galvo_scan_lens_negrean_mansvelder() -> SystemSpecs {
                 semi_diameter: "15".into(),
                 radius_of_curvature: "-20.385".into(),
                 conic_constant: String::new(),
+                focal_length: String::new(),
                 theta: "0".into(),
                 psi: "0".into(),
                 material_key: Some("specs:SCHOTT-optical:N-KZFS11".into()),
@@ -447,6 +507,7 @@ pub fn galvo_scan_lens_negrean_mansvelder() -> SystemSpecs {
                 semi_diameter: "15".into(),
                 radius_of_curvature: "Infinity".into(),
                 conic_constant: String::new(),
+                focal_length: String::new(),
                 theta: "0".into(),
                 psi: "0".into(),
                 material_key: Some("other:air:Ciddor".into()),
@@ -498,6 +559,7 @@ pub fn concave_mirror() -> SystemSpecs {
                 semi_diameter: "12.5".into(),
                 radius_of_curvature: "-200.0".into(),
                 conic_constant: String::new(),
+                focal_length: String::new(),
                 theta: "0".into(),
                 psi: "0".into(),
                 material_key: None,
@@ -527,7 +589,59 @@ pub fn concave_mirror() -> SystemSpecs {
         background_n: "1.0".into(),
         background_material_key: None,
         stop_surface: None,
-        solves: Vec::new(),
+        solves: vec![SolveSpec::MarginalRayHeight {
+            gap_index: 1,
+            target_height: 0.0,
+            wavelength_id: 0,
+        }],
         lens_groups: Vec::new(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{SequentialModelBuilder, gui::convert};
+
+    fn parse(specs: &SystemSpecs) -> convert::ParsedSpecs {
+        #[cfg(not(feature = "ri-info"))]
+        return convert::convert_specs(specs).expect("convert");
+        #[cfg(feature = "ri-info")]
+        return convert::convert_specs(specs, &Default::default()).expect("convert");
+    }
+
+    /// The thin lens preset must parse into a valid, buildable model — the
+    /// bug this guards against: a stubbed-out field (e.g. an empty
+    /// `focal_length`) that compiles but fails at conversion time.
+    #[test]
+    fn thin_lens_example_converts_to_valid_model() {
+        let specs = thin_lens();
+        let parsed = parse(&specs);
+        SequentialModelBuilder::new()
+            .gap_specs(parsed.gaps)
+            .surface_specs(parsed.surfaces)
+            .wavelengths(parsed.wavelengths)
+            .build()
+            .expect("model");
+    }
+
+    /// The M solve on the lens-to-image gap must resolve to the lens's back
+    /// focal distance (== focal length, for a thin lens in air with an
+    /// object at infinity), demonstrating that the image plane tracks the
+    /// lens's focus rather than a hand-entered distance.
+    #[test]
+    fn thin_lens_example_solve_places_image_at_focus() {
+        let specs = thin_lens();
+        let parsed = parse(&specs);
+        let build_result = SequentialModelBuilder::new()
+            .gap_specs(parsed.gaps)
+            .surface_specs(parsed.surfaces)
+            .wavelengths(parsed.wavelengths)
+            .solves(parsed.solves)
+            .build()
+            .expect("model with solve applied");
+
+        let solved_thickness = build_result.gap_specs[1].thickness;
+        approx::assert_abs_diff_eq!(solved_thickness, 100.0, epsilon = 1e-6);
     }
 }

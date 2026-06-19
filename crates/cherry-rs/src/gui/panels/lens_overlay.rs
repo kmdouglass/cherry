@@ -26,7 +26,9 @@ fn component_first_idx(c: &Component) -> usize {
             .first()
             .expect("Element must have at least one surface"),
         Component::Iris { stop_idx } => *stop_idx,
-        Component::Mirror { surf_idx } | Component::UnpairedSurface { surf_idx } => *surf_idx,
+        Component::Mirror { surf_idx }
+        | Component::ThinLens { surf_idx }
+        | Component::UnpairedSurface { surf_idx } => *surf_idx,
     }
 }
 
@@ -43,6 +45,7 @@ fn default_group_name(c: &Component) -> String {
         }
         Component::Iris { stop_idx } => format!("Iris ({stop_idx})"),
         Component::Mirror { surf_idx } => format!("Mirror ({surf_idx})"),
+        Component::ThinLens { surf_idx } => format!("Thin Lens ({surf_idx})"),
         Component::UnpairedSurface { surf_idx } => format!("Surface ({surf_idx})"),
     }
 }

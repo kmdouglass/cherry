@@ -200,6 +200,13 @@ impl CrossSectionWindow {
             draw_element(&painter, elem, &w2s, ui.visuals());
         }
 
+        // Draw optical axis before rays so rays appear on top.
+        if self.annotations.show_axis {
+            for path in &geom.axis_paths {
+                draw_axis(&painter, path, &w2s);
+            }
+        }
+
         // Draw rays.
         for (wl_idx, paths) in geom.ray_paths.iter().enumerate() {
             let color = wavelengths
@@ -210,10 +217,7 @@ impl CrossSectionWindow {
             draw_rays(&painter, paths, &w2s, color);
         }
 
-        // Draw annotations.
-        if self.annotations.show_axis {
-            draw_axis(&painter, &geom.axis_path, &w2s);
-        }
+        // Draw remaining annotations.
         if self.annotations.show_scalebar {
             draw_scalebar(&painter, rect, &geom.bounding_box);
         }
@@ -229,9 +233,11 @@ impl CrossSectionWindow {
             d.remove::<usize>(hover_id);
             v
         });
+        // surface_frames is path × step; for the hover annotation use path 0
+        // (single-path systems: step == store idx; multipath GUI TBD).
         if self.annotations.show_ruf_axes
             && let Some(idx) = hover_idx
-            && let Some(Some(frame)) = geom.surface_frames.get(idx)
+            && let Some(Some(frame)) = geom.surface_frames.first().and_then(|p| p.get(idx))
         {
             draw_ruf_axes(&painter, frame, &w2s, self.cutting_plane);
         }
@@ -396,6 +402,93 @@ fn draw_element(
         DrawElement::FlatPlane { p1, p2, kind } => {
             draw_flat_plane(painter, *p1, *p2, *kind, w2s);
         }
+        DrawElement::ThinLens {
+            center_z,
+            center_t,
+            fwd_z,
+            fwd_t,
+            half_gap,
+            converging,
+        } => {
+            draw_thin_lens(
+                painter,
+                *center_z as f32,
+                *center_t as f32,
+                *fwd_z as f32,
+                *fwd_t as f32,
+                *half_gap as f32,
+                *converging,
+                w2s,
+            );
+        }
+    }
+}
+
+/// Color used for the thin-lens glyph, distinct from the rest of the
+/// cross-section palette (blue = glass lens, orange = mirror/unpaired
+/// profile, green = image, yellow = probe, gray = object).
+const THIN_LENS_COLOR: egui::Color32 = egui::Color32::from_rgb(150, 80, 200);
+
+#[allow(clippy::too_many_arguments)]
+fn draw_thin_lens(
+    painter: &egui::Painter,
+    center_z: f32,
+    center_t: f32,
+    fwd_z: f32,
+    fwd_t: f32,
+    half_gap: f32,
+    converging: bool,
+    w2s: &WorldToScreen,
+) {
+    let stroke = egui::Stroke::new(1.5, THIN_LENS_COLOR);
+    // Perpendicular to (fwd_z, fwd_t) is (-fwd_t, fwd_z) — direction along the
+    // lens surface in the 2-D (z, transverse) plot, same convention as
+    // `draw_stop`.
+    let perp_z = -fwd_t;
+    let perp_t = fwd_z;
+    let center = w2s.map(center_z, center_t);
+    let top = w2s.map(center_z + perp_z * half_gap, center_t + perp_t * half_gap);
+    let bot = w2s.map(center_z - perp_z * half_gap, center_t - perp_t * half_gap);
+    painter.line_segment([top, bot], stroke);
+
+    // Compute outward directions in screen space (not world space) so the
+    // arrowheads are correct regardless of axis scaling/flips in `w2s`.
+    draw_arrowhead(
+        painter,
+        top,
+        (top - center).normalized(),
+        converging,
+        stroke,
+    );
+    draw_arrowhead(
+        painter,
+        bot,
+        (bot - center).normalized(),
+        converging,
+        stroke,
+    );
+}
+
+/// Draws a small "V" arrowhead at `tip`. `outward` is the unit direction
+/// pointing away from the lens center along the shaft. When `converging` is
+/// true the arrowhead opens outward (the standard symbol for a positive,
+/// converging focal length); when false it opens inward (negative,
+/// diverging).
+fn draw_arrowhead(
+    painter: &egui::Painter,
+    tip: egui::Pos2,
+    outward: egui::Vec2,
+    converging: bool,
+    stroke: egui::Stroke,
+) {
+    const LEN: f32 = 8.0;
+    const SPREAD: f32 = 0.45; // radians from the shaft direction
+    let dir = if converging { outward } else { -outward };
+    for sign in [-1.0_f32, 1.0] {
+        let angle = sign * SPREAD;
+        let (sin, cos) = angle.sin_cos();
+        let rotated = egui::vec2(dir.x * cos - dir.y * sin, dir.x * sin + dir.y * cos);
+        painter.line_segment([tip, tip - rotated * LEN], stroke);
     }
 }
 
@@ -852,7 +945,9 @@ fn render_svg(
         r#"<rect width="{w}" height="{h}" fill="none" stroke="{border}" stroke-width="1"/>"#
     ));
 
-    svg_axis(&mut s, &geom.axis_path, &w2s, scalebar_color);
+    for path in &geom.axis_paths {
+        svg_axis(&mut s, path, &w2s, scalebar_color);
+    }
 
     for elem in &geom.elements {
         match elem {
@@ -889,6 +984,25 @@ fn render_svg(
             }
             DrawElement::FlatPlane { p1, p2, kind } => {
                 svg_flat_plane(&mut s, *p1, *p2, *kind, &w2s);
+            }
+            DrawElement::ThinLens {
+                center_z,
+                center_t,
+                fwd_z,
+                fwd_t,
+                half_gap,
+                converging,
+            } => {
+                svg_thin_lens(
+                    &mut s,
+                    *center_z,
+                    *center_t,
+                    *fwd_z,
+                    *fwd_t,
+                    *half_gap,
+                    *converging,
+                    &w2s,
+                );
             }
         }
     }
@@ -1026,6 +1140,62 @@ fn svg_stop(
     s.push_str(&format!(
         r#"<line x1="{x_gb:.2}" y1="{y_gb:.2}" x2="{x_bo:.2}" y2="{y_bo:.2}" stroke="{color}" stroke-width="2"/>"#
     ));
+}
+
+/// Hex color for the thin-lens glyph, matching `THIN_LENS_COLOR`.
+const THIN_LENS_SVG_COLOR: &str = "#9650c8";
+
+#[allow(clippy::too_many_arguments)]
+fn svg_thin_lens(
+    s: &mut String,
+    center_z: f64,
+    center_t: f64,
+    fwd_z: f64,
+    fwd_t: f64,
+    half_gap: f64,
+    converging: bool,
+    w2s: &WorldToSvg,
+) {
+    let perp_z = -fwd_t;
+    let perp_t = fwd_z;
+    let center = w2s.map(center_z, center_t);
+    let top = w2s.map(center_z + perp_z * half_gap, center_t + perp_t * half_gap);
+    let bot = w2s.map(center_z - perp_z * half_gap, center_t - perp_t * half_gap);
+    s.push_str(&format!(
+        r#"<line x1="{:.2}" y1="{:.2}" x2="{:.2}" y2="{:.2}" stroke="{THIN_LENS_SVG_COLOR}" stroke-width="1.5"/>"#,
+        top.0, top.1, bot.0, bot.1
+    ));
+    svg_arrowhead(s, top, outward_dir(top, center), converging);
+    svg_arrowhead(s, bot, outward_dir(bot, center), converging);
+}
+
+fn outward_dir(tip: (f64, f64), center: (f64, f64)) -> (f64, f64) {
+    let (dx, dy) = (tip.0 - center.0, tip.1 - center.1);
+    let len = (dx * dx + dy * dy).sqrt().max(f64::EPSILON);
+    (dx / len, dy / len)
+}
+
+/// Draws a small "V" arrowhead at `tip`, mirroring the painter-side
+/// `draw_arrowhead`. `outward` points away from the lens center; the
+/// arrowhead opens outward when `converging`, inward otherwise.
+fn svg_arrowhead(s: &mut String, tip: (f64, f64), outward: (f64, f64), converging: bool) {
+    const LEN: f64 = 8.0;
+    const SPREAD: f64 = 0.45;
+    let dir = if converging {
+        outward
+    } else {
+        (-outward.0, -outward.1)
+    };
+    for sign in [-1.0_f64, 1.0] {
+        let angle = sign * SPREAD;
+        let (sin, cos) = angle.sin_cos();
+        let rotated = (dir.0 * cos - dir.1 * sin, dir.0 * sin + dir.1 * cos);
+        let end = (tip.0 - rotated.0 * LEN, tip.1 - rotated.1 * LEN);
+        s.push_str(&format!(
+            r#"<line x1="{:.2}" y1="{:.2}" x2="{:.2}" y2="{:.2}" stroke="{THIN_LENS_SVG_COLOR}" stroke-width="1.5"/>"#,
+            tip.0, tip.1, end.0, end.1
+        ));
+    }
 }
 
 fn svg_flat_plane(
@@ -1196,7 +1366,7 @@ mod tests {
                 },
                 elements: Vec::new(),
                 ray_paths: Vec::new(),
-                axis_path: Vec::new(),
+                axis_paths: Vec::new(),
                 surface_frames: Vec::new(),
             },
             xz: PlaneGeometry {
@@ -1206,7 +1376,7 @@ mod tests {
                 },
                 elements: Vec::new(),
                 ray_paths: Vec::new(),
-                axis_path: Vec::new(),
+                axis_paths: Vec::new(),
                 surface_frames: Vec::new(),
             },
         };
@@ -1231,5 +1401,64 @@ mod tests {
         );
         harness.step();
         harness.get_by_label_contains("The optical axis leaves both coordinate planes");
+    }
+
+    /// Rendering a `DrawElement::ThinLens` (painter path) must not panic, for
+    /// both converging and diverging glyphs.
+    #[test]
+    fn thin_lens_element_renders_without_panicking() {
+        use crate::views::cross_section::{Bounds2D, CrossSectionView, PlaneGeometry};
+
+        for converging in [true, false] {
+            let mut window = CrossSectionWindow::default();
+            let plane = PlaneGeometry {
+                bounding_box: Bounds2D {
+                    z: (-10.0, 10.0),
+                    transverse: (-15.0, 15.0),
+                },
+                elements: vec![DrawElement::ThinLens {
+                    center_z: 0.0,
+                    center_t: 0.0,
+                    fwd_z: 1.0,
+                    fwd_t: 0.0,
+                    half_gap: 12.5,
+                    converging,
+                }],
+                ray_paths: Vec::new(),
+                axis_paths: Vec::new(),
+                surface_frames: Vec::new(),
+            };
+            let cs = CrossSectionView {
+                wavelengths: vec![0.5876],
+                yz_valid: true,
+                xz_valid: true,
+                yz: plane,
+                xz: PlaneGeometry {
+                    bounding_box: Bounds2D {
+                        z: (-1.0, 1.0),
+                        transverse: (-1.0, 1.0),
+                    },
+                    elements: Vec::new(),
+                    ray_paths: Vec::new(),
+                    axis_paths: Vec::new(),
+                    surface_frames: Vec::new(),
+                },
+            };
+            let result = ResultPackage {
+                id: 1,
+                wavelengths: vec![0.5876],
+                surfaces: Vec::new(),
+                fields: Vec::new(),
+                field_specs: Vec::new(),
+                paraxial: None,
+                ray_trace: None,
+                cross_section: Some(cs),
+                error: None,
+                solved_values: Default::default(),
+                components: Vec::new(),
+            };
+            let mut harness = Harness::new(|ctx| show_window(&mut window, Some(&result), ctx));
+            harness.step();
+        }
     }
 }

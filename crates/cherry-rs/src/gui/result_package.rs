@@ -24,9 +24,6 @@ pub struct SurfaceDesc {
     pub pos: Vec3,
     /// Rotation matrix from global into the surface's local coordinate system.
     pub rot_mat: Mat3x3,
-    /// Cursor rotation matrix C_i at this surface (passive, global→cursor
-    /// frame).
-    pub cursor_rot_mat: Mat3x3,
 }
 
 /// Lightweight description of a field point for display.

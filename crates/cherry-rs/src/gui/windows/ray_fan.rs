@@ -542,6 +542,7 @@ mod tests {
                     SurfaceKind::Probe => "Probe",
                     SurfaceKind::Iris => "Iris",
                     SurfaceKind::Sphere => "Sphere",
+                    SurfaceKind::ThinLens => "Thin Lens",
                     SurfaceKind::Custom => "Custom",
                 };
                 SurfaceDesc {
@@ -549,7 +550,6 @@ mod tests {
                     label: format!("{name} [{i}]"),
                     pos: p.position,
                     rot_mat: p.rotation_matrix,
-                    cursor_rot_mat: p.cursor_rotation_matrix,
                 }
             })
             .collect();
