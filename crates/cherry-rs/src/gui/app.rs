@@ -434,6 +434,10 @@ impl eframe::App for CherryApp {
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             egui::MenuBar::new().ui(ui, |ui| {
                 ui.menu_button("File", |ui| {
+                    if ui.button("New").clicked() {
+                        ui.close();
+                        self.load_specs(SystemSpecs::new_blank());
+                    }
                     if ui.button("Open\u{2026}").clicked() {
                         ui.close();
                         self.open_from_file();

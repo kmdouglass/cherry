@@ -517,6 +517,32 @@ impl SystemSpecs {
             .iter()
             .find(|s| s.surface_index() == surface_index && s.parameter() == parameter)
     }
+
+    /// Blank system: only the object and image planes, in refractive-index
+    /// mode (no materials).
+    pub fn new_blank() -> Self {
+        Self {
+            surfaces: vec![SurfaceRow::new_object("Infinity"), SurfaceRow::new_image()],
+            fields: vec![FieldRow {
+                chi: "0.0".into(),
+                phi: "90.0".into(),
+                x: "0.0".into(),
+            }],
+            aperture_semi_diameter: "10.0".into(),
+            wavelengths: vec!["0.5876".into()],
+            field_mode: FieldMode::Angle,
+            use_materials: false,
+            selected_materials: Vec::new(),
+            cross_section_n_rays: default_cross_section_n_rays(),
+            full_pupil_spacing: default_full_pupil_spacing(),
+            n_fan_rays: default_n_fan_rays(),
+            background_n: default_background_n(),
+            background_material_key: None,
+            stop_surface: None,
+            solves: Vec::new(),
+            lens_groups: Vec::new(),
+        }
+    }
 }
 
 fn default_cross_section_n_rays() -> u32 {
