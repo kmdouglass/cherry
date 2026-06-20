@@ -773,7 +773,8 @@ impl SequentialModel {
             SurfaceKind::BeamSplitter
             | SurfaceKind::Conic
             | SurfaceKind::Sphere
-            | SurfaceKind::Iris => Ok(()),
+            | SurfaceKind::Iris
+            | SurfaceKind::ThinLens => Ok(()),
             kind => Err(anyhow!(
                 "surface {i} ({kind:?}) is not eligible as the aperture stop; \
                  only Conic and Iris surfaces are allowed"

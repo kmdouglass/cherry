@@ -165,6 +165,7 @@ pub fn surfaces_panel(
                                                         SurfaceVariant::Conic
                                                             | SurfaceVariant::Sphere
                                                             | SurfaceVariant::Iris
+                                                            | SurfaceVariant::ThinLens
                                                     )
                                                 {
                                                     specs.stop_surface = None;
