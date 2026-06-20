@@ -504,9 +504,10 @@ fn rays(
             let origin = Vec3::new(*x, *y, obj_z);
             match sampling {
                 PupilSampling::ChiefRay => {
-                    chief_ray_from_pos(aperture_spec, paraxial_subview, &origin)?
+                    chief_ray_from_pos(placements, aperture_spec, paraxial_subview, &origin)?
                 }
                 PupilSampling::SquareGrid { spacing } => point_source_ray_bundle_on_sq_grid(
+                    placements,
                     aperture_spec,
                     paraxial_subview,
                     spacing,
@@ -514,11 +515,25 @@ fn rays(
                 )?,
                 PupilSampling::TangentialRayFan { n } => {
                     let fan_phi = field_spec.tangential_fan_phi();
-                    point_source_ray_fan(aperture_spec, paraxial_subview, n, fan_phi, &origin)?
+                    point_source_ray_fan(
+                        placements,
+                        aperture_spec,
+                        paraxial_subview,
+                        n,
+                        fan_phi,
+                        &origin,
+                    )?
                 }
                 PupilSampling::SagittalRayFan { n } => {
                     let fan_phi = field_spec.sagittal_fan_phi();
-                    point_source_ray_fan(aperture_spec, paraxial_subview, n, fan_phi, &origin)?
+                    point_source_ray_fan(
+                        placements,
+                        aperture_spec,
+                        paraxial_subview,
+                        n,
+                        fan_phi,
+                        &origin,
+                    )?
                 }
             }
         }
@@ -553,15 +568,17 @@ fn chief_ray_from_angle(
 ///
 /// # Arguments
 ///
+/// * `placements` - The 3D placements of the surfaces.
 /// * `aperture_spec` - The aperture specification.
 /// * `paraxial_subview` - The paraxial subview.
 /// * `origin` - The origin of the rays, i.e. the field point in the object.
 fn chief_ray_from_pos(
+    placements: &[SurfacePlacement],
     aperture_spec: &ApertureSpec,
     paraxial_subview: &ParaxialSubView,
     origin: &Vec3,
 ) -> Result<Vec<Ray>> {
-    let enp = entrance_pupil(aperture_spec, paraxial_subview)?;
+    let enp = entrance_pupil(placements, aperture_spec, paraxial_subview)?;
     let dir = (Vec3::new(0.0, 0.0, enp.location) - *origin).normalize();
 
     Ok(vec![Ray::new(*origin, dir)])
@@ -591,7 +608,7 @@ fn parallel_ray_fan(
     fan_spread_phi: Float,
     chi: Float,
 ) -> Result<Vec<Ray>> {
-    let enp = entrance_pupil(aperture_spec, paraxial_subview)?;
+    let enp = entrance_pupil(placements, aperture_spec, paraxial_subview)?;
     let origin = parallel_ray_bundle_origin(
         placements,
         aperture_spec,
@@ -650,7 +667,7 @@ fn parallel_ray_bundle_on_sq_grid(
     spacing: Float,
     chi: Float,
 ) -> Result<Vec<Ray>> {
-    let enp = entrance_pupil(aperture_spec, paraxial_subview)?;
+    let enp = entrance_pupil(placements, aperture_spec, paraxial_subview)?;
     let abs_spacing = enp.semi_diameter * spacing;
     let origin =
         parallel_ray_bundle_origin(placements, aperture_spec, paraxial_subview, PI / 2.0, chi)?;
@@ -680,13 +697,14 @@ fn parallel_ray_bundle_on_sq_grid(
 /// * `origin` : The origin of the rays, i.e. the field point in the object
 ///   plane.
 fn point_source_ray_fan(
+    placements: &[SurfacePlacement],
     aperture_spec: &ApertureSpec,
     paraxial_subview: &ParaxialSubView,
     num_rays: usize,
     theta: Float,
     origin: &Vec3,
 ) -> Result<Vec<Ray>> {
-    let enp = entrance_pupil(aperture_spec, paraxial_subview)?;
+    let enp = entrance_pupil(placements, aperture_spec, paraxial_subview)?;
     let enp_radius = enp.semi_diameter;
     let enp_z = enp.location;
 
@@ -722,12 +740,13 @@ fn point_source_ray_fan(
 /// * `origin` : The origin of the rays, i.e. the field point in the object
 ///   plane.
 fn point_source_ray_bundle_on_sq_grid(
+    placements: &[SurfacePlacement],
     aperture_spec: &ApertureSpec,
     paraxial_subview: &ParaxialSubView,
     spacing: Float,
     origin: &Vec3,
 ) -> Result<Vec<Ray>> {
-    let enp = entrance_pupil(aperture_spec, paraxial_subview)?;
+    let enp = entrance_pupil(placements, aperture_spec, paraxial_subview)?;
     let enp_radius = enp.semi_diameter;
     let abs_spacing = enp_radius * spacing;
 
@@ -780,7 +799,13 @@ fn validate_field_specs(
 }
 
 /// Determines the entrance pupil of the subview.
+///
+/// `ParaxialSubView::entrance_pupil()` reports its `location` relative to the
+/// first non-object surface (see [`Pupil`]'s docs), so it must be offset by
+/// that surface's actual axial position to get an absolute z-coordinate
+/// usable for ray generation.
 fn entrance_pupil(
+    placements: &[SurfacePlacement],
     aperture_spec: &ApertureSpec,
     paraxial_sub_view: &ParaxialSubView,
 ) -> Result<Pupil> {
@@ -789,7 +814,11 @@ fn entrance_pupil(
     };
 
     let entrance_pupil = paraxial_sub_view.entrance_pupil();
-    let z = entrance_pupil.location;
+    let first_surf_z = placements
+        .get(1)
+        .ok_or_else(|| anyhow!("There should always be at least two surfaces"))?
+        .z();
+    let z = first_surf_z + entrance_pupil.location;
 
     Ok(Pupil {
         location: z,
@@ -834,7 +863,7 @@ fn parallel_ray_bundle_origin(
     phi: Float,
     chi: Float,
 ) -> Result<Vec3> {
-    let enp = entrance_pupil(aperture_spec, paraxial_subview)?;
+    let enp = entrance_pupil(placements, aperture_spec, paraxial_subview)?;
     let obj_z = placements[0].z();
     let sur_z = placements[1].z();
     let enp_z = enp.location;
@@ -1157,6 +1186,7 @@ mod tests {
         let s = setup();
 
         let rays = chief_ray_from_pos(
+            s.sequential_model.placements(),
             &s.aperture_spec,
             s.paraxial_view.get(0, 0).unwrap(),
             &Vec3::new(0.0, 0.0, -1.0),
@@ -1177,6 +1207,7 @@ mod tests {
         let s = setup();
 
         let rays = chief_ray_from_pos(
+            s.sequential_model.placements(),
             &s.aperture_spec,
             s.paraxial_view.get(0, 0).unwrap(),
             &Vec3::new(0.0, -0.08749, -1.0),
@@ -1236,6 +1267,7 @@ mod tests {
         ];
 
         let rays = point_source_ray_fan(
+            s.sequential_model.placements(),
             &s.aperture_spec,
             s.paraxial_view.get(0, 0).unwrap(),
             3,
@@ -1258,6 +1290,7 @@ mod tests {
         let s = setup();
 
         let rays = point_source_ray_bundle_on_sq_grid(
+            s.sequential_model.placements(),
             &s.aperture_spec,
             s.paraxial_view.get(0, 0).unwrap(),
             1.0,
@@ -1269,6 +1302,7 @@ mod tests {
         assert_eq!(rays.unwrap().len(), 5);
 
         let rays = point_source_ray_bundle_on_sq_grid(
+            s.sequential_model.placements(),
             &s.aperture_spec,
             s.paraxial_view.get(0, 0).unwrap(),
             0.5,
