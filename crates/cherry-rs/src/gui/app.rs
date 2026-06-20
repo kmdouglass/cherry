@@ -352,15 +352,18 @@ fn is_mobile(ctx: &egui::Context) -> bool {
 
 impl CherryApp {
     fn window_list_ui(&mut self, ui: &mut egui::Ui) {
-        ui.label(egui::RichText::new("Input").strong());
+        ui.label(egui::RichText::new("Inputs").strong());
         ui.separator();
         ui.toggle_value(&mut self.windows.specs, "Specs");
         #[cfg(feature = "ri-info")]
         ui.toggle_value(&mut self.windows.materials, "Materials");
         ui.toggle_value(&mut self.windows.system, "System");
+        ui.add_space(8.0);
+        ui.label(egui::RichText::new("Overlays").strong());
+        ui.separator();
         ui.toggle_value(&mut self.windows.lens_overlay, "Lens Overlay");
         ui.add_space(8.0);
-        ui.label(egui::RichText::new("Output").strong());
+        ui.label(egui::RichText::new("Outputs").strong());
         ui.separator();
         ui.toggle_value(&mut self.windows.paraxial_summary, "Paraxial Summary");
         ui.toggle_value(&mut self.windows.spot_diagram, "Spot Diagram");
