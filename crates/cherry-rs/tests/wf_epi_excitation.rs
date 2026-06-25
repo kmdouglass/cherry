@@ -4,19 +4,71 @@ use cherry_rs::examples::wf_epi_excitation::sequential_model;
 use cherry_rs::{FieldSpec, ParaxialView, n};
 
 const WAVELENGTHS: [f64; 1] = [0.5876];
-const FIELD_SPECS: [FieldSpec; 1] = [FieldSpec::PointSource { x: 0.0, y: 0.0 }];
+const FIELD_SPECS: [FieldSpec; 1] = [FieldSpec::PointSource { x: 0.0, y: 1.5 }];
 
-// Hand calculation: the stop (second thin lens) is 150 mm (100 mm + 50 mm,
-// the fold mirror has no power) downstream of the first thin lens
-// (f = 40 mm). Treating the stop as a real object and solving the thin lens
-// equation 1/s' = 1/f - 1/s with s = 150 mm gives s' = 600/11 = 54.5455 mm,
-// with the resulting image (the entrance pupil) on the object-space side of
-// the first thin lens.
+// Paraxial property values
+const APERTURE_STOP: usize = 3;
+const BACK_FOCAL_DISTANCE: f64 = 5.1562;
+const BACK_PRINCIPAL_PLANE: f64 = 7.0312;
+const EFFECTIVE_FOCAL_LENGTH: f64 = -1.8750;
 const ENTRANCE_PUPIL_LOCATION: f64 = -54.5455;
+const ENTRANCE_PUPIL_SIZE: f64 = 1.5454;
+
+#[test]
+fn wf_epi_excitation_paraxial_aperture_stop() {
+    let model = sequential_model(n!(1.0), n!(1.5), &WAVELENGTHS);
+    let view =
+        ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
+
+    for sub_view in view.iter() {
+        let result = sub_view.aperture_stop();
+
+        assert_eq!(APERTURE_STOP, *result)
+    }
+}
+
+#[test]
+fn wf_epi_excitation_paraxial_back_principal_plane() {
+    let model = sequential_model(n!(1.0), n!(1.5), &WAVELENGTHS);
+    let view =
+        ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
+
+    for sub_view in view.iter() {
+        let result = sub_view.back_principal_plane();
+
+        assert_abs_diff_eq!(BACK_PRINCIPAL_PLANE, *result, epsilon = 1e-4)
+    }
+}
+
+#[test]
+fn wf_epi_excitation_paraxial_back_focal_distance() {
+    let model = sequential_model(n!(1.0), n!(1.5), &WAVELENGTHS);
+    let view =
+        ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
+
+    for sub_view in view.iter() {
+        let result = sub_view.back_focal_distance();
+
+        assert_abs_diff_eq!(BACK_FOCAL_DISTANCE, *result, epsilon = 1e-4)
+    }
+}
+
+#[test]
+fn wf_epi_excitation_paraxial_effective_focal_length() {
+    let model = sequential_model(n!(1.0), n!(1.5), &WAVELENGTHS);
+    let view =
+        ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
+
+    for sub_view in view.iter() {
+        let result = sub_view.effective_focal_length();
+
+        assert_abs_diff_eq!(EFFECTIVE_FOCAL_LENGTH, *result, epsilon = 1e-4)
+    }
+}
 
 #[test]
 fn wf_epi_excitation_entrance_pupil_location() {
-    let model = sequential_model(n!(1.0), &WAVELENGTHS);
+    let model = sequential_model(n!(1.0), n!(1.5), &WAVELENGTHS);
     let view =
         ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
 
@@ -25,6 +77,11 @@ fn wf_epi_excitation_entrance_pupil_location() {
         assert_abs_diff_eq!(
             entrance_pupil.location,
             ENTRANCE_PUPIL_LOCATION,
+            epsilon = 1e-3
+        );
+        assert_abs_diff_eq!(
+            entrance_pupil.semi_diameter,
+            ENTRANCE_PUPIL_SIZE,
             epsilon = 1e-3
         );
     }

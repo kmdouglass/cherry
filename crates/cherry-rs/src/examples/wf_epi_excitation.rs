@@ -21,6 +21,7 @@ use crate::{
 
 pub fn sequential_model(
     n_air: Rc<dyn RefractiveIndexSpec>,
+    n_oil: Rc<dyn RefractiveIndexSpec>,
     wavelengths: &[f64],
 ) -> SequentialModel {
     let gap_0 = GapSpec {
@@ -33,11 +34,11 @@ pub fn sequential_model(
     };
     let gap_2 = GapSpec {
         thickness: 50.0,
-        refractive_index: n_air.clone(),
+        refractive_index: n_air,
     };
     let gap_3 = GapSpec {
         thickness: 1.0,
-        refractive_index: n_air,
+        refractive_index: n_oil,
     };
     let gaps = vec![gap_0, gap_1, gap_2, gap_3];
 
@@ -50,7 +51,7 @@ pub fn sequential_model(
         rotation_offset: Rotation3D::None,
     };
     let surf_2 = SurfaceSpec::Conic {
-        semi_diameter: 23.2,
+        semi_diameter: 36.0,
         radius_of_curvature: Float::INFINITY,
         conic_constant: 0.0,
         surf_kind: BoundaryKind::Reflecting,
@@ -63,7 +64,7 @@ pub fn sequential_model(
         rotation_offset: Rotation3D::None,
     };
     let surf_3 = SurfaceSpec::ThinLens {
-        semi_diameter: 4.75,
+        semi_diameter: 4.25,
         focal_length: 3.3333,
         rotation: Rotation3D::None,
         decenter: Vec3::new(0.0, 0.0, 0.0),

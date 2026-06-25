@@ -836,17 +836,14 @@ impl ParaxialSubView {
         let y_1 = parallel_ray.rays_at_surface(1)[0].height;
         let u_final = parallel_ray.rays_at_surface(parallel_ray.num_surfaces() - 2)[0].angle;
 
-        // There should be a negative sign here for lens only systems, but we take abs
-        // later so it's not needed
-        let efl = y_1 / u_final;
+        let efl = -y_1 / u_final;
 
         // Handle edge case for negatively infinite EFL
         if efl.is_infinite() {
             return Float::INFINITY;
         }
 
-        // abs() handles edge case of apparent negative EFLs in reflecting systems
-        efl.abs()
+        efl
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -918,7 +915,7 @@ impl ParaxialSubView {
 
         Ok(Pupil {
             location,
-            semi_diameter,
+            semi_diameter: semi_diameter.abs(), // semi-diameter is always positive
         })
     }
 
