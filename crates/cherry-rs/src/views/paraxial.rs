@@ -611,7 +611,7 @@ impl ParaxialSubView {
             .refractive_index
             .n();
         let u_last = marginal_ray.rays_at_surface(last_phys_id)[0].angle;
-        let paraxial_fno = 1.0 / (2.0 * n_image * u_last.abs());
+        let paraxial_fno = 1.0 / (2.0 * n_image * u_last);
         let image_space_fno = effective_focal_length / (2.0 * entrance_pupil.semi_diameter);
 
         Ok(Self {
@@ -1856,7 +1856,7 @@ mod test {
         let (sub, _) = setup();
         // Last physical surface is index 2 (plano surface); n_image = 1.0 (air).
         let u_last = sub.marginal_ray().rays_at_surface(2)[0].angle;
-        let expected = 1.0 / (2.0 * u_last.abs());
+        let expected = 1.0 / (2.0 * u_last);
         assert_abs_diff_eq!(sub.paraxial_fno(), expected, epsilon = 1e-6);
     }
 
