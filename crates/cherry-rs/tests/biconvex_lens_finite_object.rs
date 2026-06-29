@@ -23,7 +23,8 @@ const EXIT_PUPIL: Pupil = Pupil {
     location: -2.4019,
     semi_diameter: 12.8540,
 };
-const FRONT_FOCAL_DISTANCE: f64 = 98.4360;
+const FRONT_FOCAL_DISTANCE: f64 = -98.4360;
+const FRONT_FOCAL_LENGTH: f64 = -99.6297;
 const FRONT_PRINCIPAL_PLANE: f64 = 1.1937;
 
 const PARAXIAL_IMAGE_PLANE: ImagePlane = ImagePlane {
@@ -156,6 +157,19 @@ fn test_paraxial_view_front_focal_distance() {
         let result = sub_view.front_focal_distance();
 
         assert_abs_diff_eq!(FRONT_FOCAL_DISTANCE, *result, epsilon = 1e-4)
+    }
+}
+
+#[test]
+fn test_paraxial_view_front_focal_length() {
+    let model = sequential_model(n!(1.0), n!(1.517), &WAVELENGTHS);
+    let view =
+        ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
+
+    for sub_view in view.iter() {
+        let result = sub_view.front_focal_length();
+
+        assert_abs_diff_eq!(FRONT_FOCAL_LENGTH, *result, epsilon = 1e-4)
     }
 }
 

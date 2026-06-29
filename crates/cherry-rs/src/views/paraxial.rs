@@ -139,6 +139,7 @@ pub struct ParaxialSubView {
     entrance_pupil: Pupil,
     exit_pupil: Pupil,
     front_focal_distance: Float,
+    front_focal_length: Float,
     front_principal_plane: Float,
     image_space_fno: Float,
     marginal_ray: ParaxialRayBundle,
@@ -163,6 +164,7 @@ pub struct ParaxialSubViewDescription {
     entrance_pupil: Pupil,
     exit_pupil: Pupil,
     front_focal_distance: Float,
+    front_focal_length: Float,
     front_principal_plane: Float,
     image_space_fno: Float,
     marginal_ray: ParaxialRayBundle,
@@ -569,11 +571,17 @@ impl ParaxialSubView {
             &marginal_ray,
         )?;
         let effective_focal_length = Self::calc_effective_focal_length(&parallel_ray);
+        let front_focal_length = Self::calc_front_focal_length(
+            sequential_sub_model,
+            surfaces,
+            surface_indices,
+            &reverse_parallel_ray,
+        )?;
 
         let back_principal_plane =
             Self::calc_back_principal_plane(back_focal_distance, effective_focal_length)?;
         let front_principal_plane =
-            Self::calc_front_principal_plane(front_focal_distance, effective_focal_length);
+            Self::calc_front_principal_plane(front_focal_distance, front_focal_length);
 
         let chief_ray = Self::calc_chief_ray(
             surfaces,
@@ -620,6 +628,7 @@ impl ParaxialSubView {
             entrance_pupil,
             exit_pupil,
             front_focal_distance,
+            front_focal_length,
             front_principal_plane,
             image_space_fno,
             marginal_ray,
@@ -641,6 +650,7 @@ impl ParaxialSubView {
             entrance_pupil: self.entrance_pupil.clone(),
             exit_pupil: self.exit_pupil.clone(),
             front_focal_distance: self.front_focal_distance,
+            front_focal_length: self.front_focal_length,
             front_principal_plane: self.front_principal_plane,
             image_space_fno: self.image_space_fno,
             marginal_ray: self.marginal_ray.clone(),
@@ -691,6 +701,10 @@ impl ParaxialSubView {
 
     pub fn front_focal_distance(&self) -> &Float {
         &self.front_focal_distance
+    }
+
+    pub fn front_focal_length(&self) -> &Float {
+        &self.front_focal_length
     }
 
     pub fn front_principal_plane(&self) -> &Float {
@@ -751,8 +765,7 @@ impl ParaxialSubView {
             return Ok(Float::INFINITY);
         }
 
-        // Distance is always positive
-        Ok(bfd.abs())
+        Ok(bfd)
     }
 
     fn calc_back_principal_plane(
@@ -996,20 +1009,41 @@ impl ParaxialSubView {
             return Ok(Float::INFINITY);
         }
 
-        // Distance is always positive
-        Ok(ffd.abs())
+        Ok(ffd)
     }
 
-    fn calc_front_principal_plane(
-        front_focal_distance: Float,
-        effective_focal_length: Float,
-    ) -> Float {
+    fn calc_front_focal_length(
+        sequential_sub_model: &dyn SequentialSubModel,
+        surfaces: &[Box<dyn Surface>],
+        surface_indices: &[usize],
+        reverse_parallel_ray: &ParaxialRayBundle,
+    ) -> Result<Float> {
+        // y_1: height at the first physical surface in the reverse trace
+        let last_physical_step_index = last_physical_step(surface_indices, surfaces)
+            .ok_or(anyhow!("There are no physical surfaces"))?;
+        let y_index = reversed_surface_id(sequential_sub_model.len() + 1, last_physical_step_index);
+        let y_1 = reverse_parallel_ray.rays_at_surface(y_index)[0].height;
+
+        // u_final: angle at the last physical surface in the reverse trace
+        let first_physical_step_index = first_physical_step(surface_indices, surfaces)
+            .ok_or(anyhow!("There are no physical surfaces"))?;
+        let u_index =
+            reversed_surface_id(sequential_sub_model.len() + 1, first_physical_step_index);
+        let u_final = reverse_parallel_ray.rays_at_surface(u_index)[0].angle;
+
+        if u_final == 0.0 {
+            return Ok(Float::INFINITY);
+        }
+        Ok(-y_1 / u_final)
+    }
+
+    fn calc_front_principal_plane(front_focal_distance: Float, front_focal_length: Float) -> Float {
         // Principal planes make no sense for lenses without power
         if front_focal_distance.is_infinite() {
             return Float::NAN;
         }
 
-        effective_focal_length - front_focal_distance
+        front_focal_distance - front_focal_length
     }
 
     fn calc_marginal_ray(

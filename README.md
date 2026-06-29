@@ -84,6 +84,7 @@ Cherry might be for you if:
 - [ ] **Help Wanted** 3D views
 - [ ] **Help Wanted** Fuzzy search for materials
 - [ ] [Cardinal lens](https://opg.optica.org/ao/fulltext.cfm?uri=ao-63-4-1110) surface type for ideal objective models
+- [ ] Cross-validate integration test results with Optiland
 
 ### Done
 

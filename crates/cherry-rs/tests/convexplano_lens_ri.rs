@@ -28,7 +28,7 @@ const EXIT_PUPIL: Pupil = Pupil {
     location: -3.4983,
     semi_diameter: 12.5,
 };
-const FRONT_FOCAL_DISTANCE: f64 = EFFECTIVE_FOCAL_LENGTH;
+const FRONT_FOCAL_DISTANCE: f64 = -EFFECTIVE_FOCAL_LENGTH;
 const FRONT_PRINCIPAL_PLANE: f64 = 0.0;
 
 // For a 5 degree field angle
