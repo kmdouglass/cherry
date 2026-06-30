@@ -201,6 +201,15 @@ fn render_table_body(
             });
         }
     });
+
+    tb_row(body, row_h, "|H| (Lagrange invariant)", ids, pv, |sv| {
+        let stop = *sv.aperture_stop();
+        sv.lagrange_invariants()
+            .get(stop)
+            .copied()
+            .unwrap_or(f64::NAN)
+            .abs()
+    });
 }
 
 fn tb_sep(body: &mut egui_extras::TableBody<'_>, n_cols: usize) {
@@ -386,6 +395,17 @@ mod tests {
         harness.step();
         harness.get_by_label("Paraxial F/#");
         harness.get_by_label("Image space F/#");
+    }
+
+    #[test]
+    fn paraxial_data_shows_lagrange_invariant_row() {
+        let result = make_result(&["0.567"]);
+        let mut harness = Harness::new(|ctx| {
+            let mut open = true;
+            ParaxialWindow::show(ctx, &mut open, Some(&result));
+        });
+        harness.step();
+        harness.get_by_label("|H| (Lagrange invariant)");
     }
 
     #[test]

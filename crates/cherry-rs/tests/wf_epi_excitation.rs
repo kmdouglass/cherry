@@ -19,6 +19,7 @@ const FRONT_PRINCIPAL_PLANE: f64 = -56.25;
 const IMAGE_LOCATION: f64 = 5.0000;
 const IMAGE_SIZE: f64 = 0.125;
 const IMAGE_SPACE_FNO: f64 = -0.6066;
+const LAGRANGE_INVARIANT: f64 = -0.1594;
 const PARAXIAL_FNO: f64 = -0.3922;
 
 #[test]
@@ -167,6 +168,21 @@ fn wf_epi_excitation_paraxial_image_size() {
     for sub_view in view.iter() {
         let result = sub_view.paraxial_image_plane().semi_diameter;
         assert_abs_diff_eq!(IMAGE_SIZE, result, epsilon = 1e-4);
+    }
+}
+
+#[test]
+fn wf_epi_excitation_paraxial_lagrange_invariant() {
+    let model = sequential_model(n!(1.0), n!(1.5), &WAVELENGTHS);
+    let view =
+        ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
+
+    for sub_view in view.iter() {
+        let result = sub_view.lagrange_invariants();
+
+        for &h in result {
+            assert_abs_diff_eq!(LAGRANGE_INVARIANT, h, epsilon = 1e-4);
+        }
     }
 }
 

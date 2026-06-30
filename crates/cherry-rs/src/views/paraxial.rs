@@ -142,6 +142,7 @@ pub struct ParaxialSubView {
     front_focal_length: Float,
     front_principal_plane: Float,
     image_space_fno: Float,
+    lagrange_invariants: Vec<Float>,
     marginal_ray: ParaxialRayBundle,
     paraxial_fno: Float,
     paraxial_image_plane: ImagePlane,
@@ -167,6 +168,7 @@ pub struct ParaxialSubViewDescription {
     front_focal_length: Float,
     front_principal_plane: Float,
     image_space_fno: Float,
+    lagrange_invariants: Vec<Float>,
     marginal_ray: ParaxialRayBundle,
     paraxial_fno: Float,
     paraxial_image_plane: ImagePlane,
@@ -608,6 +610,11 @@ impl ParaxialSubView {
         let u_last = marginal_ray.rays_at_surface(last_phys_id)[0].angle;
         let paraxial_fno = 1.0 / (2.0 * n_image * u_last);
         let image_space_fno = effective_focal_length / (2.0 * entrance_pupil.semi_diameter);
+        let lagrange_invariants = (0..sequential_sub_model.gaps().len())
+            .map(|i| {
+                Self::calc_lagrange_invariant(i, &marginal_ray, &chief_ray, sequential_sub_model)
+            })
+            .collect::<Result<Vec<_>>>()?;
 
         Ok(Self {
             path_id,
@@ -626,6 +633,7 @@ impl ParaxialSubView {
             front_focal_length,
             front_principal_plane,
             image_space_fno,
+            lagrange_invariants,
             marginal_ray,
             paraxial_fno,
             paraxial_image_plane,
@@ -648,6 +656,7 @@ impl ParaxialSubView {
             front_focal_length: self.front_focal_length,
             front_principal_plane: self.front_principal_plane,
             image_space_fno: self.image_space_fno,
+            lagrange_invariants: self.lagrange_invariants.clone(),
             marginal_ray: self.marginal_ray.clone(),
             paraxial_fno: self.paraxial_fno,
             paraxial_image_plane: self.paraxial_image_plane.clone(),
@@ -724,6 +733,10 @@ impl ParaxialSubView {
 
     pub fn image_space_fno(&self) -> Float {
         self.image_space_fno
+    }
+
+    pub fn lagrange_invariants(&self) -> &[Float] {
+        &self.lagrange_invariants
     }
 
     fn calc_aperture_stop(
@@ -1039,6 +1052,23 @@ impl ParaxialSubView {
         }
 
         front_focal_distance - front_focal_length
+    }
+
+    fn calc_lagrange_invariant(
+        surface_id: usize,
+        marginal_ray: &ParaxialRayBundle,
+        chief_ray: &ParaxialRayBundle,
+        sequential_sub_model: &dyn SequentialSubModel,
+    ) -> Result<Float> {
+        let n = sequential_sub_model
+            .gaps()
+            .get(surface_id)
+            .ok_or_else(|| anyhow!("surface_id {surface_id} out of range"))?
+            .refractive_index
+            .n();
+        let mr = marginal_ray.rays_at_surface(surface_id);
+        let cr = chief_ray.rays_at_surface(surface_id);
+        Ok(n * (mr[0].height * cr[0].angle - cr[0].height * mr[0].angle))
     }
 
     fn calc_marginal_ray(
@@ -1981,5 +2011,17 @@ mod test {
             1,
             "path 1 stop should be BS (step 1)"
         );
+    }
+
+    #[test]
+    fn test_lagrange_invariant_is_conserved() {
+        let (view, _) = setup();
+
+        // Convexplano lens has 3 gaps; invariant is stored for each (indices 0–2).
+        let invariants = view.lagrange_invariants();
+        assert!(invariants.len() >= 2);
+        for &h in invariants {
+            assert_abs_diff_eq!(h, invariants[1], epsilon = 1e-4);
+        }
     }
 }
