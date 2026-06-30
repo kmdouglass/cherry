@@ -139,8 +139,10 @@ pub struct ParaxialSubView {
     entrance_pupil: Pupil,
     exit_pupil: Pupil,
     front_focal_distance: Float,
+    front_focal_length: Float,
     front_principal_plane: Float,
     image_space_fno: Float,
+    lagrange_invariants: Vec<Float>,
     marginal_ray: ParaxialRayBundle,
     paraxial_fno: Float,
     paraxial_image_plane: ImagePlane,
@@ -163,8 +165,10 @@ pub struct ParaxialSubViewDescription {
     entrance_pupil: Pupil,
     exit_pupil: Pupil,
     front_focal_distance: Float,
+    front_focal_length: Float,
     front_principal_plane: Float,
     image_space_fno: Float,
+    lagrange_invariants: Vec<Float>,
     marginal_ray: ParaxialRayBundle,
     paraxial_fno: Float,
     paraxial_image_plane: ImagePlane,
@@ -569,11 +573,17 @@ impl ParaxialSubView {
             &marginal_ray,
         )?;
         let effective_focal_length = Self::calc_effective_focal_length(&parallel_ray);
+        let front_focal_length = Self::calc_front_focal_length(
+            sequential_sub_model,
+            surfaces,
+            surface_indices,
+            &reverse_parallel_ray,
+        )?;
 
         let back_principal_plane =
             Self::calc_back_principal_plane(back_focal_distance, effective_focal_length)?;
         let front_principal_plane =
-            Self::calc_front_principal_plane(front_focal_distance, effective_focal_length);
+            Self::calc_front_principal_plane(front_focal_distance, front_focal_length);
 
         let chief_ray = Self::calc_chief_ray(
             surfaces,
@@ -586,13 +596,8 @@ impl ParaxialSubView {
             field_specs,
             &entrance_pupil,
         )?;
-        let paraxial_image_plane = Self::calc_paraxial_image_plane(
-            surfaces,
-            placements,
-            surface_indices,
-            &marginal_ray,
-            &chief_ray,
-        )?;
+        let paraxial_image_plane =
+            Self::calc_paraxial_image_plane(surfaces, surface_indices, &marginal_ray, &chief_ray)?;
 
         let last_phys_id = last_physical_step(surface_indices, surfaces)
             .ok_or_else(|| anyhow!("There are no physical surfaces"))?;
@@ -603,8 +608,13 @@ impl ParaxialSubView {
             .refractive_index
             .n();
         let u_last = marginal_ray.rays_at_surface(last_phys_id)[0].angle;
-        let paraxial_fno = 1.0 / (2.0 * n_image * u_last.abs());
+        let paraxial_fno = 1.0 / (2.0 * n_image * u_last);
         let image_space_fno = effective_focal_length / (2.0 * entrance_pupil.semi_diameter);
+        let lagrange_invariants = (0..sequential_sub_model.gaps().len())
+            .map(|i| {
+                Self::calc_lagrange_invariant(i, &marginal_ray, &chief_ray, sequential_sub_model)
+            })
+            .collect::<Result<Vec<_>>>()?;
 
         Ok(Self {
             path_id,
@@ -620,8 +630,10 @@ impl ParaxialSubView {
             entrance_pupil,
             exit_pupil,
             front_focal_distance,
+            front_focal_length,
             front_principal_plane,
             image_space_fno,
+            lagrange_invariants,
             marginal_ray,
             paraxial_fno,
             paraxial_image_plane,
@@ -641,8 +653,10 @@ impl ParaxialSubView {
             entrance_pupil: self.entrance_pupil.clone(),
             exit_pupil: self.exit_pupil.clone(),
             front_focal_distance: self.front_focal_distance,
+            front_focal_length: self.front_focal_length,
             front_principal_plane: self.front_principal_plane,
             image_space_fno: self.image_space_fno,
+            lagrange_invariants: self.lagrange_invariants.clone(),
             marginal_ray: self.marginal_ray.clone(),
             paraxial_fno: self.paraxial_fno,
             paraxial_image_plane: self.paraxial_image_plane.clone(),
@@ -693,6 +707,10 @@ impl ParaxialSubView {
         &self.front_focal_distance
     }
 
+    pub fn front_focal_length(&self) -> &Float {
+        &self.front_focal_length
+    }
+
     pub fn front_principal_plane(&self) -> &Float {
         &self.front_principal_plane
     }
@@ -715,6 +733,10 @@ impl ParaxialSubView {
 
     pub fn image_space_fno(&self) -> Float {
         self.image_space_fno
+    }
+
+    pub fn lagrange_invariants(&self) -> &[Float] {
+        &self.lagrange_invariants
     }
 
     fn calc_aperture_stop(
@@ -751,8 +773,7 @@ impl ParaxialSubView {
             return Ok(Float::INFINITY);
         }
 
-        // Distance is always positive
-        Ok(bfd.abs())
+        Ok(bfd)
     }
 
     fn calc_back_principal_plane(
@@ -996,20 +1017,58 @@ impl ParaxialSubView {
             return Ok(Float::INFINITY);
         }
 
-        // Distance is always positive
-        Ok(ffd.abs())
+        Ok(ffd)
     }
 
-    fn calc_front_principal_plane(
-        front_focal_distance: Float,
-        effective_focal_length: Float,
-    ) -> Float {
+    fn calc_front_focal_length(
+        sequential_sub_model: &dyn SequentialSubModel,
+        surfaces: &[Box<dyn Surface>],
+        surface_indices: &[usize],
+        reverse_parallel_ray: &ParaxialRayBundle,
+    ) -> Result<Float> {
+        // y_1: height at the first physical surface in the reverse trace
+        let last_physical_step_index = last_physical_step(surface_indices, surfaces)
+            .ok_or(anyhow!("There are no physical surfaces"))?;
+        let y_index = reversed_surface_id(sequential_sub_model.len() + 1, last_physical_step_index);
+        let y_1 = reverse_parallel_ray.rays_at_surface(y_index)[0].height;
+
+        // u_final: angle at the last physical surface in the reverse trace
+        let first_physical_step_index = first_physical_step(surface_indices, surfaces)
+            .ok_or(anyhow!("There are no physical surfaces"))?;
+        let u_index =
+            reversed_surface_id(sequential_sub_model.len() + 1, first_physical_step_index);
+        let u_final = reverse_parallel_ray.rays_at_surface(u_index)[0].angle;
+
+        if u_final == 0.0 {
+            return Ok(Float::INFINITY);
+        }
+        Ok(-y_1 / u_final)
+    }
+
+    fn calc_front_principal_plane(front_focal_distance: Float, front_focal_length: Float) -> Float {
         // Principal planes make no sense for lenses without power
         if front_focal_distance.is_infinite() {
             return Float::NAN;
         }
 
-        effective_focal_length - front_focal_distance
+        front_focal_distance - front_focal_length
+    }
+
+    fn calc_lagrange_invariant(
+        surface_id: usize,
+        marginal_ray: &ParaxialRayBundle,
+        chief_ray: &ParaxialRayBundle,
+        sequential_sub_model: &dyn SequentialSubModel,
+    ) -> Result<Float> {
+        let n = sequential_sub_model
+            .gaps()
+            .get(surface_id)
+            .ok_or_else(|| anyhow!("surface_id {surface_id} out of range"))?
+            .refractive_index
+            .n();
+        let mr = marginal_ray.rays_at_surface(surface_id);
+        let cr = chief_ray.rays_at_surface(surface_id);
+        Ok(n * (mr[0].height * cr[0].angle - cr[0].height * mr[0].angle))
     }
 
     fn calc_marginal_ray(
@@ -1061,21 +1120,21 @@ impl ParaxialSubView {
     /// Compute the paraxial image plane.
     fn calc_paraxial_image_plane(
         surfaces: &[Box<dyn Surface>],
-        placements: &[SurfacePlacement],
         surface_indices: &[usize],
         marginal_ray: &ParaxialRayBundle,
         chief_ray: &ParaxialRayBundle,
     ) -> Result<ImagePlane> {
         let last_physical_step_id = last_physical_step(surface_indices, surfaces)
             .ok_or(anyhow!("There are no physical surfaces"))?;
-        let store_idx = surface_indices[last_physical_step_id];
 
         let d_axis = axis_intercepts(marginal_ray.rays_at_surface(last_physical_step_id))?[0];
         let location = if d_axis.is_infinite() {
             // Ensure positive infinity is returned for infinite image planes
             Float::INFINITY
         } else {
-            placements[store_idx].track + d_axis
+            // Compute the paraxial image plane location relative to the last physical
+            // surface
+            d_axis
         };
 
         // Propagate the chief ray from the last physical surface to the image plane to
@@ -1822,7 +1881,7 @@ mod test {
         let (sub, _) = setup();
         // Last physical surface is index 2 (plano surface); n_image = 1.0 (air).
         let u_last = sub.marginal_ray().rays_at_surface(2)[0].angle;
-        let expected = 1.0 / (2.0 * u_last.abs());
+        let expected = 1.0 / (2.0 * u_last);
         assert_abs_diff_eq!(sub.paraxial_fno(), expected, epsilon = 1e-6);
     }
 
@@ -1952,5 +2011,17 @@ mod test {
             1,
             "path 1 stop should be BS (step 1)"
         );
+    }
+
+    #[test]
+    fn test_lagrange_invariant_is_conserved() {
+        let (view, _) = setup();
+
+        // Convexplano lens has 3 gaps; invariant is stored for each (indices 0–2).
+        let invariants = view.lagrange_invariants();
+        assert!(invariants.len() >= 2);
+        for &h in invariants {
+            assert_abs_diff_eq!(h, invariants[1], epsilon = 1e-4);
+        }
     }
 }

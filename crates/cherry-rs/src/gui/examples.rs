@@ -546,6 +546,59 @@ pub fn galvo_scan_lens_negrean_mansvelder() -> SystemSpecs {
     }
 }
 
+/// Reduced widefield epifluorescence microscope excitation path.
+///
+/// An object, a thin relay lens (f = 40 mm), a flat fold mirror at 45°, and a
+/// second thin lens (f = 3.3333 mm) that acts as the aperture stop, modelling
+/// a microscope objective back aperture immersed in oil (n = 1.5). The fold
+/// mirror contributes no power; only the unfolded track length of 150 mm
+/// between the two lenses matters for paraxial calculations.
+pub fn wf_epi_excitation() -> SystemSpecs {
+    SystemSpecs {
+        surfaces: vec![
+            SurfaceRow::new_object("40.0"),
+            SurfaceRow::new_thin_lens("25.0", "40.0", "100.0", "1.0"),
+            SurfaceRow {
+                variant: SurfaceVariant::Sphere,
+                boundary_variant: BoundaryVariant::Reflecting,
+                refractive_index: "1.0".into(),
+                thickness: "50.0".into(),
+                semi_diameter: "36.0".into(),
+                radius_of_curvature: "Infinity".into(),
+                conic_constant: String::new(),
+                focal_length: String::new(),
+                theta: "45".into(),
+                psi: "0".into(),
+                material_key: None,
+            },
+            SurfaceRow::new_thin_lens("4.25", "3.3333", "1.0", "1.5"),
+            SurfaceRow::new_image(),
+        ],
+        fields: vec![FieldRow {
+            chi: "1.5".into(),
+            phi: "90.0".into(),
+            x: "0.0".into(),
+        }],
+        aperture_semi_diameter: "1.5454".into(),
+        wavelengths: vec!["0.5876".into()],
+        field_mode: FieldMode::PointSource,
+        use_materials: false,
+        selected_materials: Vec::new(),
+        cross_section_n_rays: 11,
+        full_pupil_spacing: "0.1".into(),
+        n_fan_rays: 65,
+        background_n: "1.0".into(),
+        background_material_key: None,
+        stop_surface: Some(3),
+        solves: vec![SolveSpec::MarginalRayHeight {
+            gap_index: 3,
+            target_height: 0.0,
+            wavelength_id: 0,
+        }],
+        lens_groups: Vec::new(),
+    }
+}
+
 /// f = +100 mm concave mirror.
 pub fn concave_mirror() -> SystemSpecs {
     SystemSpecs {
@@ -616,6 +669,18 @@ mod tests {
     #[test]
     fn thin_lens_example_converts_to_valid_model() {
         let specs = thin_lens();
+        let parsed = parse(&specs);
+        SequentialModelBuilder::new()
+            .gap_specs(parsed.gaps)
+            .surface_specs(parsed.surfaces)
+            .wavelengths(parsed.wavelengths)
+            .build()
+            .expect("model");
+    }
+
+    #[test]
+    fn wf_epi_excitation_example_converts_to_valid_model() {
+        let specs = wf_epi_excitation();
         let parsed = parse(&specs);
         SequentialModelBuilder::new()
             .gap_specs(parsed.gaps)

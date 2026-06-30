@@ -205,7 +205,7 @@ mod tests {
         let target = 4.0;
         let (_, pv) = build_with_fno_solve(target);
         let sub = pv.get(0, 0).unwrap();
-        assert_abs_diff_eq!(sub.paraxial_fno(), target, epsilon = 1e-4);
+        assert_abs_diff_eq!(sub.paraxial_fno().abs(), target, epsilon = 1e-4);
     }
 
     #[test]
@@ -315,7 +315,7 @@ mod tests {
         let sub = pv.get(0, 0).unwrap();
 
         // F/# constraint satisfied.
-        assert_abs_diff_eq!(sub.paraxial_fno(), target_fno, epsilon = 1e-3);
+        assert_abs_diff_eq!(sub.paraxial_fno().abs(), target_fno, epsilon = 1e-3);
 
         // MarginalRaySolve constraint: marginal ray height at image ≈ 0.
         let bundle = marginal_ray_bundle(&model, 0).unwrap();
