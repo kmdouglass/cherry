@@ -130,59 +130,65 @@ fn render_table_body(
         tb_sep(body, n_cols);
     }
 
-    tb_row(body, row_h, "EFL", ids, pv, |sv| {
+    tb_row(body, row_h, "Effective focal length", ids, pv, |sv| {
         *sv.effective_focal_length()
     });
-    tb_row(body, row_h, "BFD", ids, pv, |sv| *sv.back_focal_distance());
-    tb_row(body, row_h, "FFD", ids, pv, |sv| *sv.front_focal_distance());
+    tb_row(body, row_h, "Back focal distance", ids, pv, |sv| {
+        *sv.back_focal_distance()
+    });
+    tb_row(
+        body,
+        row_h,
+        "Back principal plane location",
+        ids,
+        pv,
+        |sv| *sv.back_principal_plane(),
+    );
+    tb_row(body, row_h, "Front focal length", ids, pv, |sv| {
+        *sv.front_focal_length()
+    });
+    tb_row(body, row_h, "Front focal distance", ids, pv, |sv| {
+        *sv.front_focal_distance()
+    });
+    tb_row(
+        body,
+        row_h,
+        "Front principal plane location",
+        ids,
+        pv,
+        |sv| *sv.front_principal_plane(),
+    );
+
+    tb_sep(body, n_cols);
+
     tb_row(body, row_h, "Paraxial F/#", ids, pv, |sv| sv.paraxial_fno());
     tb_row(body, row_h, "Image space F/#", ids, pv, |sv| {
         sv.image_space_fno()
     });
 
+    tb_row(body, row_h, "Lagrange invariant", ids, pv, |sv| {
+        let stop = *sv.aperture_stop();
+        sv.lagrange_invariants()
+            .get(stop)
+            .copied()
+            .unwrap_or(f64::NAN)
+            .abs()
+    });
+
     tb_sep(body, n_cols);
 
-    tb_row(
-        body,
-        row_h,
-        "Entrance pupil dist. from first surface",
-        ids,
-        pv,
-        |sv| sv.entrance_pupil().location,
-    );
+    tb_row(body, row_h, "Entrance pupil location", ids, pv, |sv| {
+        sv.entrance_pupil().location
+    });
     tb_row(body, row_h, "Entrance pupil semi-diameter", ids, pv, |sv| {
         sv.entrance_pupil().semi_diameter
     });
-    tb_row(
-        body,
-        row_h,
-        "Exit pupil dist. from last surface",
-        ids,
-        pv,
-        |sv| sv.exit_pupil().location,
-    );
+    tb_row(body, row_h, "Exit pupil location", ids, pv, |sv| {
+        sv.exit_pupil().location
+    });
     tb_row(body, row_h, "Exit pupil semi-diameter", ids, pv, |sv| {
         sv.exit_pupil().semi_diameter
     });
-
-    tb_sep(body, n_cols);
-
-    tb_row(
-        body,
-        row_h,
-        "Front principal plane dist. from first surface",
-        ids,
-        pv,
-        |sv| *sv.front_principal_plane(),
-    );
-    tb_row(
-        body,
-        row_h,
-        "Back principal plane dist. from last surface",
-        ids,
-        pv,
-        |sv| *sv.back_principal_plane(),
-    );
 
     tb_sep(body, n_cols);
 
@@ -200,15 +206,6 @@ fn render_table_body(
                 }
             });
         }
-    });
-
-    tb_row(body, row_h, "|H| (Lagrange invariant)", ids, pv, |sv| {
-        let stop = *sv.aperture_stop();
-        sv.lagrange_invariants()
-            .get(stop)
-            .copied()
-            .unwrap_or(f64::NAN)
-            .abs()
     });
 }
 
@@ -340,9 +337,9 @@ mod tests {
             ParaxialWindow::show(ctx, &mut open, Some(&result));
         });
         harness.step();
-        harness.get_by_label("EFL");
-        harness.get_by_label("BFD");
-        harness.get_by_label("FFD");
+        harness.get_by_label("Effective focal length");
+        harness.get_by_label("Back focal distance");
+        harness.get_by_label("Front focal distance");
     }
 
     #[test]
@@ -405,7 +402,7 @@ mod tests {
             ParaxialWindow::show(ctx, &mut open, Some(&result));
         });
         harness.step();
-        harness.get_by_label("|H| (Lagrange invariant)");
+        harness.get_by_label("Lagrange invariant");
     }
 
     #[test]

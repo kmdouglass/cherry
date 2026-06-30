@@ -515,11 +515,17 @@ impl eframe::App for CherryApp {
                         self.load_specs(examples::f_theta_scan_lens());
                         ui.close();
                     }
+                    ui.separator();
+                    ui.label("Systems");
                     if ui
                         .button("Galvo and Scan Lens (Negrean and Mansvelder)")
                         .clicked()
                     {
                         self.load_specs(examples::galvo_scan_lens_negrean_mansvelder());
+                        ui.close();
+                    }
+                    if ui.button("Widefield Epifluorescence Excitation").clicked() {
+                        self.load_specs(examples::wf_epi_excitation());
                         ui.close();
                     }
                 });
