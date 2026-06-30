@@ -28,7 +28,7 @@ const FRONT_FOCAL_LENGTH: f64 = -99.6297;
 const FRONT_PRINCIPAL_PLANE: f64 = 1.1937;
 
 const PARAXIAL_IMAGE_PLANE: ImagePlane = ImagePlane {
-    location: 199.7684,
+    location: 196.1684,
     semi_diameter: 4.9048,
 };
 

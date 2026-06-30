@@ -33,7 +33,7 @@ const FRONT_PRINCIPAL_PLANE: f64 = 0.0;
 
 // For a 5 degree field angle
 const PARAXIAL_IMAGE_PLANE: ImagePlane = ImagePlane {
-    location: 51.8987,
+    location: 46.5987,
     semi_diameter: 4.3829,
 };
 

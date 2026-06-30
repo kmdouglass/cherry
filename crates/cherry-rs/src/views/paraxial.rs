@@ -594,13 +594,8 @@ impl ParaxialSubView {
             field_specs,
             &entrance_pupil,
         )?;
-        let paraxial_image_plane = Self::calc_paraxial_image_plane(
-            surfaces,
-            placements,
-            surface_indices,
-            &marginal_ray,
-            &chief_ray,
-        )?;
+        let paraxial_image_plane =
+            Self::calc_paraxial_image_plane(surfaces, surface_indices, &marginal_ray, &chief_ray)?;
 
         let last_phys_id = last_physical_step(surface_indices, surfaces)
             .ok_or_else(|| anyhow!("There are no physical surfaces"))?;
@@ -1095,21 +1090,21 @@ impl ParaxialSubView {
     /// Compute the paraxial image plane.
     fn calc_paraxial_image_plane(
         surfaces: &[Box<dyn Surface>],
-        placements: &[SurfacePlacement],
         surface_indices: &[usize],
         marginal_ray: &ParaxialRayBundle,
         chief_ray: &ParaxialRayBundle,
     ) -> Result<ImagePlane> {
         let last_physical_step_id = last_physical_step(surface_indices, surfaces)
             .ok_or(anyhow!("There are no physical surfaces"))?;
-        let store_idx = surface_indices[last_physical_step_id];
 
         let d_axis = axis_intercepts(marginal_ray.rays_at_surface(last_physical_step_id))?[0];
         let location = if d_axis.is_infinite() {
             // Ensure positive infinity is returned for infinite image planes
             Float::INFINITY
         } else {
-            placements[store_idx].track + d_axis
+            // Compute the paraxial image plane location relative to the last physical
+            // surface
+            d_axis
         };
 
         // Propagate the chief ray from the last physical surface to the image plane to

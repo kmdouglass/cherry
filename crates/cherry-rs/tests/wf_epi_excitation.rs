@@ -16,6 +16,8 @@ const ENTRANCE_PUPIL_SIZE: f64 = 1.5454;
 const FRONT_FOCAL_DISTANCE: f64 = -55.0;
 const FRONT_FOCAL_LENGTH: f64 = 1.25;
 const FRONT_PRINCIPAL_PLANE: f64 = -56.25;
+const IMAGE_LOCATION: f64 = 5.0000;
+const IMAGE_SIZE: f64 = 0.125;
 const IMAGE_SPACE_FNO: f64 = -0.6066;
 const PARAXIAL_FNO: f64 = -0.3922;
 
@@ -141,6 +143,30 @@ fn wf_epi_excitation_paraxial_image_space_fno() {
         let result = sub_view.image_space_fno();
 
         assert_abs_diff_eq!(IMAGE_SPACE_FNO, result, epsilon = 1e-4)
+    }
+}
+
+#[test]
+fn wf_epi_excitation_paraxial_image_location() {
+    let model = sequential_model(n!(1.0), n!(1.5), &WAVELENGTHS);
+    let view =
+        ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
+
+    for sub_view in view.iter() {
+        let result = sub_view.paraxial_image_plane().location;
+        assert_abs_diff_eq!(IMAGE_LOCATION, result, epsilon = 1e-4);
+    }
+}
+
+#[test]
+fn wf_epi_excitation_paraxial_image_size() {
+    let model = sequential_model(n!(1.0), n!(1.5), &WAVELENGTHS);
+    let view =
+        ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
+
+    for sub_view in view.iter() {
+        let result = sub_view.paraxial_image_plane().semi_diameter;
+        assert_abs_diff_eq!(IMAGE_SIZE, result, epsilon = 1e-4);
     }
 }
 
