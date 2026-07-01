@@ -1,10 +1,9 @@
 //! A reduced version of the widefield epifluorescence microscope excitation
-//! path: an object, a thin lens, a flat fold mirror, and a second thin lens
-//! that is the aperture stop.
+//! path: an object, a thin lens, a dichroic beam splitter (reflection), and a
+//! second thin lens that is the aperture stop.
 //!
-//! The fold mirror has infinite radius of curvature, so it contributes no
-//! optical power and can be ignored when computing paraxial quantities by
-//! hand; only the unfolded track length matters.
+//! The beam splitter is oriented at +45° and is used in the reflected arm;
+//! excitation light is folded 90° downward toward the sample.
 //!
 //! By hand: the stop (second thin lens) sits 150 mm (100 mm + 50 mm) after
 //! the first thin lens (f = 40 mm). Treating the stop as a real object for
@@ -15,8 +14,9 @@
 use std::rc::Rc;
 
 use crate::{
-    BoundaryKind, EulerAngles, GapSpec, RefractiveIndexSpec, Rotation3D, SequentialModel,
-    SurfaceSpec, Vec3, core::Float,
+    BeamSplitterPathKind, EulerAngles, GapSpec, PathSpec, PathSurfaceRef, RefractiveIndexSpec,
+    Rotation3D, SequentialModel, SurfaceSpec, Vec3,
+    core::{Float, sequential_model::builder::SequentialModelBuilder},
 };
 
 pub fn sequential_model(
@@ -40,42 +40,49 @@ pub fn sequential_model(
         thickness: 1.0,
         refractive_index: n_oil,
     };
-    let gaps = vec![gap_0, gap_1, gap_2, gap_3];
 
-    let surf_0 = SurfaceSpec::Object;
-    let surf_1 = SurfaceSpec::ThinLens {
-        semi_diameter: 25.0,
-        focal_length: 40.0,
-        rotation: Rotation3D::None,
-        decenter: Vec3::new(0.0, 0.0, 0.0),
-        rotation_offset: Rotation3D::None,
+    let path = PathSpec {
+        surface_refs: vec![
+            PathSurfaceRef::New(SurfaceSpec::Object),
+            PathSurfaceRef::New(SurfaceSpec::ThinLens {
+                semi_diameter: 25.0,
+                focal_length: 40.0,
+                rotation: Rotation3D::None,
+                decenter: Vec3::new(0.0, 0.0, 0.0),
+                rotation_offset: Rotation3D::None,
+            }),
+            PathSurfaceRef::New(SurfaceSpec::BeamSplitter {
+                semi_diameter: 36.0,
+                rotation: Rotation3D::IntrinsicPassiveRUF(EulerAngles(
+                    (45.0_f64 as Float).to_radians(),
+                    0.0,
+                    0.0,
+                )),
+                decenter: Vec3::new(0.0, 0.0, 0.0),
+                rotation_offset: Rotation3D::None,
+            }),
+            PathSurfaceRef::New(SurfaceSpec::ThinLens {
+                semi_diameter: 4.25,
+                focal_length: 3.3333,
+                rotation: Rotation3D::None,
+                decenter: Vec3::new(0.0, 0.0, 0.0),
+                rotation_offset: Rotation3D::None,
+            }),
+            PathSurfaceRef::New(SurfaceSpec::Image {
+                rotation: Rotation3D::None,
+                decenter: Vec3::new(0.0, 0.0, 0.0),
+                rotation_offset: Rotation3D::None,
+            }),
+        ],
+        gaps: vec![gap_0, gap_1, gap_2, gap_3],
+        beam_splitter_arms: vec![BeamSplitterPathKind::Reflecting],
     };
-    let surf_2 = SurfaceSpec::Conic {
-        semi_diameter: 36.0,
-        radius_of_curvature: Float::INFINITY,
-        conic_constant: 0.0,
-        surf_kind: BoundaryKind::Reflecting,
-        rotation: Rotation3D::IntrinsicPassiveRUF(EulerAngles(
-            (45.0 as Float).to_radians(),
-            0.0,
-            0.0,
-        )),
-        decenter: Vec3::new(0.0, 0.0, 0.0),
-        rotation_offset: Rotation3D::None,
-    };
-    let surf_3 = SurfaceSpec::ThinLens {
-        semi_diameter: 4.25,
-        focal_length: 3.3333,
-        rotation: Rotation3D::None,
-        decenter: Vec3::new(0.0, 0.0, 0.0),
-        rotation_offset: Rotation3D::None,
-    };
-    let surf_4 = SurfaceSpec::Image {
-        rotation: Rotation3D::None,
-        decenter: Vec3::new(0.0, 0.0, 0.0),
-        rotation_offset: Rotation3D::None,
-    };
-    let surfaces = vec![surf_0, surf_1, surf_2, surf_3, surf_4];
 
-    SequentialModel::from_surface_specs(&gaps, &surfaces, wavelengths, Some(3)).unwrap()
+    SequentialModelBuilder::new()
+        .paths(vec![path])
+        .stop_surface(3)
+        .wavelengths(wavelengths.to_vec())
+        .build()
+        .expect("wf_epi_excitation model builds")
+        .model
 }

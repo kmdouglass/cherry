@@ -8,4 +8,5 @@ pub mod galvo_mirror;
 pub mod mirrors_figure_z;
 pub mod petzval_lens;
 pub mod thin_lens_singlet;
+pub mod wf_epi_emission;
 pub mod wf_epi_excitation;
