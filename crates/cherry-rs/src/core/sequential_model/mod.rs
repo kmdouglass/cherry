@@ -23,7 +23,7 @@ use crate::core::{
 use crate::specs::surfaces::PlacementSpec;
 use crate::specs::{
     gaps::GapSpec,
-    paths::{PathSpec, PathSurfaceRef},
+    paths::{LinkedObjectOrientation, PathSpec, PathSurfaceRef},
     surfaces::{BeamSplitterPathKind, BoundaryKind, SurfaceSpec},
 };
 
@@ -323,6 +323,19 @@ pub fn reversed_surface_id(num_surfaces: usize, surf_id: usize) -> usize {
     num_surfaces - surf_id - 1
 }
 
+/// Counts the leading contiguous `Shared` steps of a `Reversed`
+/// `ObjectLinkedTo` path, skipping the `ObjectLinkedTo` step itself.
+///
+/// Only meaningful for `Reversed` paths; callers must gate on orientation
+/// before using the result (see
+/// [`SequentialModel::from_path_specs_with_builder`]).
+fn count_leading_shared(refs: &[PathSurfaceRef]) -> usize {
+    refs.iter()
+        .skip(1)
+        .take_while(|r| matches!(r, PathSurfaceRef::Shared(_)))
+        .count()
+}
+
 impl Gap {
     pub(crate) fn try_from_spec(spec: &GapSpec, wavelength: Float) -> Result<Self> {
         let thickness = spec.thickness;
@@ -521,7 +534,6 @@ impl SequentialModel {
     fn from_path_specs_with_builder(
         paths: Vec<PathSpec>,
         wavelengths: &[Float],
-        stop_surface: Option<usize>,
         mut build_surface: impl FnMut(&SurfaceSpec) -> Result<Box<dyn Surface>>,
     ) -> Result<Self> {
         if wavelengths.is_empty() {
@@ -531,6 +543,12 @@ impl SequentialModel {
         let mut store_surfaces: Vec<Box<dyn Surface>> = Vec::new();
         let mut store_placements: Vec<SurfacePlacement> = Vec::new();
         let mut optical_paths: Vec<OpticalPath> = Vec::new();
+        // Full effective gap list (inferred + user-supplied) and surface index
+        // list for each processed path, keyed by path index. Used to infer
+        // gaps for the leading `Shared` block of a `Reversed` `ObjectLinkedTo`
+        // path.
+        let mut saved_surface_indices: Vec<Vec<usize>> = Vec::new();
+        let mut saved_gap_specs: Vec<Vec<GapSpec>> = Vec::new();
 
         for ps in paths {
             let n_refs = ps.surface_refs.len();
@@ -538,20 +556,130 @@ impl SequentialModel {
             if n_refs == 0 {
                 return Err(anyhow!("a PathSpec must have at least one surface_ref"));
             }
-            if ps.gaps.len() + 1 != n_refs {
+
+            if let Some(pos) = ps
+                .surface_refs
+                .iter()
+                .position(|r| matches!(r, PathSurfaceRef::ObjectLinkedTo { .. }))
+                && pos != 0
+            {
                 return Err(anyhow!(
-                    "PathSpec has {} surface_ref(s) but {} gap(s); expected {} gap(s)",
-                    n_refs,
-                    ps.gaps.len(),
-                    n_refs - 1,
+                    "ObjectLinkedTo may only appear as the first surface_ref of a PathSpec"
                 ));
             }
+
+            let linked = match ps.surface_refs.first() {
+                Some(PathSurfaceRef::ObjectLinkedTo {
+                    path: p,
+                    orientation,
+                }) => {
+                    if *p >= optical_paths.len() {
+                        return Err(anyhow!(
+                            "ObjectLinkedTo references path {p} which has not been processed"
+                        ));
+                    }
+                    let last_store_idx = *optical_paths[*p]
+                        .surface_indices
+                        .last()
+                        .ok_or_else(|| anyhow!("linked path {p} is empty"))?;
+                    if store_surfaces[last_store_idx].surface_kind() != SurfaceKind::Image {
+                        return Err(anyhow!(
+                            "linked path {p} does not end with an Image surface"
+                        ));
+                    }
+                    Some((*p, *orientation))
+                }
+                _ => None,
+            };
+
+            let n_leading_shared = match linked {
+                Some((_, LinkedObjectOrientation::Reversed)) => {
+                    count_leading_shared(&ps.surface_refs)
+                }
+                _ => 0,
+            };
+
+            // Reversed paths: leading Shared steps must form a contiguous
+            // block; no Shared step may appear after the first New step.
+            if let Some((_, LinkedObjectOrientation::Reversed)) = linked {
+                let first_new_after_object = ps.surface_refs[1..]
+                    .iter()
+                    .position(|r| matches!(r, PathSurfaceRef::New(_)));
+                if let Some(new_pos) = first_new_after_object {
+                    let has_shared_after_new = ps.surface_refs[new_pos + 2..]
+                        .iter()
+                        .any(|r| matches!(r, PathSurfaceRef::Shared(_)));
+                    if has_shared_after_new {
+                        return Err(anyhow!(
+                            "Reversed ObjectLinkedTo path: Shared steps must form a \
+                             contiguous leading block before the first New step"
+                        ));
+                    }
+                }
+            }
+
+            let expected_gaps = n_refs - 1 - n_leading_shared;
+            if ps.gaps.len() != expected_gaps {
+                return Err(anyhow!(
+                    "PathSpec has {} surface_ref(s) ({} leading shared) but {} gap(s); \
+                     expected {} gap(s)",
+                    n_refs,
+                    n_leading_shared,
+                    ps.gaps.len(),
+                    expected_gaps,
+                ));
+            }
+
+            // Precompute inferred gaps for the leading Shared block of a
+            // Reversed path from the linked path's saved gap specs.
+            let leading_inferred_gaps: Vec<GapSpec> =
+                if let Some((p, LinkedObjectOrientation::Reversed)) = linked {
+                    ps.surface_refs[1..=n_leading_shared]
+                        .iter()
+                        .map(|sref| {
+                            let store_idx = match sref {
+                                PathSurfaceRef::Shared(i) => *i,
+                                _ => unreachable!("leading shared block validated above"),
+                            };
+                            let j = saved_surface_indices[p]
+                                .iter()
+                                .position(|&idx| idx == store_idx)
+                                .ok_or_else(|| {
+                                    anyhow!("Shared({store_idx}) not found in linked path {p}")
+                                })?;
+                            Ok(saved_gap_specs[p][j].clone())
+                        })
+                        .collect::<Result<Vec<_>>>()?
+                } else {
+                    Vec::new()
+                };
 
             // Build the dense arm vec by consuming beam_splitter_arms in step order.
             let mut bs_arms_iter = ps.beam_splitter_arms.into_iter();
             let mut dense_bs_arms: Vec<Option<BeamSplitterPathKind>> = Vec::with_capacity(n_refs);
 
-            let mut cursor = Cursor::new(-ps.gaps[0].thickness);
+            let mut cursor = match linked {
+                Some((p, orientation)) => {
+                    let step = optical_paths[p]
+                        .steps
+                        .last()
+                        .ok_or_else(|| anyhow!("linked path {p} has no steps"))?;
+                    let m = step.cursor_rotation_matrix;
+                    let right = Vec3::new(m.e[0][0], m.e[0][1], m.e[0][2]);
+                    let (up, forward) = match orientation {
+                        LinkedObjectOrientation::SameDirection => (
+                            Vec3::new(m.e[1][0], m.e[1][1], m.e[1][2]),
+                            Vec3::new(m.e[2][0], m.e[2][1], m.e[2][2]),
+                        ),
+                        LinkedObjectOrientation::Reversed => (
+                            Vec3::new(-m.e[1][0], -m.e[1][1], -m.e[1][2]),
+                            Vec3::new(-m.e[2][0], -m.e[2][1], -m.e[2][2]),
+                        ),
+                    };
+                    Cursor::from_frame(step.cursor_position, right, up, forward)
+                }
+                None => Cursor::new(-ps.gaps[0].thickness),
+            };
             let mut surface_indices: Vec<usize> = Vec::new();
             let mut path_steps: Vec<CursorPlacement> = Vec::new();
 
@@ -569,6 +697,7 @@ impl SequentialModel {
                         *i < store_surfaces.len()
                             && store_surfaces[*i].surface_kind() == SurfaceKind::BeamSplitter
                     }
+                    PathSurfaceRef::ObjectLinkedTo { .. } => false,
                 };
                 let bs_arm = if is_bs {
                     Some(bs_arms_iter.next().ok_or_else(|| {
@@ -671,10 +800,35 @@ impl SequentialModel {
 
                         surface_indices.push(*i);
                     }
+                    PathSurfaceRef::ObjectLinkedTo { .. } => {
+                        if !is_first {
+                            return Err(anyhow!(
+                                "ObjectLinkedTo may only appear as the first surface_ref"
+                            ));
+                        }
+
+                        let surface: Box<dyn Surface> = build_surface(&SurfaceSpec::Object)?;
+                        let placement = SurfacePlacement::from_decenter_and_rotation(
+                            Vec3::new(0.0, 0.0, 0.0),
+                            Mat3x3::identity(),
+                            Mat3x3::identity(),
+                            &cursor,
+                        );
+
+                        let store_idx = store_surfaces.len();
+                        store_placements.push(placement);
+                        store_surfaces.push(surface);
+                        surface_indices.push(store_idx);
+                    }
                 }
 
                 if !is_last {
-                    cursor.advance(ps.gaps[step].thickness);
+                    let gap = if step < n_leading_shared {
+                        &leading_inferred_gaps[step]
+                    } else {
+                        &ps.gaps[step - n_leading_shared]
+                    };
+                    cursor.advance(gap.thickness);
                 }
             }
 
@@ -685,22 +839,32 @@ impl SequentialModel {
                 ));
             }
 
+            let all_gap_specs: Vec<GapSpec> = leading_inferred_gaps
+                .iter()
+                .chain(ps.gaps.iter())
+                .cloned()
+                .collect();
+
             let mut submodels: Vec<SequentialSubModelBase> = Vec::new();
             for &wavelength in wavelengths.iter() {
-                let gaps = Self::gap_specs_to_gaps(&ps.gaps, wavelength)?;
+                let gaps = Self::gap_specs_to_gaps(&all_gap_specs, wavelength)?;
                 submodels.push(SequentialSubModelBase::new(gaps));
             }
+
+            if let Some(i) = ps.stop_surface {
+                Self::validate_stop_surface(&store_surfaces, i)?;
+            }
+
+            saved_surface_indices.push(surface_indices.clone());
+            saved_gap_specs.push(all_gap_specs);
+
             optical_paths.push(OpticalPath {
                 surface_indices,
                 beam_splitter_arms: dense_bs_arms,
                 submodels,
-                stop_surface,
+                stop_surface: ps.stop_surface,
                 steps: path_steps,
             });
-        }
-
-        if let Some(i) = stop_surface {
-            Self::validate_stop_surface(&store_surfaces, i)?;
         }
 
         let store = SurfaceStore {
@@ -719,22 +883,17 @@ impl SequentialModel {
     pub(crate) fn from_path_specs(
         paths: Vec<PathSpec>,
         wavelengths: &[Float],
-        stop_surface: Option<usize>,
         registry: Option<&SurfaceRegistry>,
     ) -> Result<Self> {
-        Self::from_path_specs_with_builder(paths, wavelengths, stop_surface, |spec| {
+        Self::from_path_specs_with_builder(paths, wavelengths, |spec| {
             surface_from_spec(spec, registry)
         })
     }
 
     /// Builds a multipath model from `PathSpec`s (non-serde variant).
     #[cfg(not(feature = "serde"))]
-    pub(crate) fn from_path_specs(
-        paths: Vec<PathSpec>,
-        wavelengths: &[Float],
-        stop_surface: Option<usize>,
-    ) -> Result<Self> {
-        Self::from_path_specs_with_builder(paths, wavelengths, stop_surface, surface_from_spec)
+    pub(crate) fn from_path_specs(paths: Vec<PathSpec>, wavelengths: &[Float]) -> Result<Self> {
+        Self::from_path_specs_with_builder(paths, wavelengths, surface_from_spec)
     }
 
     /// Number of optical paths in the model.

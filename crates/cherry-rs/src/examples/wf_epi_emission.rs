@@ -87,6 +87,7 @@ pub fn sequential_model(
         ],
         gaps: vec![gap_0, gap_1, gap_2, gap_3, gap_4],
         beam_splitter_arms: vec![BeamSplitterPathKind::Transmitting],
+        stop_surface: None,
     };
 
     SequentialModelBuilder::new()

@@ -49,6 +49,20 @@ impl Cursor {
         }
     }
 
+    /// Create a new cursor from an explicit position and frame (right, up,
+    /// forward). Used by the builder to seed a secondary path's cursor from
+    /// another path's cursor frame (e.g. `ObjectLinkedTo`). `track` is reset
+    /// to `0.0`.
+    pub(crate) fn from_frame(pos: Vec3, right: Vec3, up: Vec3, forward: Vec3) -> Self {
+        Self {
+            pos,
+            right,
+            up,
+            forward,
+            track: 0.0,
+        }
+    }
+
     /// Advance the cursor by a given distance along the z-direction.
     pub fn advance(&mut self, distance: Float) {
         // Edge case for advancing from negative infinity to 0.
@@ -133,6 +147,18 @@ mod test {
                 .forward
                 .approx_eq(&Vec3::new(0.0, (3 as Float).sqrt() / 2.0, -0.5), 1e-6)
         );
+    }
+
+    #[test]
+    fn from_frame_sets_all_fields() {
+        let pos = Vec3::new(1.0, 2.0, 3.0);
+        let right = Vec3::new(1.0, 0.0, 0.0);
+        let up = Vec3::new(0.0, 0.0, -1.0);
+        let forward = Vec3::new(0.0, -1.0, 0.0);
+        let cursor = Cursor::from_frame(pos, right, up, forward);
+        assert_eq!(cursor.pos(), pos);
+        assert_eq!(cursor.forward(), forward);
+        assert_eq!(cursor.track(), 0.0);
     }
 
     #[test]

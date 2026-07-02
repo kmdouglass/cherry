@@ -16,7 +16,7 @@ macro_rules! n {
 }
 
 /// Specifies a gap in a sequential optical system model.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct GapSpec {
     pub thickness: Float,
     pub refractive_index: Rc<dyn RefractiveIndexSpec>,

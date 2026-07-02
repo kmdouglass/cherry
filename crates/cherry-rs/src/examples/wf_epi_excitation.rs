@@ -37,7 +37,7 @@ pub fn sequential_model(
         refractive_index: n_air,
     };
     let gap_3 = GapSpec {
-        thickness: 1.0,
+        thickness: 5.0,
         refractive_index: n_oil,
     };
 
@@ -76,11 +76,11 @@ pub fn sequential_model(
         ],
         gaps: vec![gap_0, gap_1, gap_2, gap_3],
         beam_splitter_arms: vec![BeamSplitterPathKind::Reflecting],
+        stop_surface: Some(3),
     };
 
     SequentialModelBuilder::new()
         .paths(vec![path])
-        .stop_surface(3)
         .wavelengths(wavelengths.to_vec())
         .build()
         .expect("wf_epi_excitation model builds")

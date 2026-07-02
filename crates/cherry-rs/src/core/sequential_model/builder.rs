@@ -61,16 +61,11 @@ impl SequentialModelBuilder {
         if self.paths.is_some() {
             let paths = self.paths.unwrap();
             let wavelengths = self.wavelengths.unwrap();
-            let stop_surface = self.stop_surface;
             #[cfg(feature = "serde")]
-            let model = SequentialModel::from_path_specs(
-                paths,
-                &wavelengths,
-                stop_surface,
-                self.registry.as_ref(),
-            )?;
+            let model =
+                SequentialModel::from_path_specs(paths, &wavelengths, self.registry.as_ref())?;
             #[cfg(not(feature = "serde"))]
-            let model = SequentialModel::from_path_specs(paths, &wavelengths, stop_surface)?;
+            let model = SequentialModel::from_path_specs(paths, &wavelengths)?;
             return Ok(BuildResult {
                 model,
                 gap_specs: vec![],
@@ -609,6 +604,7 @@ mod tests {
                 refractive_index: n!(1.0),
             }],
             beam_splitter_arms: vec![],
+            stop_surface: None,
         }
     }
 
@@ -633,6 +629,7 @@ mod tests {
                 refractive_index: n!(1.0),
             }],
             beam_splitter_arms: vec![],
+            stop_surface: None,
         };
         let result = SequentialModelBuilder::new()
             .paths(vec![bad_path])
@@ -654,6 +651,7 @@ mod tests {
                 refractive_index: n!(1.0),
             }],
             beam_splitter_arms: vec![],
+            stop_surface: None,
         };
         let result = SequentialModelBuilder::new()
             .paths(vec![bad_path])
@@ -686,6 +684,7 @@ mod tests {
                 },
             ],
             beam_splitter_arms: vec![],
+            stop_surface: None,
         };
         let result = SequentialModelBuilder::new()
             .paths(vec![bad_path])
@@ -712,6 +711,7 @@ mod tests {
                 refractive_index: n!(1.0),
             }],
             beam_splitter_arms: vec![],
+            stop_surface: None,
         };
         let result = SequentialModelBuilder::new()
             .paths(vec![path0, bad_path1])
@@ -754,6 +754,7 @@ mod tests {
                 },
             ],
             beam_splitter_arms: vec![], // missing arm declaration for the BS
+            stop_surface: None,
         };
         let result = SequentialModelBuilder::new()
             .paths(vec![path])
@@ -832,6 +833,7 @@ mod tests {
                 },
             ],
             beam_splitter_arms: vec![],
+            stop_surface: None,
         };
         let model_new = SequentialModelBuilder::new()
             .paths(vec![path])
