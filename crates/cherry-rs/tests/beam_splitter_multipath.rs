@@ -111,6 +111,7 @@ fn at13_repeated_store_index_is_permitted_via_pathspec() {
             },
         ],
         beam_splitter_arms: vec![],
+        stop_surface: None,
     };
     let result = SequentialModelBuilder::new()
         .paths(vec![path])

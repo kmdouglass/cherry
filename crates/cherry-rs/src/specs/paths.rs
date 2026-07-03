@@ -14,12 +14,18 @@ use crate::specs::{
 pub struct PathSpec {
     /// Ordered sequence of surfaces for this path.
     pub surface_refs: Vec<PathSurfaceRef>,
-    /// Step-indexed gaps. `gaps.len()` must equal `surface_refs.len() - 1`.
+    /// Step-indexed gaps. `gaps.len()` must equal `surface_refs.len() - 1`,
+    /// except for a `Reversed` [`PathSurfaceRef::ObjectLinkedTo`] path, where
+    /// leading `Shared` steps have their gaps inferred automatically (see
+    /// [`PathSurfaceRef::ObjectLinkedTo`]).
     pub gaps: Vec<GapSpec>,
     /// Arm declaration for each beam splitter surface in this path, in step
     /// order. Provide one entry per beam splitter step; the builder matches
     /// them to beam splitter surfaces in order of appearance.
     pub beam_splitter_arms: Vec<BeamSplitterPathKind>,
+    /// User-specified aperture stop as a store index for this path, or `None`
+    /// to fall back to heuristic aperture-stop selection.
+    pub stop_surface: Option<usize>,
 }
 
 /// One element of a [`PathSpec`]'s surface sequence.
@@ -29,6 +35,31 @@ pub enum PathSurfaceRef {
     /// Reference the surface already at this store index, introduced by an
     /// earlier [`PathSpec`].
     Shared(usize),
+    /// Place a new `Object` surface at the same 3D position as the `Image`
+    /// surface of a previously processed path, deriving the cursor frame from
+    /// that path's terminal cursor. Must be the first `surface_ref` of a
+    /// `PathSpec`.
+    ObjectLinkedTo {
+        /// Zero-based index of a previously processed [`PathSpec`].
+        path: usize,
+        /// How the new cursor frame is derived from the linked path's
+        /// terminal (Image) cursor frame.
+        orientation: LinkedObjectOrientation,
+    },
+}
+
+/// Controls how a secondary path's cursor frame is derived from a primary
+/// path's Image cursor frame when using
+/// [`PathSurfaceRef::ObjectLinkedTo`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LinkedObjectOrientation {
+    /// Use the primary Image cursor's R, U, and F unchanged; the secondary
+    /// path departs forward past the Image into new territory.
+    SameDirection,
+    /// Keep R, negate U and F (a 180° rotation about R); the secondary path
+    /// travels back through the shared surfaces traversed by the primary
+    /// path.
+    Reversed,
 }
 
 #[cfg(test)]
@@ -52,6 +83,7 @@ mod tests {
                 refractive_index: n!(1.0),
             }],
             beam_splitter_arms: vec![],
+            stop_surface: None,
         };
         assert_eq!(ps.surface_refs.len(), 2);
     }

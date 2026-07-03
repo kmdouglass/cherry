@@ -57,6 +57,7 @@ pub fn two_path_model(
             },
         ],
         beam_splitter_arms: vec![BeamSplitterPathKind::Transmitting],
+        stop_surface: None,
     };
 
     // Path 1: reflected arm.
@@ -75,6 +76,7 @@ pub fn two_path_model(
             },
         ],
         beam_splitter_arms: vec![BeamSplitterPathKind::Reflecting],
+        stop_surface: None,
     };
 
     SequentialModelBuilder::new()
