@@ -77,11 +77,11 @@ pub fn sequential_model(
         gaps: vec![gap_0, gap_1, gap_2, gap_3],
         beam_splitter_arms: vec![BeamSplitterPathKind::Reflecting],
         stop_surface: Some(3),
+        wavelengths: wavelengths.to_vec(),
     };
 
     SequentialModelBuilder::new()
         .paths(vec![path])
-        .wavelengths(wavelengths.to_vec())
         .build()
         .expect("wf_epi_excitation model builds")
         .model

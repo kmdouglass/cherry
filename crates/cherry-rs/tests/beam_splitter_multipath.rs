@@ -112,11 +112,9 @@ fn at13_repeated_store_index_is_permitted_via_pathspec() {
         ],
         beam_splitter_arms: vec![],
         stop_surface: None,
+        wavelengths: vec![0.587],
     };
-    let result = SequentialModelBuilder::new()
-        .paths(vec![path])
-        .wavelengths(vec![0.587])
-        .build();
+    let result = SequentialModelBuilder::new().paths(vec![path]).build();
     assert!(result.is_ok());
     let model = result.unwrap().model;
     assert_eq!(model.path_surface_indices(0), &[0, 1, 1, 2]);

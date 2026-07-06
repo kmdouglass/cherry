@@ -69,6 +69,9 @@ struct OpticalPath {
     stop_surface: Option<usize>,
     /// Step-indexed cursor state, parallel to `surface_indices`.
     steps: Vec<CursorPlacement>,
+    /// Wavelengths this path's `submodels` were built from, in the same
+    /// order (`submodels[i]` corresponds to `wavelengths[i]`).
+    wavelengths: Vec<Float>,
 }
 
 /// A gap between two surfaces in a sequential system.
@@ -90,7 +93,6 @@ pub struct Gap {
 pub struct SequentialModel {
     store: SurfaceStore,
     paths: Vec<OpticalPath>,
-    wavelengths: Vec<Float>,
 }
 
 /// A submodel of a sequential optical system.
@@ -403,11 +405,11 @@ impl SequentialModel {
                 submodels,
                 stop_surface,
                 steps: cursor_placements,
+                wavelengths: wavelengths.to_vec(),
             };
             Ok(Self {
                 store,
                 paths: vec![path],
-                wavelengths: wavelengths.to_vec(),
             })
         }
     }
@@ -447,11 +449,11 @@ impl SequentialModel {
             submodels,
             stop_surface,
             steps: cursor_placements,
+            wavelengths: wavelengths.to_vec(),
         };
         Ok(Self {
             store,
             paths: vec![path],
-            wavelengths: wavelengths.to_vec(),
         })
     }
 
@@ -518,11 +520,11 @@ impl SequentialModel {
             submodels,
             stop_surface,
             steps: cursor_placements,
+            wavelengths: wavelengths.to_vec(),
         };
         Ok(Self {
             store,
             paths: vec![path],
-            wavelengths: wavelengths.to_vec(),
         })
     }
 
@@ -533,13 +535,8 @@ impl SequentialModel {
     /// versions can supply the appropriate `surface_from_spec` variant.
     fn from_path_specs_with_builder(
         paths: Vec<PathSpec>,
-        wavelengths: &[Float],
         mut build_surface: impl FnMut(&SurfaceSpec) -> Result<Box<dyn Surface>>,
     ) -> Result<Self> {
-        if wavelengths.is_empty() {
-            return Err(anyhow!("At least one wavelength must be specified."));
-        }
-
         let mut store_surfaces: Vec<Box<dyn Surface>> = Vec::new();
         let mut store_placements: Vec<SurfacePlacement> = Vec::new();
         let mut optical_paths: Vec<OpticalPath> = Vec::new();
@@ -845,8 +842,13 @@ impl SequentialModel {
                 .cloned()
                 .collect();
 
+            if ps.wavelengths.is_empty() {
+                return Err(anyhow!(
+                    "each PathSpec must have at least one wavelength; this path has none"
+                ));
+            }
             let mut submodels: Vec<SequentialSubModelBase> = Vec::new();
-            for &wavelength in wavelengths.iter() {
+            for &wavelength in ps.wavelengths.iter() {
                 let gaps = Self::gap_specs_to_gaps(&all_gap_specs, wavelength)?;
                 submodels.push(SequentialSubModelBase::new(gaps));
             }
@@ -864,6 +866,7 @@ impl SequentialModel {
                 submodels,
                 stop_surface: ps.stop_surface,
                 steps: path_steps,
+                wavelengths: ps.wavelengths.clone(),
             });
         }
 
@@ -874,7 +877,6 @@ impl SequentialModel {
         Ok(Self {
             store,
             paths: optical_paths,
-            wavelengths: wavelengths.to_vec(),
         })
     }
 
@@ -882,18 +884,15 @@ impl SequentialModel {
     #[cfg(feature = "serde")]
     pub(crate) fn from_path_specs(
         paths: Vec<PathSpec>,
-        wavelengths: &[Float],
         registry: Option<&SurfaceRegistry>,
     ) -> Result<Self> {
-        Self::from_path_specs_with_builder(paths, wavelengths, |spec| {
-            surface_from_spec(spec, registry)
-        })
+        Self::from_path_specs_with_builder(paths, |spec| surface_from_spec(spec, registry))
     }
 
     /// Builds a multipath model from `PathSpec`s (non-serde variant).
     #[cfg(not(feature = "serde"))]
-    pub(crate) fn from_path_specs(paths: Vec<PathSpec>, wavelengths: &[Float]) -> Result<Self> {
-        Self::from_path_specs_with_builder(paths, wavelengths, surface_from_spec)
+    pub(crate) fn from_path_specs(paths: Vec<PathSpec>) -> Result<Self> {
+        Self::from_path_specs_with_builder(paths, surface_from_spec)
     }
 
     /// Number of optical paths in the model.
@@ -1019,8 +1018,15 @@ impl SequentialModel {
     }
 
     /// Returns the wavelengths at which the system is modeled.
+    ///
+    /// Single-path shorthand; delegates to `paths[0]`.
     pub fn wavelengths(&self) -> &[Float] {
-        &self.wavelengths
+        self.wavelengths_for_path(0)
+    }
+
+    /// Returns the wavelengths for path `path_id`, in submodel order.
+    pub fn wavelengths_for_path(&self, path_id: usize) -> &[Float] {
+        &self.paths[path_id].wavelengths
     }
 
     fn gap_specs_to_gaps(gap_specs: &[GapSpec], wavelength: Float) -> Result<Vec<Gap>> {

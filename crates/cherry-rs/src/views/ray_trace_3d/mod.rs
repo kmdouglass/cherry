@@ -176,9 +176,9 @@ pub fn ray_trace_3d_view(
     // Use Axis::U as the canonical submodel for all field/wavelength combinations.
     // For rotationally symmetric systems only Axis::U exists; for non-symmetric
     // systems this is the fallback that is always present.
-    let n_wavelengths = sequential_model.wavelengths().len();
     let triples: Vec<(usize, usize, usize)> = (0..sequential_model.path_count())
         .flat_map(|p| {
+            let n_wavelengths = sequential_model.wavelengths_for_path(p).len();
             (0..field_specs.len()).flat_map(move |f| (0..n_wavelengths).map(move |w| (p, f, w)))
         })
         .collect();
@@ -1445,6 +1445,101 @@ mod tests {
         assert!(
             results.get_for_path(1, 0, 0).is_some(),
             "path 1 results missing"
+        );
+    }
+
+    #[test]
+    fn ray_trace_3d_view_handles_differing_wavelength_counts_per_path() {
+        use std::rc::Rc;
+
+        use crate::RefractiveIndexSpec;
+        use crate::core::math::linalg::rotations::{EulerAngles, Rotation3D};
+        use crate::core::sequential_model::builder::SequentialModelBuilder;
+        use crate::specs::gaps::{ConstantRefractiveIndex, GapSpec};
+        use crate::specs::paths::{PathSpec, PathSurfaceRef};
+        use crate::specs::surfaces::{BeamSplitterPathKind, SurfaceSpec};
+
+        let n_air: Rc<dyn RefractiveIndexSpec> = Rc::new(ConstantRefractiveIndex::new(1.0, 0.0));
+        let bs_rotation =
+            Rotation3D::IntrinsicPassiveRUF(EulerAngles((-45_f64).to_radians(), 0.0, 0.0));
+        let img = || SurfaceSpec::Image {
+            rotation: Rotation3D::None,
+            decenter: Vec3::new(0.0, 0.0, 0.0),
+            rotation_offset: Rotation3D::None,
+        };
+        let gap_inf = || GapSpec {
+            thickness: f64::INFINITY,
+            refractive_index: n_air.clone(),
+        };
+
+        let path_t = PathSpec {
+            surface_refs: vec![
+                PathSurfaceRef::New(SurfaceSpec::Object),
+                PathSurfaceRef::New(SurfaceSpec::BeamSplitter {
+                    semi_diameter: 10.0,
+                    rotation: bs_rotation,
+                    decenter: Vec3::new(0.0, 0.0, 0.0),
+                    rotation_offset: Rotation3D::None,
+                }),
+                PathSurfaceRef::New(img()),
+            ],
+            gaps: vec![
+                gap_inf(),
+                GapSpec {
+                    thickness: 10.0,
+                    refractive_index: n_air.clone(),
+                },
+            ],
+            beam_splitter_arms: vec![BeamSplitterPathKind::Transmitting],
+            stop_surface: None,
+            wavelengths: vec![0.5876], // 1 wavelength
+        };
+        let path_r = PathSpec {
+            surface_refs: vec![
+                PathSurfaceRef::Shared(0),
+                PathSurfaceRef::Shared(1),
+                PathSurfaceRef::New(img()),
+            ],
+            gaps: vec![
+                gap_inf(),
+                GapSpec {
+                    thickness: 10.0,
+                    refractive_index: n_air.clone(),
+                },
+            ],
+            beam_splitter_arms: vec![BeamSplitterPathKind::Reflecting],
+            stop_surface: None,
+            wavelengths: vec![0.4861, 0.5876, 0.6563], // 3 wavelengths
+        };
+
+        let model = SequentialModelBuilder::new()
+            .paths(vec![path_t, path_r])
+            .build()
+            .expect("beam splitter model builds")
+            .model;
+
+        let field_specs = vec![FieldSpec::Angle {
+            chi: 0.0,
+            phi: 90.0,
+        }];
+        let aperture_spec = ApertureSpec::EntrancePupil { semi_diameter: 5.0 };
+        let paraxial_view = ParaxialView::new(&model, &field_specs, false).unwrap();
+        let config = SamplingConfig {
+            n_fan_rays: 3,
+            full_pupil_spacing: 0.5,
+        };
+
+        let results =
+            ray_trace_3d_view(&aperture_spec, &field_specs, &model, &paraxial_view, config)
+                .expect("ray trace should succeed with differing per-path wavelength counts");
+
+        assert_eq!(
+            results.iter().filter(|r| r.path_id() == 0).count(),
+            field_specs.len()
+        );
+        assert_eq!(
+            results.iter().filter(|r| r.path_id() == 1).count(),
+            3 * field_specs.len()
         );
     }
 

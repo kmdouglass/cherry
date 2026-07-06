@@ -87,13 +87,12 @@ pub fn sequential_model(
         ],
         gaps: vec![gap_0, gap_1, gap_2, gap_3, gap_4],
         beam_splitter_arms: vec![BeamSplitterPathKind::Transmitting],
-        stop_surface: None,
+        stop_surface: Some(1),
+        wavelengths: wavelengths.to_vec(),
     };
 
     SequentialModelBuilder::new()
         .paths(vec![path])
-        .stop_surface(1)
-        .wavelengths(wavelengths.to_vec())
         .build()
         .expect("wf_epi_emission model builds")
         .model

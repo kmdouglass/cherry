@@ -1967,6 +1967,7 @@ mod test {
             gaps: vec![gap_inf(), gap_50(), gap_50()],
             beam_splitter_arms: vec![BeamSplitterPathKind::Transmitting],
             stop_surface: None,
+            wavelengths: vec![0.5876e-3],
         };
 
         // Path 1: Object(Shared) → BS(Shared) → Iris2(SD=15) → Image_1
@@ -1981,11 +1982,11 @@ mod test {
             gaps: vec![gap_inf(), gap_50(), gap_50()],
             beam_splitter_arms: vec![BeamSplitterPathKind::Reflecting],
             stop_surface: None,
+            wavelengths: vec![0.5876e-3],
         };
 
         let model = SequentialModelBuilder::new()
             .paths(vec![path_t, path_r])
-            .wavelengths(vec![0.5876e-3])
             .build()
             .unwrap()
             .model;

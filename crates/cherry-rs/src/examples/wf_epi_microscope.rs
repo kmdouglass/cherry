@@ -26,7 +26,8 @@ use crate::{
 pub fn sequential_model(
     n_air: Rc<dyn RefractiveIndexSpec>,
     n_oil: Rc<dyn RefractiveIndexSpec>,
-    wavelengths: &[f64],
+    excitation_wavelengths: &[f64],
+    emission_wavelengths: &[f64],
 ) -> SequentialModel {
     // Excitation path gaps.
     let gap_0 = GapSpec {
@@ -98,6 +99,7 @@ pub fn sequential_model(
         gaps: vec![gap_0, gap_1, gap_2, gap_3],
         beam_splitter_arms: vec![BeamSplitterPathKind::Reflecting],
         stop_surface: Some(3),
+        wavelengths: excitation_wavelengths.to_vec(),
     };
 
     let path_emission = PathSpec {
@@ -133,11 +135,11 @@ pub fn sequential_model(
         gaps: vec![gap_bs_mirror, gap_mirror_tube, gap_tube_camera],
         beam_splitter_arms: vec![BeamSplitterPathKind::Transmitting],
         stop_surface: Some(3),
+        wavelengths: emission_wavelengths.to_vec(),
     };
 
     SequentialModelBuilder::new()
         .paths(vec![path_excitation, path_emission])
-        .wavelengths(wavelengths.to_vec())
         .build()
         .expect("wf_epi_microscope model builds")
         .model

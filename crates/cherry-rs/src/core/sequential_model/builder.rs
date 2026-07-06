@@ -60,12 +60,10 @@ impl SequentialModelBuilder {
 
         if self.paths.is_some() {
             let paths = self.paths.unwrap();
-            let wavelengths = self.wavelengths.unwrap();
             #[cfg(feature = "serde")]
-            let model =
-                SequentialModel::from_path_specs(paths, &wavelengths, self.registry.as_ref())?;
+            let model = SequentialModel::from_path_specs(paths, self.registry.as_ref())?;
             #[cfg(not(feature = "serde"))]
-            let model = SequentialModel::from_path_specs(paths, &wavelengths)?;
+            let model = SequentialModel::from_path_specs(paths)?;
             return Ok(BuildResult {
                 model,
                 gap_specs: vec![],
@@ -166,10 +164,17 @@ impl SequentialModelBuilder {
         }
 
         if self.paths.is_some() {
-            if self.wavelengths.is_none() {
-                return Err(anyhow!("Wavelengths must be set"));
-            } else if self.wavelengths.as_ref().unwrap().is_empty() {
-                return Err(anyhow!("Wavelengths cannot be empty"));
+            if self.wavelengths.is_some() {
+                return Err(anyhow!(
+                    "Cannot set both `paths` and `wavelengths` — set `wavelengths` on \
+                     each PathSpec instead"
+                ));
+            }
+            if self.stop_surface.is_some() {
+                return Err(anyhow!(
+                    "Cannot set both `paths` and `stop_surface` — set `stop_surface` \
+                     on each PathSpec instead"
+                ));
             }
             return Ok(());
         }
@@ -605,6 +610,7 @@ mod tests {
             }],
             beam_splitter_arms: vec![],
             stop_surface: None,
+            wavelengths: vec![0.587],
         }
     }
 
@@ -630,11 +636,9 @@ mod tests {
             }],
             beam_splitter_arms: vec![],
             stop_surface: None,
+            wavelengths: vec![0.587],
         };
-        let result = SequentialModelBuilder::new()
-            .paths(vec![bad_path])
-            .wavelengths(vec![0.587])
-            .build();
+        let result = SequentialModelBuilder::new().paths(vec![bad_path]).build();
         assert!(result.is_err());
     }
 
@@ -652,11 +656,9 @@ mod tests {
             }],
             beam_splitter_arms: vec![],
             stop_surface: None,
+            wavelengths: vec![0.587],
         };
-        let result = SequentialModelBuilder::new()
-            .paths(vec![bad_path])
-            .wavelengths(vec![0.587])
-            .build();
+        let result = SequentialModelBuilder::new().paths(vec![bad_path]).build();
         assert!(result.is_err());
     }
 
@@ -685,11 +687,9 @@ mod tests {
             ],
             beam_splitter_arms: vec![],
             stop_surface: None,
+            wavelengths: vec![0.587],
         };
-        let result = SequentialModelBuilder::new()
-            .paths(vec![bad_path])
-            .wavelengths(vec![0.587])
-            .build();
+        let result = SequentialModelBuilder::new().paths(vec![bad_path]).build();
         assert!(result.is_err());
     }
 
@@ -712,10 +712,10 @@ mod tests {
             }],
             beam_splitter_arms: vec![],
             stop_surface: None,
+            wavelengths: vec![0.587],
         };
         let result = SequentialModelBuilder::new()
             .paths(vec![path0, bad_path1])
-            .wavelengths(vec![0.587])
             .build();
         assert!(result.is_err());
     }
@@ -755,11 +755,9 @@ mod tests {
             ],
             beam_splitter_arms: vec![], // missing arm declaration for the BS
             stop_surface: None,
+            wavelengths: vec![0.587],
         };
-        let result = SequentialModelBuilder::new()
-            .paths(vec![path])
-            .wavelengths(vec![0.587])
-            .build();
+        let result = SequentialModelBuilder::new().paths(vec![path]).build();
         assert!(result.is_err());
     }
 
@@ -834,10 +832,10 @@ mod tests {
             ],
             beam_splitter_arms: vec![],
             stop_surface: None,
+            wavelengths: wls.to_vec(),
         };
         let model_new = SequentialModelBuilder::new()
             .paths(vec![path])
-            .wavelengths(wls.to_vec())
             .build()
             .unwrap()
             .model;
@@ -855,5 +853,94 @@ mod tests {
             model_new.placements()[1].position.z(),
             epsilon = 1e-10
         );
+    }
+
+    // ── Per-path wavelengths ──────────────────────────────────────────────
+
+    fn minimal_path_spec_with_wavelengths(wavelengths: Vec<f64>) -> PathSpec {
+        use crate::specs::paths::{PathSpec, PathSurfaceRef};
+        PathSpec {
+            surface_refs: vec![
+                PathSurfaceRef::New(SurfaceSpec::Object),
+                PathSurfaceRef::New(SurfaceSpec::Image {
+                    rotation: Rotation3D::None,
+                    decenter: Vec3::new(0.0, 0.0, 0.0),
+                    rotation_offset: Rotation3D::None,
+                }),
+            ],
+            gaps: vec![GapSpec {
+                thickness: f64::INFINITY,
+                refractive_index: n!(1.0),
+            }],
+            beam_splitter_arms: vec![],
+            stop_surface: None,
+            wavelengths,
+        }
+    }
+
+    #[test]
+    fn wavelengths_for_path_differ_across_paths() {
+        use crate::specs::paths::PathSurfaceRef;
+
+        let path0 = minimal_path_spec_with_wavelengths(vec![0.488]);
+        // path1 shares path0's Object (store index 0) and adds its own Image,
+        // so it needs its own gap and a differing wavelength list/length.
+        let path1 = PathSpec {
+            surface_refs: vec![
+                PathSurfaceRef::Shared(0),
+                PathSurfaceRef::New(SurfaceSpec::Image {
+                    rotation: Rotation3D::None,
+                    decenter: Vec3::new(0.0, 0.0, 0.0),
+                    rotation_offset: Rotation3D::None,
+                }),
+            ],
+            gaps: vec![GapSpec {
+                thickness: 10.0,
+                refractive_index: n!(1.0),
+            }],
+            beam_splitter_arms: vec![],
+            stop_surface: None,
+            wavelengths: vec![0.500, 0.520, 0.540],
+        };
+
+        let model = SequentialModelBuilder::new()
+            .paths(vec![path0, path1])
+            .build()
+            .unwrap()
+            .model;
+
+        assert_eq!(model.wavelengths_for_path(0), &[0.488]);
+        assert_eq!(model.wavelengths_for_path(1), &[0.500, 0.520, 0.540]);
+        assert_eq!(model.wavelengths(), model.wavelengths_for_path(0));
+    }
+
+    #[test]
+    fn empty_wavelengths_on_one_path_is_rejected_even_if_others_are_nonempty() {
+        // Construct two independent PathSpecs directly rather than cloning —
+        // PathSpec derives no traits (not even Clone) as of this writing.
+        let good = minimal_path_spec_with_wavelengths(vec![0.5876]);
+        let bad = minimal_path_spec_with_wavelengths(vec![]);
+        let result = SequentialModelBuilder::new().paths(vec![good, bad]).build();
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn build_fails_when_both_paths_and_wavelengths_are_set() {
+        let path = minimal_path_spec(); // now includes wavelengths: vec![0.587]
+        let result = SequentialModelBuilder::new()
+            .paths(vec![path])
+            .wavelengths(vec![0.587])
+            .build();
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn build_fails_when_both_paths_and_stop_surface_are_set() {
+        let path = minimal_path_spec();
+        let result = SequentialModelBuilder::new()
+            .paths(vec![path])
+            .stop_surface(0)
+            .build();
+        assert!(result.is_err());
     }
 }
