@@ -523,7 +523,7 @@ impl ParaxialSubView {
         )?;
 
         let aperture_stop = match data.stop_surface {
-            Some(i) => i,
+            Some(i) => resolve_stop_surface_step(i, surface_indices)?,
             None => Self::calc_aperture_stop(
                 surfaces,
                 placements,
@@ -1432,22 +1432,56 @@ pub(crate) fn calc_marginal_ray(
     }
 }
 
-/// Compute the paraxial marginal ray bundle for a given wavelength.
+/// Resolves a user-specified `stop_surface` (a store index, validated at
+/// build time against the whole model's surface store —
+/// `SequentialModel::validate_stop_surface`) to a step index within one
+/// path's own traversal.
+///
+/// Every paraxial computation that consumes an aperture stop
+/// (`calc_marginal_ray`, the ray-height-based ratios in `calc_aperture_stop`)
+/// indexes by step position within `surface_indices`, not by store position.
+/// For a path whose surfaces are all `New` in store order, store index and step
+/// index coincide by construction, so this only has visible effect once a path
+/// contains `Shared`/`ObjectLinkedTo` steps ahead of the stop.
+///
+/// Errors if `store_index` does not appear in `surface_indices` at all, or
+/// appears more than once (ambiguous which occurrence is the stop).
+fn resolve_stop_surface_step(store_index: usize, surface_indices: &[usize]) -> Result<usize> {
+    let mut occurrences = surface_indices
+        .iter()
+        .enumerate()
+        .filter(|&(_, &si)| si == store_index)
+        .map(|(step, _)| step);
+    match (occurrences.next(), occurrences.next()) {
+        (None, _) => Err(anyhow!(
+            "stop surface (store index {store_index}) is not visited by this path"
+        )),
+        (Some(_), Some(_)) => Err(anyhow!(
+            "stop surface (store index {store_index}) is visited more than once by this \
+             path; ambiguous which occurrence is the aperture stop"
+        )),
+        (Some(step), None) => Ok(step),
+    }
+}
+
+/// Compute the paraxial marginal ray bundle for a given path and wavelength.
 ///
 /// Uses the first tangential direction `(0, 1, 0)`, valid for all rotationally
 /// symmetric systems.
-pub(crate) fn marginal_ray_bundle(
+pub(crate) fn marginal_ray_bundle_for_path(
     model: &SequentialModel,
+    path_id: usize,
     wavelength_id: usize,
 ) -> Result<ParaxialRayBundle> {
     let submodel = model
-        .submodel(wavelength_id)
-        .ok_or_else(|| anyhow!("wavelength_id {wavelength_id} out of range"))?;
+        .submodels_for_path(path_id)
+        .get(wavelength_id)
+        .ok_or_else(|| anyhow!("wavelength_id {wavelength_id} out of range for path {path_id}"))?;
     let surfaces = model.surfaces();
     let placements = model.placements();
-    let path_steps = model.path_steps(0);
-    let surface_indices = model.path_surface_indices(0);
-    let beam_splitter_arms = model.path_beam_splitter_arms(0);
+    let path_steps = model.path_steps(path_id);
+    let surface_indices = model.path_surface_indices(path_id);
+    let beam_splitter_arms = model.path_beam_splitter_arms(path_id);
 
     let v = Vec3::new(0.0, 1.0, 0.0);
     let per_surf_v = propagate_tangential_vec(v, surfaces, placements, surface_indices);
@@ -1459,8 +1493,8 @@ pub(crate) fn marginal_ray_bundle(
         beam_splitter_arms,
         path_steps,
     )?;
-    let stop = match model.stop_surface() {
-        Some(i) => i,
+    let stop = match model.stop_surface_for_path(path_id) {
+        Some(i) => resolve_stop_surface_step(i, surface_indices)?,
         None => calc_aperture_stop(
             surfaces,
             placements,
@@ -1479,6 +1513,14 @@ pub(crate) fn marginal_ray_bundle(
         &stop,
         &per_surf_v,
     ))
+}
+
+/// Single-path shorthand; delegates to path 0.
+pub(crate) fn marginal_ray_bundle(
+    model: &SequentialModel,
+    wavelength_id: usize,
+) -> Result<ParaxialRayBundle> {
+    marginal_ray_bundle_for_path(model, 0, wavelength_id)
 }
 
 fn argmin(ratios: &[Float]) -> usize {
@@ -1967,6 +2009,7 @@ mod test {
             gaps: vec![gap_inf(), gap_50(), gap_50()],
             beam_splitter_arms: vec![BeamSplitterPathKind::Transmitting],
             stop_surface: None,
+            wavelengths: vec![0.5876e-3],
         };
 
         // Path 1: Object(Shared) → BS(Shared) → Iris2(SD=15) → Image_1
@@ -1981,11 +2024,11 @@ mod test {
             gaps: vec![gap_inf(), gap_50(), gap_50()],
             beam_splitter_arms: vec![BeamSplitterPathKind::Reflecting],
             stop_surface: None,
+            wavelengths: vec![0.5876e-3],
         };
 
         let model = SequentialModelBuilder::new()
             .paths(vec![path_t, path_r])
-            .wavelengths(vec![0.5876e-3])
             .build()
             .unwrap()
             .model;
@@ -2012,6 +2055,41 @@ mod test {
             *path1.aperture_stop(),
             1,
             "path 1 stop should be BS (step 1)"
+        );
+    }
+
+    /// A path's user-specified `stop_surface` is a *store* index (validated
+    /// against the whole model's surface store at build time,
+    /// `SequentialModel::validate_stop_surface`), but every downstream
+    /// paraxial computation (`calc_marginal_ray`, the `None` branch's
+    /// `calc_aperture_stop`) indexes the aperture stop by *step* position
+    /// within that path's own traversal. For a path whose surfaces are all
+    /// `New` in store order (e.g. path 0 of most models, where store index
+    /// and step index coincide by construction), a mismatch between the two
+    /// numberspaces is invisible. `wf_epi_microscope`'s emission path uses
+    /// `Shared`/`ObjectLinkedTo` steps, so the two numberspaces genuinely
+    /// diverge there, catching it.
+    #[test]
+    fn stop_surface_step_resolves_from_store_index_on_a_reordered_path() {
+        use crate::examples::wf_epi_microscope::sequential_model;
+
+        let model = sequential_model(n!(1.0), n!(1.5), &[0.488], &[0.520]);
+
+        // path_emission's surface_indices are [5, 3, 2, 6, 7, 8] (synthesized
+        // Object=5, Shared objective=3, Shared beam splitter=2, mirror=6,
+        // tube lens=7, Image=8) — store index 3 (the objective, the value
+        // configured via `stop_surface`) sits at step 1, not step 3.
+        assert_eq!(model.path_surface_indices(1), &[5, 3, 2, 6, 7, 8]);
+        assert_eq!(model.stop_surface_for_path(1), Some(3));
+
+        let field_specs = vec![FieldSpec::PointSource { x: 0.0, y: 1.5 }];
+        let view = ParaxialView::new(&model, &field_specs, false).unwrap();
+        let sub = view.get_for_path(1, 0, 0).expect("path 1 subview");
+
+        assert_eq!(
+            *sub.aperture_stop(),
+            1,
+            "the objective (store index 3) is path 1's step 1, not step 3"
         );
     }
 

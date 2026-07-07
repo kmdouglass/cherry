@@ -58,6 +58,7 @@ pub fn two_path_model(
         ],
         beam_splitter_arms: vec![BeamSplitterPathKind::Transmitting],
         stop_surface: None,
+        wavelengths: wavelengths.to_vec(),
     };
 
     // Path 1: reflected arm.
@@ -77,11 +78,11 @@ pub fn two_path_model(
         ],
         beam_splitter_arms: vec![BeamSplitterPathKind::Reflecting],
         stop_surface: None,
+        wavelengths: wavelengths.to_vec(),
     };
 
     SequentialModelBuilder::new()
         .paths(vec![path_t, path_r])
-        .wavelengths(wavelengths.to_vec())
         .build()
         .expect("beam splitter model builds")
         .model

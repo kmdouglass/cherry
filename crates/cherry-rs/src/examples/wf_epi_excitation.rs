@@ -16,7 +16,10 @@ use std::rc::Rc;
 use crate::{
     BeamSplitterPathKind, EulerAngles, GapSpec, PathSpec, PathSurfaceRef, RefractiveIndexSpec,
     Rotation3D, SequentialModel, SurfaceSpec, Vec3,
-    core::{Float, sequential_model::builder::SequentialModelBuilder},
+    core::{
+        Float,
+        sequential_model::{builder::SequentialModelBuilder, solves::MarginalRaySolve},
+    },
 };
 
 pub fn sequential_model(
@@ -36,8 +39,10 @@ pub fn sequential_model(
         thickness: 50.0,
         refractive_index: n_air,
     };
+    // Placeholder thickness; solved below to place the image plane at the
+    // paraxial focus (MarginalRaySolve targeting gap 3, target_height = 0.0).
     let gap_3 = GapSpec {
-        thickness: 5.0,
+        thickness: 1.0,
         refractive_index: n_oil,
     };
 
@@ -77,11 +82,12 @@ pub fn sequential_model(
         gaps: vec![gap_0, gap_1, gap_2, gap_3],
         beam_splitter_arms: vec![BeamSplitterPathKind::Reflecting],
         stop_surface: Some(3),
+        wavelengths: wavelengths.to_vec(),
     };
 
     SequentialModelBuilder::new()
         .paths(vec![path])
-        .wavelengths(wavelengths.to_vec())
+        .solves(vec![Box::new(MarginalRaySolve::new(3, 0.0, 0))])
         .build()
         .expect("wf_epi_excitation model builds")
         .model

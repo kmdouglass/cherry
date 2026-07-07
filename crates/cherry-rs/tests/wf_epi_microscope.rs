@@ -1,9 +1,10 @@
 use approx::assert_abs_diff_eq;
 
 use cherry_rs::examples::wf_epi_microscope::sequential_model;
-use cherry_rs::{FieldSpec, ParaxialView, SequentialModel, n};
+use cherry_rs::{ApertureSpec, FieldSpec, ParaxialView, SamplingConfig, SequentialModel, n};
 
-const WAVELENGTHS: [f64; 1] = [0.5876];
+const EXCITATION_WAVELENGTHS: [f64; 1] = [0.488];
+const EMISSION_WAVELENGTHS: [f64; 1] = [0.520];
 const FIELD_SPECS: [FieldSpec; 1] = [FieldSpec::PointSource { x: 0.0, y: 1.5 }];
 
 const EXC_EFFECTIVE_FOCAL_LENGTH: f64 = -1.8750;
@@ -15,7 +16,12 @@ const EXC_LAGRANGE_INVARIANT: f64 = -0.1594;
 const EMI_IMAGE_LOCATION: f64 = 199.8800167976479;
 
 fn model() -> SequentialModel {
-    sequential_model(n!(1.0), n!(1.5), &WAVELENGTHS)
+    sequential_model(
+        n!(1.0),
+        n!(1.5),
+        &EXCITATION_WAVELENGTHS,
+        &EMISSION_WAVELENGTHS,
+    )
 }
 
 #[test]
@@ -133,5 +139,48 @@ fn at_emission_paraxial_image_location() {
         EMI_IMAGE_LOCATION,
         sub_view.paraxial_image_plane().location,
         epsilon = 1e-4
+    );
+}
+
+#[test]
+fn at_excitation_and_emission_wavelengths_differ() {
+    let model = model();
+    assert_eq!(model.wavelengths_for_path(0), &EXCITATION_WAVELENGTHS);
+    assert_eq!(model.wavelengths_for_path(1), &EMISSION_WAVELENGTHS);
+}
+
+#[test]
+fn at_ray_trace_succeeds_with_differing_wavelength_counts_per_path() {
+    use cherry_rs::ray_trace_3d_view;
+
+    let model = sequential_model(
+        n!(1.0),
+        n!(1.5),
+        &[0.488],               // excitation: 1 wavelength
+        &[0.500, 0.520, 0.540], // emission: 3 wavelengths
+    );
+    let view = ParaxialView::new(&model, &FIELD_SPECS, false).unwrap();
+
+    // AT-7: subview counts per path match each path's own wavelength count.
+    let path0_subviews = view.iter().filter(|sv| sv.path_id() == 0).count();
+    let path1_subviews = view.iter().filter(|sv| sv.path_id() == 1).count();
+    assert_eq!(path1_subviews, 3 * path0_subviews);
+
+    // AT-6: ray_trace_3d_view succeeds and produces the right result counts.
+    let aperture = ApertureSpec::EntrancePupil { semi_diameter: 1.5 };
+    let config = SamplingConfig {
+        n_fan_rays: 5,
+        full_pupil_spacing: 0.1,
+    };
+    let trace = ray_trace_3d_view(&aperture, &FIELD_SPECS, &model, &view, config)
+        .expect("ray trace should succeed with differing per-path wavelength counts");
+
+    assert_eq!(
+        trace.iter().filter(|r| r.path_id() == 0).count(),
+        FIELD_SPECS.len()
+    );
+    assert_eq!(
+        trace.iter().filter(|r| r.path_id() == 1).count(),
+        3 * FIELD_SPECS.len()
     );
 }

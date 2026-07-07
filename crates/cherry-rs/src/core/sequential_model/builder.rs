@@ -5,7 +5,10 @@ use anyhow::{Result, anyhow};
 use crate::core::surfaces::SurfaceRegistry;
 use crate::specs::{gaps::GapSpec, paths::PathSpec, surfaces::SurfaceSpec};
 
-use super::{SequentialModel, solves::Solve};
+use super::{
+    SequentialModel,
+    solves::{Solve, SolveKind},
+};
 
 /// The output of a successful [`SequentialModelBuilder::build()`] call.
 /// Carries the model and the post-solve specs so callers can extract
@@ -59,13 +62,30 @@ impl SequentialModelBuilder {
         self.validate()?;
 
         if self.paths.is_some() {
-            let paths = self.paths.unwrap();
-            let wavelengths = self.wavelengths.unwrap();
+            let mut paths = self.paths.unwrap();
+            let solves = self.solves;
             #[cfg(feature = "serde")]
-            let model =
-                SequentialModel::from_path_specs(paths, &wavelengths, self.registry.as_ref())?;
-            #[cfg(not(feature = "serde"))]
-            let model = SequentialModel::from_path_specs(paths, &wavelengths)?;
+            let registry = self.registry;
+
+            let build = |paths: &[PathSpec]| -> Result<SequentialModel> {
+                #[cfg(feature = "serde")]
+                return SequentialModel::from_path_specs(paths, registry.as_ref());
+                #[cfg(not(feature = "serde"))]
+                SequentialModel::from_path_specs(paths)
+            };
+
+            let mut model = build(&paths)?;
+
+            if !solves.is_empty() {
+                validate_multipath_solves(&solves, &model)?;
+                let mut solves = solves;
+                solves.sort_by_key(|s| (s.parameter_kind(), s.surface_index(), s.path_id()));
+                for solve in &solves {
+                    solve.apply_multipath(&model, &mut paths)?;
+                    model = build(&paths)?;
+                }
+            }
+
             return Ok(BuildResult {
                 model,
                 gap_specs: vec![],
@@ -166,10 +186,17 @@ impl SequentialModelBuilder {
         }
 
         if self.paths.is_some() {
-            if self.wavelengths.is_none() {
-                return Err(anyhow!("Wavelengths must be set"));
-            } else if self.wavelengths.as_ref().unwrap().is_empty() {
-                return Err(anyhow!("Wavelengths cannot be empty"));
+            if self.wavelengths.is_some() {
+                return Err(anyhow!(
+                    "Cannot set both `paths` and `wavelengths` — set `wavelengths` on \
+                     each PathSpec instead"
+                ));
+            }
+            if self.stop_surface.is_some() {
+                return Err(anyhow!(
+                    "Cannot set both `paths` and `stop_surface` — set `stop_surface` \
+                     on each PathSpec instead"
+                ));
             }
             return Ok(());
         }
@@ -188,6 +215,47 @@ impl SequentialModelBuilder {
 
         Ok(())
     }
+}
+
+/// Validates every solve's `path_id()`/`surface_index()` against the
+/// just-built (pre-solve) multipath `model`, and enforces FR-5's global
+/// uniqueness rule for `Curvature`-kind solves. Runs once, before any solve
+/// is applied, so a bad solve fails fast rather than mid-rebuild.
+fn validate_multipath_solves(solves: &[Box<dyn Solve>], model: &SequentialModel) -> Result<()> {
+    let path_count = model.path_count();
+    let n_surfaces = model.surfaces().len();
+    for solve in solves {
+        let path_id = solve.path_id();
+        if path_id >= path_count {
+            return Err(anyhow!(
+                "solve targets path_id {path_id} but the model has only {path_count} path(s)"
+            ));
+        }
+        if solve.parameter_kind() == SolveKind::Curvature {
+            let target = solve.surface_index();
+            if target >= n_surfaces {
+                return Err(anyhow!(
+                    "surface_index {target} does not exist in the model \
+                     (model has {n_surfaces} surface(s))"
+                ));
+            }
+        }
+    }
+
+    let mut seen_curvature_targets: Vec<usize> = Vec::new();
+    for solve in solves {
+        if solve.parameter_kind() == SolveKind::Curvature {
+            let target = solve.surface_index();
+            if seen_curvature_targets.contains(&target) {
+                return Err(anyhow!(
+                    "surface {target} has more than one Curvature-kind solve across the \
+                     model's paths; a shared surface may only be targeted by one"
+                ));
+            }
+            seen_curvature_targets.push(target);
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -605,6 +673,7 @@ mod tests {
             }],
             beam_splitter_arms: vec![],
             stop_surface: None,
+            wavelengths: vec![0.587],
         }
     }
 
@@ -630,11 +699,9 @@ mod tests {
             }],
             beam_splitter_arms: vec![],
             stop_surface: None,
+            wavelengths: vec![0.587],
         };
-        let result = SequentialModelBuilder::new()
-            .paths(vec![bad_path])
-            .wavelengths(vec![0.587])
-            .build();
+        let result = SequentialModelBuilder::new().paths(vec![bad_path]).build();
         assert!(result.is_err());
     }
 
@@ -652,11 +719,9 @@ mod tests {
             }],
             beam_splitter_arms: vec![],
             stop_surface: None,
+            wavelengths: vec![0.587],
         };
-        let result = SequentialModelBuilder::new()
-            .paths(vec![bad_path])
-            .wavelengths(vec![0.587])
-            .build();
+        let result = SequentialModelBuilder::new().paths(vec![bad_path]).build();
         assert!(result.is_err());
     }
 
@@ -685,11 +750,9 @@ mod tests {
             ],
             beam_splitter_arms: vec![],
             stop_surface: None,
+            wavelengths: vec![0.587],
         };
-        let result = SequentialModelBuilder::new()
-            .paths(vec![bad_path])
-            .wavelengths(vec![0.587])
-            .build();
+        let result = SequentialModelBuilder::new().paths(vec![bad_path]).build();
         assert!(result.is_err());
     }
 
@@ -712,10 +775,10 @@ mod tests {
             }],
             beam_splitter_arms: vec![],
             stop_surface: None,
+            wavelengths: vec![0.587],
         };
         let result = SequentialModelBuilder::new()
             .paths(vec![path0, bad_path1])
-            .wavelengths(vec![0.587])
             .build();
         assert!(result.is_err());
     }
@@ -755,11 +818,9 @@ mod tests {
             ],
             beam_splitter_arms: vec![], // missing arm declaration for the BS
             stop_surface: None,
+            wavelengths: vec![0.587],
         };
-        let result = SequentialModelBuilder::new()
-            .paths(vec![path])
-            .wavelengths(vec![0.587])
-            .build();
+        let result = SequentialModelBuilder::new().paths(vec![path]).build();
         assert!(result.is_err());
     }
 
@@ -834,10 +895,10 @@ mod tests {
             ],
             beam_splitter_arms: vec![],
             stop_surface: None,
+            wavelengths: wls.to_vec(),
         };
         let model_new = SequentialModelBuilder::new()
             .paths(vec![path])
-            .wavelengths(wls.to_vec())
             .build()
             .unwrap()
             .model;
@@ -855,5 +916,250 @@ mod tests {
             model_new.placements()[1].position.z(),
             epsilon = 1e-10
         );
+    }
+
+    // ── Per-path wavelengths ──────────────────────────────────────────────
+
+    fn minimal_path_spec_with_wavelengths(wavelengths: Vec<f64>) -> PathSpec {
+        use crate::specs::paths::{PathSpec, PathSurfaceRef};
+        PathSpec {
+            surface_refs: vec![
+                PathSurfaceRef::New(SurfaceSpec::Object),
+                PathSurfaceRef::New(SurfaceSpec::Image {
+                    rotation: Rotation3D::None,
+                    decenter: Vec3::new(0.0, 0.0, 0.0),
+                    rotation_offset: Rotation3D::None,
+                }),
+            ],
+            gaps: vec![GapSpec {
+                thickness: f64::INFINITY,
+                refractive_index: n!(1.0),
+            }],
+            beam_splitter_arms: vec![],
+            stop_surface: None,
+            wavelengths,
+        }
+    }
+
+    #[test]
+    fn wavelengths_for_path_differ_across_paths() {
+        use crate::specs::paths::PathSurfaceRef;
+
+        let path0 = minimal_path_spec_with_wavelengths(vec![0.488]);
+        // path1 shares path0's Object (store index 0) and adds its own Image,
+        // so it needs its own gap and a differing wavelength list/length.
+        let path1 = PathSpec {
+            surface_refs: vec![
+                PathSurfaceRef::Shared(0),
+                PathSurfaceRef::New(SurfaceSpec::Image {
+                    rotation: Rotation3D::None,
+                    decenter: Vec3::new(0.0, 0.0, 0.0),
+                    rotation_offset: Rotation3D::None,
+                }),
+            ],
+            gaps: vec![GapSpec {
+                thickness: 10.0,
+                refractive_index: n!(1.0),
+            }],
+            beam_splitter_arms: vec![],
+            stop_surface: None,
+            wavelengths: vec![0.500, 0.520, 0.540],
+        };
+
+        let model = SequentialModelBuilder::new()
+            .paths(vec![path0, path1])
+            .build()
+            .unwrap()
+            .model;
+
+        assert_eq!(model.wavelengths_for_path(0), &[0.488]);
+        assert_eq!(model.wavelengths_for_path(1), &[0.500, 0.520, 0.540]);
+        assert_eq!(model.wavelengths(), model.wavelengths_for_path(0));
+    }
+
+    #[test]
+    fn empty_wavelengths_on_one_path_is_rejected_even_if_others_are_nonempty() {
+        // Construct two independent PathSpecs directly rather than cloning —
+        // PathSpec derives no traits (not even Clone) as of this writing.
+        let good = minimal_path_spec_with_wavelengths(vec![0.5876]);
+        let bad = minimal_path_spec_with_wavelengths(vec![]);
+        let result = SequentialModelBuilder::new().paths(vec![good, bad]).build();
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn build_fails_when_both_paths_and_wavelengths_are_set() {
+        let path = minimal_path_spec(); // now includes wavelengths: vec![0.587]
+        let result = SequentialModelBuilder::new()
+            .paths(vec![path])
+            .wavelengths(vec![0.587])
+            .build();
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn build_fails_when_both_paths_and_stop_surface_are_set() {
+        let path = minimal_path_spec();
+        let result = SequentialModelBuilder::new()
+            .paths(vec![path])
+            .stop_surface(0)
+            .build();
+        assert!(result.is_err());
+    }
+
+    // ── Per-path solves ───────────────────────────────────────────────────
+
+    #[test]
+    fn multipath_thickness_solve_on_one_path_leaves_other_unaffected() {
+        use crate::core::sequential_model::solves::MarginalRaySolve;
+        use crate::specs::fields::FieldSpec;
+        use crate::specs::paths::{PathSpec, PathSurfaceRef};
+        use crate::views::paraxial::ParaxialView;
+        use approx::assert_abs_diff_eq;
+
+        let img = || SurfaceSpec::Image {
+            rotation: Rotation3D::None,
+            decenter: Vec3::new(0.0, 0.0, 0.0),
+            rotation_offset: Rotation3D::None,
+        };
+        let path0 = PathSpec {
+            surface_refs: vec![
+                PathSurfaceRef::New(SurfaceSpec::Object),
+                PathSurfaceRef::New(SurfaceSpec::Sphere {
+                    semi_diameter: 12.5,
+                    radius_of_curvature: 25.8,
+                    surf_kind: BoundaryKind::Refracting,
+                    rotation: Rotation3D::None,
+                    decenter: Vec3::new(0.0, 0.0, 0.0),
+                    rotation_offset: Rotation3D::None,
+                }),
+                PathSurfaceRef::New(img()),
+            ],
+            gaps: vec![
+                GapSpec {
+                    thickness: f64::INFINITY,
+                    refractive_index: n!(1.0),
+                },
+                GapSpec {
+                    thickness: 1.0,
+                    refractive_index: n!(1.5),
+                }, // untouched
+            ],
+            beam_splitter_arms: vec![],
+            stop_surface: None,
+            wavelengths: vec![0.5876],
+        };
+        let path1 = PathSpec {
+            surface_refs: vec![
+                PathSurfaceRef::Shared(0), // same Object
+                PathSurfaceRef::Shared(1), // same Sphere
+                PathSurfaceRef::New(img()),
+            ],
+            gaps: vec![
+                GapSpec {
+                    thickness: f64::INFINITY,
+                    refractive_index: n!(1.0),
+                },
+                GapSpec {
+                    thickness: 1.0,
+                    refractive_index: n!(1.5),
+                }, // will be solved
+            ],
+            beam_splitter_arms: vec![],
+            stop_surface: None,
+            wavelengths: vec![0.5876],
+        };
+
+        let model = SequentialModelBuilder::new()
+            .paths(vec![path0, path1])
+            .solves(vec![Box::new(
+                MarginalRaySolve::new(1, 0.0, 0).with_path_id(1),
+            )])
+            .build()
+            .expect("build should succeed")
+            .model;
+
+        // Path 1's gap was solved to place its image at the paraxial focus.
+        let pv = ParaxialView::new(
+            &model,
+            &[FieldSpec::Angle {
+                chi: 0.0,
+                phi: 90.0,
+            }],
+            false,
+        )
+        .unwrap();
+        let sub1 = pv.get_for_path(1, 0, 0).unwrap();
+        assert_abs_diff_eq!(
+            sub1.marginal_ray().rays_at_surface(2)[0].height,
+            0.0,
+            epsilon = 1e-4
+        );
+
+        // Path 0's own gap thickness is untouched (still 1.0, not solved).
+        // The shared Sphere lands at z = 0.0 (object-at-infinity placement
+        // rule), so path 0's image sits exactly one (unsolved) gap further.
+        assert_abs_diff_eq!(model.path_placement(0, 2).position.z(), 1.0, epsilon = 1e-9);
+    }
+
+    #[test]
+    fn multipath_solve_with_out_of_range_path_id_is_rejected() {
+        use crate::core::sequential_model::solves::MarginalRaySolve;
+
+        let path = minimal_path_spec(); // single path, path_count() == 1
+        let result = SequentialModelBuilder::new()
+            .paths(vec![path])
+            .solves(vec![Box::new(
+                MarginalRaySolve::new(0, 0.0, 0).with_path_id(1), // only path 0 exists
+            )])
+            .build();
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn multipath_curvature_solve_with_invalid_store_index_is_rejected_distinctly() {
+        use crate::core::sequential_model::solves::FNumberSolve;
+
+        // Store index 99 doesn't exist anywhere in this model at all (only 2
+        // surfaces exist: Object=0, Image=1) — distinct from the "exists but
+        // not visited by this path" case, covered in fno.rs's test module.
+        // `validate_multipath_solves` must reject this before any solve
+        // runs, with a message naming the invalid index rather than reusing
+        // `apply_multipath`'s "path does not visit surface" wording.
+        let path = minimal_path_spec();
+        let result = SequentialModelBuilder::new()
+            .paths(vec![path])
+            .solves(vec![Box::new(FNumberSolve::new(99, 4.0, 0))])
+            .build();
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn custom_solve_without_apply_multipath_errors_through_build() {
+        // A `Solve` implementation that only overrides `apply` (not
+        // `apply_multipath`) must hit the trait's default (error) body when
+        // run through the real multipath builder — not just when
+        // `apply_multipath` is called directly against a hand-built model.
+        struct SingleThicknessOnly;
+        impl Solve for SingleThicknessOnly {
+            fn apply(
+                &self,
+                _model: &SequentialModel,
+                _gap_specs: &mut Vec<GapSpec>,
+                _surface_specs: &mut Vec<SurfaceSpec>,
+            ) -> Result<()> {
+                Ok(())
+            }
+            fn surface_index(&self) -> usize {
+                0
+            }
+        }
+
+        let path = minimal_path_spec();
+        let result = SequentialModelBuilder::new()
+            .paths(vec![path])
+            .solves(vec![Box::new(SingleThicknessOnly)])
+            .build();
+        assert!(result.is_err());
     }
 }

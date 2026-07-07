@@ -1,3 +1,4 @@
+use crate::core::Float;
 use crate::specs::{
     gaps::GapSpec,
     surfaces::{BeamSplitterPathKind, SurfaceSpec},
@@ -26,6 +27,10 @@ pub struct PathSpec {
     /// User-specified aperture stop as a store index for this path, or `None`
     /// to fall back to heuristic aperture-stop selection.
     pub stop_surface: Option<usize>,
+    /// Wavelengths at which this path's submodels are built. Independent of
+    /// every other path's wavelength list — no cross-path length or value
+    /// constraint.
+    pub wavelengths: Vec<Float>,
 }
 
 /// One element of a [`PathSpec`]'s surface sequence.
@@ -84,6 +89,7 @@ mod tests {
             }],
             beam_splitter_arms: vec![],
             stop_surface: None,
+            wavelengths: vec![0.5876],
         };
         assert_eq!(ps.surface_refs.len(), 2);
     }
