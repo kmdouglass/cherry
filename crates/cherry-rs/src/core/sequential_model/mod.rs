@@ -331,6 +331,43 @@ pub fn reversed_surface_id(num_surfaces: usize, surf_id: usize) -> usize {
 /// Only meaningful for `Reversed` paths; callers must gate on orientation
 /// before using the result (see
 /// [`SequentialModel::from_path_specs_with_builder`]).
+/// Locates the `PathSpec`/step that introduced store index `store_index` via
+/// `PathSurfaceRef::New`, using the identical counting rule
+/// `from_path_specs_with_builder` uses to assign store indices: `New` and
+/// `ObjectLinkedTo` steps each consume one index, in path/step order;
+/// `Shared` steps do not. Returns `None` if `store_index` is out of range.
+///
+/// An `ObjectLinkedTo` step also consumes a store index by this rule but
+/// never owns a mutable `SurfaceSpec` (it always synthesizes a plain
+/// `SurfaceSpec::Object` at build time) — callers needing a mutable target
+/// must match the result against `PathSurfaceRef::New` and treat any other
+/// variant as ineligible; no special-casing is done here.
+///
+/// `paths`' topology (which steps are `New`/`Shared`/`ObjectLinkedTo`, and
+/// their order) never changes across a builder's solve-rebuild iterations —
+/// only the `SurfaceSpec` values inside `New` steps do — so a caller
+/// applying multiple solves may compute this once and reuse it.
+pub(crate) fn locate_surface_owner(
+    paths: &[PathSpec],
+    store_index: usize,
+) -> Option<(usize, usize)> {
+    let mut counter = 0;
+    for (path_idx, ps) in paths.iter().enumerate() {
+        for (step_idx, sref) in ps.surface_refs.iter().enumerate() {
+            match sref {
+                PathSurfaceRef::New(_) | PathSurfaceRef::ObjectLinkedTo { .. } => {
+                    if counter == store_index {
+                        return Some((path_idx, step_idx));
+                    }
+                    counter += 1;
+                }
+                PathSurfaceRef::Shared(_) => {}
+            }
+        }
+    }
+    None
+}
+
 fn count_leading_shared(refs: &[PathSurfaceRef]) -> usize {
     refs.iter()
         .skip(1)
@@ -534,7 +571,7 @@ impl SequentialModel {
     /// from a [`SurfaceSpec`]. It is injected so that the serde and non-serde
     /// versions can supply the appropriate `surface_from_spec` variant.
     fn from_path_specs_with_builder(
-        paths: Vec<PathSpec>,
+        paths: &[PathSpec],
         mut build_surface: impl FnMut(&SurfaceSpec) -> Result<Box<dyn Surface>>,
     ) -> Result<Self> {
         let mut store_surfaces: Vec<Box<dyn Surface>> = Vec::new();
@@ -652,7 +689,7 @@ impl SequentialModel {
                 };
 
             // Build the dense arm vec by consuming beam_splitter_arms in step order.
-            let mut bs_arms_iter = ps.beam_splitter_arms.into_iter();
+            let mut bs_arms_iter = ps.beam_splitter_arms.iter().copied();
             let mut dense_bs_arms: Vec<Option<BeamSplitterPathKind>> = Vec::with_capacity(n_refs);
 
             let mut cursor = match linked {
@@ -883,7 +920,7 @@ impl SequentialModel {
     /// Builds a multipath model from `PathSpec`s (serde + registry variant).
     #[cfg(feature = "serde")]
     pub(crate) fn from_path_specs(
-        paths: Vec<PathSpec>,
+        paths: &[PathSpec],
         registry: Option<&SurfaceRegistry>,
     ) -> Result<Self> {
         Self::from_path_specs_with_builder(paths, |spec| surface_from_spec(spec, registry))
@@ -891,7 +928,7 @@ impl SequentialModel {
 
     /// Builds a multipath model from `PathSpec`s (non-serde variant).
     #[cfg(not(feature = "serde"))]
-    pub(crate) fn from_path_specs(paths: Vec<PathSpec>) -> Result<Self> {
+    pub(crate) fn from_path_specs(paths: &[PathSpec]) -> Result<Self> {
         Self::from_path_specs_with_builder(paths, surface_from_spec)
     }
 

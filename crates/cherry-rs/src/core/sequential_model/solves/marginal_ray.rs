@@ -2,8 +2,8 @@ use anyhow::{Result, anyhow};
 
 use crate::{
     core::Float,
-    specs::{gaps::GapSpec, surfaces::SurfaceSpec},
-    views::paraxial::marginal_ray_bundle,
+    specs::{gaps::GapSpec, paths::PathSpec, surfaces::SurfaceSpec},
+    views::paraxial::{ParaxialRayBundle, marginal_ray_bundle, marginal_ray_bundle_for_path},
 };
 
 use super::super::SequentialModel;
@@ -19,6 +19,7 @@ pub struct MarginalRaySolve {
     gap_index: usize,
     target_height: Float,
     wavelength_id: usize,
+    path_id: usize,
 }
 
 impl MarginalRaySolve {
@@ -27,13 +28,54 @@ impl MarginalRaySolve {
             gap_index,
             target_height,
             wavelength_id,
+            path_id: 0,
         }
+    }
+
+    /// Targets path `path_id` in a multipath model. Defaults to 0; has no
+    /// effect on single-path models (there is only ever path 0).
+    pub fn with_path_id(mut self, path_id: usize) -> Self {
+        self.path_id = path_id;
+        self
+    }
+
+    /// Computes the gap thickness that places the marginal ray at
+    /// `target_height` at `gap_index` within `bundle`. Shared by `apply`
+    /// (single-path) and `apply_multipath`.
+    fn solved_thickness(
+        bundle: &ParaxialRayBundle,
+        gap_index: usize,
+        target_height: Float,
+    ) -> Result<Float> {
+        let ray = &bundle.rays_at_surface(gap_index)[0];
+        let h = ray.height;
+        let u_prime = ray.angle;
+
+        let eps = Float::EPSILON * h.abs().max(1.0);
+        if u_prime.abs() < eps {
+            return Err(anyhow!(
+                "marginal ray angle at surface {gap_index} is effectively zero; \
+                 thickness is indeterminate (collimated beam in gap space)"
+            ));
+        }
+
+        let t = (target_height - h) / u_prime;
+        if t < 0.0 {
+            return Err(anyhow!(
+                "computed gap thickness {t} is negative for gap {gap_index}"
+            ));
+        }
+        Ok(t)
     }
 }
 
 impl Solve for MarginalRaySolve {
     fn parameter_kind(&self) -> SolveKind {
         SolveKind::Thickness
+    }
+
+    fn path_id(&self) -> usize {
+        self.path_id
     }
 
     fn apply(
@@ -58,28 +100,38 @@ impl Solve for MarginalRaySolve {
         }
 
         let bundle = marginal_ray_bundle(model, self.wavelength_id)?;
-        let ray = &bundle.rays_at_surface(self.gap_index)[0];
-        let h = ray.height;
-        let u_prime = ray.angle;
-
-        let eps = Float::EPSILON * h.abs().max(1.0);
-        if u_prime.abs() < eps {
-            return Err(anyhow!(
-                "marginal ray angle at surface {} is effectively zero; \
-                 thickness is indeterminate (collimated beam in gap space)",
-                self.gap_index
-            ));
-        }
-
-        let t = (self.target_height - h) / u_prime;
-        if t < 0.0 {
-            return Err(anyhow!(
-                "computed gap thickness {t} is negative for gap {}",
-                self.gap_index
-            ));
-        }
-
+        let t = Self::solved_thickness(&bundle, self.gap_index, self.target_height)?;
         gap_specs[self.gap_index].thickness = t;
+        Ok(())
+    }
+
+    fn apply_multipath(&self, model: &SequentialModel, paths: &mut [PathSpec]) -> Result<()> {
+        let path_id = self.path_id();
+        if path_id >= paths.len() {
+            return Err(anyhow!(
+                "solve targets path_id {path_id} but the model has only {} path(s)",
+                paths.len()
+            ));
+        }
+        if self.gap_index >= paths[path_id].gaps.len() {
+            return Err(anyhow!(
+                "gap_index {} is out of range (path {path_id} has {} gap(s))",
+                self.gap_index,
+                paths[path_id].gaps.len()
+            ));
+        }
+        let n_wavelengths = model.wavelengths_for_path(path_id).len();
+        if self.wavelength_id >= n_wavelengths {
+            return Err(anyhow!(
+                "wavelength_id {} is out of range (path {path_id} has {} wavelength(s))",
+                self.wavelength_id,
+                n_wavelengths
+            ));
+        }
+
+        let bundle = marginal_ray_bundle_for_path(model, path_id, self.wavelength_id)?;
+        let t = Self::solved_thickness(&bundle, self.gap_index, self.target_height)?;
+        paths[path_id].gaps[self.gap_index].thickness = t;
         Ok(())
     }
 

@@ -1464,22 +1464,24 @@ fn resolve_stop_surface_step(store_index: usize, surface_indices: &[usize]) -> R
     }
 }
 
-/// Compute the paraxial marginal ray bundle for a given wavelength.
+/// Compute the paraxial marginal ray bundle for a given path and wavelength.
 ///
 /// Uses the first tangential direction `(0, 1, 0)`, valid for all rotationally
 /// symmetric systems.
-pub(crate) fn marginal_ray_bundle(
+pub(crate) fn marginal_ray_bundle_for_path(
     model: &SequentialModel,
+    path_id: usize,
     wavelength_id: usize,
 ) -> Result<ParaxialRayBundle> {
     let submodel = model
-        .submodel(wavelength_id)
-        .ok_or_else(|| anyhow!("wavelength_id {wavelength_id} out of range"))?;
+        .submodels_for_path(path_id)
+        .get(wavelength_id)
+        .ok_or_else(|| anyhow!("wavelength_id {wavelength_id} out of range for path {path_id}"))?;
     let surfaces = model.surfaces();
     let placements = model.placements();
-    let path_steps = model.path_steps(0);
-    let surface_indices = model.path_surface_indices(0);
-    let beam_splitter_arms = model.path_beam_splitter_arms(0);
+    let path_steps = model.path_steps(path_id);
+    let surface_indices = model.path_surface_indices(path_id);
+    let beam_splitter_arms = model.path_beam_splitter_arms(path_id);
 
     let v = Vec3::new(0.0, 1.0, 0.0);
     let per_surf_v = propagate_tangential_vec(v, surfaces, placements, surface_indices);
@@ -1491,7 +1493,7 @@ pub(crate) fn marginal_ray_bundle(
         beam_splitter_arms,
         path_steps,
     )?;
-    let stop = match model.stop_surface() {
+    let stop = match model.stop_surface_for_path(path_id) {
         Some(i) => resolve_stop_surface_step(i, surface_indices)?,
         None => calc_aperture_stop(
             surfaces,
@@ -1511,6 +1513,14 @@ pub(crate) fn marginal_ray_bundle(
         &stop,
         &per_surf_v,
     ))
+}
+
+/// Single-path shorthand; delegates to path 0.
+pub(crate) fn marginal_ray_bundle(
+    model: &SequentialModel,
+    wavelength_id: usize,
+) -> Result<ParaxialRayBundle> {
+    marginal_ray_bundle_for_path(model, 0, wavelength_id)
 }
 
 fn argmin(ratios: &[Float]) -> usize {
