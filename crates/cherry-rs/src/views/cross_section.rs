@@ -6,7 +6,10 @@ use crate::{
         Float, math::vec3::Vec3, sequential_model::surface_placement::SurfacePlacement,
         surfaces::Surface,
     },
-    views::{components::Component, ray_trace_3d::RayBundle},
+    views::{
+        components::{Component, PathComponent},
+        ray_trace_3d::RayBundle,
+    },
 };
 
 /// Identifies a global transverse coordinate axis for cross-section projection.
@@ -153,7 +156,7 @@ pub enum FlatPlaneKind {
 pub fn cross_section_view(
     model: &SequentialModel,
     cross_section_rays: Option<&[(usize, usize, RayBundle)]>,
-    components: &[Component],
+    components: &[PathComponent],
 ) -> CrossSectionView {
     let wavelengths = model.wavelengths().to_vec();
     let placements = model.placements();
@@ -200,7 +203,7 @@ fn build_plane_geometry(
     model: &SequentialModel,
     cross_section_rays: Option<&[(usize, usize, RayBundle)]>,
     axis: GlobalAxis,
-    components: &[Component],
+    components: &[PathComponent],
 ) -> PlaneGeometry {
     let surfaces = model.surfaces();
     let placements = model.placements();
@@ -210,7 +213,8 @@ fn build_plane_geometry(
 
     // Add lens groups and stops. Components are already sorted by first surface
     // index.
-    for comp in components {
+    for pc in components {
+        let comp = &pc.component;
         match comp {
             Component::Element { surf_idxs } => {
                 let i = surf_idxs.first().copied().unwrap_or(0);
@@ -674,7 +678,7 @@ mod tests {
         SequentialModel::from_surface_specs(&gaps, &surfs, &[0.5876], None).expect("build model")
     }
 
-    fn empty_components() -> Vec<Component> {
+    fn empty_components() -> Vec<PathComponent> {
         Vec::new()
     }
 
@@ -787,7 +791,7 @@ mod tests {
         let aperture = ApertureSpec::EntrancePupil {
             semi_diameter: 12.5,
         };
-        let pv = ParaxialView::new(&model, &fields, false).unwrap();
+        let pv = ParaxialView::new(&model, std::slice::from_ref(&fields), false).unwrap();
         let rays = trace_ray_bundle(
             &aperture,
             &fields,
@@ -826,7 +830,7 @@ mod tests {
         let aperture = ApertureSpec::EntrancePupil {
             semi_diameter: 12.5,
         };
-        let pv = ParaxialView::new(&model, &fields, false).unwrap();
+        let pv = ParaxialView::new(&model, std::slice::from_ref(&fields), false).unwrap();
         let rays = trace_ray_bundle(
             &aperture,
             &fields,

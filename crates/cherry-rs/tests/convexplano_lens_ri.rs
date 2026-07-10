@@ -72,8 +72,8 @@ fn assert_ray_results_approx_eq(actual: &ParaxialRayBundle, expected: &[(f64, f6
 #[test]
 fn convexplano_lens_ri_paraxial_chief_ray() {
     let model = sequential_model(n!(1.0), n!(1.515), &WAVELENGTHS);
-    let view =
-        ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
+    let view = ParaxialView::new(&model, &[FIELD_SPECS.to_vec()], false)
+        .expect("Could not create paraxial view");
 
     for sub_view in view.iter() {
         assert_ray_results_approx_eq(sub_view.chief_ray(), &chief_ray_expected(), 1e-4);
@@ -83,8 +83,8 @@ fn convexplano_lens_ri_paraxial_chief_ray() {
 #[test]
 fn convexplano_lens_ri_paraxial_aperture_stop() {
     let model = sequential_model(n!(1.0), n!(1.515), &WAVELENGTHS);
-    let view =
-        ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
+    let view = ParaxialView::new(&model, &[FIELD_SPECS.to_vec()], false)
+        .expect("Could not create paraxial view");
 
     for sub_view in view.iter() {
         let result = sub_view.aperture_stop();
@@ -96,8 +96,8 @@ fn convexplano_lens_ri_paraxial_aperture_stop() {
 #[test]
 fn convexplano_lens_ri_paraxial_back_focal_distance() {
     let model = sequential_model(n!(1.0), n!(1.515), &WAVELENGTHS);
-    let view =
-        ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
+    let view = ParaxialView::new(&model, &[FIELD_SPECS.to_vec()], false)
+        .expect("Could not create paraxial view");
 
     for sub_view in view.iter() {
         let result = sub_view.back_focal_distance();
@@ -109,8 +109,8 @@ fn convexplano_lens_ri_paraxial_back_focal_distance() {
 #[test]
 fn convexplano_lens_ri_paraxial_back_principal_plane() {
     let model = sequential_model(n!(1.0), n!(1.515), &WAVELENGTHS);
-    let view =
-        ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
+    let view = ParaxialView::new(&model, &[FIELD_SPECS.to_vec()], false)
+        .expect("Could not create paraxial view");
 
     for sub_view in view.iter() {
         let result = sub_view.back_principal_plane();
@@ -122,8 +122,8 @@ fn convexplano_lens_ri_paraxial_back_principal_plane() {
 #[test]
 fn convexplano_lens_ri_paraxial_entrance_pupil() {
     let model = sequential_model(n!(1.0), n!(1.515), &WAVELENGTHS);
-    let view =
-        ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
+    let view = ParaxialView::new(&model, &[FIELD_SPECS.to_vec()], false)
+        .expect("Could not create paraxial view");
 
     for sub_view in view.iter() {
         let result = sub_view.entrance_pupil();
@@ -135,8 +135,8 @@ fn convexplano_lens_ri_paraxial_entrance_pupil() {
 #[test]
 fn convexplano_lens_ri_paraxial_exit_pupil() {
     let model = sequential_model(n!(1.0), n!(1.515), &WAVELENGTHS);
-    let view =
-        ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
+    let view = ParaxialView::new(&model, &[FIELD_SPECS.to_vec()], false)
+        .expect("Could not create paraxial view");
 
     for sub_view in view.iter() {
         let result = sub_view.exit_pupil();
@@ -153,8 +153,8 @@ fn convexplano_lens_ri_paraxial_exit_pupil() {
 #[test]
 fn convexplano_lens_ri_paraxial_effective_focal_length() {
     let model = sequential_model(n!(1.0), n!(1.515), &WAVELENGTHS);
-    let view =
-        ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
+    let view = ParaxialView::new(&model, &[FIELD_SPECS.to_vec()], false)
+        .expect("Could not create paraxial view");
 
     for sub_view in view.iter() {
         let result = sub_view.effective_focal_length();
@@ -166,8 +166,8 @@ fn convexplano_lens_ri_paraxial_effective_focal_length() {
 #[test]
 fn convexplano_lens_ri_paraxial_front_focal_distance() {
     let model = sequential_model(n!(1.0), n!(1.515), &WAVELENGTHS);
-    let view =
-        ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
+    let view = ParaxialView::new(&model, &[FIELD_SPECS.to_vec()], false)
+        .expect("Could not create paraxial view");
 
     for sub_view in view.iter() {
         let result = sub_view.front_focal_distance();
@@ -179,8 +179,8 @@ fn convexplano_lens_ri_paraxial_front_focal_distance() {
 #[test]
 fn convexplano_lens_ri_paraxial_front_principal_plane() {
     let model = sequential_model(n!(1.0), n!(1.515), &WAVELENGTHS);
-    let view =
-        ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
+    let view = ParaxialView::new(&model, &[FIELD_SPECS.to_vec()], false)
+        .expect("Could not create paraxial view");
 
     for sub_view in view.iter() {
         let result = sub_view.front_principal_plane();
@@ -192,8 +192,8 @@ fn convexplano_lens_ri_paraxial_front_principal_plane() {
 #[test]
 fn convexplano_lens_ri_paraxial_image_plane() {
     let model = sequential_model(n!(1.0), n!(1.515), &WAVELENGTHS);
-    let view =
-        ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
+    let view = ParaxialView::new(&model, &[FIELD_SPECS.to_vec()], false)
+        .expect("Could not create paraxial view");
 
     for sub_view in view.iter() {
         let result = sub_view.paraxial_image_plane();
@@ -214,8 +214,8 @@ fn convexplano_lens_ri_paraxial_image_plane() {
 #[test]
 fn convexplano_lens_ri_paraxial_marginal_ray() {
     let model = sequential_model(n!(1.0), n!(1.515), &WAVELENGTHS);
-    let view =
-        ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
+    let view = ParaxialView::new(&model, &[FIELD_SPECS.to_vec()], false)
+        .expect("Could not create paraxial view");
 
     for sub_view in view.iter() {
         assert_ray_results_approx_eq(sub_view.marginal_ray(), &marginal_ray_expected(), 1e-4);

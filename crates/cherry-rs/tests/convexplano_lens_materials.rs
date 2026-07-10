@@ -51,13 +51,13 @@ mod test_ri_info {
         let nbk7 = Rc::new(store.remove("popular_glass:BK7:SCHOTT").unwrap());
 
         let model = sequential_model(air, nbk7, &WAVELENGTHS);
-        let view =
-            ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
+        let view = ParaxialView::new(&model, &[FIELD_SPECS.to_vec()], false)
+            .expect("Could not create paraxial view");
 
         // For a single phi=90° field there is one tangential direction
         // (tangential_vec_id=0).
         let results = view.primary_axial_color();
         assert_eq!(results.len(), 1);
-        assert_abs_diff_eq!(results[0], 0.7743, epsilon = 1e-4);
+        assert_abs_diff_eq!(results[0].color, 0.7743, epsilon = 1e-4);
     }
 }

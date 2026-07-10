@@ -316,13 +316,15 @@ fn apply_group_transforms(
 
     for group in lens_groups {
         // Collect the full surface index list for this group from the component map.
+        // `nominal` is always single-path (built via from_surface_specs), so there is
+        // exactly one PathComponent per component and no path filtering is needed.
         let mut all_surfs: Vec<usize> = Vec::new();
         for &first_surf in &group.component_first_surfs {
-            if let Some(comp) = components
+            if let Some(pc) = components
                 .iter()
-                .find(|c| component_first_idx(c) == first_surf)
+                .find(|pc| component_first_idx(&pc.component) == first_surf)
             {
-                match comp {
+                match &pc.component {
                     Component::Element { surf_idxs } => all_surfs.extend(surf_idxs),
                     Component::Iris { stop_idx } => all_surfs.push(*stop_idx),
                     Component::Mirror { surf_idx } => all_surfs.push(*surf_idx),

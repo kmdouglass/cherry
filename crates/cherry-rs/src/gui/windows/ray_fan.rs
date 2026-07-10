@@ -332,7 +332,7 @@ fn chief_ray_image_pos(
         let Some(pv) = &r.paraxial else {
             return (None, false);
         };
-        let tangential_vec_id = pv.tangential_vec_id_for_phi(phi);
+        let tangential_vec_id = pv.tangential_vec_id_for_phi(0, phi);
         let Some(sv) = pv.get(wl_id, tangential_vec_id) else {
             return (None, false);
         };
@@ -518,12 +518,20 @@ mod tests {
             None,
         )
         .expect("model");
-        let pv = ParaxialView::new(&seq, &parsed.fields, false).expect("paraxial");
+        let pv =
+            ParaxialView::new(&seq, std::slice::from_ref(&parsed.fields), false).expect("paraxial");
         let config = SamplingConfig {
             n_fan_rays: 11,
             full_pupil_spacing: 0.1,
         };
-        let trace = ray_trace_3d_view(&parsed.aperture, &parsed.fields, &seq, &pv, config).ok();
+        let trace = ray_trace_3d_view(
+            &[parsed.aperture],
+            std::slice::from_ref(&parsed.fields),
+            &seq,
+            &pv,
+            config,
+        )
+        .ok();
         let wls = seq.wavelengths().to_vec();
 
         // Build surface descs manually (mirrors compute.rs logic).

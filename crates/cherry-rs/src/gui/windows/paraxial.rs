@@ -61,7 +61,11 @@ fn render_paraxial_content(ui: &mut egui::Ui, r: &ResultPackage) {
     if r.wavelengths.len() > 1 {
         let pac = pv.primary_axial_color();
         for &v_idx in &v_indices {
-            if let Some(&color) = pac.get(v_idx) {
+            if let Some(color) = pac
+                .iter()
+                .find(|ac| ac.path_id == 0 && ac.tangential_vec_id == v_idx)
+                .map(|ac| ac.color)
+            {
                 let phi_suffix = if n_v > 1 {
                     let phi_deg = pv.phi_deg(v_idx);
                     format!(" (\u{03c6} = {phi_deg:.0}\u{00b0})")
@@ -291,7 +295,8 @@ mod tests {
             None,
         )
         .expect("model");
-        let pv = ParaxialView::new(&seq, &parsed.fields, false).expect("paraxial");
+        let pv =
+            ParaxialView::new(&seq, std::slice::from_ref(&parsed.fields), false).expect("paraxial");
         let wls = seq.wavelengths().to_vec();
         ResultPackage {
             id: 1,

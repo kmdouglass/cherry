@@ -67,8 +67,8 @@ fn assert_ray_results_approx_eq(actual: &ParaxialRayBundle, expected: &[(f64, f6
 #[test]
 fn test_paraxial_view_aperture_stop() {
     let model = sequential_model(n!(1.0), n!(1.517), &WAVELENGTHS);
-    let view =
-        ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
+    let view = ParaxialView::new(&model, &[FIELD_SPECS.to_vec()], false)
+        .expect("Could not create paraxial view");
 
     for sub_view in view.iter() {
         let result = sub_view.aperture_stop();
@@ -80,8 +80,8 @@ fn test_paraxial_view_aperture_stop() {
 #[test]
 fn test_paraxial_view_back_focal_distance() {
     let model = sequential_model(n!(1.0), n!(1.517), &WAVELENGTHS);
-    let view =
-        ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
+    let view = ParaxialView::new(&model, &[FIELD_SPECS.to_vec()], false)
+        .expect("Could not create paraxial view");
 
     for sub_view in view.iter() {
         let result = sub_view.back_focal_distance();
@@ -93,8 +93,8 @@ fn test_paraxial_view_back_focal_distance() {
 #[test]
 fn test_paraxial_view_back_principal_plane() {
     let model = sequential_model(n!(1.0), n!(1.517), &WAVELENGTHS);
-    let view =
-        ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
+    let view = ParaxialView::new(&model, &[FIELD_SPECS.to_vec()], false)
+        .expect("Could not create paraxial view");
 
     for sub_view in view.iter() {
         let result = sub_view.back_principal_plane();
@@ -106,8 +106,8 @@ fn test_paraxial_view_back_principal_plane() {
 #[test]
 fn test_paraxial_view_entrance_pupil() {
     let model = sequential_model(n!(1.0), n!(1.517), &WAVELENGTHS);
-    let view =
-        ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
+    let view = ParaxialView::new(&model, &[FIELD_SPECS.to_vec()], false)
+        .expect("Could not create paraxial view");
 
     for sub_view in view.iter() {
         let result = sub_view.entrance_pupil();
@@ -119,8 +119,8 @@ fn test_paraxial_view_entrance_pupil() {
 #[test]
 fn test_paraxial_view_exit_pupil() {
     let model = sequential_model(n!(1.0), n!(1.517), &WAVELENGTHS);
-    let view =
-        ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
+    let view = ParaxialView::new(&model, &[FIELD_SPECS.to_vec()], false)
+        .expect("Could not create paraxial view");
 
     for sub_view in view.iter() {
         let result = sub_view.exit_pupil();
@@ -137,8 +137,8 @@ fn test_paraxial_view_exit_pupil() {
 #[test]
 fn test_paraxial_view_effective_focal_length() {
     let model = sequential_model(n!(1.0), n!(1.517), &WAVELENGTHS);
-    let view =
-        ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
+    let view = ParaxialView::new(&model, &[FIELD_SPECS.to_vec()], false)
+        .expect("Could not create paraxial view");
 
     for sub_view in view.iter() {
         let result = sub_view.effective_focal_length();
@@ -150,8 +150,8 @@ fn test_paraxial_view_effective_focal_length() {
 #[test]
 fn test_paraxial_view_front_focal_distance() {
     let model = sequential_model(n!(1.0), n!(1.517), &WAVELENGTHS);
-    let view =
-        ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
+    let view = ParaxialView::new(&model, &[FIELD_SPECS.to_vec()], false)
+        .expect("Could not create paraxial view");
 
     for sub_view in view.iter() {
         let result = sub_view.front_focal_distance();
@@ -163,8 +163,8 @@ fn test_paraxial_view_front_focal_distance() {
 #[test]
 fn test_paraxial_view_front_focal_length() {
     let model = sequential_model(n!(1.0), n!(1.517), &WAVELENGTHS);
-    let view =
-        ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
+    let view = ParaxialView::new(&model, &[FIELD_SPECS.to_vec()], false)
+        .expect("Could not create paraxial view");
 
     for sub_view in view.iter() {
         let result = sub_view.front_focal_length();
@@ -176,8 +176,8 @@ fn test_paraxial_view_front_focal_length() {
 #[test]
 fn test_paraxial_view_front_principal_plane() {
     let model = sequential_model(n!(1.0), n!(1.517), &WAVELENGTHS);
-    let view =
-        ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
+    let view = ParaxialView::new(&model, &[FIELD_SPECS.to_vec()], false)
+        .expect("Could not create paraxial view");
 
     for sub_view in view.iter() {
         let result = sub_view.front_principal_plane();
@@ -189,8 +189,8 @@ fn test_paraxial_view_front_principal_plane() {
 #[test]
 fn test_paraxial_view_image_plane() {
     let model = sequential_model(n!(1.0), n!(1.517), &WAVELENGTHS);
-    let view =
-        ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
+    let view = ParaxialView::new(&model, &[FIELD_SPECS.to_vec()], false)
+        .expect("Could not create paraxial view");
 
     for sub_view in view.iter() {
         let result = sub_view.paraxial_image_plane();
@@ -211,8 +211,8 @@ fn test_paraxial_view_image_plane() {
 #[test]
 fn test_paraxial_view_marginal_ray() {
     let model = sequential_model(n!(1.0), n!(1.517), &WAVELENGTHS);
-    let view =
-        ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
+    let view = ParaxialView::new(&model, &[FIELD_SPECS.to_vec()], false)
+        .expect("Could not create paraxial view");
 
     for sub_view in view.iter() {
         assert_ray_results_approx_eq(sub_view.marginal_ray(), &marginal_ray_expected(), 1e-4);
@@ -222,8 +222,8 @@ fn test_paraxial_view_marginal_ray() {
 #[test]
 fn test_paraxial_view_chief_ray() {
     let model = sequential_model(n!(1.0), n!(1.517), &WAVELENGTHS);
-    let view =
-        ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
+    let view = ParaxialView::new(&model, &[FIELD_SPECS.to_vec()], false)
+        .expect("Could not create paraxial view");
 
     for sub_view in view.iter() {
         assert_ray_results_approx_eq(sub_view.chief_ray(), &chief_ray_expected(), 1e-4);

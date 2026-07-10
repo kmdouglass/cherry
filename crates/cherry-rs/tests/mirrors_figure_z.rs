@@ -44,7 +44,7 @@ fn track_equals_z_for_straight_system() {
 #[test]
 fn mirrors_figure_z_paraxial_aperture_stop() {
     let model = mirrors_figure_z::sequential_model(n!(1.0), &WAVELENGTHS);
-    let view = ParaxialView::new(&model, &FIELD_SPECS, false).expect("paraxial view");
+    let view = ParaxialView::new(&model, &[FIELD_SPECS.to_vec()], false).expect("paraxial view");
     for sub_view in view.iter() {
         assert_eq!(*sub_view.aperture_stop(), APERTURE_STOP);
     }
@@ -53,7 +53,7 @@ fn mirrors_figure_z_paraxial_aperture_stop() {
 #[test]
 fn mirrors_figure_z_paraxial_exit_pupil() {
     let model = mirrors_figure_z::sequential_model(n!(1.0), &WAVELENGTHS);
-    let view = ParaxialView::new(&model, &FIELD_SPECS, false).expect("paraxial view");
+    let view = ParaxialView::new(&model, &[FIELD_SPECS.to_vec()], false).expect("paraxial view");
     for sub_view in view.iter() {
         assert_abs_diff_eq!(
             sub_view.exit_pupil().location,
@@ -71,7 +71,7 @@ fn mirrors_figure_z_paraxial_exit_pupil() {
 #[test]
 fn mirrors_figure_z_marginal_ray_uses_projected_sd() {
     let model = mirrors_figure_z::sequential_model(n!(1.0), &WAVELENGTHS);
-    let view = ParaxialView::new(&model, &FIELD_SPECS, false).expect("paraxial view");
+    let view = ParaxialView::new(&model, &[FIELD_SPECS.to_vec()], false).expect("paraxial view");
     let r = 12.7_f64;
     let projected_u = r * (30.0_f64.to_radians()).cos();
 
@@ -91,8 +91,8 @@ fn entrance_pupil_sd_phi_90_foreshortened() {
         phi: 90.0,
     }];
     let model = mirrors_figure_z::sequential_model(n!(1.0), &WAVELENGTHS);
-    let view = ParaxialView::new(&model, &field_specs, false).expect("paraxial view");
-    let tangential_vec_id = view.tangential_vec_id_for_phi(FRAC_PI_2);
+    let view = ParaxialView::new(&model, &[field_specs.to_vec()], false).expect("paraxial view");
+    let tangential_vec_id = view.tangential_vec_id_for_phi(0, FRAC_PI_2);
     let ep = view.get(0, tangential_vec_id).unwrap().entrance_pupil();
     assert_abs_diff_eq!(ep.semi_diameter, ENTRANCE_PUPIL_SD_U, epsilon = 1e-4);
 }
@@ -103,8 +103,8 @@ fn entrance_pupil_sd_phi_90_foreshortened() {
 fn entrance_pupil_sd_phi_0_not_foreshortened() {
     let field_specs = [FieldSpec::Angle { chi: 0.0, phi: 0.0 }];
     let model = mirrors_figure_z::sequential_model(n!(1.0), &WAVELENGTHS);
-    let view = ParaxialView::new(&model, &field_specs, false).expect("paraxial view");
-    let tangential_vec_id = view.tangential_vec_id_for_phi(0.0);
+    let view = ParaxialView::new(&model, &[field_specs.to_vec()], false).expect("paraxial view");
+    let tangential_vec_id = view.tangential_vec_id_for_phi(0, 0.0);
     let ep = view.get(0, tangential_vec_id).unwrap().entrance_pupil();
     assert_abs_diff_eq!(ep.semi_diameter, ENTRANCE_PUPIL_SD_R, epsilon = 1e-4);
 }
@@ -122,10 +122,10 @@ fn chief_ray_uses_matching_field_phi() {
         FieldSpec::Angle { chi: 3.0, phi: 0.0 },
     ];
     let model = mirrors_figure_z::sequential_model(n!(1.0), &WAVELENGTHS);
-    let view = ParaxialView::new(&model, &field_specs, false).expect("paraxial view");
+    let view = ParaxialView::new(&model, &[field_specs.to_vec()], false).expect("paraxial view");
 
-    let v_phi90 = view.tangential_vec_id_for_phi(FRAC_PI_2);
-    let v_phi0 = view.tangential_vec_id_for_phi(0.0);
+    let v_phi90 = view.tangential_vec_id_for_phi(0, FRAC_PI_2);
+    let v_phi0 = view.tangential_vec_id_for_phi(0, 0.0);
 
     let angle_phi90 = view.get(0, v_phi90).unwrap().chief_ray().rays_at_surface(0)[0].angle;
     let angle_phi0 = view.get(0, v_phi0).unwrap().chief_ray().rays_at_surface(0)[0].angle;

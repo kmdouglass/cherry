@@ -130,7 +130,7 @@ pub fn trace_ray_bundle(
                     .submodel(wavelength_id)
                     .ok_or_else(|| anyhow!("Submodel not found"))?;
                 let tangential_vec_id = paraxial_view
-                    .tangential_vec_id_for_phi(field_specs[field_id].tangential_fan_phi());
+                    .tangential_vec_id_for_phi(0, field_specs[field_id].tangential_fan_phi());
                 let paraxial_subview = paraxial_view
                     .get(wavelength_id, tangential_vec_id)
                     .ok_or_else(|| anyhow!("Submodel not found"))?;
@@ -157,29 +157,49 @@ pub fn trace_ray_bundle(
 /// Perform a 3D ray trace on a sequential model.
 ///
 /// # Arguments
-/// * `aperture_spec` - The aperture specification.
-/// * `field_specs` - The field specifications.
+/// * `aperture_specs_by_path` - One aperture specification per path, indexed by
+///   `path_id`. Must have length equal to `sequential_model.path_count()`.
+/// * `field_specs_by_path` - One field-spec list per path, indexed by
+///   `path_id`. Must have length equal to `sequential_model.path_count()`.
 /// * `sequential_model` - The sequential model.
 /// * `paraxial_view` - A paraxial view. This is required for finding a system's
 ///   entrance pupil.
 /// * `config` - Sampling configuration for all four ray bundles computed per
 ///   field/wavelength combination.
 pub fn ray_trace_3d_view(
-    aperture_spec: &ApertureSpec,
-    field_specs: &[FieldSpec],
+    aperture_specs_by_path: &[ApertureSpec],
+    field_specs_by_path: &[Vec<FieldSpec>],
     sequential_model: &SequentialModel,
     paraxial_view: &ParaxialView,
     config: SamplingConfig,
 ) -> Result<TraceResultsCollection> {
-    validate_field_specs(sequential_model, field_specs)?;
+    let path_count = sequential_model.path_count();
+    if aperture_specs_by_path.len() != path_count {
+        return Err(anyhow!(
+            "aperture_specs_by_path has {} entries but the model has {} path(s)",
+            aperture_specs_by_path.len(),
+            path_count
+        ));
+    }
+    if field_specs_by_path.len() != path_count {
+        return Err(anyhow!(
+            "field_specs_by_path has {} entries but the model has {} path(s)",
+            field_specs_by_path.len(),
+            path_count
+        ));
+    }
+    for field_specs in field_specs_by_path {
+        validate_field_specs(sequential_model, field_specs)?;
+    }
 
     // Use Axis::U as the canonical submodel for all field/wavelength combinations.
     // For rotationally symmetric systems only Axis::U exists; for non-symmetric
     // systems this is the fallback that is always present.
-    let triples: Vec<(usize, usize, usize)> = (0..sequential_model.path_count())
+    let triples: Vec<(usize, usize, usize)> = (0..path_count)
         .flat_map(|p| {
             let n_wavelengths = sequential_model.wavelengths_for_path(p).len();
-            (0..field_specs.len()).flat_map(move |f| (0..n_wavelengths).map(move |w| (p, f, w)))
+            let n_fields = field_specs_by_path[p].len();
+            (0..n_fields).flat_map(move |f| (0..n_wavelengths).map(move |w| (p, f, w)))
         })
         .collect();
 
@@ -194,12 +214,15 @@ pub fn ray_trace_3d_view(
                     wavelength_id,
                 );
 
+                let field_specs = &field_specs_by_path[path_id];
+                let aperture_spec = &aperture_specs_by_path[path_id];
+
                 let sequential_submodel = sequential_model
                     .submodels_for_path(path_id)
                     .get(wavelength_id)
                     .ok_or_else(|| anyhow!("Submodel not found"))?;
                 let tangential_vec_id = paraxial_view
-                    .tangential_vec_id_for_phi(field_specs[field_id].tangential_fan_phi());
+                    .tangential_vec_id_for_phi(path_id, field_specs[field_id].tangential_fan_phi());
                 let paraxial_subview = paraxial_view
                     .get_for_path(path_id, wavelength_id, tangential_vec_id)
                     .ok_or_else(|| anyhow!("Paraxial subview not found"))?;
@@ -918,7 +941,9 @@ mod tests {
             },
         ];
 
-        let paraxial_view = ParaxialView::new(&sequential_model, &field_specs, false).unwrap();
+        let paraxial_view =
+            ParaxialView::new(&sequential_model, std::slice::from_ref(&field_specs), false)
+                .unwrap();
 
         Setup {
             sequential_model,
@@ -963,8 +988,8 @@ mod tests {
             full_pupil_spacing: 0.1,
         };
         let results = ray_trace_3d_view(
-            &s.aperture_spec,
-            &s.field_specs,
+            &[s.aperture_spec],
+            std::slice::from_ref(&s.field_specs),
             &s.sequential_model,
             &s.paraxial_view,
             config,
@@ -983,8 +1008,8 @@ mod tests {
         };
 
         let results = ray_trace_3d_view(
-            &s.aperture_spec,
-            &s.field_specs,
+            &[s.aperture_spec],
+            std::slice::from_ref(&s.field_specs),
             &s.sequential_model,
             &s.paraxial_view,
             config,
@@ -1037,7 +1062,8 @@ mod tests {
             chi: 5.0,
             phi: 90.0,
         }];
-        let paraxial_view = ParaxialView::new(&seq_model, &field_specs, false).unwrap();
+        let paraxial_view =
+            ParaxialView::new(&seq_model, std::slice::from_ref(&field_specs), false).unwrap();
 
         let fan_rays = rays(
             seq_model.placements(),
@@ -1083,7 +1109,7 @@ mod tests {
             chi: 5.0,
             phi: 90.0,
         };
-        let paraxial_view = ParaxialView::new(&seq_model, &[field_spec], false).unwrap();
+        let paraxial_view = ParaxialView::new(&seq_model, &[vec![field_spec]], false).unwrap();
 
         let chief = rays(
             seq_model.placements(),
@@ -1360,15 +1386,17 @@ mod tests {
                 phi: 90.0,
             },
         ];
-        let paraxial_view = ParaxialView::new(&sequential_model, &field_specs, false).unwrap();
+        let paraxial_view =
+            ParaxialView::new(&sequential_model, std::slice::from_ref(&field_specs), false)
+                .unwrap();
         let config = SamplingConfig {
             n_fan_rays: 3,
             full_pupil_spacing: 0.1,
         };
 
         let results = ray_trace_3d_view(
-            &aperture_spec,
-            &field_specs,
+            &[aperture_spec],
+            std::slice::from_ref(&field_specs),
             &sequential_model,
             &paraxial_view,
             config,
@@ -1428,15 +1456,21 @@ mod tests {
             phi: 90.0,
         }];
         let aperture_spec = ApertureSpec::EntrancePupil { semi_diameter: 5.0 };
-        let paraxial_view = ParaxialView::new(&model, &field_specs, false).unwrap();
+        let paraxial_view =
+            ParaxialView::new(&model, &[field_specs.clone(), field_specs.clone()], false).unwrap();
         let config = SamplingConfig {
             n_fan_rays: 3,
             full_pupil_spacing: 0.5,
         };
 
-        let results =
-            ray_trace_3d_view(&aperture_spec, &field_specs, &model, &paraxial_view, config)
-                .unwrap();
+        let results = ray_trace_3d_view(
+            &[aperture_spec, aperture_spec],
+            &[field_specs.clone(), field_specs],
+            &model,
+            &paraxial_view,
+            config,
+        )
+        .unwrap();
 
         assert!(
             results.get_for_path(0, 0, 0).is_some(),
@@ -1523,15 +1557,21 @@ mod tests {
             phi: 90.0,
         }];
         let aperture_spec = ApertureSpec::EntrancePupil { semi_diameter: 5.0 };
-        let paraxial_view = ParaxialView::new(&model, &field_specs, false).unwrap();
+        let paraxial_view =
+            ParaxialView::new(&model, &[field_specs.clone(), field_specs.clone()], false).unwrap();
         let config = SamplingConfig {
             n_fan_rays: 3,
             full_pupil_spacing: 0.5,
         };
 
-        let results =
-            ray_trace_3d_view(&aperture_spec, &field_specs, &model, &paraxial_view, config)
-                .expect("ray trace should succeed with differing per-path wavelength counts");
+        let results = ray_trace_3d_view(
+            &[aperture_spec, aperture_spec],
+            &[field_specs.clone(), field_specs.clone()],
+            &model,
+            &paraxial_view,
+            config,
+        )
+        .expect("ray trace should succeed with differing per-path wavelength counts");
 
         assert_eq!(
             results.iter().filter(|r| r.path_id() == 0).count(),
@@ -1553,8 +1593,8 @@ mod tests {
             full_pupil_spacing: 0.1,
         };
         let results = ray_trace_3d_view(
-            &s.aperture_spec,
-            &s.field_specs,
+            &[s.aperture_spec],
+            std::slice::from_ref(&s.field_specs),
             &s.sequential_model,
             &s.paraxial_view,
             config,
@@ -1567,6 +1607,112 @@ mod tests {
         assert!(
             on_axis.chief_ray_reached_image(),
             "On-axis chief ray should reach the image surface"
+        );
+    }
+
+    /// AT-2: a two-path model called with mismatched-length
+    /// `aperture_specs_by_path`/`field_specs_by_path` must return an error,
+    /// independently for each list.
+    #[test]
+    fn at2_ray_trace_3d_view_rejects_mismatched_per_path_list_lengths() {
+        use std::rc::Rc;
+
+        use crate::examples::beam_splitter::two_path_model;
+        use crate::specs::gaps::ConstantRefractiveIndex;
+
+        let n_air = Rc::new(ConstantRefractiveIndex::new(1.0, 0.0));
+        let model = two_path_model(n_air, &[0.5876e-3], 10.0, 10.0);
+        let field = vec![FieldSpec::Angle {
+            chi: 0.0,
+            phi: 90.0,
+        }];
+        let aperture = ApertureSpec::EntrancePupil { semi_diameter: 5.0 };
+        let paraxial_view =
+            ParaxialView::new(&model, &[field.clone(), field.clone()], false).unwrap();
+        let config = SamplingConfig {
+            n_fan_rays: 3,
+            full_pupil_spacing: 0.5,
+        };
+
+        // Wrong-length aperture_specs_by_path (1 entry for a 2-path model).
+        assert!(
+            ray_trace_3d_view(
+                &[aperture],
+                &[field.clone(), field.clone()],
+                &model,
+                &paraxial_view,
+                config,
+            )
+            .is_err()
+        );
+
+        // Wrong-length field_specs_by_path (1 entry for a 2-path model).
+        assert!(
+            ray_trace_3d_view(
+                &[aperture, aperture],
+                &[field],
+                &model,
+                &paraxial_view,
+                config,
+            )
+            .is_err()
+        );
+    }
+
+    /// AT-4: each path must be traced against its own `ApertureSpec`, not a
+    /// shared value. Two paths with different entrance-pupil semi-diameters
+    /// must produce `TraceResults` whose full-pupil ray bundle extents
+    /// differ correspondingly.
+    #[test]
+    fn at4_ray_trace_3d_view_traces_each_path_against_its_own_aperture() {
+        use std::rc::Rc;
+
+        use crate::examples::beam_splitter::two_path_model;
+        use crate::specs::gaps::ConstantRefractiveIndex;
+
+        let n_air = Rc::new(ConstantRefractiveIndex::new(1.0, 0.0));
+        let model = two_path_model(n_air, &[0.5876e-3], 10.0, 10.0);
+        let field = vec![FieldSpec::Angle {
+            chi: 0.0,
+            phi: 90.0,
+        }];
+        let small_aperture = ApertureSpec::EntrancePupil { semi_diameter: 2.0 };
+        let large_aperture = ApertureSpec::EntrancePupil {
+            semi_diameter: 10.0,
+        };
+        let paraxial_view =
+            ParaxialView::new(&model, &[field.clone(), field.clone()], false).unwrap();
+        let config = SamplingConfig {
+            n_fan_rays: 3,
+            full_pupil_spacing: 0.5,
+        };
+
+        let results = ray_trace_3d_view(
+            &[small_aperture, large_aperture],
+            &[field.clone(), field],
+            &model,
+            &paraxial_view,
+            config,
+        )
+        .unwrap();
+
+        let extent = |bundle: &RayBundle| -> Float {
+            bundle
+                .rays()
+                .iter()
+                .map(|r| r.y().abs())
+                .fold(0.0, Float::max)
+        };
+
+        let path0 = results.get_for_path(0, 0, 0).expect("path 0 results");
+        let path1 = results.get_for_path(1, 0, 0).expect("path 1 results");
+
+        let extent0 = extent(path0.full_pupil());
+        let extent1 = extent(path1.full_pupil());
+
+        assert!(
+            extent1 > extent0,
+            "path 1 (larger aperture) should have greater ray extent than path 0: {extent0} vs {extent1}"
         );
     }
 }

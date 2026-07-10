@@ -218,7 +218,7 @@ mod tests {
             .expect("build should succeed")
             .model;
 
-        let pv = ParaxialView::new(&model, &field_specs(), false).unwrap();
+        let pv = ParaxialView::new(&model, &[field_specs()], false).unwrap();
         let sub = pv.get(0, 0).unwrap();
 
         let marginal_at_image = sub.marginal_ray().rays_at_surface(3)[0].height;
@@ -238,7 +238,7 @@ mod tests {
             .expect("build should succeed")
             .model;
 
-        let pv = ParaxialView::new(&model, &field_specs(), false).unwrap();
+        let pv = ParaxialView::new(&model, &[field_specs()], false).unwrap();
         let sub = pv.get(0, 0).unwrap();
 
         let marginal_at_image = sub.marginal_ray().rays_at_surface(3)[0].height;
@@ -372,7 +372,7 @@ mod tests {
             .expect("build should succeed")
             .model;
 
-        let pv = ParaxialView::new(&model, &field_specs(), false).unwrap();
+        let pv = ParaxialView::new(&model, &[field_specs()], false).unwrap();
         let sub = pv.get(0, 0).unwrap();
         let marginal_at_image = sub.marginal_ray().rays_at_surface(3)[0].height;
         assert_abs_diff_eq!(marginal_at_image, 0.0, epsilon = 1e-4);

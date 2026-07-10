@@ -150,7 +150,7 @@ fn run_compute(
     let surfaces = build_surface_descs(&seq);
     let fields = build_field_descs(&parsed.fields);
 
-    let pv = match ParaxialView::new(&seq, &parsed.fields, false) {
+    let pv = match ParaxialView::new(&seq, std::slice::from_ref(&parsed.fields), false) {
         Ok(p) => p,
         Err(e) => {
             return ResultPackage {
@@ -179,7 +179,13 @@ fn run_compute(
         n_fan_rays: req.specs.n_fan_rays as usize,
         full_pupil_spacing,
     };
-    let trace = match ray_trace_3d_view(&parsed.aperture, &parsed.fields, &seq, &pv, config) {
+    let trace = match ray_trace_3d_view(
+        &[parsed.aperture],
+        std::slice::from_ref(&parsed.fields),
+        &seq,
+        &pv,
+        config,
+    ) {
         Ok(t) => Some(t),
         Err(e) => {
             log::warn!("Ray trace failed: {e}");

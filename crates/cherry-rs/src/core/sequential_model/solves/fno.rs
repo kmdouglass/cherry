@@ -322,7 +322,7 @@ mod tests {
             .build()
             .expect("build should succeed")
             .model;
-        let pv = ParaxialView::new(&model, &field_specs(), false).unwrap();
+        let pv = ParaxialView::new(&model, &[field_specs()], false).unwrap();
         (model, pv)
     }
 
@@ -437,7 +437,7 @@ mod tests {
             .expect("build should succeed")
             .model;
 
-        let pv = ParaxialView::new(&model, &field_specs(), false).unwrap();
+        let pv = ParaxialView::new(&model, &[field_specs()], false).unwrap();
         let sub = pv.get(0, 0).unwrap();
 
         // F/# constraint satisfied.
@@ -548,10 +548,11 @@ mod tests {
             chi: 0.0,
             phi: 90.0,
         }];
-        let pv = ParaxialView::new(&model, &field_specs, false).unwrap();
+        let pv = ParaxialView::new(&model, &[field_specs.clone(), field_specs], false).unwrap();
 
         // Path 1 (the evaluation path): F/# matches the target directly.
-        let sub1 = pv.get_for_path(1, 0, 0).unwrap();
+        let tangential_vec_id_1 = pv.tangential_vec_id_for_phi(1, std::f64::consts::FRAC_PI_2);
+        let sub1 = pv.get_for_path(1, 0, tangential_vec_id_1).unwrap();
         assert_abs_diff_eq!(sub1.paraxial_fno().abs(), target, epsilon = 1e-3);
 
         // Path 0 sees the *same physical surface* — same store index, same

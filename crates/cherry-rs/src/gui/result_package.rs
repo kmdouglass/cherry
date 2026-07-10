@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use crate::{
     CrossSectionView, FieldSpec, ParaxialView, TraceResultsCollection,
     core::math::{linalg::mat3x3::Mat3x3, vec3::Vec3},
-    views::components::Component,
+    views::components::PathComponent,
 };
 
 /// Post-solve parameter values keyed by their index in the surfaces table.
@@ -47,7 +47,7 @@ pub struct ResultPackage {
     pub error: Option<String>,
     pub solved_values: SolvedValues,
     /// Auto-detected optical components from the sequential model.
-    pub components: Vec<Component>,
+    pub components: Vec<PathComponent>,
 }
 
 impl ResultPackage {

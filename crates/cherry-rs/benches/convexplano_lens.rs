@@ -27,14 +27,16 @@ fn benchmark(c: &mut Criterion) {
     let n_air: Rc<dyn RefractiveIndexSpec> = n!(1.0);
     let n_nbk7: Rc<dyn RefractiveIndexSpec> = n!(1.515);
     let model = sequential_model(n_air, n_nbk7, &WAVELENGTHS);
-    let paraxial_view = ParaxialView::new(&model, &FIELD_SPECS, false).unwrap();
+    let field_specs_by_path = [FIELD_SPECS.to_vec()];
+    let aperture_specs_by_path = [APERTURE_SPEC];
+    let paraxial_view = ParaxialView::new(&model, &field_specs_by_path, false).unwrap();
     let mut group = c.benchmark_group("3D ray trace, convexplano lens");
 
     group.bench_function("ray_trace_3d_view", |b| {
         b.iter(|| {
             ray_trace_3d_view(
-                black_box(&APERTURE_SPEC),
-                black_box(&FIELD_SPECS),
+                black_box(&aperture_specs_by_path),
+                black_box(&field_specs_by_path),
                 black_box(&model),
                 black_box(&paraxial_view),
                 black_box(SamplingConfig {
