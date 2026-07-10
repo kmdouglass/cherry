@@ -11,18 +11,19 @@ const APERTURE_SPEC: ApertureSpec = ApertureSpec::EntrancePupil { semi_diameter:
 
 fn benchmark(c: &mut Criterion) {
     let model = sequential_model(n!(1.0), n!(1.84666), &WAVELENGTHS);
-    let field_specs = vec![FieldSpec::Angle {
+    let field_specs_by_path = [vec![FieldSpec::Angle {
         chi: 20.0,
         phi: 90.0,
-    }];
-    let paraxial_view = ParaxialView::new(&model, &field_specs, false).unwrap();
+    }]];
+    let aperture_specs_by_path = [APERTURE_SPEC];
+    let paraxial_view = ParaxialView::new(&model, &field_specs_by_path, false).unwrap();
     let mut group = c.benchmark_group("3D ray trace, f-theta scan lens");
 
     group.bench_function("ray_trace_3d_view, 20 deg off-axis", |b| {
         b.iter(|| {
             ray_trace_3d_view(
-                black_box(&APERTURE_SPEC),
-                black_box(&field_specs),
+                black_box(&aperture_specs_by_path),
+                black_box(&field_specs_by_path),
                 black_box(&model),
                 black_box(&paraxial_view),
                 black_box(SamplingConfig {

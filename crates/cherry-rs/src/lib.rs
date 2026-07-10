@@ -103,8 +103,9 @@
 //!     FieldSpec::Angle { chi: 5.0, phi: 90.0 },
 //! ];
 //!
-//! // Compute the paraxial view of the system.
-//! let paraxial_view = ParaxialView::new(&sequential_model, &field_specs, false).unwrap();
+//! // Compute the paraxial view of the system. The model has a single path,
+//! // so field_specs_by_path is a length-1 list.
+//! let paraxial_view = ParaxialView::new(&sequential_model, &[field_specs.clone()], false).unwrap();
 //!
 //! // Compute the effective focal length of the lens for each submodel.
 //! for sub_view in paraxial_view.iter() {
@@ -119,7 +120,7 @@
 //! // Compute a 3D ray trace of the system, sampling the pupil with a square
 //! // grid with a spacing of 0.1 in normalized pupil coordinates.
 //! let results_collection = ray_trace_3d_view(
-//!     &aperture_spec, &field_specs,
+//!     &[aperture_spec], &[field_specs.clone()],
 //!     &sequential_model,
 //!     &paraxial_view,
 //!     SamplingConfig { n_fan_rays: 9, full_pupil_spacing: 0.1 },
@@ -164,13 +165,13 @@ pub use specs::{
     surfaces::{BeamSplitterPathKind, BoundaryKind, Mask, PlacementSpec, SurfaceSpec},
 };
 pub use views::{
-    components::{Component, components_view},
+    components::{Component, PathComponent, components_view},
     cross_section::{
         Bounds2D, CrossSectionView, DrawElement, FlatPlaneKind, PlaneGeometry, cross_section_view,
     },
     paraxial::{
-        ImagePlane, ParaxialRay, ParaxialRayBundle, ParaxialSubView, ParaxialSubViewDescription,
-        ParaxialView, ParaxialViewDescription, Pupil,
+        AxialColor, ImagePlane, ParaxialRay, ParaxialRayBundle, ParaxialSubView,
+        ParaxialSubViewDescription, ParaxialView, ParaxialViewDescription, Pupil,
     },
     ray_trace_3d::{
         RayBundle, SamplingConfig, TraceResults, TraceResultsCollection, ray_trace_3d_view,

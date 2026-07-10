@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     BoundaryKind, RefractiveIndexSpec, SequentialModel, SequentialSubModel, SurfaceKind,
-    core::{Float, refractive_index::RefractiveIndex},
+    core::{Float, refractive_index::RefractiveIndex, sequential_model::Gap, surfaces::Surface},
 };
 
 const TOL: Float = 1e-6;
@@ -45,6 +45,19 @@ pub enum Component {
     },
 }
 
+/// A `Component` tagged with the path that it was computed for.
+///
+/// `Component`'s own fields always carry **store indices**, not path-local
+/// step indices — a component built from a surface shared by multiple paths
+/// therefore compares equal (same field values) across the `PathComponent`s
+/// that reference it, differing only in `path_id`.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct PathComponent {
+    pub path_id: usize,
+    pub component: Component,
+}
+
 /// Determine the components of an optical system.
 ///
 /// Components are the basic building blocks of an optical system. They are
@@ -53,80 +66,130 @@ pub enum Component {
 ///
 /// Components serve to group surfaces together into individual lenses.
 ///
+/// This computes every path's own components in a single call — a View's
+/// scope matches its `SequentialModel`'s scope. A component built from a
+/// surface shared by multiple paths is **not** deduplicated: it is computed
+/// independently within each path's own pass and appears once per traversing
+/// path.
+///
 /// # Arguments
 /// * `sequential_model` - The sequential model of the optical system.
 /// * `background` - The refractive index of the background medium.
 pub fn components_view(
     sequential_model: &SequentialModel,
     background: Rc<dyn RefractiveIndexSpec>,
-) -> Result<Vec<Component>> {
+) -> Result<Vec<PathComponent>> {
     let surfaces = sequential_model.surfaces();
-    let n_surfs = surfaces.len();
+    let mut all_components = Vec::new();
 
-    let wavelength = sequential_model
-        .wavelengths()
-        .first()
-        .copied()
-        .unwrap_or(0.5876);
+    for path_id in 0..sequential_model.path_count() {
+        let wavelength = sequential_model
+            .wavelengths_for_path(path_id)
+            .first()
+            .copied()
+            .unwrap_or(0.5876);
+        let background_ri = RefractiveIndex::try_from_spec(background.as_ref(), wavelength)?;
 
-    let background_ri = RefractiveIndex::try_from_spec(background.as_ref(), wavelength)?;
+        let surface_indices = sequential_model.path_surface_indices(path_id);
+        let n_steps = surface_indices.len();
+        let submodel = sequential_model
+            .submodels_for_path(path_id)
+            .first()
+            .ok_or_else(|| anyhow!("path {path_id} has no submodels"))?;
+        let gaps = submodel.gaps();
 
-    let sequential_sub_model = sequential_model
-        .submodel(0)
-        .ok_or(anyhow!("No submodel found for wavelength index 0."))?;
-    let gaps = sequential_sub_model.gaps();
+        if n_steps < 3 {
+            // Only object and image plane exist on this path; no real
+            // components. A disclosed per-path behavior change from the old
+            // whole-model check: a shorter path is skipped, but a longer
+            // path on the same model still produces its own components.
+            continue;
+        }
 
-    if n_surfs < 3 {
-        // Only object and image plane exist; no real components.
-        return Ok(vec![]);
+        let path_components = components_for_path(surfaces, surface_indices, gaps, background_ri)?;
+        all_components.extend(
+            path_components
+                .into_iter()
+                .map(|component| PathComponent { path_id, component }),
+        );
     }
 
-    // Collect non-element components (mirrors, irises) and track which surfaces
-    // are already claimed so we can detect unpaired surfaces later.
+    Ok(all_components)
+}
+
+/// Determine the components of a single path.
+///
+/// Iterates in **step space** (position within `surface_indices`, which is
+/// also how `gaps` is ordered for this path) and resolves to a **store
+/// index** (`surface_indices[step]`) only when reading `surfaces[..]` or
+/// constructing a `Component`.
+fn components_for_path(
+    surfaces: &[Box<dyn Surface>],
+    surface_indices: &[usize],
+    gaps: &[Gap],
+    background_ri: RefractiveIndex,
+) -> Result<Vec<Component>> {
+    let n_steps = surface_indices.len();
+
+    // Collect non-element components (mirrors, irises) and track which steps
+    // are already claimed so we can detect unpaired surfaces later. Claimed
+    // steps are tracked in step space; store indices are only resolved when
+    // constructing a Component.
     let mut non_elements: Vec<Component> = Vec::new();
     let mut claimed: HashSet<usize> = HashSet::new();
 
-    for (i, surface) in surfaces.iter().enumerate().skip(1).take(n_surfs - 2) {
+    for (step, &store_idx) in surface_indices.iter().enumerate().skip(1).take(n_steps - 2) {
+        let surface = &surfaces[store_idx];
         let kind = surface.surface_kind();
         if matches!(surface.boundary_kind(), BoundaryKind::Reflecting) {
-            non_elements.push(Component::Mirror { surf_idx: i });
-            claimed.insert(i);
+            non_elements.push(Component::Mirror {
+                surf_idx: store_idx,
+            });
+            claimed.insert(step);
         } else if kind == SurfaceKind::Iris {
-            non_elements.push(Component::Iris { stop_idx: i });
-            claimed.insert(i);
+            non_elements.push(Component::Iris {
+                stop_idx: store_idx,
+            });
+            claimed.insert(step);
         } else if kind == SurfaceKind::ThinLens {
-            non_elements.push(Component::ThinLens { surf_idx: i });
-            claimed.insert(i);
+            non_elements.push(Component::ThinLens {
+                surf_idx: store_idx,
+            });
+            claimed.insert(step);
         }
     }
 
     // Pass 1: for every non-background gap, find the nearest non-probe surface
     // on each side and emit a candidate length-2 element.  Probes inside a glass
-    // run are skipped so they don't split an element.
+    // run are skipped so they don't split an element. Candidates are stored in
+    // step space throughout passes 1-2; resolved to store indices only when
+    // Elements are constructed below.
     let mut candidates: Vec<Vec<usize>> = Vec::new();
 
-    'gap_loop: for (gap_idx, gap) in gaps.iter().enumerate().skip(1).take(n_surfs - 2) {
+    'gap_loop: for (gap_step, gap) in gaps.iter().enumerate().skip(1).take(n_steps - 2) {
         if same_medium(gap.refractive_index, background_ri) {
             continue; // background gap — not inside glass
         }
 
-        // The front surface is the surface at index gap_idx (left side of the
+        // The front surface is the surface at step gap_step (left side of the
         // gap), walking backwards past any probes to find a real boundary.
-        let mut front = gap_idx;
-        while front > 0 && surfaces[front].surface_kind() == SurfaceKind::Probe {
+        let mut front = gap_step;
+        while front > 0 && surfaces[surface_indices[front]].surface_kind() == SurfaceKind::Probe {
             front -= 1;
         }
 
-        // The back surface is gap_idx+1, walking forwards past any probes.
-        let mut back = gap_idx + 1;
-        while back < n_surfs && surfaces[back].surface_kind() == SurfaceKind::Probe {
+        // The back surface is gap_step+1, walking forwards past any probes.
+        let mut back = gap_step + 1;
+        while back < n_steps && surfaces[surface_indices[back]].surface_kind() == SurfaceKind::Probe
+        {
             back += 1;
         }
 
         // Skip if probe-walk escaped the model bounds or landed on object/image.
         if front == 0
-            || back >= n_surfs
-            || back == n_surfs - 1 && surfaces[back].surface_kind() == SurfaceKind::Image
+            || back >= n_steps
+            || back == n_steps - 1
+                && surfaces[surface_indices[back]].surface_kind() == SurfaceKind::Image
         {
             continue 'gap_loop;
         }
@@ -169,39 +232,47 @@ pub fn components_view(
         }
     }
 
-    // Convert candidates to Element components, tracking which surfaces are now
-    // part of an element so unpaired surfaces can be detected.
+    // Convert candidates to Element components, tracking which steps are now
+    // part of an element so unpaired surfaces can be detected. Store indices
+    // are resolved here, when the Component is actually constructed.
     let mut elements: Vec<Component> = Vec::new();
-    for mut surfs in candidates {
-        surfs.sort_unstable();
-        for &s in &surfs {
+    for mut steps in candidates {
+        steps.sort_unstable();
+        for &s in &steps {
             claimed.insert(s);
         }
-        elements.push(Component::Element { surf_idxs: surfs });
+        let surf_idxs = steps.iter().map(|&step| surface_indices[step]).collect();
+        elements.push(Component::Element { surf_idxs });
     }
 
     // Detect unpaired surfaces: refracting surfaces that border at least one
     // non-background gap but were not merged into any element. This includes
     // the surface just before Image and surfaces adjacent to an iris or mirror
     // in a non-background medium (e.g. an iris submerged in glass).
-    for i in 1..(n_surfs - 1) {
-        if claimed.contains(&i) {
+    for step in 1..(n_steps - 1) {
+        if claimed.contains(&step) {
             continue;
         }
-        let kind = surfaces[i].surface_kind();
+        let store_idx = surface_indices[step];
+        let kind = surfaces[store_idx].surface_kind();
         if kind == SurfaceKind::Object
             || kind == SurfaceKind::Image
             || kind == SurfaceKind::Probe
             || kind == SurfaceKind::Iris
-            || matches!(surfaces[i].boundary_kind(), BoundaryKind::Reflecting)
+            || matches!(
+                surfaces[store_idx].boundary_kind(),
+                BoundaryKind::Reflecting
+            )
         {
             continue;
         }
-        let borders_non_background = !same_medium(gaps[i - 1].refractive_index, background_ri)
-            || !same_medium(gaps[i].refractive_index, background_ri);
+        let borders_non_background = !same_medium(gaps[step - 1].refractive_index, background_ri)
+            || !same_medium(gaps[step].refractive_index, background_ri);
         if borders_non_background {
-            non_elements.push(Component::UnpairedSurface { surf_idx: i });
-            claimed.insert(i);
+            non_elements.push(Component::UnpairedSurface {
+                surf_idx: store_idx,
+            });
+            claimed.insert(step);
         }
     }
 
@@ -499,11 +570,24 @@ mod tests {
     //     SequentialModel::from_surface_specs(&gaps, &surfaces, &wavelengths,
     // None).unwrap() }
 
+    /// Test helper: strips the `path_id` tag since every model built here is
+    /// single-path, where the distinction is invisible.
+    fn components_only(
+        model: &SequentialModel,
+        background: Rc<dyn RefractiveIndexSpec>,
+    ) -> Vec<Component> {
+        components_view(model, background)
+            .unwrap()
+            .into_iter()
+            .map(|pc| pc.component)
+            .collect()
+    }
+
     #[test]
     fn test_concave_mirror() {
         let sequential_model = concave_mirror::sequential_model(n!(1.0), &[0.5876]);
 
-        let components = components_view(&sequential_model, n!(1.0)).unwrap();
+        let components = components_only(&sequential_model, n!(1.0));
 
         assert_eq!(components.len(), 1);
         assert!(components.contains(&Component::Mirror { surf_idx: 1 }));
@@ -513,7 +597,7 @@ mod tests {
     fn test_new_no_components() {
         let sequential_model = empty_system();
 
-        let components = components_view(&sequential_model, n!(1.0)).unwrap();
+        let components = components_only(&sequential_model, n!(1.0));
 
         assert_eq!(components.len(), 0);
     }
@@ -524,7 +608,7 @@ mod tests {
         let nbk7 = n!(1.515);
         let wavelengths: [Float; 1] = [0.5876];
         let sequential_model = convexplano_lens::sequential_model(air, nbk7, &wavelengths);
-        let components = components_view(&sequential_model, n!(1.0)).unwrap();
+        let components = components_only(&sequential_model, n!(1.0));
 
         assert_eq!(components.len(), 1);
         assert!(components.contains(&Component::Element {
@@ -570,7 +654,7 @@ mod tests {
     #[test]
     fn test_thin_lens_is_standalone_component() {
         let sequential_model = thin_lens_singlet();
-        let components = components_view(&sequential_model, n!(1.0)).unwrap();
+        let components = components_only(&sequential_model, n!(1.0));
 
         assert_eq!(components.len(), 1);
         assert!(components.contains(&Component::ThinLens { surf_idx: 1 }));
@@ -582,7 +666,7 @@ mod tests {
         // is claimed — it must be emitted as an UnpairedSurface.
         let sequential_model = silly_single_surface_and_stop();
 
-        let components = components_view(&sequential_model, n!(1.0)).unwrap();
+        let components = components_only(&sequential_model, n!(1.0));
 
         assert_eq!(components.len(), 2);
         assert!(components.contains(&Component::Iris { stop_idx: 2 }));
@@ -594,7 +678,7 @@ mod tests {
         // This is not a useful system but a good test.
         let sequential_model = silly_unpaired_surface();
 
-        let components = components_view(&sequential_model, n!(1.0)).unwrap();
+        let components = components_only(&sequential_model, n!(1.0));
 
         assert_eq!(components.len(), 2);
         assert!(components.contains(&Component::Element {
@@ -607,7 +691,7 @@ mod tests {
     fn test_wollaston_landscape_lens() {
         let sequential_model = wollaston_landscape_lens();
 
-        let components = components_view(&sequential_model, n!(1.0)).unwrap();
+        let components = components_only(&sequential_model, n!(1.0));
 
         assert_eq!(components.len(), 2);
         assert!(components.contains(&Component::Iris { stop_idx: 1 })); // Hard stop
@@ -662,7 +746,7 @@ mod tests {
     fn test_mirror_before_probe() {
         // Regression: mirror must appear even when a probe sits between it and Image.
         let model = mirror_then_probe();
-        let components = components_view(&model, n!(1.0)).unwrap();
+        let components = components_only(&model, n!(1.0));
         assert_eq!(components.len(), 1);
         assert!(components.contains(&Component::Mirror { surf_idx: 1 }));
     }
@@ -676,7 +760,7 @@ mod tests {
         let air = n!(1.00029);
         let glass = n!(1.847);
         let model = f_theta_scan_lens::sequential_model(air.clone(), glass, &[0.5876]);
-        let components = components_view(&model, air).unwrap();
+        let components = components_only(&model, air);
         assert_eq!(components.len(), 4); // 1 stop + 3 elements
         assert!(components.contains(&Component::Iris { stop_idx: 1 }));
         assert!(components.contains(&Component::Element {
@@ -758,7 +842,7 @@ mod tests {
         // A cemented doublet (BK7 + SF2) must be detected as one element spanning
         // all three bounding surfaces [1, 2, 3], not two separate elements.
         let model = cemented_doublet();
-        let components = components_view(&model, n!(1.0)).unwrap();
+        let components = components_only(&model, n!(1.0));
         assert_eq!(components.len(), 1);
         assert_eq!(
             components[0],
@@ -831,7 +915,7 @@ mod tests {
         // A probe inside the glass of a singlet must not split it into two elements.
         // Expected: one Element with surf_idxs [1, 3], skipping the probe at [2].
         let model = singlet_with_probe();
-        let components = components_view(&model, n!(1.0)).unwrap();
+        let components = components_only(&model, n!(1.0));
         assert_eq!(components.len(), 1);
         assert_eq!(
             components[0],
@@ -903,11 +987,75 @@ mod tests {
         // Regression: when an iris sits between two non-background surfaces,
         // both surrounding refracting surfaces must appear as UnpairedSurface.
         let model = iris_in_glass();
-        let components = components_view(&model, n!(1.0)).unwrap();
+        let components = components_only(&model, n!(1.0));
 
         assert_eq!(components.len(), 3);
         assert!(components.contains(&Component::Iris { stop_idx: 2 }));
         assert!(components.contains(&Component::UnpairedSurface { surf_idx: 1 }));
         assert!(components.contains(&Component::UnpairedSurface { surf_idx: 3 }));
+    }
+
+    /// AT-5: regression test for the pre-fix bug where `components_view`
+    /// indexed the global, store-wide surface list against path 0's own
+    /// path-relative gap sequence. `wf_epi_microscope`'s emission path
+    /// introduces surfaces (fold mirror, tube lens, Image) that path 0 never
+    /// visits, and its `path_surface_indices` are not store-order (`[5, 3, 2,
+    /// 6, 7, 8]`) — exactly the shape that made the old implementation
+    /// misindex. `components_view` must succeed and return the correct
+    /// element groupings for both paths.
+    #[test]
+    fn at5_components_view_does_not_misindex_path_exclusive_surfaces() {
+        use crate::examples::wf_epi_microscope::sequential_model;
+
+        let model = sequential_model(n!(1.0), n!(1.5), &[0.488], &[0.520]);
+        assert_eq!(model.path_surface_indices(1), &[5, 3, 2, 6, 7, 8]);
+
+        let components = components_view(&model, n!(1.0)).unwrap();
+
+        // Path 0 (excitation): tube lens (store 1) and objective (store 3),
+        // both ThinLens components at their own store index.
+        assert!(components.contains(&PathComponent {
+            path_id: 0,
+            component: Component::ThinLens { surf_idx: 1 },
+        }));
+        assert!(components.contains(&PathComponent {
+            path_id: 0,
+            component: Component::ThinLens { surf_idx: 3 },
+        }));
+
+        // Path 1 (emission): fold mirror (store 6) and tube lens (store 7) —
+        // both path-1-exclusive surfaces, at step positions 3 and 4, whose
+        // store indices diverge from their step indices. A store/step
+        // conflation bug would misidentify these (or panic on an
+        // out-of-bounds gap index).
+        assert!(components.contains(&PathComponent {
+            path_id: 1,
+            component: Component::Mirror { surf_idx: 6 },
+        }));
+        assert!(components.contains(&PathComponent {
+            path_id: 1,
+            component: Component::ThinLens { surf_idx: 7 },
+        }));
+    }
+
+    /// AT-6: a component built from a surface shared by multiple paths (the
+    /// objective, store index 3) must appear once per traversing path — not
+    /// deduplicated — computed independently within each path's own pass.
+    #[test]
+    fn at6_components_view_tags_shared_surface_once_per_path() {
+        use crate::examples::wf_epi_microscope::sequential_model;
+
+        let model = sequential_model(n!(1.0), n!(1.5), &[0.488], &[0.520]);
+        let components = components_view(&model, n!(1.0)).unwrap();
+
+        let objective = Component::ThinLens { surf_idx: 3 };
+        assert!(components.contains(&PathComponent {
+            path_id: 0,
+            component: objective.clone(),
+        }));
+        assert!(components.contains(&PathComponent {
+            path_id: 1,
+            component: objective,
+        }));
     }
 }

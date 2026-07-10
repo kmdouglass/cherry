@@ -3,7 +3,7 @@ use cherry_rs::examples::petzval_lens::*;
 
 fn paraxial_view() -> ParaxialView {
     let model = sequential_model();
-    ParaxialView::new(&model, &field_specs(), false).expect("Could not create paraxial view")
+    ParaxialView::new(&model, &[field_specs()], false).expect("Could not create paraxial view")
 }
 
 #[test]

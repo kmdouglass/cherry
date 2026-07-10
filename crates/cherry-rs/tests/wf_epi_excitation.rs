@@ -25,8 +25,8 @@ const PARAXIAL_FNO: f64 = -0.3922;
 #[test]
 fn wf_epi_excitation_paraxial_aperture_stop() {
     let model = sequential_model(n!(1.0), n!(1.5), &WAVELENGTHS);
-    let view =
-        ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
+    let view = ParaxialView::new(&model, &[FIELD_SPECS.to_vec()], false)
+        .expect("Could not create paraxial view");
 
     for sub_view in view.iter() {
         let result = sub_view.aperture_stop();
@@ -38,8 +38,8 @@ fn wf_epi_excitation_paraxial_aperture_stop() {
 #[test]
 fn wf_epi_excitation_paraxial_back_principal_plane() {
     let model = sequential_model(n!(1.0), n!(1.5), &WAVELENGTHS);
-    let view =
-        ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
+    let view = ParaxialView::new(&model, &[FIELD_SPECS.to_vec()], false)
+        .expect("Could not create paraxial view");
 
     for sub_view in view.iter() {
         let result = sub_view.back_principal_plane();
@@ -51,8 +51,8 @@ fn wf_epi_excitation_paraxial_back_principal_plane() {
 #[test]
 fn wf_epi_excitation_paraxial_back_focal_distance() {
     let model = sequential_model(n!(1.0), n!(1.5), &WAVELENGTHS);
-    let view =
-        ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
+    let view = ParaxialView::new(&model, &[FIELD_SPECS.to_vec()], false)
+        .expect("Could not create paraxial view");
 
     for sub_view in view.iter() {
         let result = sub_view.back_focal_distance();
@@ -64,8 +64,8 @@ fn wf_epi_excitation_paraxial_back_focal_distance() {
 #[test]
 fn wf_epi_excitation_paraxial_effective_focal_length() {
     let model = sequential_model(n!(1.0), n!(1.5), &WAVELENGTHS);
-    let view =
-        ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
+    let view = ParaxialView::new(&model, &[FIELD_SPECS.to_vec()], false)
+        .expect("Could not create paraxial view");
 
     for sub_view in view.iter() {
         let result = sub_view.effective_focal_length();
@@ -77,8 +77,8 @@ fn wf_epi_excitation_paraxial_effective_focal_length() {
 #[test]
 fn wf_epi_excitation_entrance_pupil_location() {
     let model = sequential_model(n!(1.0), n!(1.5), &WAVELENGTHS);
-    let view =
-        ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
+    let view = ParaxialView::new(&model, &[FIELD_SPECS.to_vec()], false)
+        .expect("Could not create paraxial view");
 
     for sub_view in view.iter() {
         let entrance_pupil = sub_view.entrance_pupil();
@@ -98,8 +98,8 @@ fn wf_epi_excitation_entrance_pupil_location() {
 #[test]
 fn wf_epi_excitation_paraxial_front_focal_distance() {
     let model = sequential_model(n!(1.0), n!(1.5), &WAVELENGTHS);
-    let view =
-        ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
+    let view = ParaxialView::new(&model, &[FIELD_SPECS.to_vec()], false)
+        .expect("Could not create paraxial view");
 
     for sub_view in view.iter() {
         let result = sub_view.front_focal_distance();
@@ -111,8 +111,8 @@ fn wf_epi_excitation_paraxial_front_focal_distance() {
 #[test]
 fn wf_epi_excitation_paraxial_front_focal_length() {
     let model = sequential_model(n!(1.0), n!(1.5), &WAVELENGTHS);
-    let view =
-        ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
+    let view = ParaxialView::new(&model, &[FIELD_SPECS.to_vec()], false)
+        .expect("Could not create paraxial view");
 
     for sub_view in view.iter() {
         let result = sub_view.front_focal_length();
@@ -124,8 +124,8 @@ fn wf_epi_excitation_paraxial_front_focal_length() {
 #[test]
 fn wf_epi_excitation_paraxial_front_principal_plane() {
     let model = sequential_model(n!(1.0), n!(1.5), &WAVELENGTHS);
-    let view =
-        ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
+    let view = ParaxialView::new(&model, &[FIELD_SPECS.to_vec()], false)
+        .expect("Could not create paraxial view");
 
     for sub_view in view.iter() {
         let result = sub_view.front_principal_plane();
@@ -137,8 +137,8 @@ fn wf_epi_excitation_paraxial_front_principal_plane() {
 #[test]
 fn wf_epi_excitation_paraxial_image_space_fno() {
     let model = sequential_model(n!(1.0), n!(1.5), &WAVELENGTHS);
-    let view =
-        ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
+    let view = ParaxialView::new(&model, &[FIELD_SPECS.to_vec()], false)
+        .expect("Could not create paraxial view");
 
     for sub_view in view.iter() {
         let result = sub_view.image_space_fno();
@@ -150,8 +150,8 @@ fn wf_epi_excitation_paraxial_image_space_fno() {
 #[test]
 fn wf_epi_excitation_paraxial_image_location() {
     let model = sequential_model(n!(1.0), n!(1.5), &WAVELENGTHS);
-    let view =
-        ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
+    let view = ParaxialView::new(&model, &[FIELD_SPECS.to_vec()], false)
+        .expect("Could not create paraxial view");
 
     for sub_view in view.iter() {
         let result = sub_view.paraxial_image_plane().location;
@@ -162,8 +162,8 @@ fn wf_epi_excitation_paraxial_image_location() {
 #[test]
 fn wf_epi_excitation_paraxial_image_size() {
     let model = sequential_model(n!(1.0), n!(1.5), &WAVELENGTHS);
-    let view =
-        ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
+    let view = ParaxialView::new(&model, &[FIELD_SPECS.to_vec()], false)
+        .expect("Could not create paraxial view");
 
     for sub_view in view.iter() {
         let result = sub_view.paraxial_image_plane().semi_diameter;
@@ -174,8 +174,8 @@ fn wf_epi_excitation_paraxial_image_size() {
 #[test]
 fn wf_epi_excitation_paraxial_lagrange_invariant() {
     let model = sequential_model(n!(1.0), n!(1.5), &WAVELENGTHS);
-    let view =
-        ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
+    let view = ParaxialView::new(&model, &[FIELD_SPECS.to_vec()], false)
+        .expect("Could not create paraxial view");
 
     for sub_view in view.iter() {
         let result = sub_view.lagrange_invariants();
@@ -189,8 +189,8 @@ fn wf_epi_excitation_paraxial_lagrange_invariant() {
 #[test]
 fn wf_epi_excitation_paraxial_fno() {
     let model = sequential_model(n!(1.0), n!(1.5), &WAVELENGTHS);
-    let view =
-        ParaxialView::new(&model, &FIELD_SPECS, false).expect("Could not create paraxial view");
+    let view = ParaxialView::new(&model, &[FIELD_SPECS.to_vec()], false)
+        .expect("Could not create paraxial view");
 
     for sub_view in view.iter() {
         let result = sub_view.paraxial_fno();

@@ -7,7 +7,7 @@ use crate::{
         model::{LensGroupSpec, SystemSpecs},
         result_package::ResultPackage,
     },
-    views::components::Component,
+    views::components::{Component, PathComponent},
 };
 
 /// Floating panel that groups auto-detected optical components and exposes
@@ -58,9 +58,12 @@ fn default_group_name(c: &Component) -> String {
 /// discarded groups and `n_new` is the number of newly added groups.
 fn validate_and_sync(
     lens_groups: &mut Vec<LensGroupSpec>,
-    components: &[Component],
+    components: &[PathComponent],
 ) -> (Vec<String>, usize) {
-    let known: HashSet<usize> = components.iter().map(component_first_idx).collect();
+    let known: HashSet<usize> = components
+        .iter()
+        .map(|pc| component_first_idx(&pc.component))
+        .collect();
 
     let mut stale_names = Vec::new();
     let valid: Vec<LensGroupSpec> = lens_groups
@@ -84,10 +87,10 @@ fn validate_and_sync(
         .collect();
 
     let mut n_new = 0usize;
-    for comp in components {
-        let first = component_first_idx(comp);
+    for pc in components {
+        let first = component_first_idx(&pc.component);
         if !covered.contains(&first) {
-            let mut g = LensGroupSpec::new(default_group_name(comp));
+            let mut g = LensGroupSpec::new(default_group_name(&pc.component));
             g.component_first_surfs = vec![first];
             lens_groups.push(g);
             n_new += 1;
@@ -174,7 +177,7 @@ impl LensOverlayPanel {
         let components = &result.components;
         let comp_lookup: std::collections::HashMap<usize, &Component> = components
             .iter()
-            .map(|c| (component_first_idx(c), c))
+            .map(|pc| (component_first_idx(&pc.component), &pc.component))
             .collect();
 
         let n_groups = specs.lens_groups.len();
@@ -459,6 +462,16 @@ mod tests {
         Component::Mirror { surf_idx: idx }
     }
 
+    fn as_path_components(components: Vec<Component>) -> Vec<PathComponent> {
+        components
+            .into_iter()
+            .map(|component| PathComponent {
+                path_id: 0,
+                component,
+            })
+            .collect()
+    }
+
     fn make_group(name: &str, first_surfs: Vec<usize>) -> LensGroupSpec {
         let mut g = LensGroupSpec::new(name);
         g.component_first_surfs = first_surfs;
@@ -468,7 +481,7 @@ mod tests {
     #[test]
     fn validate_adds_default_groups_when_empty() {
         let mut groups: Vec<LensGroupSpec> = Vec::new();
-        let components = vec![make_element(vec![1, 2]), make_mirror(3)];
+        let components = as_path_components(vec![make_element(vec![1, 2]), make_mirror(3)]);
         let (stale, n_new) = validate_and_sync(&mut groups, &components);
         assert!(stale.is_empty());
         assert_eq!(n_new, 2);
@@ -480,7 +493,7 @@ mod tests {
     #[test]
     fn validate_discards_stale_group() {
         let mut groups = vec![make_group("OldGroup", vec![5])];
-        let components = vec![make_element(vec![1, 2])];
+        let components = as_path_components(vec![make_element(vec![1, 2])]);
         let (stale, n_new) = validate_and_sync(&mut groups, &components);
         assert_eq!(stale, vec!["OldGroup"]);
         assert_eq!(n_new, 1);
@@ -491,7 +504,7 @@ mod tests {
     #[test]
     fn validate_keeps_valid_groups_and_adds_new_component() {
         let mut groups = vec![make_group("MyLens", vec![1])];
-        let components = vec![make_element(vec![1, 2]), make_mirror(3)];
+        let components = as_path_components(vec![make_element(vec![1, 2]), make_mirror(3)]);
         let (stale, n_new) = validate_and_sync(&mut groups, &components);
         assert!(stale.is_empty());
         assert_eq!(n_new, 1);
@@ -503,7 +516,7 @@ mod tests {
     #[test]
     fn validate_groups_sorted_by_first_surf() {
         let mut groups: Vec<LensGroupSpec> = Vec::new();
-        let components = vec![make_mirror(5), make_element(vec![1, 2])];
+        let components = as_path_components(vec![make_mirror(5), make_element(vec![1, 2])]);
         let (_, _) = validate_and_sync(&mut groups, &components);
         assert_eq!(groups[0].component_first_surfs[0], 1);
         assert_eq!(groups[1].component_first_surfs[0], 5);

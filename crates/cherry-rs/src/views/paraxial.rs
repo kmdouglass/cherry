@@ -105,7 +105,6 @@ type RayTransferMatrix = Mat2x2;
 pub struct ParaxialView {
     tangential_vecs: Vec<TangentialVector>,
     subviews: Vec<ParaxialSubView>,
-    wavelengths: Vec<Float>,
 }
 
 /// A description of a paraxial optical system.
@@ -114,9 +113,21 @@ pub struct ParaxialView {
 #[derive(Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize))]
 pub struct ParaxialViewDescription {
-    subviews: Vec<ParaxialSubViewDescription>,
-    /// Indexed by tangential_vec_id (index into the tangential-vector table).
-    primary_axial_color: Vec<Float>,
+    pub subviews: Vec<ParaxialSubViewDescription>,
+    pub primary_axial_color: Vec<AxialColor>,
+}
+
+/// The primary axial color aberration for one path and tangential direction.
+///
+/// Tagged with `path_id`/`tangential_vec_id` because `tangential_vec_id` alone
+/// can collide across paths (a rotationally symmetric path always collapses to
+/// `tangential_vec_id == 0`).
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize))]
+pub struct AxialColor {
+    pub path_id: usize,
+    pub tangential_vec_id: usize,
+    pub color: Float,
 }
 
 /// A paraxial subview of an optical system.
@@ -128,6 +139,7 @@ pub struct ParaxialViewDescription {
 pub struct ParaxialSubView {
     path_id: usize,
     wavelength_id: usize,
+    wavelength: Float,
     tangential_vec_id: usize,
     is_obj_space_telecentric: bool,
 
@@ -154,24 +166,24 @@ pub struct ParaxialSubView {
 #[derive(Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize))]
 pub struct ParaxialSubViewDescription {
-    path_id: usize,
-    wavelength_id: usize,
-    tangential_vec_id: usize,
-    aperture_stop: usize,
-    back_focal_distance: Float,
-    back_principal_plane: Float,
-    chief_ray: ParaxialRayBundle,
-    effective_focal_length: Float,
-    entrance_pupil: Pupil,
-    exit_pupil: Pupil,
-    front_focal_distance: Float,
-    front_focal_length: Float,
-    front_principal_plane: Float,
-    image_space_fno: Float,
-    lagrange_invariants: Vec<Float>,
-    marginal_ray: ParaxialRayBundle,
-    paraxial_fno: Float,
-    paraxial_image_plane: ImagePlane,
+    pub path_id: usize,
+    pub wavelength_id: usize,
+    pub tangential_vec_id: usize,
+    pub aperture_stop: usize,
+    pub back_focal_distance: Float,
+    pub back_principal_plane: Float,
+    pub chief_ray: ParaxialRayBundle,
+    pub effective_focal_length: Float,
+    pub entrance_pupil: Pupil,
+    pub exit_pupil: Pupil,
+    pub front_focal_distance: Float,
+    pub front_focal_length: Float,
+    pub front_principal_plane: Float,
+    pub image_space_fno: Float,
+    pub lagrange_invariants: Vec<Float>,
+    pub marginal_ray: ParaxialRayBundle,
+    pub paraxial_fno: Float,
+    pub paraxial_image_plane: ImagePlane,
 }
 
 /// A paraxial entrance or exit pupil.
@@ -272,8 +284,10 @@ impl ParaxialView {
     /// # Arguments
     /// * `sequential_model` - The sequential model to create a paraxial view
     ///   of.
-    /// * `field_specs` - The field specs of the optical system. These are
-    ///   necessary to compute parameters such as the chief ray.
+    /// * `field_specs_by_path` - One `FieldSpec` list per path in the model,
+    ///   indexed by `path_id`. These are necessary to compute parameters such
+    ///   as the chief ray. Must have length equal to
+    ///   `sequential_model.path_count()`.
     /// * `is_obj_space_telecentric` - Whether the object space is telecentric.
     ///   This forces the chief ray to be parallel to the optic axis.
     ///
@@ -281,30 +295,49 @@ impl ParaxialView {
     /// A new ParaxialView.
     pub fn new(
         sequential_model: &SequentialModel,
-        field_specs: &[FieldSpec],
+        field_specs_by_path: &[Vec<FieldSpec>],
         is_obj_space_telecentric: bool,
     ) -> Result<Self> {
+        if field_specs_by_path.len() != sequential_model.path_count() {
+            return Err(anyhow!(
+                "field_specs_by_path has {} entries but the model has {} path(s)",
+                field_specs_by_path.len(),
+                sequential_model.path_count()
+            ));
+        }
+
         let surfaces = sequential_model.surfaces();
         let placements = sequential_model.placements();
-        let tangential_vecs: Vec<TangentialVector> = if sequential_model.is_rotationally_symmetric()
-        {
-            vec![Vec3::new(0.0, 1.0, 0.0)]
-        } else {
-            unique_tangential_vecs(field_specs)
-        };
 
+        let mut tangential_vecs: Vec<TangentialVector> = Vec::new();
         let mut subviews = Vec::new();
-        for path_id in 0..sequential_model.path_count() {
+
+        for (path_id, field_specs) in field_specs_by_path.iter().enumerate() {
+            let path_tangential_vecs: Vec<TangentialVector> =
+                if sequential_model.is_rotationally_symmetric() {
+                    vec![Vec3::new(0.0, 1.0, 0.0)]
+                } else {
+                    unique_tangential_vecs(field_specs)
+                };
+            // Append this path's own tangential vectors to the merged,
+            // whole-model table, remembering where they start. This is a
+            // single pass, not a post-hoc remap: the offset is computed once,
+            // inline, before any subview referencing it is constructed.
+            let tangential_vec_id_offset = tangential_vecs.len();
+            tangential_vecs.extend(path_tangential_vecs.iter().copied());
+
             let stop_surface = sequential_model.stop_surface_for_path(path_id);
             let path_steps = sequential_model.path_steps(path_id);
             let surface_indices = sequential_model.path_surface_indices(path_id);
             let beam_splitter_arms = sequential_model.path_beam_splitter_arms(path_id);
+            let path_wavelengths = sequential_model.wavelengths_for_path(path_id);
             for (wav_idx, submodel) in sequential_model
                 .submodels_for_path(path_id)
                 .iter()
                 .enumerate()
             {
-                for (v_idx, &v) in tangential_vecs.iter().enumerate() {
+                let wavelength = path_wavelengths[wav_idx];
+                for (v_idx, &v) in path_tangential_vecs.iter().enumerate() {
                     let data = SubModelData {
                         sequential_sub_model: submodel as &dyn SequentialSubModel,
                         surfaces,
@@ -318,7 +351,8 @@ impl ParaxialView {
                     let subview = ParaxialSubView::new(
                         path_id,
                         wav_idx,
-                        v_idx,
+                        wavelength,
+                        tangential_vec_id_offset + v_idx,
                         &data,
                         v,
                         is_obj_space_telecentric,
@@ -331,7 +365,6 @@ impl ParaxialView {
         Ok(Self {
             tangential_vecs,
             subviews,
-            wavelengths: sequential_model.wavelengths().to_vec(),
         })
     }
 
@@ -403,56 +436,86 @@ impl ParaxialView {
         v.y().atan2(v.x()).to_degrees()
     }
 
-    /// Returns the tangential_vec_id whose tangential vector is closest (by dot
-    /// product) to the given azimuthal angle in radians.
+    /// Returns the tangential_vec_id, scoped to `path_id`, whose tangential
+    /// vector is closest (by dot product) to the given azimuthal angle in
+    /// radians.
+    ///
+    /// Scoping to `path_id` matters because each path's tangential vectors
+    /// occupy their own sub-range of the shared `tangential_vecs` table
+    /// (built incrementally in path order, see `ParaxialView::new`) — two
+    /// paths can share the same physical direction (e.g. both phi=90°) at
+    /// different ids, and a path-unaware search could return an id that
+    /// belongs to a different path's range, for which `get_for_path` would
+    /// then find nothing.
     ///
     /// For the common case where `phi_rad` exactly matches a stored phi key
     /// (bit-identical `tangential_fan_phi()` value), this finds the exact
-    /// entry. Falls back to index 0 if the table is empty.
-    pub fn tangential_vec_id_for_phi(&self, phi_rad: Float) -> usize {
+    /// entry. Falls back to index 0 if `path_id` has no tangential vectors.
+    pub fn tangential_vec_id_for_phi(&self, path_id: usize, phi_rad: Float) -> usize {
         let target: TangentialVector = Vec3::new(phi_rad.cos(), phi_rad.sin(), 0.0);
-        self.tangential_vecs
+        let mut path_ids: Vec<usize> = self
+            .subviews
             .iter()
-            .enumerate()
+            .filter(|sv| sv.path_id == path_id)
+            .map(|sv| sv.tangential_vec_id)
+            .collect();
+        path_ids.sort_unstable();
+        path_ids.dedup();
+
+        path_ids
+            .into_iter()
+            .map(|id| (id, self.tangential_vecs[id]))
             .max_by(|(_, a), (_, b)| {
                 let da = a.x() * target.x() + a.y() * target.y();
                 let db = b.x() * target.x() + b.y() * target.y();
                 da.total_cmp(&db)
             })
-            .map(|(i, _)| i)
+            .map(|(id, _)| id)
             .unwrap_or(0)
     }
 
     /// Computes the primary axial color aberration of the optical system.
     ///
     /// Primary axial color is the absolute difference in EFL between the
-    /// maximum and minimum wavelengths, reported per tangential-vector index.
-    pub fn primary_axial_color(&self) -> Vec<Float> {
-        let min_watangential_vec_id = self
-            .wavelengths
-            .iter()
-            .enumerate()
-            .min_by(|(_, a), (_, b)| a.total_cmp(b))
-            .map(|(index, _)| index)
-            .unwrap_or_default();
-        let max_watangential_vec_id = self
-            .wavelengths
-            .iter()
-            .enumerate()
-            .max_by(|(_, a), (_, b)| a.total_cmp(b))
-            .map(|(index, _)| index)
-            .unwrap_or_default();
+    /// maximum and minimum wavelengths, reported per `(path_id,
+    /// tangential_vec_id)` group — grouping by `tangential_vec_id` alone would
+    /// let two rotationally symmetric paths collide, since they both collapse
+    /// to `tangential_vec_id == 0`.
+    pub fn primary_axial_color(&self) -> Vec<AxialColor> {
+        use std::collections::BTreeMap;
 
-        let mut primary_axial_color = vec![0.0; self.tangential_vecs.len()];
-        for sv_min in self.get_by_wavelength_id(min_watangential_vec_id) {
-            if let Some(sv_max) = self.get(max_watangential_vec_id, sv_min.tangential_vec_id) {
-                let diff =
-                    (sv_max.effective_focal_length() - sv_min.effective_focal_length()).abs();
-                primary_axial_color[sv_min.tangential_vec_id] = diff;
+        type MinMaxWavelengthSubViews<'a> =
+            (Option<&'a ParaxialSubView>, Option<&'a ParaxialSubView>);
+
+        let mut groups: BTreeMap<(usize, usize), MinMaxWavelengthSubViews<'_>> = BTreeMap::new();
+        for sv in &self.subviews {
+            let entry = groups
+                .entry((sv.path_id, sv.tangential_vec_id))
+                .or_insert((None, None));
+            if entry.0.is_none_or(|cur| sv.wavelength < cur.wavelength) {
+                entry.0 = Some(sv);
+            }
+            if entry.1.is_none_or(|cur| sv.wavelength > cur.wavelength) {
+                entry.1 = Some(sv);
             }
         }
 
-        primary_axial_color
+        groups
+            .into_iter()
+            .map(|((path_id, tangential_vec_id), (sv_min, sv_max))| {
+                let color = match (sv_min, sv_max) {
+                    (Some(a), Some(b)) => {
+                        (b.effective_focal_length() - a.effective_focal_length()).abs()
+                    }
+                    _ => 0.0,
+                };
+                AxialColor {
+                    path_id,
+                    tangential_vec_id,
+                    color,
+                }
+            })
+            .collect()
     }
 }
 
@@ -480,6 +543,7 @@ impl ParaxialSubView {
     fn new(
         path_id: usize,
         wavelength_id: usize,
+        wavelength: Float,
         tangential_vec_id: usize,
         data: &SubModelData<'_>,
         v: TangentialVector,
@@ -619,6 +683,7 @@ impl ParaxialSubView {
         Ok(Self {
             path_id,
             wavelength_id,
+            wavelength,
             tangential_vec_id,
             is_obj_space_telecentric,
 
@@ -669,6 +734,10 @@ impl ParaxialSubView {
 
     pub fn wavelength_id(&self) -> usize {
         self.wavelength_id
+    }
+
+    pub fn wavelength(&self) -> Float {
+        self.wavelength
     }
 
     pub fn tangential_vec_id(&self) -> usize {
@@ -1659,6 +1728,7 @@ mod test {
             ParaxialSubView::new(
                 0, // path_id
                 0,
+                wavelengths[0],
                 0,
                 &data,
                 Vec3::new(0.0, 1.0, 0.0), // v = Y (phi=90°)
@@ -1854,7 +1924,16 @@ mod test {
             stop_surface: None,
         };
 
-        let view = ParaxialSubView::new(0, 0, 0, &data, Vec3::new(0.0, 1.0, 0.0), false).unwrap();
+        let view = ParaxialSubView::new(
+            0,
+            0,
+            wavelengths[0],
+            0,
+            &data,
+            Vec3::new(0.0, 1.0, 0.0),
+            false,
+        )
+        .unwrap();
 
         assert_eq!(*view.aperture_stop(), 2);
     }
@@ -1913,7 +1992,7 @@ mod test {
             chi: 0.0,
             phi: 90.0,
         }];
-        let pv = ParaxialView::new(&seq, &field, false).unwrap();
+        let pv = ParaxialView::new(&seq, &[field], false).unwrap();
         let sub = pv.get(0, 0).unwrap();
         assert_eq!(*sub.aperture_stop(), 2);
     }
@@ -1947,10 +2026,18 @@ mod test {
             chi: 0.0,
             phi: 90.0,
         }];
-        let pv = ParaxialView::new(&model, &field, false).unwrap();
+        let pv = ParaxialView::new(&model, &[field.clone(), field], false).unwrap();
 
-        assert!(pv.get_for_path(0, 0, 0).is_some(), "path 0 subview missing");
-        assert!(pv.get_for_path(1, 0, 0).is_some(), "path 1 subview missing");
+        let tv0 = pv.tangential_vec_id_for_phi(0, std::f64::consts::FRAC_PI_2);
+        let tv1 = pv.tangential_vec_id_for_phi(1, std::f64::consts::FRAC_PI_2);
+        assert!(
+            pv.get_for_path(0, 0, tv0).is_some(),
+            "path 0 subview missing"
+        );
+        assert!(
+            pv.get_for_path(1, 0, tv1).is_some(),
+            "path 1 subview missing"
+        );
     }
 
     /// The aperture stop for each path must be computed from that path's own
@@ -2037,7 +2124,7 @@ mod test {
             chi: 0.0,
             phi: 90.0,
         }];
-        let pv = ParaxialView::new(&model, &field, false).unwrap();
+        let pv = ParaxialView::new(&model, &[field.clone(), field], false).unwrap();
 
         // Path 0: BS(SD=10) at step 1, Iris1(SD=5) at step 2. Iris1 is the stop.
         let path0 = pv.get_for_path(0, 0, 0).expect("path 0 subview");
@@ -2050,7 +2137,8 @@ mod test {
         // Path 1: BS(SD=10) at step 1, Iris2(SD=15) at step 2. BS is the stop.
         // Bug: if calc_aperture_stop uses store-indexed surfaces, it sees Iris1
         // (SD=5) at step 2 position and incorrectly identifies step 2 as the stop.
-        let path1 = pv.get_for_path(1, 0, 0).expect("path 1 subview");
+        let tv1 = pv.tangential_vec_id_for_phi(1, std::f64::consts::FRAC_PI_2);
+        let path1 = pv.get_for_path(1, 0, tv1).expect("path 1 subview");
         assert_eq!(
             *path1.aperture_stop(),
             1,
@@ -2083,8 +2171,11 @@ mod test {
         assert_eq!(model.stop_surface_for_path(1), Some(3));
 
         let field_specs = vec![FieldSpec::PointSource { x: 0.0, y: 1.5 }];
-        let view = ParaxialView::new(&model, &field_specs, false).unwrap();
-        let sub = view.get_for_path(1, 0, 0).expect("path 1 subview");
+        let view = ParaxialView::new(&model, &[field_specs.clone(), field_specs], false).unwrap();
+        let tangential_vec_id = view.tangential_vec_id_for_phi(1, std::f64::consts::FRAC_PI_2);
+        let sub = view
+            .get_for_path(1, 0, tangential_vec_id)
+            .expect("path 1 subview");
 
         assert_eq!(
             *sub.aperture_stop(),
@@ -2103,5 +2194,219 @@ mod test {
         for &h in invariants {
             assert_abs_diff_eq!(h, invariants[1], epsilon = 1e-4);
         }
+    }
+
+    /// AT-1: a two-path model called with a `field_specs_by_path` of the
+    /// wrong length (too short or too long) must return an error rather than
+    /// silently truncating or panicking.
+    #[test]
+    fn at1_field_specs_by_path_length_mismatch_is_rejected() {
+        use std::rc::Rc;
+
+        use crate::examples::beam_splitter::two_path_model;
+        use crate::specs::gaps::ConstantRefractiveIndex;
+
+        let n_air = Rc::new(ConstantRefractiveIndex::new(1.0, 0.0));
+        let model = two_path_model(n_air, &[0.5876e-3], 10.0, 10.0);
+        let field = vec![FieldSpec::Angle {
+            chi: 0.0,
+            phi: 90.0,
+        }];
+
+        assert!(ParaxialView::new(&model, std::slice::from_ref(&field), false).is_err());
+        assert!(ParaxialView::new(&model, &[field.clone(), field.clone(), field], false).is_err());
+    }
+
+    /// AT-3: giving each arm of a two-path model a different `FieldSpec`
+    /// height must produce subviews whose chief-ray data reflects that arm's
+    /// own field, not one value broadcast to both paths.
+    #[test]
+    fn at3_divergent_per_path_field_specs_produce_divergent_subview_data() {
+        use std::rc::Rc;
+
+        use crate::examples::beam_splitter::two_path_model;
+        use crate::specs::gaps::ConstantRefractiveIndex;
+
+        let n_air = Rc::new(ConstantRefractiveIndex::new(1.0, 0.0));
+        let model = two_path_model(n_air, &[0.5876e-3], 10.0, 10.0);
+
+        let field0 = vec![FieldSpec::Angle {
+            chi: 2.0,
+            phi: 90.0,
+        }];
+        let field1 = vec![FieldSpec::Angle {
+            chi: 8.0,
+            phi: 90.0,
+        }];
+        let pv = ParaxialView::new(&model, &[field0, field1], false).unwrap();
+
+        let tv0 = pv.tangential_vec_id_for_phi(0, std::f64::consts::FRAC_PI_2);
+        let tv1 = pv.tangential_vec_id_for_phi(1, std::f64::consts::FRAC_PI_2);
+        let sub0 = pv.get_for_path(0, 0, tv0).expect("path 0 subview");
+        let sub1 = pv.get_for_path(1, 0, tv1).expect("path 1 subview");
+
+        let angle0 = sub0.chief_ray().rays_at_surface(0)[0].angle;
+        let angle1 = sub1.chief_ray().rays_at_surface(0)[0].angle;
+
+        assert_abs_diff_eq!(angle0, 2.0_f64.to_radians().tan(), epsilon = 1e-6);
+        assert_abs_diff_eq!(angle1, 8.0_f64.to_radians().tan(), epsilon = 1e-6);
+        assert!(
+            (angle0 - angle1).abs() > 1e-3,
+            "each path's chief ray must reflect its own field, not a shared value"
+        );
+    }
+
+    /// A simple linearly dispersive index (`n = base + slope * wavelength`),
+    /// used only to give AT-7 a system where EFL genuinely varies with
+    /// wavelength — `ConstantRefractiveIndex` would make every path's primary
+    /// axial color trivially zero regardless of whether paths are mixed.
+    #[derive(Debug)]
+    struct LinearDispersion {
+        base: Float,
+        slope: Float,
+    }
+
+    impl crate::RefractiveIndexSpec for LinearDispersion {
+        fn n(&self, wavelength: Float) -> Result<Float> {
+            Ok(self.base + self.slope * wavelength)
+        }
+
+        fn k(&self, _wavelength: Float) -> Result<Float> {
+            Ok(0.0)
+        }
+    }
+
+    /// AT-7: regression test for the pre-fix `primary_axial_color`, which
+    /// grouped subviews by `wavelength_id` alone (no path scoping) and then
+    /// diffed against a hardcoded path-0 lookup — silently wrong, and capable
+    /// of overwriting path 0's correct entry, for any multipath model. Uses a
+    /// two-path model with differing wavelength counts per path (same shape
+    /// as the wavelengths feature's own AT-6/AT-7 fixture) and a dispersive
+    /// index so each path's color is genuinely nonzero and path-specific.
+    #[test]
+    fn at7_primary_axial_color_does_not_mix_paths() {
+        use std::rc::Rc;
+
+        use crate::RefractiveIndexSpec;
+        use crate::core::math::linalg::rotations::{EulerAngles, Rotation3D};
+        use crate::core::sequential_model::builder::SequentialModelBuilder;
+        use crate::specs::gaps::GapSpec;
+        use crate::specs::paths::{PathSpec, PathSurfaceRef};
+        use crate::specs::surfaces::{BeamSplitterPathKind, SurfaceSpec};
+
+        let n_air: Rc<dyn RefractiveIndexSpec> = Rc::new(LinearDispersion {
+            base: 1.0,
+            slope: 0.0,
+        });
+        let n_glass: Rc<dyn RefractiveIndexSpec> = Rc::new(LinearDispersion {
+            base: 1.4,
+            slope: 0.2,
+        });
+        let bs_rotation =
+            Rotation3D::IntrinsicPassiveRUF(EulerAngles((-45_f64).to_radians(), 0.0, 0.0));
+        let img = || SurfaceSpec::Image {
+            rotation: Rotation3D::None,
+            decenter: Vec3::new(0.0, 0.0, 0.0),
+            rotation_offset: Rotation3D::None,
+        };
+        let sphere = || SurfaceSpec::Sphere {
+            semi_diameter: 10.0,
+            radius_of_curvature: 50.0,
+            surf_kind: BoundaryKind::Refracting,
+            rotation: Rotation3D::None,
+            decenter: Vec3::new(0.0, 0.0, 0.0),
+            rotation_offset: Rotation3D::None,
+        };
+
+        let path0 = PathSpec {
+            surface_refs: vec![
+                PathSurfaceRef::New(SurfaceSpec::Object),
+                PathSurfaceRef::New(SurfaceSpec::BeamSplitter {
+                    semi_diameter: 10.0,
+                    rotation: bs_rotation,
+                    decenter: Vec3::new(0.0, 0.0, 0.0),
+                    rotation_offset: Rotation3D::None,
+                }),
+                PathSurfaceRef::New(sphere()),
+                PathSurfaceRef::New(img()),
+            ],
+            gaps: vec![
+                GapSpec {
+                    thickness: Float::INFINITY,
+                    refractive_index: n_air.clone(),
+                },
+                GapSpec {
+                    thickness: 10.0,
+                    refractive_index: n_air.clone(),
+                },
+                GapSpec {
+                    thickness: 50.0,
+                    refractive_index: n_glass.clone(),
+                },
+            ],
+            beam_splitter_arms: vec![BeamSplitterPathKind::Transmitting],
+            stop_surface: None,
+            wavelengths: vec![0.55], // 1 wavelength: this path's own color must be 0
+        };
+        let path1 = PathSpec {
+            surface_refs: vec![
+                PathSurfaceRef::Shared(0),
+                PathSurfaceRef::Shared(1),
+                PathSurfaceRef::New(sphere()),
+                PathSurfaceRef::New(img()),
+            ],
+            gaps: vec![
+                GapSpec {
+                    thickness: Float::INFINITY,
+                    refractive_index: n_air.clone(),
+                },
+                GapSpec {
+                    thickness: 10.0,
+                    refractive_index: n_air.clone(),
+                },
+                GapSpec {
+                    thickness: 50.0,
+                    refractive_index: n_glass,
+                },
+            ],
+            beam_splitter_arms: vec![BeamSplitterPathKind::Reflecting],
+            stop_surface: None,
+            wavelengths: vec![0.40, 0.55, 0.70], // 3 wavelengths: genuinely dispersive
+        };
+
+        let model = SequentialModelBuilder::new()
+            .paths(vec![path0, path1])
+            .build()
+            .expect("build should succeed")
+            .model;
+
+        let field = vec![FieldSpec::Angle {
+            chi: 0.0,
+            phi: 90.0,
+        }];
+        let pv = ParaxialView::new(&model, &[field.clone(), field], false).unwrap();
+
+        let colors = pv.primary_axial_color();
+
+        let path0_color = colors
+            .iter()
+            .find(|ac| ac.path_id == 0)
+            .expect("path 0 axial color entry");
+        let path1_color = colors
+            .iter()
+            .find(|ac| ac.path_id == 1)
+            .expect("path 1 axial color entry");
+
+        // Path 0 has exactly one wavelength, so its own min/max subview is the
+        // same subview: color must be exactly 0, regardless of path 1's data.
+        assert_abs_diff_eq!(path0_color.color, 0.0, epsilon = 1e-12);
+        // Path 1 has real dispersion across 3 wavelengths: its color must be
+        // nonzero, and computed purely from its own subviews (a cross-path
+        // mixing bug would either pull path 0's zero into this group or
+        // overwrite path 0's entry with a nonzero value from path 1).
+        assert!(
+            path1_color.color > 1e-6,
+            "path 1's dispersive color should be nonzero"
+        );
     }
 }

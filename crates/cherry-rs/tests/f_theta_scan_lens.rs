@@ -20,8 +20,8 @@ fn setup() -> (
     let model = sequential_model(n!(1.0), n!(1.84666), &WAVELENGTHS);
     let aperture_spec = ApertureSpec::EntrancePupil { semi_diameter: 0.5 };
     let field_specs = field_specs();
-    let paraxial_view =
-        ParaxialView::new(&model, &field_specs, false).expect("Could not create paraxial view");
+    let paraxial_view = ParaxialView::new(&model, std::slice::from_ref(&field_specs), false)
+        .expect("Could not create paraxial view");
     (model, aperture_spec, field_specs, paraxial_view)
 }
 
@@ -31,8 +31,8 @@ fn test_ray_trace_3d_on_axis() {
     let (model, aperture_spec, field_specs, paraxial_view) = setup();
 
     let results = ray_trace_3d_view(
-        &aperture_spec,
-        &field_specs,
+        &[aperture_spec],
+        &[field_specs],
         &model,
         &paraxial_view,
         SamplingConfig {
@@ -66,9 +66,10 @@ fn test_ray_trace_3d_off_axis() {
         },
     ];
 
+    let n_off_axis_fields = off_axis_fields.len();
     let results = ray_trace_3d_view(
-        &aperture_spec,
-        &off_axis_fields,
+        &[aperture_spec],
+        &[off_axis_fields],
         &model,
         &paraxial_view,
         SamplingConfig {
@@ -79,7 +80,7 @@ fn test_ray_trace_3d_off_axis() {
     )
     .expect("Ray trace failed");
 
-    assert_eq!(results.len(), off_axis_fields.len());
+    assert_eq!(results.len(), n_off_axis_fields);
 }
 
 #[test]
@@ -93,8 +94,8 @@ fn test_ray_trace_3d_square_grid() {
     }];
 
     let results = ray_trace_3d_view(
-        &aperture_spec,
-        &fields,
+        &[aperture_spec],
+        &[fields],
         &model,
         &paraxial_view,
         SamplingConfig {

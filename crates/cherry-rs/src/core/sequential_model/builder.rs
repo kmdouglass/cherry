@@ -1080,16 +1080,13 @@ mod tests {
             .model;
 
         // Path 1's gap was solved to place its image at the paraxial focus.
-        let pv = ParaxialView::new(
-            &model,
-            &[FieldSpec::Angle {
-                chi: 0.0,
-                phi: 90.0,
-            }],
-            false,
-        )
-        .unwrap();
-        let sub1 = pv.get_for_path(1, 0, 0).unwrap();
+        let field_specs = vec![FieldSpec::Angle {
+            chi: 0.0,
+            phi: 90.0,
+        }];
+        let pv = ParaxialView::new(&model, &[field_specs.clone(), field_specs], false).unwrap();
+        let tangential_vec_id = pv.tangential_vec_id_for_phi(1, std::f64::consts::FRAC_PI_2);
+        let sub1 = pv.get_for_path(1, 0, tangential_vec_id).unwrap();
         assert_abs_diff_eq!(
             sub1.marginal_ray().rays_at_surface(2)[0].height,
             0.0,

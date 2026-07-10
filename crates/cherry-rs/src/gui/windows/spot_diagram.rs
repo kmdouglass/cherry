@@ -393,7 +393,8 @@ mod tests {
             None,
         )
         .expect("model");
-        let pv = ParaxialView::new(&seq, &parsed.fields, false).expect("paraxial");
+        let pv =
+            ParaxialView::new(&seq, std::slice::from_ref(&parsed.fields), false).expect("paraxial");
 
         let result = ResultPackage {
             id: 1,
@@ -447,10 +448,11 @@ mod tests {
             None,
         )
         .expect("model");
-        let pv = ParaxialView::new(&seq, &parsed.fields, false).expect("paraxial");
+        let pv =
+            ParaxialView::new(&seq, std::slice::from_ref(&parsed.fields), false).expect("paraxial");
         let trace = ray_trace_3d_view(
-            &parsed.aperture,
-            &parsed.fields,
+            &[parsed.aperture],
+            std::slice::from_ref(&parsed.fields),
             &seq,
             &pv,
             crate::views::ray_trace_3d::SamplingConfig {
