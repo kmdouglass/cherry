@@ -1,7 +1,7 @@
 use approx::assert_abs_diff_eq;
 
 use cherry_rs::examples::wf_epi_excitation::sequential_model;
-use cherry_rs::{FieldSpec, ParaxialView, n};
+use cherry_rs::{ApertureSpec, FieldSpec, ParaxialView, SamplingConfig, n, ray_trace_3d_view};
 
 const WAVELENGTHS: [f64; 1] = [0.5876];
 const FIELD_SPECS: [FieldSpec; 1] = [FieldSpec::PointSource { x: 0.0, y: 1.5 }];
@@ -196,5 +196,53 @@ fn wf_epi_excitation_paraxial_fno() {
         let result = sub_view.paraxial_fno();
 
         assert_abs_diff_eq!(PARAXIAL_FNO, result, epsilon = 1e-4)
+    }
+}
+
+/// Regression test for the beam-splitter-arm-ignored bug: this model's
+/// `BeamSplitter` has a `Reflecting` arm, so real ray tracing must actually
+/// fold the beam there. Before the fix, `interact()` ignored `bs_arm` and
+/// always refracted (straight through, since indices match on both sides),
+/// leaving every downstream surface positioned for a fold that never
+/// happened — rays missed the objective's clear aperture and terminated.
+#[test]
+fn wf_epi_excitation_ray_trace_no_ray_terminates() {
+    let model = sequential_model(n!(1.0), n!(1.5), &WAVELENGTHS);
+    let view = ParaxialView::new(&model, &[FIELD_SPECS.to_vec()], false)
+        .expect("Could not create paraxial view");
+
+    let aperture_spec = ApertureSpec::EntrancePupil {
+        semi_diameter: ENTRANCE_PUPIL_SIZE,
+    };
+    let config = SamplingConfig {
+        n_fan_rays: 5,
+        full_pupil_spacing: 0.1,
+    };
+
+    let trace = ray_trace_3d_view(
+        &[aperture_spec],
+        &[FIELD_SPECS.to_vec()],
+        &model,
+        &view,
+        config,
+    )
+    .expect("ray trace should succeed");
+
+    for result in trace.iter() {
+        assert!(
+            result.chief_ray_reached_image(),
+            "chief ray terminated early: {:?}",
+            result.chief_ray().reason_for_termination()
+        );
+        assert!(
+            result.tangential_fan().terminated().iter().all(|&t| t == 0),
+            "tangential fan ray(s) terminated early: {:?}",
+            result.tangential_fan().reason_for_termination()
+        );
+        assert!(
+            result.sagittal_fan().terminated().iter().all(|&t| t == 0),
+            "sagittal fan ray(s) terminated early: {:?}",
+            result.sagittal_fan().reason_for_termination()
+        );
     }
 }

@@ -3,7 +3,7 @@ use anyhow::Result;
 
 use crate::core::{Float, math::vec3::Vec3, ray::Ray};
 
-use crate::specs::surfaces::{BoundaryKind, Mask};
+use crate::specs::surfaces::{BeamSplitterPathKind, BoundaryKind, Mask};
 
 pub mod kinds;
 pub mod solvers;
@@ -117,13 +117,32 @@ pub trait Surface: std::fmt::Debug + Send + Sync {
         SurfaceKind::Custom
     }
 
+    /// Returns the boundary kind actually in effect for one traversal,
+    /// given this step's beam-splitter arm declaration (if any).
+    ///
+    /// Every surface but [`BeamSplitter`](kinds::BeamSplitter) is fully
+    /// self-contained and ignores `bs_arm`, so the default implementation
+    /// simply delegates to [`boundary_kind`](Surface::boundary_kind).
+    /// `BeamSplitter` is the one surface type whose true behavior is
+    /// undecidable from the surface object alone — the same physical
+    /// instance may be `Shared` across paths that traverse it differently
+    /// (one reflecting, one transmitting) — so it overrides this method to
+    /// resolve `bs_arm` into the correct answer instead.
+    fn effective_boundary_kind(&self, bs_arm: Option<BeamSplitterPathKind>) -> BoundaryKind {
+        let _ = bs_arm;
+        self.boundary_kind()
+    }
+
     /// Modifies the ray after it intersects this surface.
     ///
     /// The default implementation applies Snell's law for refracting surfaces,
     /// the law of reflection for reflecting surfaces, and is a no-op for NoOp
-    /// surfaces. Custom surface implementations may override this method to
-    /// also displace the ray (e.g., a cardinal lens that displaces rays between
-    /// principal planes).
+    /// surfaces — dispatching on
+    /// [`effective_boundary_kind`](Self::effective_boundary_kind)
+    /// rather than [`boundary_kind`](Self::boundary_kind) directly, so that a
+    /// beam splitter's declared arm is respected. Custom surface
+    /// implementations may override this method to also displace the ray
+    /// (e.g., a cardinal lens that displaces rays between principal planes).
     ///
     /// All vectors are in the surface's **local** coordinate system.
     ///
@@ -133,9 +152,19 @@ pub trait Surface: std::fmt::Debug + Send + Sync {
     /// - `n_1`: Refractive index of the medium after the surface
     /// - `norm`: Surface normal at the intersection point (need not be
     ///   normalized)
-    fn interact(&self, ray: &mut Ray, n_0: Float, n_1: Float, norm: Vec3) {
+    /// - `bs_arm`: This step's beam-splitter arm declaration, if the surface
+    ///   being traversed is a beam splitter; `None` otherwise (or when no
+    ///   per-step context is available).
+    fn interact(
+        &self,
+        ray: &mut Ray,
+        n_0: Float,
+        n_1: Float,
+        norm: Vec3,
+        bs_arm: Option<BeamSplitterPathKind>,
+    ) {
         let norm = norm.normalize();
-        match self.boundary_kind() {
+        match self.effective_boundary_kind(bs_arm) {
             BoundaryKind::Refracting => {
                 let mu = n_0 / n_1;
                 let cos_theta_1 = ray.dir().dot(&norm);
@@ -169,7 +198,7 @@ mod tests {
         let dir = Vec3::new(0.0, 0.0, 1.0);
         let mut ray = make_ray(dir);
         let norm = Vec3::new(0.0, 0.0, 1.0);
-        surf.interact(&mut ray, 1.0, 1.5, norm);
+        surf.interact(&mut ray, 1.0, 1.5, norm, None);
         assert_eq!(ray.dir(), dir);
     }
 
@@ -180,7 +209,7 @@ mod tests {
         let dir = Vec3::new(0.0, 0.0, 1.0);
         let mut ray = make_ray(dir);
         let norm = Vec3::new(0.0, 0.0, 1.0);
-        surf.interact(&mut ray, 1.0, 1.5, norm);
+        surf.interact(&mut ray, 1.0, 1.5, norm, None);
         assert!((ray.dir().x() - 0.0).abs() < 1e-10);
         assert!((ray.dir().y() - 0.0).abs() < 1e-10);
         assert!((ray.dir().z() - 1.0).abs() < 1e-10);
@@ -193,7 +222,55 @@ mod tests {
         let dir = Vec3::new(0.0, 0.0, 1.0);
         let mut ray = make_ray(dir);
         let norm = Vec3::new(0.0, 0.0, 1.0);
-        surf.interact(&mut ray, 1.0, 1.0, norm);
+        surf.interact(&mut ray, 1.0, 1.0, norm, None);
         assert!((ray.dir().z() - (-1.0)).abs() < 1e-10);
+    }
+
+    /// Regression: for any surface that doesn't override
+    /// `effective_boundary_kind` (i.e. every surface except
+    /// `BeamSplitter`), `interact(..., None)` must produce exactly the same
+    /// result as the pre-fix, context-free `interact()` always did —
+    /// confirming the new default delegation
+    /// (`effective_boundary_kind` -> `boundary_kind()`) is behavior-
+    /// preserving. Also checks that passing a `Some(..)` arm to a
+    /// non-beam-splitter surface changes nothing, since the default
+    /// implementation ignores it.
+    #[test]
+    fn interact_default_delegation_is_unaffected_by_bs_arm() {
+        use crate::specs::surfaces::BeamSplitterPathKind;
+
+        for kind in [
+            BoundaryKind::NoOp,
+            BoundaryKind::Refracting,
+            BoundaryKind::Reflecting,
+        ] {
+            let surf = Conic::new(4.0, Float::INFINITY, 0.0, kind);
+            let dir = Vec3::new(0.3, 0.4, 1.0).normalize();
+            let norm = Vec3::new(0.0, 0.0, 1.0);
+
+            let mut ray_none = make_ray(dir);
+            surf.interact(&mut ray_none, 1.0, 1.5, norm, None);
+
+            let mut ray_reflecting = make_ray(dir);
+            surf.interact(
+                &mut ray_reflecting,
+                1.0,
+                1.5,
+                norm,
+                Some(BeamSplitterPathKind::Reflecting),
+            );
+
+            let mut ray_transmitting = make_ray(dir);
+            surf.interact(
+                &mut ray_transmitting,
+                1.0,
+                1.5,
+                norm,
+                Some(BeamSplitterPathKind::Transmitting),
+            );
+
+            assert_eq!(ray_none.dir(), ray_reflecting.dir());
+            assert_eq!(ray_none.dir(), ray_transmitting.dir());
+        }
     }
 }

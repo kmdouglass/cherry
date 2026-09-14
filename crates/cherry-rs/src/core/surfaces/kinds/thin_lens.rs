@@ -29,7 +29,14 @@ impl Surface for ThinLens {
         BoundaryKind::Refracting
     }
 
-    fn interact(&self, ray: &mut crate::Ray, n_0: Float, n_1: Float, _norm: crate::Vec3) {
+    fn interact(
+        &self,
+        ray: &mut crate::Ray,
+        n_0: Float,
+        n_1: Float,
+        _norm: crate::Vec3,
+        _bs_arm: Option<crate::specs::surfaces::BeamSplitterPathKind>,
+    ) {
         let power = self.power(0.0, n_0, n_1);
         let ux_0 = ray.dir().l() / ray.dir().n();
         let uy_0 = ray.dir().m() / ray.dir().n();
@@ -106,7 +113,7 @@ mod tests {
         assert_abs_diff_eq!(norm.y(), 0.0, epsilon = 1e-6);
         assert_abs_diff_eq!(norm.z(), 1.0, epsilon = 1e-6);
 
-        lens.interact(&mut ray, 1.0, 1.0, norm);
+        lens.interact(&mut ray, 1.0, 1.0, norm, None);
         let dir = ray.dir();
         assert_abs_diff_eq!(dir.x(), 0.0, epsilon = 1e-6);
         assert_abs_diff_eq!(dir.y(), 0.07610561, epsilon = 1e-6);
