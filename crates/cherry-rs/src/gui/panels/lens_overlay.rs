@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use egui_extras::{Column, TableBuilder};
 
@@ -36,6 +36,26 @@ fn component_first_idx(c: &Component) -> usize {
         | Component::BeamSplitter { surf_idx }
         | Component::UnpairedSurface { surf_idx } => *surf_idx,
     }
+}
+
+/// Maps each store index reachable from `active_path` to its **step**
+/// index within that path's own `surface_refs` — the indexing
+/// `cross_section.rs` actually uses for `surface_frames[active_path]`
+/// (mirrors how `surfaces.rs`'s own hover handler writes a step index, not
+/// a store index). `LensGroupSpec.component_first_surfs` stores store
+/// indices, so the RUF-axis hover annotation must convert through this map
+/// rather than using a store index directly — store and step indices only
+/// coincide by accident in a single-path system.
+fn store_index_to_step_map(specs: &SystemSpecs, active_path: usize) -> HashMap<usize, usize> {
+    let store_table = specs.store_index_table();
+    let Some(path) = specs.paths.get(active_path) else {
+        return HashMap::new();
+    };
+    path.surface_refs
+        .iter()
+        .enumerate()
+        .filter_map(|(step, r)| Some((store_table.resolve(r)?, step)))
+        .collect()
 }
 
 fn default_group_name(c: &Component) -> String {
@@ -192,6 +212,12 @@ impl LensOverlayPanel {
             });
             return changed;
         };
+
+        // Store index -> step index within active_path's own surface_refs,
+        // for the RUF-axis hover annotation. Computed eagerly (not as a
+        // closure over `specs`) so it doesn't hold a borrow across the
+        // row-rendering loop below, which mutates `specs.lens_groups`.
+        let step_for_store_index = store_index_to_step_map(specs, active_path);
 
         let comp_lookup: std::collections::HashMap<usize, &Component> = result
             .components
@@ -374,15 +400,17 @@ impl LensOverlayPanel {
                             });
 
                             if row.response().hovered() {
-                                let surf_idx = specs.lens_groups[row_idx]
+                                let store_idx = specs.lens_groups[row_idx]
                                     .component_first_surfs
                                     .first()
                                     .copied();
-                                if let Some(idx) = surf_idx {
+                                if let Some(&step_idx) =
+                                    store_idx.and_then(|si| step_for_store_index.get(&si))
+                                {
                                     ctx.data_mut(|d| {
                                         d.insert_temp(
                                             egui::Id::new("annotation_hover_surface_idx"),
-                                            idx,
+                                            step_idx,
                                         );
                                     });
                                 }
@@ -472,7 +500,10 @@ impl LensOverlayPanel {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::gui::model::LensGroupSpec;
+    use crate::gui::model::{
+        FieldMode, FieldRow, GapRow, LensGroupSpec, LinkedObjectOrientationRow, PathRow, RowId,
+        SurfaceRefRow, SurfaceRow,
+    };
 
     fn make_element(surfs: Vec<usize>) -> Component {
         Component::Element { surf_idxs: surfs }
@@ -731,5 +762,68 @@ mod tests {
             "the path-0-exclusive group must be discarded once active_path == 1, \
              even though no new ResultPackage arrived"
         );
+    }
+
+    /// Regression: the RUF-axis hover annotation must convert a lens
+    /// group's `component_first_surfs` (a **store** index) into the
+    /// **step** index within `active_path`'s own `surface_refs`, since
+    /// `cross_section.rs` indexes `surface_frames[active_path]` by step.
+    /// Store and step indices only coincide by accident in a single-path
+    /// system; this fixture deliberately mismatches them: path 1's step 1
+    /// (`Shared`) resolves to store index 2, not step index 2.
+    #[test]
+    fn store_index_to_step_map_converts_correctly_for_mismatched_multipath_indices() {
+        let mut specs = SystemSpecs::new_single(PathRow::from_surface_rows(vec![
+            SurfaceRow::new_object("Infinity"), // path 0 step 0 -> store 0
+            SurfaceRow::new_sphere("10.0", "50.0", "5.0", "1.5"), // step 1 -> store 1
+            SurfaceRow::new_sphere("10.0", "Infinity", "5.0", "1.0"), // step 2 -> store 2
+            SurfaceRow::new_image(),            // step 3 -> store 3
+        ]));
+
+        let linked_id = specs.mint_row_id();
+        let img_id = specs.mint_row_id();
+        specs.paths.push(PathRow {
+            name: None,
+            surface_refs: vec![
+                // path 1 step 0 -> store 4 (new Object, linked to path 0).
+                SurfaceRefRow::ObjectLinkedTo {
+                    id: linked_id,
+                    path: 0,
+                    orientation: LinkedObjectOrientationRow::SameDirection,
+                    gap_after: GapRow::default(),
+                },
+                // path 1 step 1 -> store 2 (mismatched: step != store).
+                SurfaceRefRow::Shared {
+                    target: RowId(2),
+                    gap_after: GapRow::default(),
+                },
+                // path 1 step 2 -> store 5.
+                SurfaceRefRow::New(SurfaceRow::new_image().with_id(img_id)),
+            ],
+            stop_surface: None,
+            fields: vec![FieldRow {
+                chi: "0.0".into(),
+                phi: "90.0".into(),
+                x: "0.0".into(),
+            }],
+            field_mode: FieldMode::Angle,
+            aperture_semi_diameter: "10.0".into(),
+            wavelengths: vec!["0.520".into()],
+            beam_splitter_arms: Vec::new(),
+        });
+
+        let map = store_index_to_step_map(&specs, 1);
+        assert_eq!(
+            map.get(&2),
+            Some(&1),
+            "store index 2 must map to step 1 within path 1, not step 2"
+        );
+        assert_eq!(map.get(&4), Some(&0), "the linked Object is step 0");
+        assert_eq!(map.get(&5), Some(&2), "the trailing New Image is step 2");
+        // Path 0's own store indices (0, 1, 3) are not reachable as steps
+        // within path 1's own surface_refs.
+        assert_eq!(map.get(&0), None);
+        assert_eq!(map.get(&1), None);
+        assert_eq!(map.get(&3), None);
     }
 }
