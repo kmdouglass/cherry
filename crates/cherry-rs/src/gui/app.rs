@@ -26,6 +26,10 @@ struct AppState {
     specs: SystemSpecs,
     input_id: u64,
     windows: WindowVisibility,
+    /// Which path the Specs window and every active-path-filtered output
+    /// window currently show. Presentation/navigation state, not part of the
+    /// system's own definition — not carried by `SystemSpecs` (FR-NAV-5).
+    active_path: usize,
 }
 
 pub struct CherryApp {
@@ -33,6 +37,7 @@ pub struct CherryApp {
     specs: SystemSpecs,
     input_id: u64,
     windows: WindowVisibility,
+    active_path: usize,
 
     // Runtime channels
     compute_tx: Sender<ComputeRequest>,
@@ -117,10 +122,14 @@ impl CherryApp {
 
         // Send the initial compute request.
         let initial_id = state.input_id;
+        let initial_active_path = state
+            .active_path
+            .min(state.specs.paths.len().saturating_sub(1));
         compute_tx
             .send(ComputeRequest {
                 id: initial_id,
                 specs: state.specs.clone(),
+                active_path: initial_active_path,
             })
             .ok();
 
@@ -183,6 +192,7 @@ impl CherryApp {
             specs: state.specs,
             input_id: initial_id,
             windows: state.windows,
+            active_path: initial_active_path,
             compute_tx,
             result_rx,
             latest_result: None,
@@ -209,12 +219,22 @@ impl CherryApp {
             .send(ComputeRequest {
                 id: self.input_id,
                 specs: self.specs.clone(),
+                active_path: self.active_path,
             })
             .ok();
     }
 
+    /// Clamp `active_path` to `specs.paths`' current bounds (FR-NAV-6).
+    /// Called at every point `specs.paths` can change length or be
+    /// wholesale-replaced.
+    fn clamp_active_path(&mut self) {
+        let max = self.specs.paths.len().saturating_sub(1);
+        self.active_path = self.active_path.min(max);
+    }
+
     fn load_specs(&mut self, specs: SystemSpecs) {
         self.specs = specs;
+        self.clamp_active_path();
         self.bump_input_id();
     }
 
@@ -271,7 +291,15 @@ impl CherryApp {
             return;
         };
         let dark_mode = ctx.style().visuals.dark_mode;
-        let Some(svg) = self.cross_section_window.export_svg_string(cs, dark_mode) else {
+        let empty = Vec::new();
+        let wavelengths = result
+            .wavelengths_by_path
+            .get(self.active_path)
+            .unwrap_or(&empty);
+        let Some(svg) = self
+            .cross_section_window
+            .export_svg_string(cs, wavelengths, dark_mode)
+        else {
             return;
         };
 
@@ -377,6 +405,7 @@ impl eframe::App for CherryApp {
         let state = AppState {
             specs: self.specs.clone(),
             input_id: self.input_id,
+            active_path: self.active_path,
             windows: WindowVisibility {
                 specs: self.windows.specs,
                 materials: self.windows.materials,
@@ -577,7 +606,9 @@ impl eframe::App for CherryApp {
                 &mut self.windows.specs,
                 &mut self.specs,
                 self.latest_result.as_ref(),
+                &mut self.active_path,
             );
+            self.clamp_active_path();
             if changed {
                 self.bump_input_id();
             }
@@ -602,6 +633,7 @@ impl eframe::App for CherryApp {
                 ctx,
                 &mut self.windows.paraxial_summary,
                 self.latest_result.as_ref(),
+                self.active_path,
             );
         }
 
@@ -610,6 +642,7 @@ impl eframe::App for CherryApp {
                 ctx,
                 &mut self.windows.spot_diagram,
                 self.latest_result.as_ref(),
+                self.active_path,
             );
         }
 
@@ -621,20 +654,28 @@ impl eframe::App for CherryApp {
         }
 
         if self.windows.cross_section {
+            let mut n_rays = self.specs.cross_section_n_rays;
             let changed = self.cross_section_window.show(
                 ctx,
                 &mut self.windows.cross_section,
                 self.latest_result.as_ref(),
-                &mut self.specs.cross_section_n_rays,
+                &mut n_rays,
+                &self.specs,
+                &mut self.active_path,
             );
+            self.specs.cross_section_n_rays = n_rays;
             if changed {
                 self.bump_input_id();
             }
         }
 
         if self.windows.ray_fan {
-            self.ray_fan_window
-                .show(ctx, &mut self.windows.ray_fan, self.latest_result.as_ref());
+            self.ray_fan_window.show(
+                ctx,
+                &mut self.windows.ray_fan,
+                self.latest_result.as_ref(),
+                self.active_path,
+            );
         }
 
         {
@@ -643,6 +684,7 @@ impl eframe::App for CherryApp {
                 &mut self.windows.lens_overlay,
                 &mut self.specs,
                 self.latest_result.as_ref(),
+                self.active_path,
             );
             if changed {
                 self.bump_input_id();

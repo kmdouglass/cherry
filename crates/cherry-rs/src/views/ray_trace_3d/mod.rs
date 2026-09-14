@@ -97,8 +97,10 @@ pub struct TraceResults {
 /// display.
 ///
 /// # Arguments
-/// * `aperture_spec` - The aperture specification.
-/// * `field_specs` - The field specifications.
+/// * `path_id` - Which path to trace. The overlay is strictly one-path-at-a-
+///   time by design; it is never extended to trace every path simultaneously.
+/// * `aperture_spec` - The aperture specification, for `path_id`.
+/// * `field_specs` - The field specifications, for `path_id`.
 /// * `sequential_model` - The sequential model.
 /// * `paraxial_view` - A paraxial view. Required for locating the entrance
 ///   pupil.
@@ -109,6 +111,7 @@ pub struct TraceResults {
 /// A `Vec` of `(field_id, wavelength_id, RayBundle)` tuples, one per
 /// (field, wavelength) pair, in unspecified order.
 pub fn trace_ray_bundle(
+    path_id: usize,
     aperture_spec: &ApertureSpec,
     field_specs: &[FieldSpec],
     sequential_model: &SequentialModel,
@@ -117,7 +120,7 @@ pub fn trace_ray_bundle(
 ) -> Result<Vec<(usize, usize, RayBundle)>> {
     validate_field_specs(sequential_model, field_specs)?;
 
-    let n_wavelengths = sequential_model.wavelengths().len();
+    let n_wavelengths = sequential_model.wavelengths_for_path(path_id).len();
     let pairs: Vec<(usize, usize)> = (0..field_specs.len())
         .flat_map(|f| (0..n_wavelengths).map(move |w| (f, w)))
         .collect();
@@ -127,21 +130,22 @@ pub fn trace_ray_bundle(
         .map(
             |(field_id, wavelength_id)| -> Result<(usize, usize, RayBundle)> {
                 let sequential_submodel = sequential_model
-                    .submodel(wavelength_id)
+                    .submodels_for_path(path_id)
+                    .get(wavelength_id)
                     .ok_or_else(|| anyhow!("Submodel not found"))?;
                 let tangential_vec_id = paraxial_view
-                    .tangential_vec_id_for_phi(0, field_specs[field_id].tangential_fan_phi());
+                    .tangential_vec_id_for_phi(path_id, field_specs[field_id].tangential_fan_phi());
                 let paraxial_subview = paraxial_view
-                    .get(wavelength_id, tangential_vec_id)
+                    .get_for_path(path_id, wavelength_id, tangential_vec_id)
                     .ok_or_else(|| anyhow!("Submodel not found"))?;
 
                 let bundle = ray_trace_submodel(
                     sequential_submodel,
                     sequential_model.surfaces(),
                     sequential_model.placements(),
-                    sequential_model.path_surface_indices(0),
-                    sequential_model.path_beam_splitter_arms(0),
-                    sequential_model.path_steps(0),
+                    sequential_model.path_surface_indices(path_id),
+                    sequential_model.path_beam_splitter_arms(path_id),
+                    sequential_model.path_steps(path_id),
                     aperture_spec,
                     &field_specs[field_id],
                     paraxial_subview,
@@ -958,6 +962,7 @@ mod tests {
         let s = setup();
 
         let bundles = trace_ray_bundle(
+            0,
             &s.aperture_spec,
             &s.field_specs,
             &s.sequential_model,

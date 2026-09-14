@@ -6,8 +6,14 @@ use crate::{gui::result_package::ResultPackage, views::paraxial::ParaxialSubView
 pub struct ParaxialWindow;
 
 impl ParaxialWindow {
-    /// Show the paraxial summary window.
-    pub fn show(ctx: &egui::Context, open: &mut bool, result: Option<&ResultPackage>) {
+    /// Show the paraxial summary window, filtered to `active_path`
+    /// (FR-OUT-1) — this window never overlays multiple paths' data at once.
+    pub fn show(
+        ctx: &egui::Context,
+        open: &mut bool,
+        result: Option<&ResultPackage>,
+        active_path: usize,
+    ) {
         egui::Window::new("Paraxial Summary")
             .open(open)
             .default_width(400.0)
@@ -21,17 +27,21 @@ impl ParaxialWindow {
                     }
                 }
                 Some(r) => {
-                    render_paraxial_content(ui, r);
+                    render_paraxial_content(ui, r, active_path);
                 }
             });
     }
 }
 
-fn render_paraxial_content(ui: &mut egui::Ui, r: &ResultPackage) {
+fn render_paraxial_content(ui: &mut egui::Ui, r: &ResultPackage, active_path: usize) {
     let pv = r.paraxial.as_ref().unwrap();
 
-    // Collect unique v_indices, sorted ascending (ascending phi).
-    let mut v_indices: Vec<usize> = pv.iter().map(|sv| sv.tangential_vec_id()).collect();
+    // Collect unique v_indices for this path only, sorted ascending phi.
+    let mut v_indices: Vec<usize> = pv
+        .iter()
+        .filter(|sv| sv.path_id() == active_path)
+        .map(|sv| sv.tangential_vec_id())
+        .collect();
     v_indices.sort_unstable();
     v_indices.dedup();
     let n_v = v_indices.len();
@@ -48,22 +58,27 @@ fn render_paraxial_content(ui: &mut egui::Ui, r: &ResultPackage) {
         // Subviews for this tangential_vec_id, sorted by wavelength_id.
         let mut ids: Vec<(usize, usize)> = pv
             .iter()
-            .filter(|sv| sv.tangential_vec_id() == v_idx)
+            .filter(|sv| sv.path_id() == active_path && sv.tangential_vec_id() == v_idx)
             .map(|sv| (sv.wavelength_id(), sv.tangential_vec_id()))
             .collect();
         ids.sort_by_key(|&(wl_id, _)| wl_id);
 
-        render_v_table(ui, r, &ids, pv);
+        render_v_table(ui, r, &ids, pv, active_path);
         ui.add_space(8.0);
     }
 
     // Primary Axial Color (only when there are multiple wavelengths).
-    if r.wavelengths.len() > 1 {
+    let n_wavelengths = r
+        .wavelengths_by_path
+        .get(active_path)
+        .map(|w| w.len())
+        .unwrap_or(0);
+    if n_wavelengths > 1 {
         let pac = pv.primary_axial_color();
         for &v_idx in &v_indices {
             if let Some(color) = pac
                 .iter()
-                .find(|ac| ac.path_id == 0 && ac.tangential_vec_id == v_idx)
+                .find(|ac| ac.path_id == active_path && ac.tangential_vec_id == v_idx)
                 .map(|ac| ac.color)
             {
                 let phi_suffix = if n_v > 1 {
@@ -88,6 +103,7 @@ fn render_v_table(
     r: &ResultPackage,
     ids: &[(usize, usize)],
     pv: &crate::views::paraxial::ParaxialView,
+    active_path: usize,
 ) {
     let n_wl = ids.len();
     let row_h = ui.text_style_height(&egui::TextStyle::Body) + 4.0;
@@ -104,8 +120,9 @@ fn render_v_table(
                 for &(wl_id, _) in ids {
                     hdr.col(|ui| {
                         let wl_label = r
-                            .wavelengths
-                            .get(wl_id)
+                            .wavelengths_by_path
+                            .get(active_path)
+                            .and_then(|w| w.get(wl_id))
                             .map(|wl| format!("{wl:.4} \u{00b5}m"))
                             .unwrap_or_else(|| format!("WL {wl_id}"));
                         ui.label(wl_label);
@@ -113,11 +130,11 @@ fn render_v_table(
                 }
             })
             .body(|mut body| {
-                render_table_body(&mut body, row_h, ids, pv);
+                render_table_body(&mut body, row_h, ids, pv, active_path);
             });
     } else {
         builder.body(|mut body| {
-            render_table_body(&mut body, row_h, ids, pv);
+            render_table_body(&mut body, row_h, ids, pv, active_path);
         });
     }
 }
@@ -127,6 +144,7 @@ fn render_table_body(
     row_h: f32,
     ids: &[(usize, usize)],
     pv: &crate::views::paraxial::ParaxialView,
+    active_path: usize,
 ) {
     let n_cols = 1 + ids.len();
 
@@ -134,65 +152,125 @@ fn render_table_body(
         tb_sep(body, n_cols);
     }
 
-    tb_row(body, row_h, "Effective focal length", ids, pv, |sv| {
-        *sv.effective_focal_length()
-    });
-    tb_row(body, row_h, "Back focal distance", ids, pv, |sv| {
-        *sv.back_focal_distance()
-    });
+    tb_row(
+        body,
+        row_h,
+        "Effective focal length",
+        ids,
+        pv,
+        active_path,
+        |sv| *sv.effective_focal_length(),
+    );
+    tb_row(
+        body,
+        row_h,
+        "Back focal distance",
+        ids,
+        pv,
+        active_path,
+        |sv| *sv.back_focal_distance(),
+    );
     tb_row(
         body,
         row_h,
         "Back principal plane location",
         ids,
         pv,
+        active_path,
         |sv| *sv.back_principal_plane(),
     );
-    tb_row(body, row_h, "Front focal length", ids, pv, |sv| {
-        *sv.front_focal_length()
-    });
-    tb_row(body, row_h, "Front focal distance", ids, pv, |sv| {
-        *sv.front_focal_distance()
-    });
+    tb_row(
+        body,
+        row_h,
+        "Front focal length",
+        ids,
+        pv,
+        active_path,
+        |sv| *sv.front_focal_length(),
+    );
+    tb_row(
+        body,
+        row_h,
+        "Front focal distance",
+        ids,
+        pv,
+        active_path,
+        |sv| *sv.front_focal_distance(),
+    );
     tb_row(
         body,
         row_h,
         "Front principal plane location",
         ids,
         pv,
+        active_path,
         |sv| *sv.front_principal_plane(),
     );
 
     tb_sep(body, n_cols);
 
-    tb_row(body, row_h, "Paraxial F/#", ids, pv, |sv| sv.paraxial_fno());
-    tb_row(body, row_h, "Image space F/#", ids, pv, |sv| {
+    tb_row(body, row_h, "Paraxial F/#", ids, pv, active_path, |sv| {
+        sv.paraxial_fno()
+    });
+    tb_row(body, row_h, "Image space F/#", ids, pv, active_path, |sv| {
         sv.image_space_fno()
     });
 
-    tb_row(body, row_h, "Lagrange invariant", ids, pv, |sv| {
-        let stop = *sv.aperture_stop();
-        sv.lagrange_invariants()
-            .get(stop)
-            .copied()
-            .unwrap_or(f64::NAN)
-            .abs()
-    });
+    tb_row(
+        body,
+        row_h,
+        "Lagrange invariant",
+        ids,
+        pv,
+        active_path,
+        |sv| {
+            let stop = *sv.aperture_stop();
+            sv.lagrange_invariants()
+                .get(stop)
+                .copied()
+                .unwrap_or(f64::NAN)
+                .abs()
+        },
+    );
 
     tb_sep(body, n_cols);
 
-    tb_row(body, row_h, "Entrance pupil location", ids, pv, |sv| {
-        sv.entrance_pupil().location
-    });
-    tb_row(body, row_h, "Entrance pupil semi-diameter", ids, pv, |sv| {
-        sv.entrance_pupil().semi_diameter
-    });
-    tb_row(body, row_h, "Exit pupil location", ids, pv, |sv| {
-        sv.exit_pupil().location
-    });
-    tb_row(body, row_h, "Exit pupil semi-diameter", ids, pv, |sv| {
-        sv.exit_pupil().semi_diameter
-    });
+    tb_row(
+        body,
+        row_h,
+        "Entrance pupil location",
+        ids,
+        pv,
+        active_path,
+        |sv| sv.entrance_pupil().location,
+    );
+    tb_row(
+        body,
+        row_h,
+        "Entrance pupil semi-diameter",
+        ids,
+        pv,
+        active_path,
+        |sv| sv.entrance_pupil().semi_diameter,
+    );
+    tb_row(
+        body,
+        row_h,
+        "Exit pupil location",
+        ids,
+        pv,
+        active_path,
+        |sv| sv.exit_pupil().location,
+    );
+    tb_row(
+        body,
+        row_h,
+        "Exit pupil semi-diameter",
+        ids,
+        pv,
+        active_path,
+        |sv| sv.exit_pupil().semi_diameter,
+    );
 
     tb_sep(body, n_cols);
 
@@ -203,7 +281,7 @@ fn render_table_body(
         });
         for &(wl_id, tangential_vec_id) in ids {
             row.col(|ui| {
-                if let Some(sv) = pv.get(wl_id, tangential_vec_id) {
+                if let Some(sv) = pv.get_for_path(active_path, wl_id, tangential_vec_id) {
                     ui.label(sv.aperture_stop().to_string());
                 } else {
                     ui.label("\u{2014}");
@@ -234,6 +312,7 @@ fn tb_row<F>(
     label: &str,
     ids: &[(usize, usize)],
     pv: &crate::views::paraxial::ParaxialView,
+    active_path: usize,
     get_val: F,
 ) where
     F: Fn(&ParaxialSubView) -> f64,
@@ -244,7 +323,7 @@ fn tb_row<F>(
         });
         for &(wl_id, tangential_vec_id) in ids {
             row.col(|ui| {
-                if let Some(sv) = pv.get(wl_id, tangential_vec_id) {
+                if let Some(sv) = pv.get_for_path(active_path, wl_id, tangential_vec_id) {
                     ui.label(format_value(get_val(sv)));
                 } else {
                     ui.label("\u{2014}");
@@ -278,32 +357,29 @@ mod tests {
 
     fn make_result(wavelengths: &[&str]) -> ResultPackage {
         use crate::gui::{convert, model::SystemSpecs};
-        use crate::{ParaxialView, SequentialModel};
+        use crate::{ParaxialView, SequentialModelBuilder};
 
-        let specs = SystemSpecs {
-            wavelengths: wavelengths.iter().map(|s| s.to_string()).collect(),
-            ..Default::default()
-        };
+        let mut specs = SystemSpecs::default();
+        specs.paths[0].wavelengths = wavelengths.iter().map(|s| s.to_string()).collect();
         #[cfg(not(feature = "ri-info"))]
         let parsed = convert::convert_specs(&specs).expect("convert");
         #[cfg(feature = "ri-info")]
         let parsed = convert::convert_specs(&specs, &Default::default()).expect("convert");
-        let seq = SequentialModel::from_surface_specs(
-            &parsed.gaps,
-            &parsed.surfaces,
-            &parsed.wavelengths,
-            None,
-        )
-        .expect("model");
-        let pv =
-            ParaxialView::new(&seq, std::slice::from_ref(&parsed.fields), false).expect("paraxial");
+        let seq = SequentialModelBuilder::new()
+            .paths(parsed.path_specs)
+            .build()
+            .expect("model")
+            .model;
+        let pv = ParaxialView::new(&seq, &parsed.field_specs_by_path, false).expect("paraxial");
         let wls = seq.wavelengths().to_vec();
+        let wavelengths_by_path = vec![wls.clone()];
         ResultPackage {
             id: 1,
             wavelengths: wls,
+            wavelengths_by_path,
             surfaces: Vec::new(),
-            fields: Vec::new(),
-            field_specs: parsed.fields.clone(),
+            fields_by_path: vec![Vec::new()],
+            field_specs_by_path: parsed.field_specs_by_path,
             paraxial: Some(pv),
             ray_trace: None,
             cross_section: None,
@@ -317,7 +393,7 @@ mod tests {
     fn no_result_shows_placeholder() {
         let mut harness = Harness::new(|ctx| {
             let mut open = true;
-            ParaxialWindow::show(ctx, &mut open, None);
+            ParaxialWindow::show(ctx, &mut open, None, 0);
         });
         harness.step();
         harness.get_by_label("No data yet.");
@@ -328,7 +404,7 @@ mod tests {
         let result = ResultPackage::error(1, "bad specs".to_string());
         let mut harness = Harness::new(|ctx| {
             let mut open = true;
-            ParaxialWindow::show(ctx, &mut open, Some(&result));
+            ParaxialWindow::show(ctx, &mut open, Some(&result), 0);
         });
         harness.step();
         harness.get_by_label_contains("bad specs");
@@ -339,7 +415,7 @@ mod tests {
         let result = make_result(&["0.567"]);
         let mut harness = Harness::new(|ctx| {
             let mut open = true;
-            ParaxialWindow::show(ctx, &mut open, Some(&result));
+            ParaxialWindow::show(ctx, &mut open, Some(&result), 0);
         });
         harness.step();
         harness.get_by_label("Effective focal length");
@@ -352,7 +428,7 @@ mod tests {
         let result = make_result(&["0.567"]);
         let mut harness = Harness::new(|ctx| {
             let mut open = true;
-            ParaxialWindow::show(ctx, &mut open, Some(&result));
+            ParaxialWindow::show(ctx, &mut open, Some(&result), 0);
         });
         harness.step();
         // With one wavelength, no wavelength header row should appear.
@@ -367,7 +443,7 @@ mod tests {
         let result = make_result(&["0.486", "0.587", "0.656"]);
         let mut harness = Harness::new(|ctx| {
             let mut open = true;
-            ParaxialWindow::show(ctx, &mut open, Some(&result));
+            ParaxialWindow::show(ctx, &mut open, Some(&result), 0);
         });
         harness.step();
         // Each wavelength should appear as a column header.
@@ -381,7 +457,7 @@ mod tests {
         let result = make_result(&["0.486", "0.587", "0.656"]);
         let mut harness = Harness::new(|ctx| {
             let mut open = true;
-            ParaxialWindow::show(ctx, &mut open, Some(&result));
+            ParaxialWindow::show(ctx, &mut open, Some(&result), 0);
         });
         harness.step();
         harness.get_by_label_contains("Primary Axial Color");
@@ -392,7 +468,7 @@ mod tests {
         let result = make_result(&["0.567"]);
         let mut harness = Harness::new(|ctx| {
             let mut open = true;
-            ParaxialWindow::show(ctx, &mut open, Some(&result));
+            ParaxialWindow::show(ctx, &mut open, Some(&result), 0);
         });
         harness.step();
         harness.get_by_label("Paraxial F/#");
@@ -404,7 +480,7 @@ mod tests {
         let result = make_result(&["0.567"]);
         let mut harness = Harness::new(|ctx| {
             let mut open = true;
-            ParaxialWindow::show(ctx, &mut open, Some(&result));
+            ParaxialWindow::show(ctx, &mut open, Some(&result), 0);
         });
         harness.step();
         harness.get_by_label("Lagrange invariant");
@@ -415,7 +491,7 @@ mod tests {
         let result = make_result(&["0.567"]);
         let mut harness = Harness::new(|ctx| {
             let mut open = true;
-            ParaxialWindow::show(ctx, &mut open, Some(&result));
+            ParaxialWindow::show(ctx, &mut open, Some(&result), 0);
         });
         harness.step();
         assert!(

@@ -12,6 +12,7 @@ const PLOT_SIZE: f32 = 180.0;
 /// Parameters describing which field/surface/wavelength data to render.
 struct FieldPlotQuery<'a> {
     ray_trace: &'a crate::TraceResultsCollection,
+    active_path: usize,
     wavelengths: &'a [f64],
     field_id: usize,
     surface_idx: usize,
@@ -32,19 +33,27 @@ pub struct SpotDiagramWindow {
 }
 
 impl SpotDiagramWindow {
-    /// Show the spot diagram window.
-    pub fn show(&mut self, ctx: &egui::Context, open: &mut bool, result: Option<&ResultPackage>) {
+    /// Show the spot diagram window, filtered to `active_path` (FR-OUT-1).
+    pub fn show(
+        &mut self,
+        ctx: &egui::Context,
+        open: &mut bool,
+        result: Option<&ResultPackage>,
+        active_path: usize,
+    ) {
         egui::Window::new("Spot Diagram")
             .open(open)
             .default_width(640.0)
             .min_width(300.0)
             .show(ctx, |ui| {
                 // Sync wavelength visibility when the result package changes.
-                if let Some(r) = result
-                    && r.wavelengths.len() != self.last_n_wavelengths
-                {
-                    self.wavelength_visible = vec![true; r.wavelengths.len()];
-                    self.last_n_wavelengths = r.wavelengths.len();
+                let n_wl = result
+                    .and_then(|r| r.wavelengths_by_path.get(active_path))
+                    .map(|w| w.len())
+                    .unwrap_or(0);
+                if n_wl != self.last_n_wavelengths {
+                    self.wavelength_visible = vec![true; n_wl];
+                    self.last_n_wavelengths = n_wl;
                 }
 
                 match result {
@@ -63,14 +72,18 @@ impl SpotDiagramWindow {
                         );
                     }
                     Some(r) => {
-                        self.render_content(ui, r);
+                        self.render_content(ui, r, active_path);
                     }
                 }
             });
     }
 
-    fn render_content(&mut self, ui: &mut egui::Ui, r: &ResultPackage) {
+    fn render_content(&mut self, ui: &mut egui::Ui, r: &ResultPackage, active_path: usize) {
         let ray_trace = r.ray_trace.as_ref().unwrap();
+        let empty_wls = Vec::new();
+        let empty_fields = Vec::new();
+        let wavelengths = r.wavelengths_by_path.get(active_path).unwrap_or(&empty_wls);
+        let fields = r.fields_by_path.get(active_path).unwrap_or(&empty_fields);
 
         // Determine the default surface (Image, last in list).
         let image_surface_idx = r
@@ -103,9 +116,9 @@ impl SpotDiagramWindow {
         });
 
         // Wavelength toggles (only when more than one wavelength).
-        if r.wavelengths.len() > 1 {
+        if wavelengths.len() > 1 {
             ui.horizontal(|ui| {
-                for (i, &wl) in r.wavelengths.iter().enumerate() {
+                for (i, &wl) in wavelengths.iter().enumerate() {
                     if let Some(v) = self.wavelength_visible.get_mut(i) {
                         ui.checkbox(v, format!("{wl:.4} \u{00b5}m"));
                     }
@@ -115,7 +128,7 @@ impl SpotDiagramWindow {
 
         ui.separator();
 
-        let n_fields = r.fields.len();
+        let n_fields = fields.len();
         if n_fields == 0 {
             ui.label("No fields defined.");
             return;
@@ -124,14 +137,14 @@ impl SpotDiagramWindow {
         // Field plots in a row, each with its own bounding box.
         ui.horizontal(|ui| {
             for field_id in 0..n_fields {
-                let field_label = r
-                    .fields
+                let field_label = fields
                     .get(field_id)
                     .map(|f| f.label.as_str())
                     .unwrap_or("—");
                 let query = FieldPlotQuery {
                     ray_trace,
-                    wavelengths: &r.wavelengths,
+                    active_path,
+                    wavelengths,
                     field_id,
                     surface_idx: selected_idx,
                     wavelength_visible: &self.wavelength_visible,
@@ -160,7 +173,10 @@ fn compute_field_axis_range(query: &FieldPlotQuery) -> ((f64, f64), (f64, f64)) 
         if !visible {
             continue;
         }
-        if let Some(tr) = query.ray_trace.get(query.field_id, wl_id) {
+        if let Some(tr) = query
+            .ray_trace
+            .get_for_path(query.active_path, query.field_id, wl_id)
+        {
             for (x, y) in rays_at_surface(tr.full_pupil(), query.surface_idx, query.surf_desc) {
                 x_min = x_min.min(x);
                 x_max = x_max.max(x);
@@ -239,7 +255,10 @@ fn render_field_plot(ui: &mut egui::Ui, query: &FieldPlotQuery, ranges: ((f64, f
             .map(wavelength_to_color)
             .unwrap_or(egui::Color32::WHITE);
 
-        if let Some(tr) = query.ray_trace.get(query.field_id, wl_id) {
+        if let Some(tr) = query
+            .ray_trace
+            .get_for_path(query.active_path, query.field_id, wl_id)
+        {
             // Ray intersection scatter.
             for (rx, ry) in rays_at_surface(tr.full_pupil(), query.surface_idx, query.surf_desc) {
                 let sp = to_screen(rx, ry);
@@ -350,7 +369,7 @@ mod tests {
         ctx: &egui::Context,
     ) {
         let mut open = true;
-        window.show(ctx, &mut open, result);
+        window.show(ctx, &mut open, result, 0);
     }
 
     #[test]
@@ -379,29 +398,28 @@ mod tests {
     #[test]
     fn ray_trace_unavailable_shown_when_only_paraxial() {
         use crate::gui::{convert, model::SystemSpecs};
-        use crate::{ParaxialView, SequentialModel};
+        use crate::{ParaxialView, SequentialModelBuilder};
 
         let specs = SystemSpecs::default();
         #[cfg(not(feature = "ri-info"))]
         let parsed = convert::convert_specs(&specs).expect("convert");
         #[cfg(feature = "ri-info")]
         let parsed = convert::convert_specs(&specs, &Default::default()).expect("convert");
-        let seq = SequentialModel::from_surface_specs(
-            &parsed.gaps,
-            &parsed.surfaces,
-            &parsed.wavelengths,
-            None,
-        )
-        .expect("model");
-        let pv =
-            ParaxialView::new(&seq, std::slice::from_ref(&parsed.fields), false).expect("paraxial");
+        let seq = SequentialModelBuilder::new()
+            .paths(parsed.path_specs)
+            .build()
+            .expect("model")
+            .model;
+        let pv = ParaxialView::new(&seq, &parsed.field_specs_by_path, false).expect("paraxial");
 
+        let wls = seq.wavelengths().to_vec();
         let result = ResultPackage {
             id: 1,
-            wavelengths: seq.wavelengths().to_vec(),
+            wavelengths: wls.clone(),
+            wavelengths_by_path: vec![wls],
             surfaces: Vec::new(),
-            fields: Vec::new(),
-            field_specs: Vec::new(),
+            fields_by_path: vec![Vec::new()],
+            field_specs_by_path: parsed.field_specs_by_path,
             paraxial: Some(pv),
             ray_trace: None,
             cross_section: None,
@@ -428,10 +446,10 @@ mod tests {
             convert,
             model::{FieldRow, SystemSpecs},
         };
-        use crate::{ParaxialView, SequentialModel, ray_trace_3d_view};
+        use crate::{ParaxialView, SequentialModelBuilder, ray_trace_3d_view};
 
         let mut specs = SystemSpecs::default();
-        specs.fields.push(FieldRow {
+        specs.paths[0].fields.push(FieldRow {
             chi: "5.0".into(),
             phi: "90.0".into(),
             x: "0.0".into(),
@@ -441,18 +459,15 @@ mod tests {
         let parsed = convert::convert_specs(&specs).expect("convert");
         #[cfg(feature = "ri-info")]
         let parsed = convert::convert_specs(&specs, &Default::default()).expect("convert");
-        let seq = SequentialModel::from_surface_specs(
-            &parsed.gaps,
-            &parsed.surfaces,
-            &parsed.wavelengths,
-            None,
-        )
-        .expect("model");
-        let pv =
-            ParaxialView::new(&seq, std::slice::from_ref(&parsed.fields), false).expect("paraxial");
+        let seq = SequentialModelBuilder::new()
+            .paths(parsed.path_specs)
+            .build()
+            .expect("model")
+            .model;
+        let pv = ParaxialView::new(&seq, &parsed.field_specs_by_path, false).expect("paraxial");
         let trace = ray_trace_3d_view(
-            &[parsed.aperture],
-            std::slice::from_ref(&parsed.fields),
+            &parsed.aperture_specs_by_path,
+            &parsed.field_specs_by_path,
             &seq,
             &pv,
             crate::views::ray_trace_3d::SamplingConfig {
@@ -462,9 +477,11 @@ mod tests {
         )
         .expect("trace");
 
+        let wls = seq.wavelengths().to_vec();
         let result = ResultPackage {
             id: 1,
-            wavelengths: seq.wavelengths().to_vec(),
+            wavelengths: wls.clone(),
+            wavelengths_by_path: vec![wls],
             surfaces: {
                 seq.surfaces()
                     .iter()
@@ -478,15 +495,15 @@ mod tests {
                     })
                     .collect()
             },
-            fields: vec![
+            fields_by_path: vec![vec![
                 FieldDesc {
                     label: "0.000\u{00b0}".into(),
                 },
                 FieldDesc {
                     label: "5.000\u{00b0}".into(),
                 },
-            ],
-            field_specs: parsed.fields.clone(),
+            ]],
+            field_specs_by_path: parsed.field_specs_by_path,
             paraxial: Some(pv),
             ray_trace: Some(trace),
             cross_section: None,

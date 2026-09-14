@@ -3,32 +3,36 @@ use egui_extras::{Column, TableBuilder};
 use super::super::model::{FieldMode, FieldRow, SystemSpecs};
 use super::{format_display_float, parse_display_float};
 
-/// Draw the fields editor panel. Returns true if any spec was modified.
-pub fn fields_panel(ui: &mut egui::Ui, specs: &mut SystemSpecs) -> bool {
+/// Draw the fields editor panel for `specs.paths[active_path]`. Returns true
+/// if any spec was modified.
+pub fn fields_panel(ui: &mut egui::Ui, specs: &mut SystemSpecs, active_path: usize) -> bool {
     let mut changed = false;
+    let Some(path) = specs.paths.get_mut(active_path) else {
+        return false;
+    };
 
     // Field mode toggle
     ui.horizontal(|ui| {
         ui.label("Mode:");
         if ui
-            .selectable_label(specs.field_mode == FieldMode::Angle, "Angle")
+            .selectable_label(path.field_mode == FieldMode::Angle, "Angle")
             .clicked()
         {
-            specs.field_mode = FieldMode::Angle;
+            path.field_mode = FieldMode::Angle;
             changed = true;
         }
         if ui
-            .selectable_label(specs.field_mode == FieldMode::PointSource, "Point Source")
+            .selectable_label(path.field_mode == FieldMode::PointSource, "Point Source")
             .clicked()
         {
-            specs.field_mode = FieldMode::PointSource;
+            path.field_mode = FieldMode::PointSource;
             changed = true;
         }
     });
 
     ui.separator();
 
-    let is_angle = specs.field_mode == FieldMode::Angle;
+    let is_angle = path.field_mode == FieldMode::Angle;
 
     egui::ScrollArea::horizontal().show(ui, |ui| {
         let table = TableBuilder::new(ui)
@@ -65,13 +69,13 @@ pub fn fields_panel(ui: &mut egui::Ui, specs: &mut SystemSpecs) -> bool {
                 });
             })
             .body(|mut body| {
-                let num_fields = specs.fields.len();
+                let num_fields = path.fields.len();
                 let mut insert_after: Option<usize> = None;
                 let mut delete_at: Option<usize> = None;
 
                 for row_idx in 0..num_fields {
                     body.row(22.0, |mut row| {
-                        let field = &mut specs.fields[row_idx];
+                        let field = &mut path.fields[row_idx];
 
                         row.col(|ui| {
                             ui.label(row_idx.to_string());
@@ -138,7 +142,7 @@ pub fn fields_panel(ui: &mut egui::Ui, specs: &mut SystemSpecs) -> bool {
                 }
 
                 if let Some(idx) = insert_after {
-                    specs.fields.insert(
+                    path.fields.insert(
                         idx + 1,
                         FieldRow {
                             chi: "0.0".into(),
@@ -149,7 +153,7 @@ pub fn fields_panel(ui: &mut egui::Ui, specs: &mut SystemSpecs) -> bool {
                     changed = true;
                 }
                 if let Some(idx) = delete_at {
-                    specs.fields.remove(idx);
+                    path.fields.remove(idx);
                     changed = true;
                 }
             });

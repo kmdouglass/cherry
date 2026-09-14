@@ -35,12 +35,19 @@ pub struct FieldDesc {
 pub struct ResultPackage {
     /// Matches the `input_id` of the request that produced this result.
     pub id: u64,
+    /// Path-0 shorthand, kept for callers that haven't been scoped to
+    /// `active_path` yet; prefer `wavelengths_by_path` for anything
+    /// path-aware.
     pub wavelengths: Vec<f64>,
+    /// Wavelengths for each path, indexed by `path_id`.
+    pub wavelengths_by_path: Vec<Vec<f64>>,
     pub surfaces: Vec<SurfaceDesc>,
-    pub fields: Vec<FieldDesc>,
-    /// Parsed field specs in the same order as `fields`. Used by the Ray Fan
-    /// Plot window for TA computation and the paraxial chief-ray fallback.
-    pub field_specs: Vec<FieldSpec>,
+    /// Field descriptions for each path, indexed by `path_id`.
+    pub fields_by_path: Vec<Vec<FieldDesc>>,
+    /// Parsed field specs for each path, indexed by `path_id`, in the same
+    /// order as `fields_by_path`. Used by the Ray Fan Plot window for TA
+    /// computation and the paraxial chief-ray fallback.
+    pub field_specs_by_path: Vec<Vec<FieldSpec>>,
     pub paraxial: Option<ParaxialView>,
     pub ray_trace: Option<TraceResultsCollection>,
     pub cross_section: Option<CrossSectionView>,
@@ -56,9 +63,10 @@ impl ResultPackage {
         Self {
             id,
             wavelengths: Vec::new(),
+            wavelengths_by_path: Vec::new(),
             surfaces: Vec::new(),
-            fields: Vec::new(),
-            field_specs: Vec::new(),
+            fields_by_path: Vec::new(),
+            field_specs_by_path: Vec::new(),
             paraxial: None,
             ray_trace: None,
             cross_section: None,

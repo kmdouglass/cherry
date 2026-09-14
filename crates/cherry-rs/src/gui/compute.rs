@@ -4,22 +4,24 @@ use std::sync::mpsc::{Receiver, Sender};
 use std::{collections::HashMap, rc::Rc};
 
 use crate::{
-    ParaxialView, SequentialModel, SequentialModelBuilder, components_view, cross_section_view,
-    ray_trace_3d_view,
-    specs::{fields::PupilSampling, gaps::GapSpec, surfaces::SurfaceSpec},
-    trace_ray_bundle,
+    ParaxialView, SequentialModel, SequentialModelBuilder, SequentialSubModel, components_view,
+    cross_section_view, ray_trace_3d_view, specs::fields::PupilSampling, trace_ray_bundle,
     views::ray_trace_3d::SamplingConfig,
 };
 
 use super::{
     convert,
-    model::{SolveSpec, SystemSpecs},
+    model::{SolveParameter, SolveSpec, SystemSpecs},
     result_package::{ResultPackage, SolvedValues, SurfaceDesc},
 };
 
 pub struct ComputeRequest {
     pub id: u64,
     pub specs: SystemSpecs,
+    /// Which path the cross-section ray-fan overlay traces (FR-XS-6). Every
+    /// other computed value covers every path in one pass regardless of this
+    /// field.
+    pub active_path: usize,
 }
 
 /// Spawn the compute thread on native or as a Web Worker on WASM.
@@ -123,42 +125,40 @@ fn run_compute(
         Err(e) => return ResultPackage::error(req.id, format!("Specs error: {e}")),
     };
 
-    let build_result = {
-        let mut builder = SequentialModelBuilder::new()
-            .gap_specs(parsed.gaps)
-            .surface_specs(parsed.surfaces)
-            .wavelengths(parsed.wavelengths.clone())
-            .solves(parsed.solves);
-        if let Some(stop) = req.specs.stop_surface {
-            builder = builder.stop_surface(stop);
-        }
-        match builder.build() {
-            Ok(r) => r,
-            Err(e) => return ResultPackage::error(req.id, format!("Model error: {e}")),
-        }
+    let build_result = SequentialModelBuilder::new()
+        .paths(parsed.path_specs)
+        .solves(parsed.solves)
+        .build();
+    let build_result = match build_result {
+        Ok(r) => r,
+        Err(e) => return ResultPackage::error(req.id, format!("Model error: {e}")),
     };
-
-    let solved_values = extract_solved_values(
-        &req.specs.solves,
-        &build_result.gap_specs,
-        &build_result.surface_specs,
-    );
-
     let seq = build_result.model;
 
-    let wavelengths = seq.wavelengths().to_vec();
-    let surfaces = build_surface_descs(&seq);
-    let fields = build_field_descs(&parsed.fields);
+    let active_path = req.active_path.min(seq.path_count().saturating_sub(1));
+    let solved_values = extract_solved_values(&req.specs.solves, &seq);
 
-    let pv = match ParaxialView::new(&seq, std::slice::from_ref(&parsed.fields), false) {
+    let wavelengths = seq.wavelengths().to_vec();
+    let wavelengths_by_path: Vec<Vec<f64>> = (0..seq.path_count())
+        .map(|p| seq.wavelengths_for_path(p).to_vec())
+        .collect();
+    let surfaces = build_surface_descs(&seq);
+    let fields_by_path: Vec<Vec<super::result_package::FieldDesc>> = parsed
+        .field_specs_by_path
+        .iter()
+        .map(|fs| build_field_descs(fs))
+        .collect();
+
+    let pv = match ParaxialView::new(&seq, &parsed.field_specs_by_path, false) {
         Ok(p) => p,
         Err(e) => {
             return ResultPackage {
                 id: req.id,
                 wavelengths,
+                wavelengths_by_path,
                 surfaces,
-                fields,
-                field_specs: parsed.fields.clone(),
+                fields_by_path,
+                field_specs_by_path: parsed.field_specs_by_path,
                 paraxial: None,
                 ray_trace: None,
                 cross_section: None,
@@ -180,8 +180,8 @@ fn run_compute(
         full_pupil_spacing,
     };
     let trace = match ray_trace_3d_view(
-        &[parsed.aperture],
-        std::slice::from_ref(&parsed.fields),
+        &parsed.aperture_specs_by_path,
+        &parsed.field_specs_by_path,
         &seq,
         &pv,
         config,
@@ -193,9 +193,12 @@ fn run_compute(
         }
     };
 
+    // Ray-fan overlay for the cross-section window: active-path-only
+    // (FR-XS-6), not every path simultaneously.
     let cross_section_rays = trace_ray_bundle(
-        &parsed.aperture,
-        &parsed.fields,
+        active_path,
+        &parsed.aperture_specs_by_path[active_path],
+        &parsed.field_specs_by_path[active_path],
         &seq,
         &pv,
         PupilSampling::TangentialRayFan {
@@ -214,9 +217,10 @@ fn run_compute(
     ResultPackage {
         id: req.id,
         wavelengths,
+        wavelengths_by_path,
         surfaces,
-        fields,
-        field_specs: parsed.fields.clone(),
+        fields_by_path,
+        field_specs_by_path: parsed.field_specs_by_path,
         paraxial: Some(pv),
         ray_trace: trace,
         cross_section,
@@ -226,41 +230,34 @@ fn run_compute(
     }
 }
 
-fn extract_solved_values(
-    solves: &[SolveSpec],
-    gap_specs: &[GapSpec],
-    surface_specs: &[SurfaceSpec],
-) -> SolvedValues {
+/// Extract post-solve values directly from the built model, keyed the same
+/// way the Surfaces-tab UI looks them up: `Thickness`-kind solves by
+/// (`path_id`, path-relative `gap_index`); `Curvature`-kind solves by global
+/// store index. Reading from the final `seq` (rather than
+/// `BuildResult::gap_specs`/`surface_specs`, which are only populated for the
+/// single-path build branch) works uniformly for both single- and
+/// multipath models.
+fn extract_solved_values(solves: &[SolveSpec], seq: &SequentialModel) -> SolvedValues {
     let mut sv = SolvedValues::default();
     for solve in solves {
-        match solve {
-            SolveSpec::MarginalRayHeight { gap_index, .. } => {
-                if let Some(gap) = gap_specs.get(*gap_index) {
-                    sv.gap_thicknesses.insert(*gap_index, gap.thickness);
+        match solve.parameter() {
+            SolveParameter::Thickness => {
+                if let Some(submodel) = seq.submodels_for_path(solve.path_id()).first()
+                    && let Some(gap) = submodel.gaps().get(solve.surface_index())
+                {
+                    sv.gap_thicknesses
+                        .insert(solve.surface_index(), gap.thickness);
                 }
             }
-            SolveSpec::FNumber { surface_index, .. } => {
-                if let Some(roc) = roc_from_spec(surface_specs.get(*surface_index)) {
-                    sv.surface_rocs.insert(*surface_index, roc);
+            SolveParameter::RadiusOfCurvature => {
+                if let Some(surface) = seq.surfaces().get(solve.surface_index()) {
+                    sv.surface_rocs
+                        .insert(solve.surface_index(), surface.roc(0.0));
                 }
             }
         }
     }
     sv
-}
-
-fn roc_from_spec(spec: Option<&SurfaceSpec>) -> Option<f64> {
-    match spec? {
-        SurfaceSpec::Conic {
-            radius_of_curvature,
-            ..
-        } => Some(*radius_of_curvature),
-        SurfaceSpec::Sphere {
-            radius_of_curvature,
-            ..
-        } => Some(*radius_of_curvature),
-        _ => None,
-    }
 }
 
 fn build_surface_descs(seq: &SequentialModel) -> Vec<SurfaceDesc> {
@@ -321,13 +318,11 @@ mod tests {
         let parsed = convert::convert_specs(&specs).expect("convert");
         #[cfg(feature = "ri-info")]
         let parsed = convert::convert_specs(&specs, &Default::default()).expect("convert");
-        let seq = SequentialModel::from_surface_specs(
-            &parsed.gaps,
-            &parsed.surfaces,
-            &parsed.wavelengths,
-            None,
-        )
-        .expect("model");
+        let seq = SequentialModelBuilder::new()
+            .paths(parsed.path_specs)
+            .build()
+            .expect("model")
+            .model;
         let descs = build_surface_descs(&seq);
 
         assert!(

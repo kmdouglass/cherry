@@ -40,6 +40,14 @@ pub enum Component {
     ThinLens {
         surf_idx: usize,
     },
+    /// A beam-splitting surface, detected by `surface_kind()` rather than by
+    /// gap-pairing — like `ThinLens`, it normally sits between two
+    /// equal-index (background) gaps, since arm selection
+    /// (transmitting/reflecting) is a per-path property, not a property of
+    /// the surrounding media.
+    BeamSplitter {
+        surf_idx: usize,
+    },
     UnpairedSurface {
         surf_idx: usize,
     },
@@ -153,6 +161,11 @@ fn components_for_path(
             claimed.insert(step);
         } else if kind == SurfaceKind::ThinLens {
             non_elements.push(Component::ThinLens {
+                surf_idx: store_idx,
+            });
+            claimed.insert(step);
+        } else if kind == SurfaceKind::BeamSplitter {
+            non_elements.push(Component::BeamSplitter {
                 surf_idx: store_idx,
             });
             claimed.insert(step);
@@ -283,6 +296,7 @@ fn components_for_path(
         Component::Iris { stop_idx } => *stop_idx,
         Component::Mirror { surf_idx } => *surf_idx,
         Component::ThinLens { surf_idx } => *surf_idx,
+        Component::BeamSplitter { surf_idx } => *surf_idx,
         Component::UnpairedSurface { surf_idx } => *surf_idx,
     });
     Ok(result)
@@ -1056,6 +1070,77 @@ mod tests {
         assert!(components.contains(&PathComponent {
             path_id: 1,
             component: objective,
+        }));
+    }
+
+    pub fn beam_splitter_in_background() -> SequentialModel {
+        // A beam splitter surrounded on both sides by the background medium
+        // (air) — exactly wf_epi_microscope's topology. Before the
+        // gap-context-independent classification fix, a BeamSplitter here
+        // was invisible to components_for_path: it isn't a Mirror
+        // (boundary_kind() is Refracting, not Reflecting), and it borders no
+        // non-background gap, so it fell through both the unconditional
+        // classification pass and the unpaired-surface check.
+        let air = n!(1.0);
+        let surfaces = vec![
+            SurfaceSpec::Object,
+            SurfaceSpec::BeamSplitter {
+                semi_diameter: 12.5,
+                rotation: Rotation3D::None,
+                decenter: Vec3::new(0.0, 0.0, 0.0),
+                rotation_offset: Rotation3D::None,
+            },
+            SurfaceSpec::Image {
+                rotation: Rotation3D::None,
+                decenter: Vec3::new(0.0, 0.0, 0.0),
+                rotation_offset: Rotation3D::None,
+            },
+        ];
+        let gaps = vec![
+            GapSpec {
+                thickness: 50.0,
+                refractive_index: air.clone(),
+            },
+            GapSpec {
+                thickness: 50.0,
+                refractive_index: air,
+            },
+        ];
+        SequentialModel::from_surface_specs(&gaps, &surfaces, &[0.5876], None).unwrap()
+    }
+
+    #[test]
+    fn test_beam_splitter_in_background_is_a_component() {
+        let model = beam_splitter_in_background();
+        let components = components_only(&model, n!(1.0));
+
+        assert_eq!(components.len(), 1);
+        assert!(components.contains(&Component::BeamSplitter { surf_idx: 1 }));
+    }
+
+    /// Design-doc risk-gate (§10.1): the cross-section dedup pass groups
+    /// `PathComponent`s by `Component` value equality, which assumes a
+    /// store index shared by two paths always classifies identically from
+    /// each path's independent pass. Confirm this holds for both of
+    /// `wf_epi_microscope`'s shared surfaces (the objective, already
+    /// covered by `at6_...`, and — now that the BeamSplitter fix above
+    /// lands — the beam splitter too) before relying on equality-based
+    /// dedup grouping in `views/cross_section.rs`.
+    #[test]
+    fn risk_gate_shared_beam_splitter_classifies_identically_across_paths() {
+        use crate::examples::wf_epi_microscope::sequential_model;
+
+        let model = sequential_model(n!(1.0), n!(1.5), &[0.488], &[0.520]);
+        let components = components_view(&model, n!(1.0)).unwrap();
+
+        let beam_splitter = Component::BeamSplitter { surf_idx: 2 };
+        assert!(components.contains(&PathComponent {
+            path_id: 0,
+            component: beam_splitter.clone(),
+        }));
+        assert!(components.contains(&PathComponent {
+            path_id: 1,
+            component: beam_splitter,
         }));
     }
 }

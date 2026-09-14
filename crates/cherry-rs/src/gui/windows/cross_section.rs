@@ -1,9 +1,28 @@
+use std::collections::HashSet;
+
 use crate::{
-    gui::{colors::wavelength_to_color, result_package::ResultPackage},
+    gui::{colors::wavelength_to_color, model::SystemSpecs, result_package::ResultPackage},
     views::cross_section::{
-        Bounds2D, CrossSectionView, DrawElement, FlatPlaneKind, PlaneGeometry, SurfaceFrame2D,
+        Bounds2D, CrossSectionView, DrawElement, FlatPlaneKind, PathDrawElement, PlaneGeometry,
+        SurfaceFrame2D,
     },
 };
+
+/// Alpha-scale factor applied to a path's own base color when it is not the
+/// active path (FR-XS-3/4) — there is no per-path color palette, only
+/// active-path dimming.
+const DIM_ALPHA_FACTOR: f32 = 0.35;
+
+/// Scales `color`'s alpha toward transparent when `dim` is true. Used for
+/// every non-shared element/axis polyline belonging to a path other than
+/// `active_path`. Shared (dedup'd) geometry is never passed `dim: true`.
+fn style_color(color: egui::Color32, dim: bool) -> egui::Color32 {
+    if !dim {
+        return color;
+    }
+    let a = (color.a() as f32 * DIM_ALPHA_FACTOR) as u8;
+    egui::Color32::from_rgba_premultiplied(color.r(), color.g(), color.b(), a)
+}
 
 const VIEWPORT_HEIGHT_RATIO: f32 = 0.5;
 const MAX_CROSS_SECTION_N_RAYS: u32 = 32;
@@ -60,6 +79,10 @@ impl Default for AnnotationSettings {
 pub struct CrossSectionWindow {
     cutting_plane: CuttingPlane,
     annotations: AnnotationSettings,
+    /// Per-path visibility, indexed by path_id. Missing entries default to
+    /// visible. Not persisted in `SystemSpecs` — display state, same tier as
+    /// `annotations` (FR-XS-7).
+    hidden_paths: HashSet<usize>,
 }
 
 impl Default for CrossSectionWindow {
@@ -67,17 +90,26 @@ impl Default for CrossSectionWindow {
         Self {
             cutting_plane: CuttingPlane::YZ,
             annotations: AnnotationSettings::default(),
+            hidden_paths: HashSet::new(),
         }
     }
 }
 
 impl CrossSectionWindow {
+    /// `specs` is read for path labels/count (FR-NAME-1, FR-XS-7);
+    /// `active_path` is a reborrow of `CherryApp`'s own field, both read
+    /// (dimming, draw order, ray-trace scoping) and written (the visibility
+    /// checklist can reassign it — FR-XS-7's bidirectional invariant).
+    /// Returns true if a recompute is needed (`n_rays` or `active_path`
+    /// changed).
     pub fn show(
         &mut self,
         ctx: &egui::Context,
         open: &mut bool,
         result: Option<&ResultPackage>,
         n_rays: &mut u32,
+        specs: &SystemSpecs,
+        active_path: &mut usize,
     ) -> bool {
         let mut changed = false;
         egui::Window::new("Cross Section")
@@ -86,7 +118,7 @@ impl CrossSectionWindow {
             .min_width(300.0)
             .resizable(true)
             .show(ctx, |ui| {
-                changed = self.show_content(ui, result, n_rays);
+                changed = self.show_content(ui, result, n_rays, specs, active_path);
             });
         changed
     }
@@ -96,7 +128,14 @@ impl CrossSectionWindow {
         ui: &mut egui::Ui,
         result: Option<&ResultPackage>,
         n_rays: &mut u32,
+        specs: &SystemSpecs,
+        active_path: &mut usize,
     ) -> bool {
+        // A path switch originating elsewhere (the Specs window's switcher
+        // arrows) must un-hide the newly active path (FR-XS-7 — no
+        // "active but hidden" state, regardless of which side triggers it).
+        self.hidden_paths.remove(active_path);
+
         let Some(result) = result else {
             self.show_empty_viewport(ui);
             return false;
@@ -105,13 +144,21 @@ impl CrossSectionWindow {
         let cs_data = result.cross_section.as_ref();
 
         // Controls.
-        let changed = self.show_controls(ui, cs_data, n_rays);
+        let mut changed = self.show_controls(ui, cs_data, n_rays);
+        if specs.paths.len() > 1 {
+            changed |= self.show_visibility_checklist(ui, specs, active_path);
+        }
         ui.separator();
 
         // Viewport.
         match cs_data {
             Some(cs) if cs.yz_valid || cs.xz_valid => {
-                self.show_viewport(ui, cs, result.wavelengths.as_slice());
+                let empty = Vec::new();
+                let wavelengths = result
+                    .wavelengths_by_path
+                    .get(*active_path)
+                    .unwrap_or(&empty);
+                self.show_viewport(ui, cs, wavelengths, *active_path);
             }
             Some(_) => {
                 self.show_invalid_plane_message(ui);
@@ -121,6 +168,43 @@ impl CrossSectionWindow {
             }
         }
 
+        changed
+    }
+
+    /// Per-path visibility checklist (FR-XS-7), shown only when
+    /// `specs.paths.len() > 1` (NFR-5: no checklist for single-path
+    /// systems). Returns true if `active_path` was reassigned.
+    fn show_visibility_checklist(
+        &mut self,
+        ui: &mut egui::Ui,
+        specs: &SystemSpecs,
+        active_path: &mut usize,
+    ) -> bool {
+        let mut changed = false;
+        ui.horizontal(|ui| {
+            ui.label("Paths:");
+            for p in 0..specs.paths.len() {
+                let mut visible = !self.hidden_paths.contains(&p);
+                if ui.checkbox(&mut visible, specs.path_label(p)).changed() && !visible {
+                    self.hidden_paths.insert(p);
+                    if *active_path == p {
+                        // Reassign to the lowest-indexed still-visible path.
+                        // If none remains visible, this is the sole visible
+                        // path (necessarily the active one) — undo the hide
+                        // (FR-XS-7: at least one path is always visible).
+                        match (0..specs.paths.len()).find(|q| !self.hidden_paths.contains(q)) {
+                            Some(new_active) => {
+                                *active_path = new_active;
+                                changed = true;
+                            }
+                            None => {
+                                self.hidden_paths.remove(&p);
+                            }
+                        }
+                    }
+                }
+            }
+        });
         changed
     }
 
@@ -172,7 +256,13 @@ impl CrossSectionWindow {
         changed
     }
 
-    fn show_viewport(&self, ui: &mut egui::Ui, cs: &CrossSectionView, wavelengths: &[f64]) {
+    fn show_viewport(
+        &self,
+        ui: &mut egui::Ui,
+        cs: &CrossSectionView,
+        wavelengths: &[f64],
+        active_path: usize,
+    ) {
         let geom = match self.cutting_plane {
             CuttingPlane::YZ => &cs.yz,
             CuttingPlane::XZ => &cs.xz,
@@ -195,19 +285,36 @@ impl CrossSectionWindow {
 
         let w2s = WorldToScreen::new(&geom.bounding_box, rect);
 
-        // Draw elements.
-        for elem in &geom.elements {
-            draw_element(&painter, elem, &w2s, ui.visuals());
+        // Draw elements: skip hidden paths' exclusive geometry, dim every
+        // other path's geometry except active_path's, and draw active_path
+        // last so it's never buried at a crossing (FR-XS-4/5, FR-XS-7).
+        let visible = |path_ids: &[usize]| path_ids.iter().any(|p| !self.hidden_paths.contains(p));
+        let (active_elems, inactive_elems): (Vec<&PathDrawElement>, Vec<&PathDrawElement>) = geom
+            .elements
+            .iter()
+            .filter(|pde| visible(&pde.path_ids))
+            .partition(|pde| pde.path_ids.contains(&active_path));
+        for pde in inactive_elems.iter().chain(active_elems.iter()) {
+            let dim = !pde.path_ids.contains(&active_path);
+            draw_element(&painter, &pde.element, &w2s, ui.visuals(), dim);
         }
 
-        // Draw optical axis before rays so rays appear on top.
+        // Draw optical axis before rays so rays appear on top. Every path's
+        // own axis_paths[path_id] is one entry, so path_ids is just [path_id].
         if self.annotations.show_axis {
-            for path in &geom.axis_paths {
-                draw_axis(&painter, path, &w2s);
+            let (active_axes, inactive_axes): (Vec<_>, Vec<_>) = geom
+                .axis_paths
+                .iter()
+                .enumerate()
+                .filter(|(p, _)| !self.hidden_paths.contains(p))
+                .partition(|(p, _)| *p == active_path);
+            for (p, path) in inactive_axes.iter().chain(active_axes.iter()) {
+                draw_axis(&painter, path, &w2s, *p != active_path);
             }
         }
 
-        // Draw rays.
+        // Draw rays: already scoped to active_path upstream (FR-XS-6) —
+        // colored using active_path's own wavelengths, not path 0's.
         for (wl_idx, paths) in geom.ray_paths.iter().enumerate() {
             let color = wavelengths
                 .get(wl_idx)
@@ -233,11 +340,15 @@ impl CrossSectionWindow {
             d.remove::<usize>(hover_id);
             v
         });
-        // surface_frames is path × step; for the hover annotation use path 0
-        // (single-path systems: step == store idx; multipath GUI TBD).
+        // surface_frames is path × step; use active_path's own frames, since
+        // the hover annotation always concerns whichever path's Surfaces tab
+        // is currently being edited.
         if self.annotations.show_ruf_axes
             && let Some(idx) = hover_idx
-            && let Some(Some(frame)) = geom.surface_frames.first().and_then(|p| p.get(idx))
+            && let Some(Some(frame)) = geom
+                .surface_frames
+                .get(active_path)
+                .and_then(|p| p.get(idx))
         {
             draw_ruf_axes(&painter, frame, &w2s, self.cutting_plane);
         }
@@ -284,21 +395,25 @@ impl CrossSectionWindow {
     }
 
     /// Generate an SVG string of the current cross-section view for file
-    /// export.
+    /// export. `wavelengths` should be the active path's own wavelength
+    /// list (`ResultPackage::wavelengths_by_path[active_path]`), matching
+    /// the interactive viewport's ray-fan coloring (FR-XS-6) — the exported
+    /// ray fan is already active-path-scoped via `geom.ray_paths` upstream,
+    /// so the color lookup must be too.
     ///
     /// Returns `None` if the selected cutting plane is not valid.
-    pub fn export_svg_string(&self, cs: &CrossSectionView, dark_mode: bool) -> Option<String> {
+    pub fn export_svg_string(
+        &self,
+        cs: &CrossSectionView,
+        wavelengths: &[f64],
+        dark_mode: bool,
+    ) -> Option<String> {
         let geom = match self.cutting_plane {
             CuttingPlane::YZ if cs.yz_valid => &cs.yz,
             CuttingPlane::XZ if cs.xz_valid => &cs.xz,
             _ => return None,
         };
-        Some(render_svg(
-            geom,
-            &cs.wavelengths,
-            dark_mode,
-            self.cutting_plane,
-        ))
+        Some(render_svg(geom, wavelengths, dark_mode, self.cutting_plane))
     }
 }
 
@@ -370,15 +485,16 @@ fn draw_element(
     elem: &DrawElement,
     w2s: &WorldToScreen,
     visuals: &egui::Visuals,
+    dim: bool,
 ) {
     match elem {
         DrawElement::LensGroup {
             front_pts,
             back_pts,
             inner_pts,
-        } => draw_lens_group(painter, front_pts, back_pts, inner_pts, w2s, visuals),
+        } => draw_lens_group(painter, front_pts, back_pts, inner_pts, w2s, visuals, dim),
         DrawElement::SurfaceProfile { points } => {
-            draw_surface_profile(painter, points, w2s);
+            draw_surface_profile(painter, points, w2s, dim);
         }
         DrawElement::Iris {
             center_z,
@@ -397,10 +513,11 @@ fn draw_element(
                 *half_gap as f32,
                 *extent as f32,
                 w2s,
+                dim,
             );
         }
         DrawElement::FlatPlane { p1, p2, kind } => {
-            draw_flat_plane(painter, *p1, *p2, *kind, w2s);
+            draw_flat_plane(painter, *p1, *p2, *kind, w2s, dim);
         }
         DrawElement::ThinLens {
             center_z,
@@ -419,6 +536,7 @@ fn draw_element(
                 *half_gap as f32,
                 *converging,
                 w2s,
+                dim,
             );
         }
     }
@@ -439,8 +557,9 @@ fn draw_thin_lens(
     half_gap: f32,
     converging: bool,
     w2s: &WorldToScreen,
+    dim: bool,
 ) {
-    let stroke = egui::Stroke::new(1.5, THIN_LENS_COLOR);
+    let stroke = egui::Stroke::new(1.5, style_color(THIN_LENS_COLOR, dim));
     // Perpendicular to (fwd_z, fwd_t) is (-fwd_t, fwd_z) — direction along the
     // lens surface in the 2-D (z, transverse) plot, same convention as
     // `draw_stop`.
@@ -492,6 +611,7 @@ fn draw_arrowhead(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn draw_lens_group(
     painter: &egui::Painter,
     front_pts: &[[f64; 2]],
@@ -499,16 +619,20 @@ fn draw_lens_group(
     inner_pts: &[Vec<[f64; 2]>],
     w2s: &WorldToScreen,
     visuals: &egui::Visuals,
+    dim: bool,
 ) {
     if front_pts.len() < 2 || back_pts.len() < 2 {
         return;
     }
 
-    let fill = if visuals.dark_mode {
-        egui::Color32::from_rgba_premultiplied(50, 100, 160, 80)
-    } else {
-        egui::Color32::from_rgba_premultiplied(100, 160, 220, 80)
-    };
+    let fill = style_color(
+        if visuals.dark_mode {
+            egui::Color32::from_rgba_premultiplied(50, 100, 160, 80)
+        } else {
+            egui::Color32::from_rgba_premultiplied(100, 160, 220, 80)
+        },
+        dim,
+    );
 
     // Zipper-triangulate each sub-region between consecutive surface profiles.
     // Both curves are sampled bottom-to-top, so profile_a[i] and profile_b[i]
@@ -538,11 +662,14 @@ fn draw_lens_group(
         painter.add(egui::Shape::mesh(mesh));
     }
 
-    let stroke_color = if visuals.dark_mode {
-        egui::Color32::from_rgb(100, 149, 220)
-    } else {
-        egui::Color32::from_rgb(30, 80, 160)
-    };
+    let stroke_color = style_color(
+        if visuals.dark_mode {
+            egui::Color32::from_rgb(100, 149, 220)
+        } else {
+            egui::Color32::from_rgb(30, 80, 160)
+        },
+        dim,
+    );
     let stroke = egui::Stroke::new(1.5, stroke_color);
 
     // Build all profiles in screen coords: front, inner[0..], back.
@@ -575,11 +702,16 @@ fn draw_lens_group(
     }
 }
 
-fn draw_surface_profile(painter: &egui::Painter, points: &[[f64; 2]], w2s: &WorldToScreen) {
+fn draw_surface_profile(
+    painter: &egui::Painter,
+    points: &[[f64; 2]],
+    w2s: &WorldToScreen,
+    dim: bool,
+) {
     if points.len() < 2 {
         return;
     }
-    let stroke = egui::Stroke::new(1.5, egui::Color32::from_rgb(200, 120, 50));
+    let stroke = egui::Stroke::new(1.5, style_color(egui::Color32::from_rgb(200, 120, 50), dim));
     let screen_pts: Vec<egui::Pos2> = points
         .iter()
         .map(|&[z, t]| w2s.map(z as f32, t as f32))
@@ -599,8 +731,9 @@ fn draw_stop(
     half_gap: f32,
     extent: f32,
     w2s: &WorldToScreen,
+    dim: bool,
 ) {
-    let stroke = egui::Stroke::new(2.0, egui::Color32::from_gray(160));
+    let stroke = egui::Stroke::new(2.0, style_color(egui::Color32::from_gray(160), dim));
     // Perpendicular to (fwd_z, fwd_t) is (-fwd_t, fwd_z) — the direction along
     // the iris surface in the 2-D (z, transverse) plot.
     let perp_z = -fwd_t;
@@ -621,6 +754,7 @@ fn draw_flat_plane(
     p2: [f64; 2],
     kind: FlatPlaneKind,
     w2s: &WorldToScreen,
+    dim: bool,
 ) {
     let (color, width) = match kind {
         FlatPlaneKind::Image => (egui::Color32::from_rgb(0, 200, 100), 2.0),
@@ -632,7 +766,7 @@ fn draw_flat_plane(
             w2s.map(p1[0] as f32, p1[1] as f32),
             w2s.map(p2[0] as f32, p2[1] as f32),
         ],
-        egui::Stroke::new(width, color),
+        egui::Stroke::new(width, style_color(color, dim)),
     );
 }
 
@@ -655,11 +789,11 @@ fn draw_rays(
     }
 }
 
-fn draw_axis(painter: &egui::Painter, path: &[[f64; 2]], w2s: &WorldToScreen) {
+fn draw_axis(painter: &egui::Painter, path: &[[f64; 2]], w2s: &WorldToScreen, dim: bool) {
     if path.len() < 2 {
         return;
     }
-    let stroke = egui::Stroke::new(1.0, egui::Color32::from_gray(110));
+    let stroke = egui::Stroke::new(1.0, style_color(egui::Color32::from_gray(110), dim));
     let screen: Vec<egui::Pos2> = path
         .iter()
         .map(|&[z, t]| w2s.map(z as f32, t as f32))
@@ -949,8 +1083,8 @@ fn render_svg(
         svg_axis(&mut s, path, &w2s, scalebar_color);
     }
 
-    for elem in &geom.elements {
-        match elem {
+    for pde in &geom.elements {
+        match &pde.element {
             DrawElement::LensGroup {
                 front_pts,
                 back_pts,
@@ -1311,7 +1445,16 @@ mod tests {
     ) {
         let mut open = true;
         let mut n_rays = 11u32;
-        window.show(ctx, &mut open, result, &mut n_rays);
+        let specs = SystemSpecs::default();
+        let mut active_path = 0usize;
+        window.show(
+            ctx,
+            &mut open,
+            result,
+            &mut n_rays,
+            &specs,
+            &mut active_path,
+        );
     }
 
     #[test]
@@ -1336,10 +1479,19 @@ mod tests {
             n_rays: 3,
             changed: false,
         };
+        let specs = SystemSpecs::default();
         let mut harness = Harness::new_state(
             |ctx, s: &mut State| {
                 let mut open = true;
-                s.changed = s.window.show(ctx, &mut open, None, &mut s.n_rays);
+                let mut active_path = 0usize;
+                s.changed = s.window.show(
+                    ctx,
+                    &mut open,
+                    None,
+                    &mut s.n_rays,
+                    &specs,
+                    &mut active_path,
+                );
             },
             state,
         );
@@ -1383,9 +1535,10 @@ mod tests {
         let result = ResultPackage {
             id: 1,
             wavelengths: vec![0.5876],
+            wavelengths_by_path: vec![vec![0.5876]],
             surfaces: Vec::new(),
-            fields: Vec::new(),
-            field_specs: Vec::new(),
+            fields_by_path: vec![Vec::new()],
+            field_specs_by_path: vec![Vec::new()],
             paraxial: None,
             ray_trace: None,
             cross_section: Some(cs),
@@ -1416,13 +1569,16 @@ mod tests {
                     z: (-10.0, 10.0),
                     transverse: (-15.0, 15.0),
                 },
-                elements: vec![DrawElement::ThinLens {
-                    center_z: 0.0,
-                    center_t: 0.0,
-                    fwd_z: 1.0,
-                    fwd_t: 0.0,
-                    half_gap: 12.5,
-                    converging,
+                elements: vec![PathDrawElement {
+                    element: DrawElement::ThinLens {
+                        center_z: 0.0,
+                        center_t: 0.0,
+                        fwd_z: 1.0,
+                        fwd_t: 0.0,
+                        half_gap: 12.5,
+                        converging,
+                    },
+                    path_ids: vec![0],
                 }],
                 ray_paths: Vec::new(),
                 axis_paths: Vec::new(),
@@ -1447,9 +1603,10 @@ mod tests {
             let result = ResultPackage {
                 id: 1,
                 wavelengths: vec![0.5876],
+                wavelengths_by_path: vec![vec![0.5876]],
                 surfaces: Vec::new(),
-                fields: Vec::new(),
-                field_specs: Vec::new(),
+                fields_by_path: vec![Vec::new()],
+                field_specs_by_path: vec![Vec::new()],
                 paraxial: None,
                 ray_trace: None,
                 cross_section: Some(cs),
