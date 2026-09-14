@@ -12,9 +12,14 @@ const PLOT_SIZE: f32 = 180.0;
 /// Parameters describing which field/surface/wavelength data to render.
 struct FieldPlotQuery<'a> {
     ray_trace: &'a crate::TraceResultsCollection,
+    active_path: usize,
     wavelengths: &'a [f64],
     field_id: usize,
-    surface_idx: usize,
+    /// The selected surface's step position within `active_path`'s own
+    /// traversal — `None` if no surface is reachable from this path at
+    /// all. A `RayBundle` is indexed by this step position, not by
+    /// `surf_desc`'s global/store index.
+    path_step: Option<usize>,
     wavelength_visible: &'a [bool],
     surf_desc: Option<&'a SurfaceDesc>,
 }
@@ -32,19 +37,27 @@ pub struct SpotDiagramWindow {
 }
 
 impl SpotDiagramWindow {
-    /// Show the spot diagram window.
-    pub fn show(&mut self, ctx: &egui::Context, open: &mut bool, result: Option<&ResultPackage>) {
+    /// Show the spot diagram window, filtered to `active_path` (FR-OUT-1).
+    pub fn show(
+        &mut self,
+        ctx: &egui::Context,
+        open: &mut bool,
+        result: Option<&ResultPackage>,
+        active_path: usize,
+    ) {
         egui::Window::new("Spot Diagram")
             .open(open)
             .default_width(640.0)
             .min_width(300.0)
             .show(ctx, |ui| {
                 // Sync wavelength visibility when the result package changes.
-                if let Some(r) = result
-                    && r.wavelengths.len() != self.last_n_wavelengths
-                {
-                    self.wavelength_visible = vec![true; r.wavelengths.len()];
-                    self.last_n_wavelengths = r.wavelengths.len();
+                let n_wl = result
+                    .and_then(|r| r.wavelengths_by_path.get(active_path))
+                    .map(|w| w.len())
+                    .unwrap_or(0);
+                if n_wl != self.last_n_wavelengths {
+                    self.wavelength_visible = vec![true; n_wl];
+                    self.last_n_wavelengths = n_wl;
                 }
 
                 match result {
@@ -63,38 +76,39 @@ impl SpotDiagramWindow {
                         );
                     }
                     Some(r) => {
-                        self.render_content(ui, r);
+                        self.render_content(ui, r, active_path);
                     }
                 }
             });
     }
 
-    fn render_content(&mut self, ui: &mut egui::Ui, r: &ResultPackage) {
+    fn render_content(&mut self, ui: &mut egui::Ui, r: &ResultPackage, active_path: usize) {
         let ray_trace = r.ray_trace.as_ref().unwrap();
+        let empty_wls = Vec::new();
+        let empty_fields = Vec::new();
+        let wavelengths = r.wavelengths_by_path.get(active_path).unwrap_or(&empty_wls);
+        let fields = r.fields_by_path.get(active_path).unwrap_or(&empty_fields);
 
-        // Determine the default surface (Image, last in list).
-        let image_surface_idx = r
+        // Surfaces reachable from the active path only (FR-OUT-1): a
+        // surface that belongs only to some other path has no step
+        // position in this path's own ray bundles at all.
+        let path_surfaces: Vec<&SurfaceDesc> = r
             .surfaces
             .iter()
-            .rev()
-            .find(|s| s.label.starts_with("Image"))
-            .map(|s| s.index)
-            .unwrap_or(r.surfaces.len().saturating_sub(1));
-        let selected_idx = self.selected_surface.unwrap_or(image_surface_idx);
+            .filter(|s| s.path_step.is_some())
+            .collect();
+
+        let selected_idx = resolve_selected_surface(&r.surfaces, self.selected_surface);
+        let selected_desc = selected_idx.and_then(|idx| r.surfaces.get(idx));
 
         // Surface selector.
         ui.horizontal(|ui| {
             ui.label("Surface:");
             egui::ComboBox::from_id_salt("spot_surface_selector")
-                .selected_text(
-                    r.surfaces
-                        .get(selected_idx)
-                        .map(|s| s.label.as_str())
-                        .unwrap_or("—"),
-                )
+                .selected_text(selected_desc.map(|s| s.label.as_str()).unwrap_or("—"))
                 .show_ui(ui, |ui| {
-                    for s in &r.surfaces {
-                        let is_sel = s.index == selected_idx;
+                    for s in &path_surfaces {
+                        let is_sel = Some(s.index) == selected_idx;
                         if ui.selectable_label(is_sel, &s.label).clicked() {
                             self.selected_surface = Some(s.index);
                         }
@@ -103,9 +117,9 @@ impl SpotDiagramWindow {
         });
 
         // Wavelength toggles (only when more than one wavelength).
-        if r.wavelengths.len() > 1 {
+        if wavelengths.len() > 1 {
             ui.horizontal(|ui| {
-                for (i, &wl) in r.wavelengths.iter().enumerate() {
+                for (i, &wl) in wavelengths.iter().enumerate() {
                     if let Some(v) = self.wavelength_visible.get_mut(i) {
                         ui.checkbox(v, format!("{wl:.4} \u{00b5}m"));
                     }
@@ -115,7 +129,7 @@ impl SpotDiagramWindow {
 
         ui.separator();
 
-        let n_fields = r.fields.len();
+        let n_fields = fields.len();
         if n_fields == 0 {
             ui.label("No fields defined.");
             return;
@@ -124,18 +138,18 @@ impl SpotDiagramWindow {
         // Field plots in a row, each with its own bounding box.
         ui.horizontal(|ui| {
             for field_id in 0..n_fields {
-                let field_label = r
-                    .fields
+                let field_label = fields
                     .get(field_id)
                     .map(|f| f.label.as_str())
                     .unwrap_or("—");
                 let query = FieldPlotQuery {
                     ray_trace,
-                    wavelengths: &r.wavelengths,
+                    active_path,
+                    wavelengths,
                     field_id,
-                    surface_idx: selected_idx,
+                    path_step: selected_desc.and_then(|s| s.path_step),
                     wavelength_visible: &self.wavelength_visible,
-                    surf_desc: r.surfaces.get(selected_idx),
+                    surf_desc: selected_desc,
                 };
                 let ranges = compute_field_axis_range(&query);
                 ui.vertical(|ui| {
@@ -145,6 +159,31 @@ impl SpotDiagramWindow {
             }
         });
     }
+}
+
+/// Resolves which surface to display: the previously-selected one if it's
+/// still reachable from the active path (`path_step.is_some()`), else that
+/// path's own Image surface (last in its own traversal), else its own last
+/// reachable surface, else `None` if the active path reaches no surface at
+/// all.
+///
+/// `surfaces` is the full, global surface list — not pre-filtered to the
+/// active path — since `selected` (and the returned index) are global/store
+/// indices into it; only reachability is path-scoped.
+fn resolve_selected_surface(surfaces: &[SurfaceDesc], selected: Option<usize>) -> Option<usize> {
+    let path_surfaces: Vec<&SurfaceDesc> =
+        surfaces.iter().filter(|s| s.path_step.is_some()).collect();
+
+    let image_surface_idx = path_surfaces
+        .iter()
+        .rev()
+        .find(|s| s.label.starts_with("Image"))
+        .or_else(|| path_surfaces.last())
+        .map(|s| s.index);
+
+    selected
+        .filter(|idx| path_surfaces.iter().any(|s| s.index == *idx))
+        .or(image_surface_idx)
 }
 
 /// Compute independent X and Y axis ranges enclosing all visible ray
@@ -160,8 +199,11 @@ fn compute_field_axis_range(query: &FieldPlotQuery) -> ((f64, f64), (f64, f64)) 
         if !visible {
             continue;
         }
-        if let Some(tr) = query.ray_trace.get(query.field_id, wl_id) {
-            for (x, y) in rays_at_surface(tr.full_pupil(), query.surface_idx, query.surf_desc) {
+        if let Some(tr) = query
+            .ray_trace
+            .get_for_path(query.active_path, query.field_id, wl_id)
+        {
+            for (x, y) in rays_at_surface(tr.full_pupil(), query.path_step, query.surf_desc) {
                 x_min = x_min.min(x);
                 x_max = x_max.max(x);
                 y_min = y_min.min(y);
@@ -239,9 +281,12 @@ fn render_field_plot(ui: &mut egui::Ui, query: &FieldPlotQuery, ranges: ((f64, f
             .map(wavelength_to_color)
             .unwrap_or(egui::Color32::WHITE);
 
-        if let Some(tr) = query.ray_trace.get(query.field_id, wl_id) {
+        if let Some(tr) = query
+            .ray_trace
+            .get_for_path(query.active_path, query.field_id, wl_id)
+        {
             // Ray intersection scatter.
-            for (rx, ry) in rays_at_surface(tr.full_pupil(), query.surface_idx, query.surf_desc) {
+            for (rx, ry) in rays_at_surface(tr.full_pupil(), query.path_step, query.surf_desc) {
                 let sp = to_screen(rx, ry);
                 if rect.contains(sp) {
                     painter.circle_filled(sp, 2.0, color);
@@ -249,7 +294,7 @@ fn render_field_plot(ui: &mut egui::Ui, query: &FieldPlotQuery, ranges: ((f64, f
             }
 
             // Chief ray: cross marker.
-            for (cx, cy) in rays_at_surface(tr.chief_ray(), query.surface_idx, query.surf_desc) {
+            for (cx, cy) in rays_at_surface(tr.chief_ray(), query.path_step, query.surf_desc) {
                 let sp = to_screen(cx, cy);
                 let arm = 5.0_f32;
                 let stroke = egui::Stroke::new(1.5, color);
@@ -291,7 +336,8 @@ fn render_field_plot(ui: &mut egui::Ui, query: &FieldPlotQuery, ranges: ((f64, f
     );
 }
 
-/// Extract (x, y) positions of non-terminated rays at `surface_idx`,
+/// Extract (x, y) positions of non-terminated rays at `path_step` (this
+/// path's own step position — see [`FieldPlotQuery::path_step`]),
 /// projected into the surface's local coordinate frame.
 ///
 /// `RayBundle` stores ray positions in global coordinates. For a tilted
@@ -300,20 +346,20 @@ fn render_field_plot(ui: &mut egui::Ui, query: &FieldPlotQuery, ranges: ((f64, f
 ///
 /// `RayBundle` stores rays as a flat
 /// `[surface_0_rays … surface_N_rays]` array of length
-/// `num_surfaces × num_rays_per_surface`.
+/// `num_surfaces × num_rays_per_surface`, indexed by step position within
+/// *this* bundle's own path — never by a global/store surface index.
 fn rays_at_surface<'a>(
     bundle: &'a RayBundle,
-    surface_idx: usize,
+    path_step: Option<usize>,
     surf_desc: Option<&'a SurfaceDesc>,
 ) -> impl Iterator<Item = (f64, f64)> + 'a {
     let total = bundle.rays().len();
     let n_surf = bundle.num_surfaces();
     let n_rays = if n_surf > 0 { total / n_surf } else { 0 };
 
-    let (start, end) = if n_surf > 0 && surface_idx < n_surf && n_rays > 0 {
-        (surface_idx * n_rays, (surface_idx + 1) * n_rays)
-    } else {
-        (0, 0)
+    let (start, end) = match path_step {
+        Some(idx) if n_surf > 0 && idx < n_surf && n_rays > 0 => (idx * n_rays, (idx + 1) * n_rays),
+        _ => (0, 0),
     };
 
     let rays = bundle.rays();
@@ -350,7 +396,7 @@ mod tests {
         ctx: &egui::Context,
     ) {
         let mut open = true;
-        window.show(ctx, &mut open, result);
+        window.show(ctx, &mut open, result, 0);
     }
 
     #[test]
@@ -379,29 +425,27 @@ mod tests {
     #[test]
     fn ray_trace_unavailable_shown_when_only_paraxial() {
         use crate::gui::{convert, model::SystemSpecs};
-        use crate::{ParaxialView, SequentialModel};
+        use crate::{ParaxialView, SequentialModelBuilder};
 
         let specs = SystemSpecs::default();
         #[cfg(not(feature = "ri-info"))]
         let parsed = convert::convert_specs(&specs).expect("convert");
         #[cfg(feature = "ri-info")]
         let parsed = convert::convert_specs(&specs, &Default::default()).expect("convert");
-        let seq = SequentialModel::from_surface_specs(
-            &parsed.gaps,
-            &parsed.surfaces,
-            &parsed.wavelengths,
-            None,
-        )
-        .expect("model");
-        let pv =
-            ParaxialView::new(&seq, std::slice::from_ref(&parsed.fields), false).expect("paraxial");
+        let seq = SequentialModelBuilder::new()
+            .paths(parsed.path_specs)
+            .build()
+            .expect("model")
+            .model;
+        let pv = ParaxialView::new(&seq, &parsed.field_specs_by_path, false).expect("paraxial");
 
+        let wls = seq.wavelengths().to_vec();
         let result = ResultPackage {
             id: 1,
-            wavelengths: seq.wavelengths().to_vec(),
+            wavelengths_by_path: vec![wls],
             surfaces: Vec::new(),
-            fields: Vec::new(),
-            field_specs: Vec::new(),
+            fields_by_path: vec![Vec::new()],
+            field_specs_by_path: parsed.field_specs_by_path,
             paraxial: Some(pv),
             ray_trace: None,
             cross_section: None,
@@ -428,10 +472,10 @@ mod tests {
             convert,
             model::{FieldRow, SystemSpecs},
         };
-        use crate::{ParaxialView, SequentialModel, ray_trace_3d_view};
+        use crate::{ParaxialView, SequentialModelBuilder, ray_trace_3d_view};
 
         let mut specs = SystemSpecs::default();
-        specs.fields.push(FieldRow {
+        specs.paths[0].fields.push(FieldRow {
             chi: "5.0".into(),
             phi: "90.0".into(),
             x: "0.0".into(),
@@ -441,18 +485,15 @@ mod tests {
         let parsed = convert::convert_specs(&specs).expect("convert");
         #[cfg(feature = "ri-info")]
         let parsed = convert::convert_specs(&specs, &Default::default()).expect("convert");
-        let seq = SequentialModel::from_surface_specs(
-            &parsed.gaps,
-            &parsed.surfaces,
-            &parsed.wavelengths,
-            None,
-        )
-        .expect("model");
-        let pv =
-            ParaxialView::new(&seq, std::slice::from_ref(&parsed.fields), false).expect("paraxial");
+        let seq = SequentialModelBuilder::new()
+            .paths(parsed.path_specs)
+            .build()
+            .expect("model")
+            .model;
+        let pv = ParaxialView::new(&seq, &parsed.field_specs_by_path, false).expect("paraxial");
         let trace = ray_trace_3d_view(
-            &[parsed.aperture],
-            std::slice::from_ref(&parsed.fields),
+            &parsed.aperture_specs_by_path,
+            &parsed.field_specs_by_path,
             &seq,
             &pv,
             crate::views::ray_trace_3d::SamplingConfig {
@@ -462,9 +503,10 @@ mod tests {
         )
         .expect("trace");
 
+        let wls = seq.wavelengths().to_vec();
         let result = ResultPackage {
             id: 1,
-            wavelengths: seq.wavelengths().to_vec(),
+            wavelengths_by_path: vec![wls],
             surfaces: {
                 seq.surfaces()
                     .iter()
@@ -475,18 +517,19 @@ mod tests {
                         label: format!("S{i}"),
                         pos: p.position,
                         rot_mat: p.rotation_matrix,
+                        path_step: Some(i),
                     })
                     .collect()
             },
-            fields: vec![
+            fields_by_path: vec![vec![
                 FieldDesc {
                     label: "0.000\u{00b0}".into(),
                 },
                 FieldDesc {
                     label: "5.000\u{00b0}".into(),
                 },
-            ],
-            field_specs: parsed.fields.clone(),
+            ]],
+            field_specs_by_path: parsed.field_specs_by_path,
             paraxial: Some(pv),
             ray_trace: Some(trace),
             cross_section: None,
@@ -505,5 +548,69 @@ mod tests {
         harness.step();
         harness.get_by_label_contains("0.000");
         harness.get_by_label_contains("5.000");
+    }
+
+    /// Regression: the Spot Diagram window must resolve to the *active
+    /// path's own* Image surface, not whichever surface happens to be last
+    /// in the model's global/store-index order — a surface only reachable
+    /// from a *different* path (`path_step: None`) must never be
+    /// auto-selected or retained across an `active_path` switch.
+    #[test]
+    fn resolve_selected_surface_uses_active_paths_own_image() {
+        use crate::core::math::{linalg::mat3x3::Mat3x3, vec3::Vec3};
+
+        let dummy = |index: usize, label: &str, path_step: Option<usize>| SurfaceDesc {
+            index,
+            label: label.to_string(),
+            pos: Vec3::new(0.0, 0.0, 0.0),
+            rot_mat: Mat3x3::identity(),
+            path_step,
+        };
+
+        // Store indices: 0=Object, 1=BeamSplitter (shared by both paths),
+        // 2=Image_T (path 0's own), 3=Image_R (path 1's own — the global
+        // last surface, which a naive "last Image in the list" heuristic
+        // would wrongly pick even when path 0 is active).
+        let surfaces_path0_active = vec![
+            dummy(0, "Object [0]", Some(0)),
+            dummy(1, "Beam Splitter [1]", Some(1)),
+            dummy(2, "Image [2]", Some(2)),
+            dummy(3, "Image [3]", None),
+        ];
+        assert_eq!(
+            resolve_selected_surface(&surfaces_path0_active, None),
+            Some(2),
+            "path 0 active: must default to its own image, not path 1's"
+        );
+
+        let surfaces_path1_active = vec![
+            dummy(0, "Object [0]", Some(0)),
+            dummy(1, "Beam Splitter [1]", Some(1)),
+            dummy(2, "Image [2]", None),
+            dummy(3, "Image [3]", Some(2)),
+        ];
+        assert_eq!(
+            resolve_selected_surface(&surfaces_path1_active, None),
+            Some(3),
+            "path 1 active: must default to its own image, not path 0's"
+        );
+
+        // A previous selection belonging to the now-inactive path must be
+        // discarded, falling back to the active path's own image, rather
+        // than silently returning an index the active path can't resolve
+        // into its own RayBundle.
+        assert_eq!(
+            resolve_selected_surface(&surfaces_path0_active, Some(3)),
+            Some(2),
+            "a selection belonging to the inactive path must fall back to the active path's own image"
+        );
+
+        // An explicit selection that IS reachable from the active path is
+        // honored as-is.
+        assert_eq!(
+            resolve_selected_surface(&surfaces_path0_active, Some(1)),
+            Some(1),
+            "an explicit, still-reachable selection should be kept"
+        );
     }
 }

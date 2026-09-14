@@ -36,17 +36,25 @@ pub struct RayFanWindow {
 }
 
 impl RayFanWindow {
-    /// Show the Ray Fan Plot window.
-    pub fn show(&mut self, ctx: &egui::Context, open: &mut bool, result: Option<&ResultPackage>) {
+    /// Show the Ray Fan Plot window, filtered to `active_path` (FR-OUT-1).
+    pub fn show(
+        &mut self,
+        ctx: &egui::Context,
+        open: &mut bool,
+        result: Option<&ResultPackage>,
+        active_path: usize,
+    ) {
         egui::Window::new("Ray Fan Plot")
             .open(open)
             .default_width(640.0)
             .show(ctx, |ui| {
-                if let Some(r) = result
-                    && r.wavelengths.len() != self.last_n_wavelengths
-                {
-                    self.wavelength_visible = vec![true; r.wavelengths.len()];
-                    self.last_n_wavelengths = r.wavelengths.len();
+                let n_wl = result
+                    .and_then(|r| r.wavelengths_by_path.get(active_path))
+                    .map(|w| w.len())
+                    .unwrap_or(0);
+                if n_wl != self.last_n_wavelengths {
+                    self.wavelength_visible = vec![true; n_wl];
+                    self.last_n_wavelengths = n_wl;
                 }
                 match result {
                     None => {
@@ -59,14 +67,18 @@ impl RayFanWindow {
                             format!("Ray trace unavailable: {msg}"),
                         );
                     }
-                    Some(r) => self.render_content(ui, r),
+                    Some(r) => self.render_content(ui, r, active_path),
                 }
             });
     }
 
-    fn render_content(&mut self, ui: &mut egui::Ui, r: &ResultPackage) {
-        let n_fields = r.fields.len();
-        let n_wl = r.wavelengths.len();
+    fn render_content(&mut self, ui: &mut egui::Ui, r: &ResultPackage, active_path: usize) {
+        let empty_fields = Vec::new();
+        let empty_wls = Vec::new();
+        let fields = r.fields_by_path.get(active_path).unwrap_or(&empty_fields);
+        let wavelengths = r.wavelengths_by_path.get(active_path).unwrap_or(&empty_wls);
+        let n_fields = fields.len();
+        let n_wl = wavelengths.len();
 
         if n_fields == 0 {
             ui.label("No fields defined.");
@@ -76,7 +88,7 @@ impl RayFanWindow {
         // Wavelength toggles — outside the scroll area, always visible.
         if n_wl > 1 {
             ui.horizontal(|ui| {
-                for (i, &wl) in r.wavelengths.iter().enumerate() {
+                for (i, &wl) in wavelengths.iter().enumerate() {
                     if let Some(v) = self.wavelength_visible.get_mut(i) {
                         let color = wavelength_to_color(wl);
                         ui.checkbox(
@@ -89,9 +101,9 @@ impl RayFanWindow {
         }
 
         // Compute TA curves for all fields.
-        let image_surf = r.surfaces.last();
+        let image_surf = active_path_image_surface(&r.surfaces);
         let ta_data: Vec<FieldTaData> = (0..n_fields)
-            .map(|fid| compute_field_ta(r, fid, image_surf))
+            .map(|fid| compute_field_ta(r, active_path, fid, image_surf))
             .collect();
 
         // Shared Y scales: tangential and sagittal computed independently.
@@ -128,7 +140,7 @@ impl RayFanWindow {
                     ui.horizontal_top(|ui| {
                         for (fid, field_data) in ta_data.iter().enumerate() {
                             let field_label =
-                                r.fields.get(fid).map(|f| f.label.as_str()).unwrap_or("\u{2014}");
+                                fields.get(fid).map(|f| f.label.as_str()).unwrap_or("\u{2014}");
                             ui.vertical(|ui| {
                                 // Column header.
                                 ui.horizontal(|ui| {
@@ -141,7 +153,7 @@ impl RayFanWindow {
                                 });
 
                                 let plot_ctx = FanPlotCtx {
-                                    wavelengths: &r.wavelengths,
+                                    wavelengths,
                                     wavelength_visible: &self.wavelength_visible,
                                 };
                                 draw_fan_plot(
@@ -244,9 +256,22 @@ fn draw_fan_plot(
 // ── TA computation
 // ────────────────────────────────────────────────────────────
 
+/// Returns the active path's own Image surface — the one with the highest
+/// `path_step` among surfaces reachable from this path (every path ends in
+/// an Image surface, so this is always that path's own) — rather than
+/// whichever surface happens to be last in the model's global/store-index
+/// order, which may belong to a different path entirely.
+fn active_path_image_surface(surfaces: &[SurfaceDesc]) -> Option<&SurfaceDesc> {
+    surfaces
+        .iter()
+        .filter(|s| s.path_step.is_some())
+        .max_by_key(|s| s.path_step)
+}
+
 /// Compute TA data for one field column across all wavelengths.
 fn compute_field_ta(
     r: &ResultPackage,
+    active_path: usize,
     field_id: usize,
     image_surf: Option<&SurfaceDesc>,
 ) -> FieldTaData {
@@ -261,9 +286,11 @@ fn compute_field_ta(
     let Some(image_surf) = image_surf else {
         return empty;
     };
+    let Some(field_specs) = r.field_specs_by_path.get(active_path) else {
+        return empty;
+    };
 
-    let phi = r
-        .field_specs
+    let phi = field_specs
         .get(field_id)
         .map(|fs| fs.tangential_fan_phi())
         .unwrap_or(0.0);
@@ -277,13 +304,18 @@ fn compute_field_ta(
     let mut sagittal: HashMap<usize, TaCurve> = HashMap::new();
     let mut paraxial_fallback = false;
 
-    for wl_id in 0..r.wavelengths.len() {
-        let Some(tr) = ray_trace.get(field_id, wl_id) else {
+    let n_wl = r
+        .wavelengths_by_path
+        .get(active_path)
+        .map(|w| w.len())
+        .unwrap_or(0);
+    for wl_id in 0..n_wl {
+        let Some(tr) = ray_trace.get_for_path(active_path, field_id, wl_id) else {
             continue;
         };
 
         let (chief_pos, used_fallback) =
-            chief_ray_image_pos(tr, r, field_id, wl_id, image_surf, phi);
+            chief_ray_image_pos(tr, r, active_path, field_id, wl_id, image_surf, phi);
         let Some(chief_pos) = chief_pos else {
             continue;
         };
@@ -310,6 +342,7 @@ fn compute_field_ta(
 fn chief_ray_image_pos(
     tr: &TraceResults,
     r: &ResultPackage,
+    active_path: usize,
     field_id: usize,
     wl_id: usize,
     image_surf: &SurfaceDesc,
@@ -332,8 +365,8 @@ fn chief_ray_image_pos(
         let Some(pv) = &r.paraxial else {
             return (None, false);
         };
-        let tangential_vec_id = pv.tangential_vec_id_for_phi(0, phi);
-        let Some(sv) = pv.get(wl_id, tangential_vec_id) else {
+        let tangential_vec_id = pv.tangential_vec_id_for_phi(active_path, phi);
+        let Some(sv) = pv.get_for_path(active_path, wl_id, tangential_vec_id) else {
             return (None, false);
         };
 
@@ -342,10 +375,10 @@ fn chief_ray_image_pos(
         };
         let y_max = last.first().map(|pr| pr.height).unwrap_or(0.0);
 
-        let ratio = r
-            .field_specs
-            .get(field_id)
-            .map(|fs| field_height_ratio(fs, &r.field_specs, phi))
+        let field_specs = r.field_specs_by_path.get(active_path);
+        let ratio = field_specs
+            .and_then(|fs| fs.get(field_id).map(|f| (f, fs)))
+            .map(|(fs, all)| field_height_ratio(fs, all, phi))
             .unwrap_or(0.0);
         let y_fallback = ratio * y_max;
 
@@ -476,15 +509,15 @@ mod tests {
     fn make_minimal(wavelengths: &[f64]) -> ResultPackage {
         ResultPackage {
             id: 1,
-            wavelengths: wavelengths.to_vec(),
+            wavelengths_by_path: vec![wavelengths.to_vec()],
             surfaces: Vec::new(),
-            fields: vec![FieldDesc {
+            fields_by_path: vec![vec![FieldDesc {
                 label: "\u{03c7}=0.000\u{00b0}, \u{03c6}=90.000\u{00b0}".to_string(),
-            }],
-            field_specs: vec![crate::FieldSpec::Angle {
+            }]],
+            field_specs_by_path: vec![vec![crate::FieldSpec::Angle {
                 chi: 0.0,
                 phi: 90.0,
-            }],
+            }]],
             paraxial: None,
             ray_trace: None,
             cross_section: None,
@@ -499,34 +532,30 @@ mod tests {
     fn make_result(wavelengths: &[&str]) -> ResultPackage {
         use crate::gui::{convert, model::SystemSpecs};
         use crate::{
-            ParaxialView, SequentialModel, ray_trace_3d_view, views::ray_trace_3d::SamplingConfig,
+            ParaxialView, SequentialModelBuilder, ray_trace_3d_view,
+            views::ray_trace_3d::SamplingConfig,
         };
 
-        let specs = SystemSpecs {
-            wavelengths: wavelengths.iter().map(|s| s.to_string()).collect(),
-            n_fan_rays: 11,
-            ..Default::default()
-        };
+        let mut specs = SystemSpecs::default();
+        specs.paths[0].wavelengths = wavelengths.iter().map(|s| s.to_string()).collect();
+        specs.n_fan_rays = 11;
         #[cfg(not(feature = "ri-info"))]
         let parsed = convert::convert_specs(&specs).expect("convert");
         #[cfg(feature = "ri-info")]
         let parsed = convert::convert_specs(&specs, &Default::default()).expect("convert");
-        let seq = SequentialModel::from_surface_specs(
-            &parsed.gaps,
-            &parsed.surfaces,
-            &parsed.wavelengths,
-            None,
-        )
-        .expect("model");
-        let pv =
-            ParaxialView::new(&seq, std::slice::from_ref(&parsed.fields), false).expect("paraxial");
+        let seq = SequentialModelBuilder::new()
+            .paths(parsed.path_specs)
+            .build()
+            .expect("model")
+            .model;
+        let pv = ParaxialView::new(&seq, &parsed.field_specs_by_path, false).expect("paraxial");
         let config = SamplingConfig {
             n_fan_rays: 11,
             full_pupil_spacing: 0.1,
         };
         let trace = ray_trace_3d_view(
-            &[parsed.aperture],
-            std::slice::from_ref(&parsed.fields),
+            &parsed.aperture_specs_by_path,
+            &parsed.field_specs_by_path,
             &seq,
             &pv,
             config,
@@ -558,12 +587,12 @@ mod tests {
                     label: format!("{name} [{i}]"),
                     pos: p.position,
                     rot_mat: p.rotation_matrix,
+                    path_step: Some(i),
                 }
             })
             .collect();
 
-        let fields: Vec<FieldDesc> = parsed
-            .fields
+        let fields: Vec<FieldDesc> = parsed.field_specs_by_path[0]
             .iter()
             .map(|f| {
                 let label = match f {
@@ -578,10 +607,10 @@ mod tests {
 
         ResultPackage {
             id: 1,
-            wavelengths: wls,
+            wavelengths_by_path: vec![wls],
             surfaces,
-            fields,
-            field_specs: parsed.fields.clone(),
+            fields_by_path: vec![fields],
+            field_specs_by_path: parsed.field_specs_by_path,
             paraxial: Some(pv),
             ray_trace: trace,
             cross_section: None,
@@ -596,7 +625,7 @@ mod tests {
         let mut window = RayFanWindow::default();
         let mut harness = Harness::new(|ctx| {
             let mut open = true;
-            window.show(ctx, &mut open, None);
+            window.show(ctx, &mut open, None, 0);
         });
         harness.step();
         harness.get_by_label("No data yet.");
@@ -608,7 +637,7 @@ mod tests {
         let mut harness = Harness::new_state(
             |ctx, (w, r): &mut (RayFanWindow, ResultPackage)| {
                 let mut open = true;
-                w.show(ctx, &mut open, Some(r));
+                w.show(ctx, &mut open, Some(r), 0);
             },
             (RayFanWindow::default(), result),
         );
@@ -622,7 +651,7 @@ mod tests {
         let mut harness = Harness::new_state(
             |ctx, (w, r): &mut (RayFanWindow, ResultPackage)| {
                 let mut open = true;
-                w.show(ctx, &mut open, Some(r));
+                w.show(ctx, &mut open, Some(r), 0);
             },
             (RayFanWindow::default(), result),
         );
@@ -639,7 +668,7 @@ mod tests {
         let mut harness = Harness::new_state(
             |ctx, (w, r): &mut (RayFanWindow, ResultPackage)| {
                 let mut open = true;
-                w.show(ctx, &mut open, Some(r));
+                w.show(ctx, &mut open, Some(r), 0);
             },
             (RayFanWindow::default(), result),
         );
@@ -663,6 +692,51 @@ mod tests {
                 .query_all_by_label_contains("0.6560")
                 .next()
                 .is_some()
+        );
+    }
+
+    /// Regression: TA computation must use the *active path's own* Image
+    /// surface, not whichever surface happens to be last in the model's
+    /// global/store-index order — a surface only reachable from a
+    /// *different* path (`path_step: None`) must never be picked.
+    #[test]
+    fn active_path_image_surface_uses_active_paths_own_image() {
+        use crate::core::math::{linalg::mat3x3::Mat3x3, vec3::Vec3};
+
+        let dummy = |index: usize, label: &str, path_step: Option<usize>| SurfaceDesc {
+            index,
+            label: label.to_string(),
+            pos: Vec3::new(0.0, 0.0, 0.0),
+            rot_mat: Mat3x3::identity(),
+            path_step,
+        };
+
+        // Store indices: 0=Object, 1=BeamSplitter (shared by both paths),
+        // 2=Image_T (path 0's own), 3=Image_R (path 1's own — the global
+        // last surface, which `.last()` would wrongly pick even when path 0
+        // is active).
+        let surfaces_path0_active = vec![
+            dummy(0, "Object [0]", Some(0)),
+            dummy(1, "Beam Splitter [1]", Some(1)),
+            dummy(2, "Image [2]", Some(2)),
+            dummy(3, "Image [3]", None),
+        ];
+        assert_eq!(
+            active_path_image_surface(&surfaces_path0_active).map(|s| s.index),
+            Some(2),
+            "path 0 active: must use its own image, not path 1's"
+        );
+
+        let surfaces_path1_active = vec![
+            dummy(0, "Object [0]", Some(0)),
+            dummy(1, "Beam Splitter [1]", Some(1)),
+            dummy(2, "Image [2]", None),
+            dummy(3, "Image [3]", Some(2)),
+        ];
+        assert_eq!(
+            active_path_image_surface(&surfaces_path1_active).map(|s| s.index),
+            Some(3),
+            "path 1 active: must use its own image, not path 0's"
         );
     }
 }

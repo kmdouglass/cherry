@@ -879,15 +879,24 @@ impl ParaxialSubView {
         field_specs: &[FieldSpec],
         entrance_pupil: &Pupil,
     ) -> Result<ParaxialRayBundle> {
+        // `entrance_pupil.location` is relative to this path's own first
+        // non-object surface (see `Pupil`'s docs). Converting to a
+        // separation from this path's own object requires adding this
+        // path's own first gap thickness — using `sequential_sub_model`'s
+        // own gaps (correctly path-scoped, including any leading gap
+        // inferred for a `Shared`/`ObjectLinkedTo` path) rather than a
+        // global placement lookup, which would silently resolve to path
+        // 0's own object for any other path.
         let enp_loc = entrance_pupil.location;
-        let obj_loc = placements
-            .first()
-            .ok_or(anyhow!("No surfaces provided"))?
-            .track;
-        let sep = if obj_loc.is_infinite() {
+        let sep = if sequential_sub_model.is_obj_at_inf() {
             0.0
         } else {
-            enp_loc - obj_loc
+            let gap0 = sequential_sub_model
+                .gaps()
+                .first()
+                .expect("A submodel should always have at least one gap.")
+                .thickness;
+            gap0 + enp_loc
         };
 
         // Filter to only the field specs whose phi matches this submodel's v.
@@ -1300,6 +1309,7 @@ impl ParaxialSubView {
             gap_before: gap_0,
             surface,
             gap_after: gap_1,
+            bs_arm,
             ..
         } in steps
         {
@@ -1320,7 +1330,7 @@ impl ParaxialSubView {
                 gap_0.refractive_index.n()
             };
 
-            let rtm = surface_to_rtm(surface, t, n_0, n_1, reverse);
+            let rtm = surface_to_rtm(surface, t, n_0, n_1, reverse, bs_arm);
             txs.push(rtm);
         }
 
@@ -1380,8 +1390,9 @@ fn surface_to_rtm(
     n_0: Float,
     n_1: Float,
     reverse: bool,
+    bs_arm: Option<BeamSplitterPathKind>,
 ) -> RayTransferMatrix {
-    match surface.boundary_kind() {
+    match surface.effective_boundary_kind(bs_arm) {
         BoundaryKind::Refracting => {
             let phi = if reverse {
                 -surface.power(0.0, n_1, n_0)
@@ -1614,11 +1625,80 @@ mod test {
 
     use crate::examples::convexplano_lens;
     use crate::{
-        GapSpec, Rotation3D, SequentialModel, SurfaceSpec, Vec3, core::Float, n,
-        specs::surfaces::BoundaryKind,
+        BeamSplitter, BeamSplitterPathKind, Conic, GapSpec, Rotation3D, SequentialModel,
+        SurfaceSpec, Vec3, core::Float, n, specs::surfaces::BoundaryKind,
     };
 
     use super::*;
+
+    /// Regression: `surface_to_rtm`'s behavior for a non-beam-splitter
+    /// surface (here, a curved mirror) must be unaffected by the `bs_arm`
+    /// parameter — confirms the new parameter doesn't disturb any existing
+    /// surface's paraxial result.
+    #[test]
+    fn surface_to_rtm_curved_mirror_unaffected_by_bs_arm() {
+        let mirror = Conic::new(10.0, 50.0, 0.0, BoundaryKind::Reflecting);
+        let t = 10.0;
+        let expected = Mat2x2::new(1.0, t, 2.0 / 50.0, 2.0 * t / 50.0 + 1.0);
+
+        let rtm_none = surface_to_rtm(&mirror, t, 1.0, 1.0, false, None);
+        assert_eq!(rtm_none, expected);
+
+        let rtm_reflecting = surface_to_rtm(
+            &mirror,
+            t,
+            1.0,
+            1.0,
+            false,
+            Some(BeamSplitterPathKind::Reflecting),
+        );
+        assert_eq!(rtm_reflecting, expected);
+
+        let rtm_transmitting = surface_to_rtm(
+            &mirror,
+            t,
+            1.0,
+            1.0,
+            false,
+            Some(BeamSplitterPathKind::Transmitting),
+        );
+        assert_eq!(rtm_transmitting, expected);
+    }
+
+    /// `surface_to_rtm` must actually consult `effective_boundary_kind`
+    /// (not `boundary_kind` directly) for a `BeamSplitter`: it should not
+    /// panic and should produce a sane matrix for both declared arms. A
+    /// flat `BeamSplitter` can't itself show a *numeric* difference between
+    /// arms (both degenerate to the same zero-power propagation matrix),
+    /// but `beam_splitter::effective_boundary_kind_*` unit tests already
+    /// prove the resolution logic itself is correct — this proves the
+    /// wiring reaches it.
+    #[test]
+    fn surface_to_rtm_beam_splitter_respects_bs_arm_without_panicking() {
+        let bs = BeamSplitter::new(5.0);
+        let t = 10.0;
+        let expected_flat = Mat2x2::new(1.0, t, 0.0, 1.0);
+
+        let rtm_reflecting = surface_to_rtm(
+            &bs,
+            t,
+            1.0,
+            1.0,
+            false,
+            Some(BeamSplitterPathKind::Reflecting),
+        );
+        assert_eq!(rtm_reflecting, expected_flat);
+
+        let rtm_transmitting = surface_to_rtm(
+            &bs,
+            t,
+            1.0,
+            1.0,
+            false,
+            Some(BeamSplitterPathKind::Transmitting),
+        );
+        assert_eq!(rtm_transmitting, expected_flat);
+    }
 
     #[test]
     fn test_propagate() {

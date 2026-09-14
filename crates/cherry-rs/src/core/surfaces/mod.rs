@@ -3,7 +3,7 @@ use anyhow::Result;
 
 use crate::core::{Float, math::vec3::Vec3, ray::Ray};
 
-use crate::specs::surfaces::{BoundaryKind, Mask};
+use crate::specs::surfaces::{BeamSplitterPathKind, BoundaryKind, Mask};
 
 pub mod kinds;
 pub mod solvers;
@@ -117,13 +117,32 @@ pub trait Surface: std::fmt::Debug + Send + Sync {
         SurfaceKind::Custom
     }
 
+    /// Returns the boundary kind actually in effect for one traversal,
+    /// given this step's beam-splitter arm declaration (if any).
+    ///
+    /// Every surface but [`BeamSplitter`](kinds::BeamSplitter) is fully
+    /// self-contained and ignores `bs_arm`, so the default implementation
+    /// simply delegates to [`boundary_kind`](Surface::boundary_kind).
+    /// `BeamSplitter` is the one surface type whose true behavior is
+    /// undecidable from the surface object alone — the same physical
+    /// instance may be `Shared` across paths that traverse it differently
+    /// (one reflecting, one transmitting) — so it overrides this method to
+    /// resolve `bs_arm` into the correct answer instead.
+    fn effective_boundary_kind(&self, bs_arm: Option<BeamSplitterPathKind>) -> BoundaryKind {
+        let _ = bs_arm;
+        self.boundary_kind()
+    }
+
     /// Modifies the ray after it intersects this surface.
     ///
     /// The default implementation applies Snell's law for refracting surfaces,
     /// the law of reflection for reflecting surfaces, and is a no-op for NoOp
-    /// surfaces. Custom surface implementations may override this method to
-    /// also displace the ray (e.g., a cardinal lens that displaces rays between
-    /// principal planes).
+    /// surfaces — dispatching on
+    /// [`effective_boundary_kind`](Self::effective_boundary_kind)
+    /// rather than [`boundary_kind`](Self::boundary_kind) directly, so that a
+    /// beam splitter's declared arm is respected. Custom surface
+    /// implementations may override this method to also displace the ray
+    /// (e.g., a cardinal lens that displaces rays between principal planes).
     ///
     /// All vectors are in the surface's **local** coordinate system.
     ///
@@ -133,10 +152,35 @@ pub trait Surface: std::fmt::Debug + Send + Sync {
     /// - `n_1`: Refractive index of the medium after the surface
     /// - `norm`: Surface normal at the intersection point (need not be
     ///   normalized)
-    fn interact(&self, ray: &mut Ray, n_0: Float, n_1: Float, norm: Vec3) {
+    /// - `bs_arm`: This step's beam-splitter arm declaration, if the surface
+    ///   being traversed is a beam splitter; `None` otherwise (or when no
+    ///   per-step context is available).
+    fn interact(
+        &self,
+        ray: &mut Ray,
+        n_0: Float,
+        n_1: Float,
+        norm: Vec3,
+        bs_arm: Option<BeamSplitterPathKind>,
+    ) {
         let norm = norm.normalize();
-        match self.boundary_kind() {
+        match self.effective_boundary_kind(bs_arm) {
             BoundaryKind::Refracting => {
+                // Orient the normal to the incoming ray's own hemisphere
+                // first. `norm` is a fixed, surface-intrinsic convention
+                // (e.g. always "+local Z" for a flat surface) that has no
+                // relation to which physical side a ray approaches from —
+                // a `Shared` surface in a multipath system can be
+                // traversed from either side, depending on which path
+                // built it versus which path is currently retracing it.
+                // Without this, the sqrt term below is always `+norm`,
+                // which silently reverses propagation direction for a ray
+                // entering the `-norm` hemisphere.
+                let norm = if ray.dir().dot(&norm) < 0.0 {
+                    -norm
+                } else {
+                    norm
+                };
                 let mu = n_0 / n_1;
                 let cos_theta_1 = ray.dir().dot(&norm);
                 let term_1 = norm * (1.0 - mu * mu * (1.0 - cos_theta_1 * cos_theta_1)).sqrt();
@@ -154,6 +198,8 @@ pub trait Surface: std::fmt::Debug + Send + Sync {
 
 #[cfg(test)]
 mod tests {
+    use approx::assert_abs_diff_eq;
+
     use super::*;
     use crate::core::math::vec3::Vec3;
     use crate::core::surfaces::Conic;
@@ -169,7 +215,7 @@ mod tests {
         let dir = Vec3::new(0.0, 0.0, 1.0);
         let mut ray = make_ray(dir);
         let norm = Vec3::new(0.0, 0.0, 1.0);
-        surf.interact(&mut ray, 1.0, 1.5, norm);
+        surf.interact(&mut ray, 1.0, 1.5, norm, None);
         assert_eq!(ray.dir(), dir);
     }
 
@@ -180,7 +226,7 @@ mod tests {
         let dir = Vec3::new(0.0, 0.0, 1.0);
         let mut ray = make_ray(dir);
         let norm = Vec3::new(0.0, 0.0, 1.0);
-        surf.interact(&mut ray, 1.0, 1.5, norm);
+        surf.interact(&mut ray, 1.0, 1.5, norm, None);
         assert!((ray.dir().x() - 0.0).abs() < 1e-10);
         assert!((ray.dir().y() - 0.0).abs() < 1e-10);
         assert!((ray.dir().z() - 1.0).abs() < 1e-10);
@@ -193,7 +239,89 @@ mod tests {
         let dir = Vec3::new(0.0, 0.0, 1.0);
         let mut ray = make_ray(dir);
         let norm = Vec3::new(0.0, 0.0, 1.0);
-        surf.interact(&mut ray, 1.0, 1.0, norm);
+        surf.interact(&mut ray, 1.0, 1.0, norm, None);
         assert!((ray.dir().z() - (-1.0)).abs() < 1e-10);
+    }
+
+    /// Regression: for any surface that doesn't override
+    /// `effective_boundary_kind` (i.e. every surface except
+    /// `BeamSplitter`), `interact(..., None)` must produce exactly the same
+    /// result as the pre-fix, context-free `interact()` always did —
+    /// confirming the new default delegation
+    /// (`effective_boundary_kind` -> `boundary_kind()`) is behavior-
+    /// preserving. Also checks that passing a `Some(..)` arm to a
+    /// non-beam-splitter surface changes nothing, since the default
+    /// implementation ignores it.
+    #[test]
+    fn interact_default_delegation_is_unaffected_by_bs_arm() {
+        use crate::specs::surfaces::BeamSplitterPathKind;
+
+        for kind in [
+            BoundaryKind::NoOp,
+            BoundaryKind::Refracting,
+            BoundaryKind::Reflecting,
+        ] {
+            let surf = Conic::new(4.0, Float::INFINITY, 0.0, kind);
+            let dir = Vec3::new(0.3, 0.4, 1.0).normalize();
+            let norm = Vec3::new(0.0, 0.0, 1.0);
+
+            let mut ray_none = make_ray(dir);
+            surf.interact(&mut ray_none, 1.0, 1.5, norm, None);
+
+            let mut ray_reflecting = make_ray(dir);
+            surf.interact(
+                &mut ray_reflecting,
+                1.0,
+                1.5,
+                norm,
+                Some(BeamSplitterPathKind::Reflecting),
+            );
+
+            let mut ray_transmitting = make_ray(dir);
+            surf.interact(
+                &mut ray_transmitting,
+                1.0,
+                1.5,
+                norm,
+                Some(BeamSplitterPathKind::Transmitting),
+            );
+
+            assert_eq!(ray_none.dir(), ray_reflecting.dir());
+            assert_eq!(ray_none.dir(), ray_transmitting.dir());
+        }
+    }
+
+    /// Time-reversal symmetry: refracting a ray forward, then retracing the
+    /// exact reverse ray (negated direction, swapped media indices) through
+    /// the same surface, must reproduce the original incoming direction,
+    /// negated.
+    ///
+    /// A multipath system relies on exactly this: a `Shared` refracting
+    /// surface built by one path (which always approaches it from the
+    /// "forward" side, `dir·norm > 0`, since it built the surface's own
+    /// local frame) can be traversed by a *later* path from the opposite
+    /// physical side (`dir·norm < 0` — e.g. a `Reversed` `ObjectLinkedTo`
+    /// path retracing back through geometry another path built forward).
+    /// The default `interact()` formula unconditionally forced the outgoing
+    /// ray into the `+norm` hemisphere regardless of the incoming ray's own
+    /// hemisphere, which silently reverses propagation direction for
+    /// exactly this case — this test fails on that old behavior and passes
+    /// once the surface normal is oriented to match the incoming ray first.
+    #[test]
+    fn interact_refracting_is_time_reversal_symmetric() {
+        let surf = Conic::new(4.0, Float::INFINITY, 0.0, BoundaryKind::Refracting);
+        let norm = Vec3::new(0.0, 0.0, 1.0);
+        let dir_in = Vec3::new(0.0, 0.3, 1.0).normalize();
+
+        let mut ray_fwd = make_ray(dir_in);
+        surf.interact(&mut ray_fwd, 1.0, 1.5, norm, None);
+        let dir_out = ray_fwd.dir();
+
+        let mut ray_rev = make_ray(-dir_out);
+        surf.interact(&mut ray_rev, 1.5, 1.0, norm, None);
+
+        assert_abs_diff_eq!(ray_rev.dir().x(), -dir_in.x(), epsilon = 1e-9);
+        assert_abs_diff_eq!(ray_rev.dir().y(), -dir_in.y(), epsilon = 1e-9);
+        assert_abs_diff_eq!(ray_rev.dir().z(), -dir_in.z(), epsilon = 1e-9);
     }
 }

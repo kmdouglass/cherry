@@ -67,10 +67,20 @@ pub struct SurfaceFrame2D {
     pub oop_out_of_screen: bool,
 }
 
+/// A `DrawElement` tagged with every path whose traversal includes its
+/// underlying surface(s). Never empty. `path_ids.len() > 1` marks geometry
+/// shared by more than one path (e.g. a beam splitter or objective common to
+/// two arms) — deduped to one `PathDrawElement` rather than drawn once per
+/// referencing path (FR-XS-2).
+pub struct PathDrawElement {
+    pub element: DrawElement,
+    pub path_ids: Vec<usize>,
+}
+
 /// 2D geometry for one cutting plane.
 pub struct PlaneGeometry {
     pub bounding_box: Bounds2D,
-    pub elements: Vec<DrawElement>,
+    pub elements: Vec<PathDrawElement>,
     /// ray_paths[wavelength_idx][path_idx] = Vec<[z, transverse]>
     pub ray_paths: Vec<Vec<Vec<[f64; 2]>>>,
     /// On-axis positions [z, transverse] per optical path.
@@ -209,12 +219,24 @@ fn build_plane_geometry(
     let placements = model.placements();
     let largest_sd = model.largest_semi_diameter();
 
-    let mut elements: Vec<DrawElement> = Vec::new();
+    let mut elements: Vec<PathDrawElement> = Vec::new();
 
-    // Add lens groups and stops. Components are already sorted by first surface
-    // index.
+    // Dedup: group PathComponents sharing the same underlying Component
+    // (e.g. a beam splitter or objective traversed by more than one path) so
+    // each is drawn exactly once, tagged with every path that traverses it
+    // (FR-XS-2). `components` is already sorted by first surface index, so a
+    // linear scan preserves that order without requiring `Component: Ord`.
+    let mut grouped: Vec<(&Component, Vec<usize>)> = Vec::new();
     for pc in components {
-        let comp = &pc.component;
+        if let Some(entry) = grouped.iter_mut().find(|(c, _)| *c == &pc.component) {
+            entry.1.push(pc.path_id);
+        } else {
+            grouped.push((&pc.component, vec![pc.path_id]));
+        }
+    }
+
+    // Add lens groups and stops, one per dedup'd group.
+    for (comp, path_ids) in grouped {
         match comp {
             Component::Element { surf_idxs } => {
                 let i = surf_idxs.first().copied().unwrap_or(0);
@@ -230,10 +252,13 @@ fn build_plane_geometry(
                             if pts.is_empty() { None } else { Some(pts) }
                         })
                         .collect();
-                    elements.push(DrawElement::LensGroup {
-                        front_pts,
-                        back_pts,
-                        inner_pts,
+                    elements.push(PathDrawElement {
+                        element: DrawElement::LensGroup {
+                            front_pts,
+                            back_pts,
+                            inner_pts,
+                        },
+                        path_ids,
                     });
                 }
             }
@@ -253,13 +278,16 @@ fn build_plane_geometry(
                     GlobalAxis::X => fwd.x(),
                 };
                 let sd = surfaces[*stop_idx].mask().semi_diameter();
-                elements.push(DrawElement::Iris {
-                    center_z,
-                    center_t,
-                    fwd_z,
-                    fwd_t,
-                    half_gap: sd,
-                    extent: largest_sd * 1.5,
+                elements.push(PathDrawElement {
+                    element: DrawElement::Iris {
+                        center_z,
+                        center_t,
+                        fwd_z,
+                        fwd_t,
+                        half_gap: sd,
+                        extent: largest_sd * 1.5,
+                    },
+                    path_ids,
                 });
             }
             Component::ThinLens { surf_idx } => {
@@ -279,16 +307,19 @@ fn build_plane_geometry(
                 // n_0 = n_1 = 1.0 is safe here: ThinLens::power() ignores
                 // both arguments, so this just recovers 1/focal_length's sign.
                 let converging = surfaces[*surf_idx].power(0.0, 1.0, 1.0).is_sign_positive();
-                elements.push(DrawElement::ThinLens {
-                    center_z,
-                    center_t,
-                    fwd_z,
-                    fwd_t,
-                    half_gap: sd,
-                    converging,
+                elements.push(PathDrawElement {
+                    element: DrawElement::ThinLens {
+                        center_z,
+                        center_t,
+                        fwd_z,
+                        fwd_t,
+                        half_gap: sd,
+                        converging,
+                    },
+                    path_ids,
                 });
             }
-            Component::Mirror { surf_idx } => {
+            Component::Mirror { surf_idx } | Component::BeamSplitter { surf_idx } => {
                 let pts = sample_surface(
                     surfaces[*surf_idx].as_ref(),
                     &placements[*surf_idx],
@@ -296,7 +327,10 @@ fn build_plane_geometry(
                     N_PTS,
                 );
                 if !pts.is_empty() {
-                    elements.push(DrawElement::SurfaceProfile { points: pts });
+                    elements.push(PathDrawElement {
+                        element: DrawElement::SurfaceProfile { points: pts },
+                        path_ids,
+                    });
                 }
             }
             Component::UnpairedSurface { surf_idx } => {
@@ -307,14 +341,21 @@ fn build_plane_geometry(
                     N_PTS,
                 );
                 if !pts.is_empty() {
-                    elements.push(DrawElement::SurfaceProfile { points: pts });
+                    elements.push(PathDrawElement {
+                        element: DrawElement::SurfaceProfile { points: pts },
+                        path_ids,
+                    });
                 }
             }
         }
     }
 
-    // Add flat planes (Image, Probe, Object at finite distance).
-    for (surf, placement) in surfaces.iter().zip(placements.iter()) {
+    // Add flat planes (Image, Probe, Object at finite distance). Tagged by
+    // direct store-index membership rather than via `components` (flat
+    // planes are always single-store-index and never go through
+    // `components_view`).
+    let mut flat_planes: Vec<(FlatPlaneKind, f64, f64, PathDrawElement)> = Vec::new();
+    for (i, (surf, placement)) in surfaces.iter().zip(placements.iter()).enumerate() {
         if placement.is_infinite() {
             continue;
         }
@@ -349,7 +390,42 @@ fn build_plane_geometry(
         let p1 = [center_z - fwd_t * half, center_t + fwd_z * half];
         let p2 = [center_z + fwd_t * half, center_t - fwd_z * half];
 
-        elements.push(DrawElement::FlatPlane { p1, p2, kind });
+        let path_ids: Vec<usize> = (0..model.path_count())
+            .filter(|&p| model.path_surface_indices(p).contains(&i))
+            .collect();
+
+        flat_planes.push((
+            kind,
+            center_z,
+            center_t,
+            PathDrawElement {
+                element: DrawElement::FlatPlane { p1, p2, kind },
+                path_ids,
+            },
+        ));
+    }
+
+    // Merge coincident planes (e.g. `ObjectLinkedTo` synthesizes a new
+    // Object store index at the same physical position as the linked path's
+    // Image — a distinct store index, so the dedup above (keyed on store
+    // index via `components`) does not merge them). Deliberately *not*
+    // conditioned on matching `FlatPlaneKind`: the motivating case is
+    // exactly an Image plane coinciding with a different path's linked
+    // Object plane at the same position — the whole point is to merge
+    // across that kind difference. The earlier (lower store index) plane's
+    // kind and geometry win; only `path_ids` are unioned. Only exact-
+    // position coincidence, not a general geometric-overlap solver.
+    for i in (1..flat_planes.len()).rev() {
+        if let Some(j) = flat_planes[..i].iter().position(|(_, z, t, _)| {
+            (*z - flat_planes[i].1).abs() < EPS && (*t - flat_planes[i].2).abs() < EPS
+        }) {
+            let (_, _, _, merged) = flat_planes.remove(i);
+            flat_planes[j].3.path_ids.extend(merged.path_ids);
+        }
+    }
+
+    for (_, _, _, pde) in flat_planes {
+        elements.push(pde);
     }
 
     // Extract ray paths.
@@ -514,7 +590,7 @@ fn sample_surface(
 }
 
 /// Compute the bounding box over all elements and ray paths.
-fn compute_bounds(elements: &[DrawElement], ray_paths: &[Vec<Vec<[f64; 2]>>]) -> Bounds2D {
+fn compute_bounds(elements: &[PathDrawElement], ray_paths: &[Vec<Vec<[f64; 2]>>]) -> Bounds2D {
     let mut z_min = f64::MAX;
     let mut z_max = f64::MIN;
     let mut t_min = f64::MAX;
@@ -532,8 +608,8 @@ fn compute_bounds(elements: &[DrawElement], ray_paths: &[Vec<Vec<[f64; 2]>>]) ->
             }
         };
 
-    for elem in elements {
-        match elem {
+    for pde in elements {
+        match &pde.element {
             DrawElement::LensGroup {
                 front_pts,
                 back_pts,
@@ -793,6 +869,7 @@ mod tests {
         };
         let pv = ParaxialView::new(&model, std::slice::from_ref(&fields), false).unwrap();
         let rays = trace_ray_bundle(
+            0,
             &aperture,
             &fields,
             &model,
@@ -832,6 +909,7 @@ mod tests {
         };
         let pv = ParaxialView::new(&model, std::slice::from_ref(&fields), false).unwrap();
         let rays = trace_ray_bundle(
+            0,
             &aperture,
             &fields,
             &model,
@@ -863,7 +941,7 @@ mod tests {
             .yz
             .elements
             .iter()
-            .filter(|e| matches!(e, DrawElement::LensGroup { .. }))
+            .filter(|pde| matches!(pde.element, DrawElement::LensGroup { .. }))
             .count();
         assert_eq!(n_groups, 3, "expected 3 separate lens groups");
     }
@@ -930,7 +1008,7 @@ mod tests {
 
         // After the 45° fold the optical axis points along Y (transverse), not Z.
         // The iris DrawElement must therefore have fwd_z ≈ 0 and fwd_t ≈ ±1.
-        let iris = cs.yz.elements.iter().find_map(|e| match e {
+        let iris = cs.yz.elements.iter().find_map(|pde| match &pde.element {
             DrawElement::Iris { fwd_z, fwd_t, .. } => Some((*fwd_z, *fwd_t)),
             _ => None,
         });
@@ -977,7 +1055,7 @@ mod tests {
     }
 
     fn find_thin_lens(cs: &CrossSectionView) -> Option<(f64, bool)> {
-        cs.yz.elements.iter().find_map(|e| match e {
+        cs.yz.elements.iter().find_map(|pde| match &pde.element {
             DrawElement::ThinLens {
                 half_gap,
                 converging,
@@ -1402,7 +1480,7 @@ mod tests {
             .yz
             .elements
             .iter()
-            .filter_map(|e| match e {
+            .filter_map(|pde| match &pde.element {
                 DrawElement::LensGroup { inner_pts, .. } => Some(inner_pts),
                 _ => None,
             })
@@ -1437,5 +1515,94 @@ mod tests {
             2,
             "expected one axis_path per optical path"
         );
+    }
+
+    /// FR-XS-2: a beam splitter (and Object) shared by two paths via
+    /// `Shared` must be drawn exactly once, tagged with both path ids —
+    /// not once per referencing path.
+    #[test]
+    fn shared_beam_splitter_deduped_to_one_element_tagged_with_both_paths() {
+        use crate::examples::beam_splitter;
+        use crate::specs::gaps::ConstantRefractiveIndex;
+        use std::rc::Rc;
+
+        let n_air: Rc<dyn crate::RefractiveIndexSpec> =
+            Rc::new(ConstantRefractiveIndex::new(1.0, 0.0));
+        let model = beam_splitter::two_path_model(n_air.clone(), &[0.5876], 10.0, 10.0);
+        let components = components_view(&model, n_air).unwrap();
+        let cs = cross_section_view(&model, None, &components);
+
+        let bs_elements: Vec<&PathDrawElement> = cs
+            .yz
+            .elements
+            .iter()
+            .filter(|pde| matches!(pde.element, DrawElement::SurfaceProfile { .. }))
+            .collect();
+        assert_eq!(
+            bs_elements.len(),
+            1,
+            "the shared beam splitter must appear exactly once, not once per path"
+        );
+        let mut path_ids = bs_elements[0].path_ids.clone();
+        path_ids.sort_unstable();
+        assert_eq!(path_ids, vec![0, 1]);
+
+        // The shared Object (store index 0) is at infinity in this fixture
+        // (collimated input), so — like every infinite-placement surface —
+        // it correctly produces no FlatPlane at all (not even one); this is
+        // unrelated to path-sharing and matches pre-existing single-path
+        // behavior. No separate Object-plane assertion applies here.
+    }
+
+    /// VT-XS-8 / design doc §10.1: `ObjectLinkedTo` synthesizes a *new*
+    /// Object store index at the same physical position as the linked
+    /// path's Image — a distinct store index, not a `Shared` reference. The
+    /// coincident-position merge must still collapse these into one
+    /// `PathDrawElement` tagged with both paths.
+    #[test]
+    fn object_linked_to_coincident_image_and_object_planes_are_merged() {
+        use crate::examples::wf_epi_microscope;
+
+        let model = wf_epi_microscope::sequential_model(n!(1.0), n!(1.5), &[0.488], &[0.520]);
+        let components = components_view(&model, n!(1.0)).unwrap();
+        let cs = cross_section_view(&model, None, &components);
+
+        // Path 0's Image (store 4) and path 1's linked Object (store 5) sit
+        // at the identical sample-plane position.
+        let sample_plane_elements: Vec<&PathDrawElement> = cs
+            .yz
+            .elements
+            .iter()
+            .filter(|pde| {
+                matches!(
+                    pde.element,
+                    DrawElement::FlatPlane {
+                        kind: FlatPlaneKind::Image | FlatPlaneKind::Object,
+                        ..
+                    }
+                )
+            })
+            .collect();
+
+        // Only path 0's excitation Object (store 0, at infinity — excluded,
+        // since infinite placements are skipped) is not at the sample
+        // plane; the sample-plane Image/Object pair must merge into one.
+        let merged = sample_plane_elements
+            .iter()
+            .find(|pde| pde.path_ids.len() > 1);
+        assert!(
+            merged.is_some(),
+            "the coincident Image/linked-Object planes at the sample plane must merge \
+             into one PathDrawElement tagged with both paths, got: {} total FlatPlane \
+             elements with path_ids {:?}",
+            sample_plane_elements.len(),
+            sample_plane_elements
+                .iter()
+                .map(|pde| &pde.path_ids)
+                .collect::<Vec<_>>()
+        );
+        let mut path_ids = merged.unwrap().path_ids.clone();
+        path_ids.sort_unstable();
+        assert_eq!(path_ids, vec![0, 1]);
     }
 }

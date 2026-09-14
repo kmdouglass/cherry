@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use egui_extras::{Column, TableBuilder};
 
@@ -18,6 +18,11 @@ pub struct LensOverlayPanel {
     stale_names: Vec<String>,
     merge_counter: usize,
     last_result_id: Option<u64>,
+    /// Last `active_path` the stale-group validation ran against. Switching
+    /// `active_path` alone produces no new `ResultPackage` (§3.3), so
+    /// `last_result_id` staying the same must not suppress re-validation —
+    /// see FR-OUT-3a.
+    last_active_path: Option<usize>,
 }
 
 fn component_first_idx(c: &Component) -> usize {
@@ -28,8 +33,29 @@ fn component_first_idx(c: &Component) -> usize {
         Component::Iris { stop_idx } => *stop_idx,
         Component::Mirror { surf_idx }
         | Component::ThinLens { surf_idx }
+        | Component::BeamSplitter { surf_idx }
         | Component::UnpairedSurface { surf_idx } => *surf_idx,
     }
+}
+
+/// Maps each store index reachable from `active_path` to its **step**
+/// index within that path's own `surface_refs` — the indexing
+/// `cross_section.rs` actually uses for `surface_frames[active_path]`
+/// (mirrors how `surfaces.rs`'s own hover handler writes a step index, not
+/// a store index). `LensGroupSpec.component_first_surfs` stores store
+/// indices, so the RUF-axis hover annotation must convert through this map
+/// rather than using a store index directly — store and step indices only
+/// coincide by accident in a single-path system.
+fn store_index_to_step_map(specs: &SystemSpecs, active_path: usize) -> HashMap<usize, usize> {
+    let store_table = specs.store_index_table();
+    let Some(path) = specs.paths.get(active_path) else {
+        return HashMap::new();
+    };
+    path.surface_refs
+        .iter()
+        .enumerate()
+        .filter_map(|(step, r)| Some((store_table.resolve(r)?, step)))
+        .collect()
 }
 
 fn default_group_name(c: &Component) -> String {
@@ -46,6 +72,7 @@ fn default_group_name(c: &Component) -> String {
         Component::Iris { stop_idx } => format!("Iris ({stop_idx})"),
         Component::Mirror { surf_idx } => format!("Mirror ({surf_idx})"),
         Component::ThinLens { surf_idx } => format!("Thin Lens ({surf_idx})"),
+        Component::BeamSplitter { surf_idx } => format!("Beam Splitter ({surf_idx})"),
         Component::UnpairedSurface { surf_idx } => format!("Surface ({surf_idx})"),
     }
 }
@@ -108,22 +135,33 @@ fn validate_and_sync(
 }
 
 impl LensOverlayPanel {
-    /// Show the lens overlay window. Returns `true` if `specs` changed.
+    /// Show the lens overlay window, filtered to `active_path` (FR-OUT-2).
+    /// Returns `true` if `specs` changed.
     pub fn show(
         &mut self,
         ctx: &egui::Context,
         open: &mut bool,
         specs: &mut SystemSpecs,
         result: Option<&ResultPackage>,
+        active_path: usize,
     ) -> bool {
-        // Sync with any newly arrived ResultPackage, even while the window is
-        // closed, so groups stay current and recomputes are triggered.
+        // Sync whenever a new ResultPackage arrives *or* active_path changes
+        // (FR-OUT-3a) — switching paths alone produces no new ResultPackage,
+        // but a group can become stale purely because its members were never
+        // part of the newly active path's own components.
         let mut changed = false;
         if let Some(r) = result
-            && self.last_result_id != Some(r.id)
+            && (self.last_result_id != Some(r.id) || self.last_active_path != Some(active_path))
         {
             self.last_result_id = Some(r.id);
-            let (stale, n_new) = validate_and_sync(&mut specs.lens_groups, &r.components);
+            self.last_active_path = Some(active_path);
+            let active_components: Vec<PathComponent> = r
+                .components
+                .iter()
+                .filter(|pc| pc.path_id == active_path)
+                .cloned()
+                .collect();
+            let (stale, n_new) = validate_and_sync(&mut specs.lens_groups, &active_components);
             if !stale.is_empty() {
                 self.stale_names.extend(stale);
                 self.selected.clear();
@@ -137,7 +175,7 @@ impl LensOverlayPanel {
         let inner = egui::Window::new("Lens Overlay")
             .open(open)
             .default_width(720.0)
-            .show(ctx, |ui| self.show_contents(ui, specs, result))
+            .show(ctx, |ui| self.show_contents(ui, specs, result, active_path))
             .and_then(|r| r.inner)
             .unwrap_or(false);
 
@@ -149,6 +187,7 @@ impl LensOverlayPanel {
         ui: &mut egui::Ui,
         specs: &mut SystemSpecs,
         result: Option<&ResultPackage>,
+        active_path: usize,
     ) -> bool {
         let mut changed = false;
 
@@ -174,9 +213,16 @@ impl LensOverlayPanel {
             return changed;
         };
 
-        let components = &result.components;
-        let comp_lookup: std::collections::HashMap<usize, &Component> = components
+        // Store index -> step index within active_path's own surface_refs,
+        // for the RUF-axis hover annotation. Computed eagerly (not as a
+        // closure over `specs`) so it doesn't hold a borrow across the
+        // row-rendering loop below, which mutates `specs.lens_groups`.
+        let step_for_store_index = store_index_to_step_map(specs, active_path);
+
+        let comp_lookup: std::collections::HashMap<usize, &Component> = result
+            .components
             .iter()
+            .filter(|pc| pc.path_id == active_path)
             .map(|pc| (component_first_idx(&pc.component), &pc.component))
             .collect();
 
@@ -354,15 +400,17 @@ impl LensOverlayPanel {
                             });
 
                             if row.response().hovered() {
-                                let surf_idx = specs.lens_groups[row_idx]
+                                let store_idx = specs.lens_groups[row_idx]
                                     .component_first_surfs
                                     .first()
                                     .copied();
-                                if let Some(idx) = surf_idx {
+                                if let Some(&step_idx) =
+                                    store_idx.and_then(|si| step_for_store_index.get(&si))
+                                {
                                     ctx.data_mut(|d| {
                                         d.insert_temp(
                                             egui::Id::new("annotation_hover_surface_idx"),
-                                            idx,
+                                            step_idx,
                                         );
                                     });
                                 }
@@ -452,7 +500,10 @@ impl LensOverlayPanel {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::gui::model::LensGroupSpec;
+    use crate::gui::model::{
+        FieldMode, FieldRow, GapRow, LensGroupSpec, LinkedObjectOrientationRow, PathRow, RowId,
+        SurfaceRefRow, SurfaceRow,
+    };
 
     fn make_element(surfs: Vec<usize>) -> Component {
         Component::Element { surf_idxs: surfs }
@@ -629,5 +680,150 @@ mod tests {
     fn default_group_name_unpaired() {
         let c = Component::UnpairedSurface { surf_idx: 9 };
         assert_eq!(default_group_name(&c), "Surface (9)");
+    }
+
+    /// FR-OUT-3a / VT-OUT-2: switching `active_path` alone (no new
+    /// `ResultPackage`) must still re-run stale-group discard. A group
+    /// created while `active_path == 0`, referencing a path-0-exclusive
+    /// component (e.g. the tube lens), must be discarded the moment
+    /// `active_path` switches to 1 — even though `result.id` never changes.
+    #[test]
+    fn switching_active_path_without_new_result_revalidates_groups() {
+        use crate::gui::result_package::ResultPackage;
+        use std::cell::Cell;
+        use std::rc::Rc;
+
+        // Path 0 has an exclusive Element at surf 1 (the "tube lens"); the
+        // objective (surf 3) is shared by both paths 0 and 1.
+        let components = vec![
+            PathComponent {
+                path_id: 0,
+                component: make_element(vec![1, 2]),
+            },
+            PathComponent {
+                path_id: 0,
+                component: Component::ThinLens { surf_idx: 3 },
+            },
+            PathComponent {
+                path_id: 1,
+                component: Component::ThinLens { surf_idx: 3 },
+            },
+        ];
+        let result = ResultPackage {
+            error: None,
+            components,
+            ..ResultPackage::error(1, String::new())
+        };
+
+        let specs = SystemSpecs::default();
+        let panel = LensOverlayPanel::default();
+        let active_path = Rc::new(Cell::new(0usize));
+
+        let active_path_for_closure = Rc::clone(&active_path);
+        let mut harness =
+            egui_kittest::Harness::new_state(
+                move |ctx,
+                      (panel, specs, result): &mut (
+                    LensOverlayPanel,
+                    SystemSpecs,
+                    ResultPackage,
+                )| {
+                    let mut open = true;
+                    panel.show(
+                        ctx,
+                        &mut open,
+                        specs,
+                        Some(result),
+                        active_path_for_closure.get(),
+                    );
+                },
+                (panel, specs, result),
+            );
+        harness.run();
+        let (_, s, _) = harness.state();
+        // With active_path == 0, the tube-lens group (surf 1, path-0
+        // exclusive) exists and is not stale.
+        assert!(
+            s.lens_groups
+                .iter()
+                .any(|g| g.component_first_surfs == vec![1]),
+            "path-0-exclusive component should have its own group while active_path == 0"
+        );
+
+        // Switch active_path to 1 without changing the ResultPackage id, and
+        // re-run — this must trigger re-validation (FR-OUT-3a).
+        active_path.set(1);
+        harness.run();
+        let (_, s, _) = harness.state();
+        assert!(
+            !s.lens_groups
+                .iter()
+                .any(|g| g.component_first_surfs == vec![1]),
+            "the path-0-exclusive group must be discarded once active_path == 1, \
+             even though no new ResultPackage arrived"
+        );
+    }
+
+    /// Regression: the RUF-axis hover annotation must convert a lens
+    /// group's `component_first_surfs` (a **store** index) into the
+    /// **step** index within `active_path`'s own `surface_refs`, since
+    /// `cross_section.rs` indexes `surface_frames[active_path]` by step.
+    /// Store and step indices only coincide by accident in a single-path
+    /// system; this fixture deliberately mismatches them: path 1's step 1
+    /// (`Shared`) resolves to store index 2, not step index 2.
+    #[test]
+    fn store_index_to_step_map_converts_correctly_for_mismatched_multipath_indices() {
+        let mut specs = SystemSpecs::new_single(PathRow::from_surface_rows(vec![
+            SurfaceRow::new_object("Infinity"), // path 0 step 0 -> store 0
+            SurfaceRow::new_sphere("10.0", "50.0", "5.0", "1.5"), // step 1 -> store 1
+            SurfaceRow::new_sphere("10.0", "Infinity", "5.0", "1.0"), // step 2 -> store 2
+            SurfaceRow::new_image(),            // step 3 -> store 3
+        ]));
+
+        let linked_id = specs.mint_row_id();
+        let img_id = specs.mint_row_id();
+        specs.paths.push(PathRow {
+            name: None,
+            surface_refs: vec![
+                // path 1 step 0 -> store 4 (new Object, linked to path 0).
+                SurfaceRefRow::ObjectLinkedTo {
+                    id: linked_id,
+                    path: 0,
+                    orientation: LinkedObjectOrientationRow::SameDirection,
+                    gap_after: GapRow::default(),
+                },
+                // path 1 step 1 -> store 2 (mismatched: step != store).
+                SurfaceRefRow::Shared {
+                    target: RowId(2),
+                    gap_after: GapRow::default(),
+                },
+                // path 1 step 2 -> store 5.
+                SurfaceRefRow::New(SurfaceRow::new_image().with_id(img_id)),
+            ],
+            stop_surface: None,
+            fields: vec![FieldRow {
+                chi: "0.0".into(),
+                phi: "90.0".into(),
+                x: "0.0".into(),
+            }],
+            field_mode: FieldMode::Angle,
+            aperture_semi_diameter: "10.0".into(),
+            wavelengths: vec!["0.520".into()],
+            beam_splitter_arms: Vec::new(),
+        });
+
+        let map = store_index_to_step_map(&specs, 1);
+        assert_eq!(
+            map.get(&2),
+            Some(&1),
+            "store index 2 must map to step 1 within path 1, not step 2"
+        );
+        assert_eq!(map.get(&4), Some(&0), "the linked Object is step 0");
+        assert_eq!(map.get(&5), Some(&2), "the trailing New Image is step 2");
+        // Path 0's own store indices (0, 1, 3) are not reachable as steps
+        // within path 1's own surface_refs.
+        assert_eq!(map.get(&0), None);
+        assert_eq!(map.get(&1), None);
+        assert_eq!(map.get(&3), None);
     }
 }

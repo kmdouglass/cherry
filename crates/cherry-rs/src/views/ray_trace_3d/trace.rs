@@ -88,7 +88,7 @@ pub fn trace(sequential_submodel: &mut SequentialSubModelIter, mut rays: Vec<Ray
             // Interact the ray with the surface (redirect and/or displace)
             let n_0 = step.gap_before.refractive_index.n();
             let n_1 = step.gap_after.map_or(n_0, |g| g.refractive_index.n());
-            step.surface.interact(ray, n_0, n_1, norm);
+            step.surface.interact(ray, n_0, n_1, norm, step.bs_arm);
 
             // Transform back to the global coordinate system
             ray.i_transform(step.surface_placement);

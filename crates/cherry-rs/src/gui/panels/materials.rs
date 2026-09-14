@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use super::super::model::SystemSpecs;
+use super::super::model::{SurfaceRefRow, SystemSpecs};
 
 /// Pre-computed shelf → book → page hierarchy from the material store keys.
 #[derive(Default, Clone)]
@@ -180,10 +180,24 @@ pub fn materials_panel(
 
     if let Some(idx) = remove_idx {
         let removed_key = specs.selected_materials.remove(idx);
-        // Clear material_key from any surfaces referencing this material.
-        for surf in &mut specs.surfaces {
-            if surf.material_key.as_deref() == Some(removed_key.as_str()) {
-                surf.material_key = None;
+        // Clear material_key from any row (New surface or Shared/ObjectLinkedTo
+        // gap) referencing this material, across every path.
+        for path in &mut specs.paths {
+            for r in &mut path.surface_refs {
+                match r {
+                    SurfaceRefRow::New(row) => {
+                        if row.material_key.as_deref() == Some(removed_key.as_str()) {
+                            row.material_key = None;
+                        }
+                    }
+                    SurfaceRefRow::Shared { .. } | SurfaceRefRow::ObjectLinkedTo { .. } => {
+                        if let Some(gap) = r.gap_after_mut()
+                            && gap.material_key.as_deref() == Some(removed_key.as_str())
+                        {
+                            gap.material_key = None;
+                        }
+                    }
+                }
             }
         }
         changed = true;
