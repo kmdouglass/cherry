@@ -15,7 +15,11 @@ struct FieldPlotQuery<'a> {
     active_path: usize,
     wavelengths: &'a [f64],
     field_id: usize,
-    surface_idx: usize,
+    /// The selected surface's step position within `active_path`'s own
+    /// traversal — `None` if no surface is reachable from this path at
+    /// all. A `RayBundle` is indexed by this step position, not by
+    /// `surf_desc`'s global/store index.
+    path_step: Option<usize>,
     wavelength_visible: &'a [bool],
     surf_desc: Option<&'a SurfaceDesc>,
 }
@@ -85,29 +89,26 @@ impl SpotDiagramWindow {
         let wavelengths = r.wavelengths_by_path.get(active_path).unwrap_or(&empty_wls);
         let fields = r.fields_by_path.get(active_path).unwrap_or(&empty_fields);
 
-        // Determine the default surface (Image, last in list).
-        let image_surface_idx = r
+        // Surfaces reachable from the active path only (FR-OUT-1): a
+        // surface that belongs only to some other path has no step
+        // position in this path's own ray bundles at all.
+        let path_surfaces: Vec<&SurfaceDesc> = r
             .surfaces
             .iter()
-            .rev()
-            .find(|s| s.label.starts_with("Image"))
-            .map(|s| s.index)
-            .unwrap_or(r.surfaces.len().saturating_sub(1));
-        let selected_idx = self.selected_surface.unwrap_or(image_surface_idx);
+            .filter(|s| s.path_step.is_some())
+            .collect();
+
+        let selected_idx = resolve_selected_surface(&r.surfaces, self.selected_surface);
+        let selected_desc = selected_idx.and_then(|idx| r.surfaces.get(idx));
 
         // Surface selector.
         ui.horizontal(|ui| {
             ui.label("Surface:");
             egui::ComboBox::from_id_salt("spot_surface_selector")
-                .selected_text(
-                    r.surfaces
-                        .get(selected_idx)
-                        .map(|s| s.label.as_str())
-                        .unwrap_or("—"),
-                )
+                .selected_text(selected_desc.map(|s| s.label.as_str()).unwrap_or("—"))
                 .show_ui(ui, |ui| {
-                    for s in &r.surfaces {
-                        let is_sel = s.index == selected_idx;
+                    for s in &path_surfaces {
+                        let is_sel = Some(s.index) == selected_idx;
                         if ui.selectable_label(is_sel, &s.label).clicked() {
                             self.selected_surface = Some(s.index);
                         }
@@ -146,9 +147,9 @@ impl SpotDiagramWindow {
                     active_path,
                     wavelengths,
                     field_id,
-                    surface_idx: selected_idx,
+                    path_step: selected_desc.and_then(|s| s.path_step),
                     wavelength_visible: &self.wavelength_visible,
-                    surf_desc: r.surfaces.get(selected_idx),
+                    surf_desc: selected_desc,
                 };
                 let ranges = compute_field_axis_range(&query);
                 ui.vertical(|ui| {
@@ -158,6 +159,31 @@ impl SpotDiagramWindow {
             }
         });
     }
+}
+
+/// Resolves which surface to display: the previously-selected one if it's
+/// still reachable from the active path (`path_step.is_some()`), else that
+/// path's own Image surface (last in its own traversal), else its own last
+/// reachable surface, else `None` if the active path reaches no surface at
+/// all.
+///
+/// `surfaces` is the full, global surface list — not pre-filtered to the
+/// active path — since `selected` (and the returned index) are global/store
+/// indices into it; only reachability is path-scoped.
+fn resolve_selected_surface(surfaces: &[SurfaceDesc], selected: Option<usize>) -> Option<usize> {
+    let path_surfaces: Vec<&SurfaceDesc> =
+        surfaces.iter().filter(|s| s.path_step.is_some()).collect();
+
+    let image_surface_idx = path_surfaces
+        .iter()
+        .rev()
+        .find(|s| s.label.starts_with("Image"))
+        .or_else(|| path_surfaces.last())
+        .map(|s| s.index);
+
+    selected
+        .filter(|idx| path_surfaces.iter().any(|s| s.index == *idx))
+        .or(image_surface_idx)
 }
 
 /// Compute independent X and Y axis ranges enclosing all visible ray
@@ -177,7 +203,7 @@ fn compute_field_axis_range(query: &FieldPlotQuery) -> ((f64, f64), (f64, f64)) 
             .ray_trace
             .get_for_path(query.active_path, query.field_id, wl_id)
         {
-            for (x, y) in rays_at_surface(tr.full_pupil(), query.surface_idx, query.surf_desc) {
+            for (x, y) in rays_at_surface(tr.full_pupil(), query.path_step, query.surf_desc) {
                 x_min = x_min.min(x);
                 x_max = x_max.max(x);
                 y_min = y_min.min(y);
@@ -260,7 +286,7 @@ fn render_field_plot(ui: &mut egui::Ui, query: &FieldPlotQuery, ranges: ((f64, f
             .get_for_path(query.active_path, query.field_id, wl_id)
         {
             // Ray intersection scatter.
-            for (rx, ry) in rays_at_surface(tr.full_pupil(), query.surface_idx, query.surf_desc) {
+            for (rx, ry) in rays_at_surface(tr.full_pupil(), query.path_step, query.surf_desc) {
                 let sp = to_screen(rx, ry);
                 if rect.contains(sp) {
                     painter.circle_filled(sp, 2.0, color);
@@ -268,7 +294,7 @@ fn render_field_plot(ui: &mut egui::Ui, query: &FieldPlotQuery, ranges: ((f64, f
             }
 
             // Chief ray: cross marker.
-            for (cx, cy) in rays_at_surface(tr.chief_ray(), query.surface_idx, query.surf_desc) {
+            for (cx, cy) in rays_at_surface(tr.chief_ray(), query.path_step, query.surf_desc) {
                 let sp = to_screen(cx, cy);
                 let arm = 5.0_f32;
                 let stroke = egui::Stroke::new(1.5, color);
@@ -310,7 +336,8 @@ fn render_field_plot(ui: &mut egui::Ui, query: &FieldPlotQuery, ranges: ((f64, f
     );
 }
 
-/// Extract (x, y) positions of non-terminated rays at `surface_idx`,
+/// Extract (x, y) positions of non-terminated rays at `path_step` (this
+/// path's own step position — see [`FieldPlotQuery::path_step`]),
 /// projected into the surface's local coordinate frame.
 ///
 /// `RayBundle` stores ray positions in global coordinates. For a tilted
@@ -319,20 +346,20 @@ fn render_field_plot(ui: &mut egui::Ui, query: &FieldPlotQuery, ranges: ((f64, f
 ///
 /// `RayBundle` stores rays as a flat
 /// `[surface_0_rays … surface_N_rays]` array of length
-/// `num_surfaces × num_rays_per_surface`.
+/// `num_surfaces × num_rays_per_surface`, indexed by step position within
+/// *this* bundle's own path — never by a global/store surface index.
 fn rays_at_surface<'a>(
     bundle: &'a RayBundle,
-    surface_idx: usize,
+    path_step: Option<usize>,
     surf_desc: Option<&'a SurfaceDesc>,
 ) -> impl Iterator<Item = (f64, f64)> + 'a {
     let total = bundle.rays().len();
     let n_surf = bundle.num_surfaces();
     let n_rays = if n_surf > 0 { total / n_surf } else { 0 };
 
-    let (start, end) = if n_surf > 0 && surface_idx < n_surf && n_rays > 0 {
-        (surface_idx * n_rays, (surface_idx + 1) * n_rays)
-    } else {
-        (0, 0)
+    let (start, end) = match path_step {
+        Some(idx) if n_surf > 0 && idx < n_surf && n_rays > 0 => (idx * n_rays, (idx + 1) * n_rays),
+        _ => (0, 0),
     };
 
     let rays = bundle.rays();
@@ -492,6 +519,7 @@ mod tests {
                         label: format!("S{i}"),
                         pos: p.position,
                         rot_mat: p.rotation_matrix,
+                        path_step: Some(i),
                     })
                     .collect()
             },
@@ -522,5 +550,69 @@ mod tests {
         harness.step();
         harness.get_by_label_contains("0.000");
         harness.get_by_label_contains("5.000");
+    }
+
+    /// Regression: the Spot Diagram window must resolve to the *active
+    /// path's own* Image surface, not whichever surface happens to be last
+    /// in the model's global/store-index order — a surface only reachable
+    /// from a *different* path (`path_step: None`) must never be
+    /// auto-selected or retained across an `active_path` switch.
+    #[test]
+    fn resolve_selected_surface_uses_active_paths_own_image() {
+        use crate::core::math::{linalg::mat3x3::Mat3x3, vec3::Vec3};
+
+        let dummy = |index: usize, label: &str, path_step: Option<usize>| SurfaceDesc {
+            index,
+            label: label.to_string(),
+            pos: Vec3::new(0.0, 0.0, 0.0),
+            rot_mat: Mat3x3::identity(),
+            path_step,
+        };
+
+        // Store indices: 0=Object, 1=BeamSplitter (shared by both paths),
+        // 2=Image_T (path 0's own), 3=Image_R (path 1's own — the global
+        // last surface, which a naive "last Image in the list" heuristic
+        // would wrongly pick even when path 0 is active).
+        let surfaces_path0_active = vec![
+            dummy(0, "Object [0]", Some(0)),
+            dummy(1, "Beam Splitter [1]", Some(1)),
+            dummy(2, "Image [2]", Some(2)),
+            dummy(3, "Image [3]", None),
+        ];
+        assert_eq!(
+            resolve_selected_surface(&surfaces_path0_active, None),
+            Some(2),
+            "path 0 active: must default to its own image, not path 1's"
+        );
+
+        let surfaces_path1_active = vec![
+            dummy(0, "Object [0]", Some(0)),
+            dummy(1, "Beam Splitter [1]", Some(1)),
+            dummy(2, "Image [2]", None),
+            dummy(3, "Image [3]", Some(2)),
+        ];
+        assert_eq!(
+            resolve_selected_surface(&surfaces_path1_active, None),
+            Some(3),
+            "path 1 active: must default to its own image, not path 0's"
+        );
+
+        // A previous selection belonging to the now-inactive path must be
+        // discarded, falling back to the active path's own image, rather
+        // than silently returning an index the active path can't resolve
+        // into its own RayBundle.
+        assert_eq!(
+            resolve_selected_surface(&surfaces_path0_active, Some(3)),
+            Some(2),
+            "a selection belonging to the inactive path must fall back to the active path's own image"
+        );
+
+        // An explicit selection that IS reachable from the active path is
+        // honored as-is.
+        assert_eq!(
+            resolve_selected_surface(&surfaces_path0_active, Some(1)),
+            Some(1),
+            "an explicit, still-reachable selection should be kept"
+        );
     }
 }

@@ -208,6 +208,57 @@ fn at_ray_trace_succeeds_with_differing_wavelength_counts_per_path() {
     );
 }
 
+/// Regression test for the ray-aiming coordinate-frame bug: path 1's own
+/// object (the sample) inherits path 0's beam-splitter fold, so its own
+/// object→first-surface segment is not aligned with the global Z axis. Ray
+/// generation used to implicitly assume every path's object sits on that
+/// axis (built from `placements[0]`/`placements.first()`, always path 0's
+/// own object), sending path 1's rays toward a nonsensical intersection far
+/// from the model. No ray in either path should terminate.
+#[test]
+fn wf_epi_microscope_ray_trace_no_ray_terminates_either_path() {
+    use cherry_rs::ray_trace_3d_view;
+
+    let model = model();
+    let field_specs = field_specs_by_path(&model);
+    let view = ParaxialView::new(&model, &field_specs, false).unwrap();
+
+    let aperture = ApertureSpec::EntrancePupil { semi_diameter: 1.5 };
+    let config = SamplingConfig {
+        n_fan_rays: 5,
+        full_pupil_spacing: 0.1,
+    };
+    let trace = ray_trace_3d_view(&[aperture, aperture], &field_specs, &model, &view, config)
+        .expect("ray trace should succeed");
+
+    for r in trace.iter() {
+        assert!(
+            r.chief_ray_reached_image(),
+            "path {} chief ray terminated early: {:?}",
+            r.path_id(),
+            r.chief_ray().reason_for_termination()
+        );
+        assert!(
+            r.tangential_fan().terminated().iter().all(|&t| t == 0),
+            "path {} tangential fan ray(s) terminated early: {:?}",
+            r.path_id(),
+            r.tangential_fan().reason_for_termination()
+        );
+        assert!(
+            r.sagittal_fan().terminated().iter().all(|&t| t == 0),
+            "path {} sagittal fan ray(s) terminated early: {:?}",
+            r.path_id(),
+            r.sagittal_fan().reason_for_termination()
+        );
+        assert!(
+            r.full_pupil().terminated().iter().all(|&t| t == 0),
+            "path {} full-pupil ray(s) terminated early: {:?}",
+            r.path_id(),
+            r.full_pupil().reason_for_termination()
+        );
+    }
+}
+
 /// FR-13/AT-8: the emission path's `FieldSpec` height must equal the
 /// excitation path's own computed transverse image height for its `y: 1.5`
 /// field point — not an independently chosen constant.

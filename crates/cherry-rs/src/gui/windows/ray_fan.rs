@@ -101,7 +101,7 @@ impl RayFanWindow {
         }
 
         // Compute TA curves for all fields.
-        let image_surf = r.surfaces.last();
+        let image_surf = active_path_image_surface(&r.surfaces);
         let ta_data: Vec<FieldTaData> = (0..n_fields)
             .map(|fid| compute_field_ta(r, active_path, fid, image_surf))
             .collect();
@@ -255,6 +255,18 @@ fn draw_fan_plot(
 
 // ── TA computation
 // ────────────────────────────────────────────────────────────
+
+/// Returns the active path's own Image surface — the one with the highest
+/// `path_step` among surfaces reachable from this path (every path ends in
+/// an Image surface, so this is always that path's own) — rather than
+/// whichever surface happens to be last in the model's global/store-index
+/// order, which may belong to a different path entirely.
+fn active_path_image_surface(surfaces: &[SurfaceDesc]) -> Option<&SurfaceDesc> {
+    surfaces
+        .iter()
+        .filter(|s| s.path_step.is_some())
+        .max_by_key(|s| s.path_step)
+}
 
 /// Compute TA data for one field column across all wavelengths.
 fn compute_field_ta(
@@ -576,6 +588,7 @@ mod tests {
                     label: format!("{name} [{i}]"),
                     pos: p.position,
                     rot_mat: p.rotation_matrix,
+                    path_step: Some(i),
                 }
             })
             .collect();
@@ -681,6 +694,51 @@ mod tests {
                 .query_all_by_label_contains("0.6560")
                 .next()
                 .is_some()
+        );
+    }
+
+    /// Regression: TA computation must use the *active path's own* Image
+    /// surface, not whichever surface happens to be last in the model's
+    /// global/store-index order — a surface only reachable from a
+    /// *different* path (`path_step: None`) must never be picked.
+    #[test]
+    fn active_path_image_surface_uses_active_paths_own_image() {
+        use crate::core::math::{linalg::mat3x3::Mat3x3, vec3::Vec3};
+
+        let dummy = |index: usize, label: &str, path_step: Option<usize>| SurfaceDesc {
+            index,
+            label: label.to_string(),
+            pos: Vec3::new(0.0, 0.0, 0.0),
+            rot_mat: Mat3x3::identity(),
+            path_step,
+        };
+
+        // Store indices: 0=Object, 1=BeamSplitter (shared by both paths),
+        // 2=Image_T (path 0's own), 3=Image_R (path 1's own — the global
+        // last surface, which `.last()` would wrongly pick even when path 0
+        // is active).
+        let surfaces_path0_active = vec![
+            dummy(0, "Object [0]", Some(0)),
+            dummy(1, "Beam Splitter [1]", Some(1)),
+            dummy(2, "Image [2]", Some(2)),
+            dummy(3, "Image [3]", None),
+        ];
+        assert_eq!(
+            active_path_image_surface(&surfaces_path0_active).map(|s| s.index),
+            Some(2),
+            "path 0 active: must use its own image, not path 1's"
+        );
+
+        let surfaces_path1_active = vec![
+            dummy(0, "Object [0]", Some(0)),
+            dummy(1, "Beam Splitter [1]", Some(1)),
+            dummy(2, "Image [2]", None),
+            dummy(3, "Image [3]", Some(2)),
+        ];
+        assert_eq!(
+            active_path_image_surface(&surfaces_path1_active).map(|s| s.index),
+            Some(3),
+            "path 1 active: must use its own image, not path 0's"
         );
     }
 }

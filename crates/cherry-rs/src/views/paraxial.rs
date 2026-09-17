@@ -879,15 +879,24 @@ impl ParaxialSubView {
         field_specs: &[FieldSpec],
         entrance_pupil: &Pupil,
     ) -> Result<ParaxialRayBundle> {
+        // `entrance_pupil.location` is relative to this path's own first
+        // non-object surface (see `Pupil`'s docs). Converting to a
+        // separation from this path's own object requires adding this
+        // path's own first gap thickness — using `sequential_sub_model`'s
+        // own gaps (correctly path-scoped, including any leading gap
+        // inferred for a `Shared`/`ObjectLinkedTo` path) rather than a
+        // global placement lookup, which would silently resolve to path
+        // 0's own object for any other path.
         let enp_loc = entrance_pupil.location;
-        let obj_loc = placements
-            .first()
-            .ok_or(anyhow!("No surfaces provided"))?
-            .track;
-        let sep = if obj_loc.is_infinite() {
+        let sep = if sequential_sub_model.is_obj_at_inf() {
             0.0
         } else {
-            enp_loc - obj_loc
+            let gap0 = sequential_sub_model
+                .gaps()
+                .first()
+                .expect("A submodel should always have at least one gap.")
+                .thickness;
+            gap0 + enp_loc
         };
 
         // Filter to only the field specs whose phi matches this submodel's v.

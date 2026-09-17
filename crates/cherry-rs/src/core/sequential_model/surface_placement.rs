@@ -95,6 +95,20 @@ impl SurfacePlacement {
         self.position.z()
     }
 
+    /// Transforms a point from the global coordinate system into this
+    /// placement's local frame. Position-only counterpart of
+    /// [`Ray::transform`](crate::core::ray::Ray::transform).
+    pub fn to_local(&self, global: Vec3) -> Vec3 {
+        self.rotation_matrix * (global - self.position)
+    }
+
+    /// Transforms a point from this placement's local frame into the global
+    /// coordinate system. Position-only counterpart of
+    /// [`Ray::i_transform`](crate::core::ray::Ray::i_transform).
+    pub fn to_global(&self, local: Vec3) -> Vec3 {
+        (self.inv_rotation_matrix * local) + self.position
+    }
+
     /// Returns `true` if any coordinate of the vertex position is infinite.
     ///
     /// This is the case for the object surface of a system with an object at

@@ -166,6 +166,21 @@ pub trait Surface: std::fmt::Debug + Send + Sync {
         let norm = norm.normalize();
         match self.effective_boundary_kind(bs_arm) {
             BoundaryKind::Refracting => {
+                // Orient the normal to the incoming ray's own hemisphere
+                // first. `norm` is a fixed, surface-intrinsic convention
+                // (e.g. always "+local Z" for a flat surface) that has no
+                // relation to which physical side a ray approaches from —
+                // a `Shared` surface in a multipath system can be
+                // traversed from either side, depending on which path
+                // built it versus which path is currently retracing it.
+                // Without this, the sqrt term below is always `+norm`,
+                // which silently reverses propagation direction for a ray
+                // entering the `-norm` hemisphere.
+                let norm = if ray.dir().dot(&norm) < 0.0 {
+                    -norm
+                } else {
+                    norm
+                };
                 let mu = n_0 / n_1;
                 let cos_theta_1 = ray.dir().dot(&norm);
                 let term_1 = norm * (1.0 - mu * mu * (1.0 - cos_theta_1 * cos_theta_1)).sqrt();
@@ -183,6 +198,8 @@ pub trait Surface: std::fmt::Debug + Send + Sync {
 
 #[cfg(test)]
 mod tests {
+    use approx::assert_abs_diff_eq;
+
     use super::*;
     use crate::core::math::vec3::Vec3;
     use crate::core::surfaces::Conic;
@@ -272,5 +289,39 @@ mod tests {
             assert_eq!(ray_none.dir(), ray_reflecting.dir());
             assert_eq!(ray_none.dir(), ray_transmitting.dir());
         }
+    }
+
+    /// Time-reversal symmetry: refracting a ray forward, then retracing the
+    /// exact reverse ray (negated direction, swapped media indices) through
+    /// the same surface, must reproduce the original incoming direction,
+    /// negated.
+    ///
+    /// A multipath system relies on exactly this: a `Shared` refracting
+    /// surface built by one path (which always approaches it from the
+    /// "forward" side, `dir·norm > 0`, since it built the surface's own
+    /// local frame) can be traversed by a *later* path from the opposite
+    /// physical side (`dir·norm < 0` — e.g. a `Reversed` `ObjectLinkedTo`
+    /// path retracing back through geometry another path built forward).
+    /// The default `interact()` formula unconditionally forced the outgoing
+    /// ray into the `+norm` hemisphere regardless of the incoming ray's own
+    /// hemisphere, which silently reverses propagation direction for
+    /// exactly this case — this test fails on that old behavior and passes
+    /// once the surface normal is oriented to match the incoming ray first.
+    #[test]
+    fn interact_refracting_is_time_reversal_symmetric() {
+        let surf = Conic::new(4.0, Float::INFINITY, 0.0, BoundaryKind::Refracting);
+        let norm = Vec3::new(0.0, 0.0, 1.0);
+        let dir_in = Vec3::new(0.0, 0.3, 1.0).normalize();
+
+        let mut ray_fwd = make_ray(dir_in);
+        surf.interact(&mut ray_fwd, 1.0, 1.5, norm, None);
+        let dir_out = ray_fwd.dir();
+
+        let mut ray_rev = make_ray(-dir_out);
+        surf.interact(&mut ray_rev, 1.5, 1.0, norm, None);
+
+        assert_abs_diff_eq!(ray_rev.dir().x(), -dir_in.x(), epsilon = 1e-9);
+        assert_abs_diff_eq!(ray_rev.dir().y(), -dir_in.y(), epsilon = 1e-9);
+        assert_abs_diff_eq!(ray_rev.dir().z(), -dir_in.z(), epsilon = 1e-9);
     }
 }

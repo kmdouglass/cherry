@@ -142,7 +142,7 @@ fn run_compute(
     let wavelengths_by_path: Vec<Vec<f64>> = (0..seq.path_count())
         .map(|p| seq.wavelengths_for_path(p).to_vec())
         .collect();
-    let surfaces = build_surface_descs(&seq);
+    let surfaces = build_surface_descs(&seq, active_path);
     let fields_by_path: Vec<Vec<super::result_package::FieldDesc>> = parsed
         .field_specs_by_path
         .iter()
@@ -260,8 +260,18 @@ fn extract_solved_values(solves: &[SolveSpec], seq: &SequentialModel) -> SolvedV
     sv
 }
 
-fn build_surface_descs(seq: &SequentialModel) -> Vec<SurfaceDesc> {
+fn build_surface_descs(seq: &SequentialModel, active_path: usize) -> Vec<SurfaceDesc> {
+    use std::collections::HashMap;
+
     use crate::SurfaceKind;
+
+    let path_steps: HashMap<usize, usize> = seq
+        .path_surface_indices(active_path)
+        .iter()
+        .enumerate()
+        .map(|(step, &store_idx)| (store_idx, step))
+        .collect();
+
     seq.surfaces()
         .iter()
         .zip(seq.placements().iter())
@@ -283,6 +293,7 @@ fn build_surface_descs(seq: &SequentialModel) -> Vec<SurfaceDesc> {
                 label: format!("{name} [{i}]"),
                 pos: p.position,
                 rot_mat: p.rotation_matrix,
+                path_step: path_steps.get(&i).copied(),
             }
         })
         .collect()
@@ -323,7 +334,7 @@ mod tests {
             .build()
             .expect("model")
             .model;
-        let descs = build_surface_descs(&seq);
+        let descs = build_surface_descs(&seq, 0);
 
         assert!(
             descs[0].label.starts_with("Object [0]"),
@@ -343,6 +354,42 @@ mod tests {
                 desc.label
             );
         }
+    }
+
+    /// Regression: `SurfaceDesc.path_step` must be scoped to whichever path
+    /// is passed as `active_path`, not a global/store index — a downstream
+    /// consumer (`RayBundle`) is indexed by per-path step position, and a
+    /// surface only reachable from the *other* path has no step at all in
+    /// this path's own bundle.
+    #[test]
+    fn build_surface_descs_scopes_path_step_to_active_path() {
+        use std::rc::Rc;
+
+        use crate::examples::beam_splitter::two_path_model;
+        use crate::specs::gaps::ConstantRefractiveIndex;
+
+        // Store indices: 0=Object, 1=BeamSplitter (shared), 2=Image_T
+        // (path 0's own), 3=Image_R (path 1's own).
+        let n_air = Rc::new(ConstantRefractiveIndex::new(1.0, 0.0));
+        let seq = two_path_model(n_air, &[0.5876], 10.0, 10.0);
+
+        let descs0 = build_surface_descs(&seq, 0);
+        assert_eq!(descs0[0].path_step, Some(0), "path 0's own object");
+        assert_eq!(descs0[1].path_step, Some(1), "shared beam splitter");
+        assert_eq!(descs0[2].path_step, Some(2), "path 0's own image");
+        assert_eq!(
+            descs0[3].path_step, None,
+            "path 1's own image is not reachable from path 0"
+        );
+
+        let descs1 = build_surface_descs(&seq, 1);
+        assert_eq!(descs1[0].path_step, Some(0), "shared object");
+        assert_eq!(descs1[1].path_step, Some(1), "shared beam splitter");
+        assert_eq!(
+            descs1[2].path_step, None,
+            "path 0's own image is not reachable from path 1"
+        );
+        assert_eq!(descs1[3].path_step, Some(2), "path 1's own image");
     }
 
     #[test]

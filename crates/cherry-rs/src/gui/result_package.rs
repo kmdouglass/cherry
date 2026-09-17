@@ -18,12 +18,22 @@ pub struct SolvedValues {
 
 /// Lightweight description of a surface for display in dropdowns.
 pub struct SurfaceDesc {
+    /// Global/store index — position in `SequentialModel::surfaces()`,
+    /// shared across every path. Not usable to index into a `RayBundle`
+    /// (which is indexed by per-path step position); use `path_step` for
+    /// that.
     pub index: usize,
     pub label: String,
     /// Position of the surface in the global coordinate system.
     pub pos: Vec3,
     /// Rotation matrix from global into the surface's local coordinate system.
     pub rot_mat: Mat3x3,
+    /// This surface's step position within the *active path*'s own
+    /// traversal (`SequentialModel::path_surface_indices(active_path)`),
+    /// or `None` if the active path never visits this surface at all (it
+    /// belongs only to some other path). A `RayBundle`'s `terminated`/`rays`
+    /// arrays are indexed by this step position, not by `index`.
+    pub path_step: Option<usize>,
 }
 
 /// Lightweight description of a field point for display.
