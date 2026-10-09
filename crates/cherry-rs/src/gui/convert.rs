@@ -921,70 +921,10 @@ mod tests {
     /// `convert_paths` into a model equivalent to the hand-built example.
     #[test]
     fn wf_epi_microscope_topology_round_trips() {
-        use crate::gui::model::{
-            BeamSplitterPathKindRow, FieldRow, LinkedObjectOrientationRow, RowId, SurfaceRefRow,
-        };
+        use crate::gui::examples;
         use crate::{ApertureSpec, ParaxialView, SequentialModelBuilder};
 
-        let mut specs = SystemSpecs::new_single(PathRow::from_surface_rows(vec![
-            SurfaceRow::new_object("Infinity"),
-            SurfaceRow::new_thin_lens("25.0", "40.0", "100.0", "1.0"),
-            SurfaceRow::new_beam_splitter("36.0", "50.0", "1.0"),
-            SurfaceRow::new_thin_lens("4.25", "3.3333", "5.0", "1.5"),
-            SurfaceRow::new_image(),
-        ]));
-        specs.paths[0].wavelengths = vec!["0.488".into()];
-        specs.paths[0].stop_surface = Some(3);
-        specs.paths[0].beam_splitter_arms = vec![BeamSplitterPathKindRow::Reflecting];
-        // BS at 45 degrees.
-        if let SurfaceRefRow::New(row) = &mut specs.paths[0].surface_refs[2] {
-            row.theta = "45".into();
-        }
-
-        let linked_id = specs.mint_row_id();
-        let mirror_id = specs.mint_row_id();
-        let tube_id = specs.mint_row_id();
-        let img_id = specs.mint_row_id();
-        specs.paths.push(PathRow {
-            name: None,
-            surface_refs: vec![
-                SurfaceRefRow::ObjectLinkedTo {
-                    id: linked_id,
-                    path: 0,
-                    orientation: LinkedObjectOrientationRow::Reversed,
-                    gap_after: crate::gui::model::GapRow::default(),
-                },
-                SurfaceRefRow::Shared {
-                    target: RowId(3),
-                    gap_after: crate::gui::model::GapRow::default(),
-                }, // Objective
-                SurfaceRefRow::Shared {
-                    target: RowId(2),
-                    gap_after: crate::gui::model::GapRow::new("50.0", "1.0"),
-                }, // BeamSplitter
-                SurfaceRefRow::New({
-                    let mut m = SurfaceRow::new_conic("10.0", "Infinity", "0", "50.0", "1.0");
-                    m.boundary_variant = crate::gui::model::BoundaryVariant::Reflecting;
-                    m.theta = "-45".into();
-                    m.id = mirror_id;
-                    m
-                }),
-                SurfaceRefRow::New(
-                    SurfaceRow::new_thin_lens("20.0", "200.0", "200.0", "1.0").with_id(tube_id),
-                ),
-                SurfaceRefRow::New(SurfaceRow::new_image().with_id(img_id)),
-            ],
-            stop_surface: Some(3),
-            fields: vec![FieldRow {
-                chi: "0.0".into(),
-                phi: "90.0".into(),
-                x: "0.0".into(),
-            }],
-            field_mode: FieldMode::Angle,
-            aperture_semi_diameter: "1.5".into(),
-            wavelengths: vec!["0.520".into()],
-            beam_splitter_arms: vec![BeamSplitterPathKindRow::Transmitting],
-        });
+        let specs = examples::wf_epi_microscope();
 
         let parsed = convert(&specs);
         assert_eq!(parsed.path_specs.len(), 2);
