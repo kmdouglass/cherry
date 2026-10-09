@@ -115,6 +115,27 @@ impl SpecsWindow {
                 }
             }
         });
+
+        // Rename the active path (FR-NAME-1): an empty name clears back to
+        // the default "Path N" display (`SystemSpecs::path_label`).
+        ui.horizontal(|ui| {
+            ui.label("Name:");
+            if let Some(path) = specs.paths.get_mut(*active_path) {
+                let mut name_buf = path.name.clone().unwrap_or_default();
+                let resp = ui.add(
+                    egui::TextEdit::singleline(&mut name_buf)
+                        .hint_text(format!("Path {active_path}"))
+                        .desired_width(120.0),
+                );
+                if resp.changed() {
+                    path.name = if name_buf.trim().is_empty() {
+                        None
+                    } else {
+                        Some(name_buf)
+                    };
+                }
+            }
+        });
     }
 
     fn show_solve_popup(
@@ -454,5 +475,73 @@ mod tests {
         let (_, specs, active_path) = harness.state();
         assert_eq!(specs.paths.len(), 2);
         assert_eq!(*active_path, 1);
+    }
+
+    /// FR-NAME-1: a path's name is user-editable via a "Name:" text field in
+    /// the switcher, and the new name is immediately reflected by
+    /// `SystemSpecs::path_label` (shown in the switcher itself).
+    #[test]
+    fn renaming_active_path_updates_its_label() {
+        let window = SpecsWindow::default();
+        let specs = SystemSpecs::default();
+        let active_path = 0usize;
+        let mut harness = Harness::new_state(
+            |ctx, (window, specs, active_path): &mut (SpecsWindow, SystemSpecs, usize)| {
+                show_specs_window(window, specs, active_path, ctx);
+            },
+            (window, specs, active_path),
+        );
+        harness.step();
+
+        harness
+            .get(egui_kittest::kittest::By::new().role(egui::accesskit::Role::TextInput))
+            .click();
+        harness.step();
+        harness
+            .get(egui_kittest::kittest::By::new().role(egui::accesskit::Role::TextInput))
+            .type_text("Excitation");
+        harness.step();
+
+        let (_, specs, active_path) = harness.state();
+        assert_eq!(
+            specs.paths[*active_path].name,
+            Some("Excitation".to_owned())
+        );
+        assert_eq!(specs.path_label(*active_path), "Excitation");
+    }
+
+    /// Clearing the name field falls back to the default "Path N" label
+    /// rather than storing an empty string.
+    #[test]
+    fn clearing_path_name_falls_back_to_default_label() {
+        let window = SpecsWindow::default();
+        let mut specs = SystemSpecs::default();
+        specs.paths[0].name = Some("Excitation".to_owned());
+        let active_path = 0usize;
+        let mut harness = Harness::new_state(
+            |ctx, (window, specs, active_path): &mut (SpecsWindow, SystemSpecs, usize)| {
+                show_specs_window(window, specs, active_path, ctx);
+            },
+            (window, specs, active_path),
+        );
+        harness.step();
+
+        let node =
+            harness.get(egui_kittest::kittest::By::new().role(egui::accesskit::Role::TextInput));
+        node.click();
+        harness.step();
+        // Select-all then clear: type_text replaces the focused selection
+        // when the whole field is selected via Ctrl+A.
+        harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::A);
+        harness.step();
+        harness
+            .get(egui_kittest::kittest::By::new().role(egui::accesskit::Role::TextInput))
+            .type_text("");
+        harness.key_press(egui::Key::Backspace);
+        harness.step();
+
+        let (_, specs, active_path) = harness.state();
+        assert_eq!(specs.paths[*active_path].name, None);
+        assert_eq!(specs.path_label(*active_path), "Path 0");
     }
 }

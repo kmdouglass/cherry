@@ -76,3 +76,12 @@ pub fn has_label(harness: &Harness<'_, CherryApp>, text: &str) -> bool {
     use egui_kittest::kittest::Queryable;
     harness.query_all_by_label(text).next().is_some()
 }
+
+/// True if a node whose accessible *value* (not label) exactly equals
+/// `text` currently exists — e.g. a `SpinButton`'s current numeric value,
+/// which AccessKit exposes via `value`/`numeric_value` rather than `label`.
+/// See [`has_label_contains`] for why this uses the `_all` query.
+pub fn has_value(harness: &Harness<'_, CherryApp>, text: &str) -> bool {
+    use egui_kittest::kittest::Queryable;
+    harness.query_all_by_value(text).next().is_some()
+}
