@@ -558,6 +558,85 @@ pub fn wf_epi_excitation() -> SystemSpecs {
     specs
 }
 
+/// Reduced widefield epifluorescence microscope: excitation and emission
+/// paths sharing an objective and a beam splitter.
+///
+/// Path 0 (excitation) introduces a relay lens, the beam splitter (store
+/// index 2, reflecting for this path), and the objective (store index 3).
+/// Path 1 (emission) starts at an `ObjectLinkedTo` the sample plane
+/// (reversed orientation), `Shared`-references the objective and beam
+/// splitter out of order (3 then 2, matching the physical light path back
+/// through the system), then adds its own fold mirror and tube lens. Each
+/// path declares its own kind for the shared beam splitter (excitation
+/// reflects off it, emission transmits through it).
+pub fn wf_epi_microscope() -> SystemSpecs {
+    use super::model::{
+        BeamSplitterPathKindRow, GapRow, LinkedObjectOrientationRow, SurfaceRefRow,
+    };
+
+    let mut specs = SystemSpecs::new_single(PathRow::from_surface_rows(vec![
+        SurfaceRow::new_object("Infinity"),
+        SurfaceRow::new_thin_lens("25.0", "40.0", "100.0", "1.0"),
+        SurfaceRow::new_beam_splitter("36.0", "50.0", "1.0"),
+        SurfaceRow::new_thin_lens("4.25", "3.3333", "5.0", "1.5"),
+        SurfaceRow::new_image(),
+    ]));
+    specs.paths[0].wavelengths = vec!["0.488".into()];
+    specs.paths[0].stop_surface = Some(3);
+    specs.paths[0].beam_splitter_arms = vec![BeamSplitterPathKindRow::Reflecting];
+    // BS at 45 degrees.
+    if let SurfaceRefRow::New(row) = &mut specs.paths[0].surface_refs[2] {
+        row.theta = "45".into();
+    }
+
+    let linked_id = specs.mint_row_id();
+    let mirror_id = specs.mint_row_id();
+    let tube_id = specs.mint_row_id();
+    let img_id = specs.mint_row_id();
+    specs.paths.push(PathRow {
+        name: None,
+        surface_refs: vec![
+            SurfaceRefRow::ObjectLinkedTo {
+                id: linked_id,
+                path: 0,
+                orientation: LinkedObjectOrientationRow::Reversed,
+                gap_after: GapRow::default(),
+            },
+            SurfaceRefRow::Shared {
+                target: RowId(3),
+                gap_after: GapRow::default(),
+            }, // Objective
+            SurfaceRefRow::Shared {
+                target: RowId(2),
+                gap_after: GapRow::new("50.0", "1.0"),
+            }, // BeamSplitter
+            SurfaceRefRow::New({
+                let mut m = SurfaceRow::new_conic("10.0", "Infinity", "0", "50.0", "1.0");
+                m.boundary_variant = BoundaryVariant::Reflecting;
+                m.theta = "-45".into();
+                m.id = mirror_id;
+                m
+            }),
+            SurfaceRefRow::New(
+                SurfaceRow::new_thin_lens("20.0", "200.0", "200.0", "1.0").with_id(tube_id),
+            ),
+            SurfaceRefRow::New(SurfaceRow::new_image().with_id(img_id)),
+        ],
+        stop_surface: Some(3),
+        fields: vec![FieldRow {
+            chi: "0.0".into(),
+            phi: "90.0".into(),
+            x: "0.0".into(),
+        }],
+        field_mode: FieldMode::Angle,
+        aperture_semi_diameter: "1.5".into(),
+        wavelengths: vec!["0.520".into()],
+        beam_splitter_arms: vec![BeamSplitterPathKindRow::Transmitting],
+    });
+
+    specs
+}
+
 /// f = +100 mm concave mirror.
 pub fn concave_mirror() -> SystemSpecs {
     let mut path = PathRow::from_surface_rows(vec![

@@ -1235,6 +1235,7 @@ version = "0.32.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5bb00f16e00af09092c117515246732adba4ca4649463bdbc2ab6114a2944765"
 dependencies = [
+ "eframe",
  "egui",
  "kittest",
 ]

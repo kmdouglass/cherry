@@ -557,6 +557,10 @@ impl eframe::App for CherryApp {
                         self.load_specs(examples::wf_epi_excitation());
                         ui.close();
                     }
+                    if ui.button("Widefield Epifluorescence Microscope").clicked() {
+                        self.load_specs(examples::wf_epi_microscope());
+                        ui.close();
+                    }
                 });
                 ui.add_space(16.0);
 
