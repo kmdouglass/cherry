@@ -18,12 +18,22 @@ pub struct SolvedValues {
 
 /// Lightweight description of a surface for display in dropdowns.
 pub struct SurfaceDesc {
+    /// Global/store index — position in `SequentialModel::surfaces()`,
+    /// shared across every path. Not usable to index into a `RayBundle`
+    /// (which is indexed by per-path step position); use `path_step` for
+    /// that.
     pub index: usize,
     pub label: String,
     /// Position of the surface in the global coordinate system.
     pub pos: Vec3,
     /// Rotation matrix from global into the surface's local coordinate system.
     pub rot_mat: Mat3x3,
+    /// This surface's step position within the *active path*'s own
+    /// traversal (`SequentialModel::path_surface_indices(active_path)`),
+    /// or `None` if the active path never visits this surface at all (it
+    /// belongs only to some other path). A `RayBundle`'s `terminated`/`rays`
+    /// arrays are indexed by this step position, not by `index`.
+    pub path_step: Option<usize>,
 }
 
 /// Lightweight description of a field point for display.
@@ -35,12 +45,15 @@ pub struct FieldDesc {
 pub struct ResultPackage {
     /// Matches the `input_id` of the request that produced this result.
     pub id: u64,
-    pub wavelengths: Vec<f64>,
+    /// Wavelengths for each path, indexed by `path_id`.
+    pub wavelengths_by_path: Vec<Vec<f64>>,
     pub surfaces: Vec<SurfaceDesc>,
-    pub fields: Vec<FieldDesc>,
-    /// Parsed field specs in the same order as `fields`. Used by the Ray Fan
-    /// Plot window for TA computation and the paraxial chief-ray fallback.
-    pub field_specs: Vec<FieldSpec>,
+    /// Field descriptions for each path, indexed by `path_id`.
+    pub fields_by_path: Vec<Vec<FieldDesc>>,
+    /// Parsed field specs for each path, indexed by `path_id`, in the same
+    /// order as `fields_by_path`. Used by the Ray Fan Plot window for TA
+    /// computation and the paraxial chief-ray fallback.
+    pub field_specs_by_path: Vec<Vec<FieldSpec>>,
     pub paraxial: Option<ParaxialView>,
     pub ray_trace: Option<TraceResultsCollection>,
     pub cross_section: Option<CrossSectionView>,
@@ -55,10 +68,10 @@ impl ResultPackage {
     pub fn error(id: u64, msg: String) -> Self {
         Self {
             id,
-            wavelengths: Vec::new(),
+            wavelengths_by_path: Vec::new(),
             surfaces: Vec::new(),
-            fields: Vec::new(),
-            field_specs: Vec::new(),
+            fields_by_path: Vec::new(),
+            field_specs_by_path: Vec::new(),
             paraxial: None,
             ray_trace: None,
             cross_section: None,

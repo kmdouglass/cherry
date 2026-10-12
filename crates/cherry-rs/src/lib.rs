@@ -167,7 +167,8 @@ pub use specs::{
 pub use views::{
     components::{Component, PathComponent, components_view},
     cross_section::{
-        Bounds2D, CrossSectionView, DrawElement, FlatPlaneKind, PlaneGeometry, cross_section_view,
+        Bounds2D, CrossSectionView, DrawElement, FlatPlaneKind, PathDrawElement, PlaneGeometry,
+        cross_section_view,
     },
     paraxial::{
         AxialColor, ImagePlane, ParaxialRay, ParaxialRayBundle, ParaxialSubView,

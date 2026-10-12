@@ -29,10 +29,30 @@ impl Surface for ThinLens {
         BoundaryKind::Refracting
     }
 
-    fn interact(&self, ray: &mut crate::Ray, n_0: Float, n_1: Float, _norm: crate::Vec3) {
+    fn interact(
+        &self,
+        ray: &mut crate::Ray,
+        n_0: Float,
+        n_1: Float,
+        _norm: crate::Vec3,
+        _bs_arm: Option<crate::specs::surfaces::BeamSplitterPathKind>,
+    ) {
         let power = self.power(0.0, n_0, n_1);
         let ux_0 = ray.dir().l() / ray.dir().n();
         let uy_0 = ray.dir().m() / ray.dir().n();
+
+        // The paraxial ray transfer equations below assume the ray
+        // propagates in the +local-Z direction (a fixed, surface-intrinsic
+        // convention this lens's own local frame was built with). A
+        // `Shared` lens in a multipath system can be traversed from the
+        // opposite physical side (negative local-Z — e.g. a `Reversed`
+        // `ObjectLinkedTo` path retracing back through geometry another
+        // path built forward), so both the media indices and the outgoing
+        // direction cosine are signed to match the incoming ray's own
+        // local-Z sign, rather than assuming it's always positive.
+        let sign = if ray.dir().n() < 0.0 { -1.0 } else { 1.0 };
+        let n_0 = sign * n_0;
+        let n_1 = sign * n_1;
 
         // Paraxial ray transer equations for a thin lens
         let ux_1 = (n_0 * ux_0 - power * ray.pos().x()) / n_1;
@@ -41,7 +61,7 @@ impl Surface for ThinLens {
         // l_1 = ux_1 * dir_cos_n_1, m_1 = uy_1 * dir_cos_n_1, and
         // l_1^2 + m_1^2 + dir_cos_n_1^2 = 1, so:
         // dir_cos_n_1^2 * (ux_1^2 + uy_1^2 + 1) = 1
-        let dir_cos_n_1 = (1.0 + ux_1 * ux_1 + uy_1 * uy_1).powf(-0.5);
+        let dir_cos_n_1 = sign * (1.0 + ux_1 * ux_1 + uy_1 * uy_1).powf(-0.5);
         let dir_cos_l_1 = ux_1 * dir_cos_n_1;
         let dir_cos_m_1 = uy_1 * dir_cos_n_1;
 
@@ -106,7 +126,7 @@ mod tests {
         assert_abs_diff_eq!(norm.y(), 0.0, epsilon = 1e-6);
         assert_abs_diff_eq!(norm.z(), 1.0, epsilon = 1e-6);
 
-        lens.interact(&mut ray, 1.0, 1.0, norm);
+        lens.interact(&mut ray, 1.0, 1.0, norm, None);
         let dir = ray.dir();
         assert_abs_diff_eq!(dir.x(), 0.0, epsilon = 1e-6);
         assert_abs_diff_eq!(dir.y(), 0.07610561, epsilon = 1e-6);
@@ -123,5 +143,41 @@ mod tests {
         assert_abs_diff_eq!(lens.power(0.0, 1.0, 1.0), expected, epsilon = 1e-12);
         assert_abs_diff_eq!(lens.power(0.0, 1.0, 1.5), expected, epsilon = 1e-12);
         assert_abs_diff_eq!(lens.power(1.23, 1.0, 1.0), expected, epsilon = 1e-12);
+    }
+
+    /// Time-reversal symmetry: refracting a ray forward through the lens,
+    /// then retracing the exact reverse ray (negated direction, swapped
+    /// media indices, same position) must reproduce the original incoming
+    /// direction, negated.
+    ///
+    /// A multipath system relies on exactly this: a `Shared` lens built by
+    /// one path (which always approaches it with a positive local-Z
+    /// direction cosine, since it built the lens's own local frame) can be
+    /// traversed by a *later* path from the opposite physical side
+    /// (negative local-Z — e.g. a `Reversed` `ObjectLinkedTo` path retracing
+    /// back through geometry another path built forward). The formula
+    /// unconditionally forced the outgoing ray's local-Z direction cosine
+    /// positive regardless of the incoming ray's own sign, which silently
+    /// reverses propagation direction for exactly this case — this test
+    /// fails on that old behavior and passes once the outgoing sign (and
+    /// the media indices used in the paraxial refraction equation) match
+    /// the incoming ray's own local-Z sign.
+    #[test]
+    fn interact_is_time_reversal_symmetric() {
+        let lens = ThinLens::new(25.0, 100.0);
+        let pos = Vec3::new(0.0, 5.0, 0.0);
+        let norm = Vec3::new(0.0, 0.0, 1.0);
+        let dir_in = Vec3::new(0.0, 0.1, 1.0).normalize();
+
+        let mut ray_fwd = Ray::new(pos, dir_in);
+        lens.interact(&mut ray_fwd, 1.0, 1.5, norm, None);
+        let dir_out = ray_fwd.dir();
+
+        let mut ray_rev = Ray::new(pos, -dir_out);
+        lens.interact(&mut ray_rev, 1.5, 1.0, norm, None);
+
+        assert_abs_diff_eq!(ray_rev.dir().x(), -dir_in.x(), epsilon = 1e-9);
+        assert_abs_diff_eq!(ray_rev.dir().y(), -dir_in.y(), epsilon = 1e-9);
+        assert_abs_diff_eq!(ray_rev.dir().z(), -dir_in.z(), epsilon = 1e-9);
     }
 }

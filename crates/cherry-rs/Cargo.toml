@@ -73,7 +73,7 @@ approx = "0.5"
 # enables on egui; without it, egui-winit's exhaustive PlatformOutput pattern
 # fails to compile.
 egui-winit = { version = "0.32", features = ["accesskit"] }
-egui_kittest = "0.32"
+egui_kittest = { version = "0.32", features = ["eframe"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
