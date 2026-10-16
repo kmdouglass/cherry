@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use egui::accesskit::Role;
 use egui_kittest::kittest::{By, Queryable};
-use gui_support::{has_label_contains, launch, wait_until};
+use gui_support::{has_label_contains, launch, settle, wait_until};
 
 /// VT-SURF-3: the beam-splitter arm selector is a per-path control — each
 /// path's traversal of a shared `BeamSplitter` surface gets its own
@@ -33,11 +33,11 @@ fn each_path_has_its_own_independently_clickable_arm_selector() {
     let mut harness = launch();
 
     harness.get_by_label("Examples").click();
-    harness.run();
+    settle(&mut harness);
     harness
         .get_by_label("Widefield Epifluorescence Microscope")
         .click();
-    harness.run();
+    settle(&mut harness);
 
     // Path 0's beam-splitter Arm selector is the 4th combo box on its
     // Surfaces tab: the relay lens's Variant combo, then the beam
@@ -55,13 +55,13 @@ fn each_path_has_its_own_independently_clickable_arm_selector() {
         .nth(3)
         .unwrap()
         .click_accesskit();
-    harness.run();
+    settle(&mut harness);
     harness.get_by_label("Transmitting");
     harness.get_by_label("Reflecting");
     // Close the popup without changing anything, by picking the option
     // that mirrors the fixture's own path-0 default (Reflecting).
     harness.get_by_label("Reflecting").click_accesskit();
-    harness.run();
+    settle(&mut harness);
 
     // Switch to path 1 and open its own Arm combo — the Shared row at
     // step 2 referencing the same physical beam splitter. This is combo
@@ -70,7 +70,7 @@ fn each_path_has_its_own_independently_clickable_arm_selector() {
     // path 1's combo indices were derived; the Arm combo immediately
     // follows that row's Shared-target picker, combo #6).
     harness.get_by_label("\u{25b6}").click();
-    harness.run();
+    settle(&mut harness);
     wait_until(
         &mut harness,
         "switched to path 1",
@@ -78,21 +78,21 @@ fn each_path_has_its_own_independently_clickable_arm_selector() {
         |h| has_label_contains(h, "Path 1"),
     );
     harness.get_by_label("Surfaces").click();
-    harness.run();
+    settle(&mut harness);
 
     harness
         .get_all(By::new().role(Role::ComboBox))
         .nth(7)
         .unwrap()
         .click_accesskit();
-    harness.run();
+    settle(&mut harness);
     // Path 1's own Arm combo offers the same two options, independent of
     // path 0's — clicking it (and path 0's, above) never errors or panics,
     // and each path's own Surfaces tab remains fully rendered afterward.
     harness.get_by_label("Transmitting");
     harness.get_by_label("Reflecting");
     harness.get_by_label("Transmitting").click_accesskit();
-    harness.run();
+    settle(&mut harness);
 
     harness.get_by_label("Surfaces");
     harness.get_by_label("Fields");

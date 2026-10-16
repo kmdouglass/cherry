@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use egui::accesskit::{Role, Toggled};
 use egui_kittest::kittest::{By, NodeT, Queryable};
-use gui_support::{has_label_contains, launch, wait_until};
+use gui_support::{has_label_contains, launch, settle, wait_until};
 
 /// VT-XS-5: the per-path visibility checkbox is independent of active-path
 /// dimming. Unchecking an *inactive* path hides it; switching `active_path`
@@ -18,14 +18,14 @@ fn unchecking_inactive_path_hides_it_then_switching_to_it_shows_it_again() {
     let mut harness = launch();
 
     harness.get_by_label("Examples").click();
-    harness.run();
+    settle(&mut harness);
     harness
         .get_by_label("Widefield Epifluorescence Microscope")
         .click();
-    harness.run();
+    settle(&mut harness);
 
     harness.get_by_label("Cross Section").click();
-    harness.run();
+    settle(&mut harness);
     wait_until(
         &mut harness,
         "cross-section path checklist is populated",
@@ -47,7 +47,7 @@ fn unchecking_inactive_path_hides_it_then_switching_to_it_shows_it_again() {
     harness
         .get(By::new().role(Role::CheckBox).label("Path 1"))
         .click();
-    harness.run();
+    settle(&mut harness);
     assert_eq!(checked(&harness, "Path 1"), Some(Toggled::False));
     // Path 0 (active) is untouched by hiding path 1.
     assert_eq!(checked(&harness, "Path 0"), Some(Toggled::True));
@@ -55,7 +55,7 @@ fn unchecking_inactive_path_hides_it_then_switching_to_it_shows_it_again() {
     // Switching `active_path` to the now-hidden path 1 makes it visible
     // again (FR-XS-7) — no "active but hidden" state.
     harness.get_by_label("\u{25b6}").click();
-    harness.run();
+    settle(&mut harness);
 
     wait_until(
         &mut harness,

@@ -5,7 +5,7 @@ mod gui_support;
 use std::time::Duration;
 
 use egui_kittest::kittest::Queryable;
-use gui_support::{has_value, launch, wait_until};
+use gui_support::{has_value, launch, settle, wait_until};
 
 /// VT-TAB-1: the Fields/Aperture/Wavelengths tabs show only the active
 /// path's own data, and switching `active_path` updates them. Exercised
@@ -19,14 +19,14 @@ fn wavelengths_tab_shows_only_active_paths_values() {
     let mut harness = launch();
 
     harness.get_by_label("Examples").click();
-    harness.run();
+    settle(&mut harness);
     harness
         .get_by_label("Widefield Epifluorescence Microscope")
         .click();
-    harness.run();
+    settle(&mut harness);
 
     harness.get_by_label("Wavelengths").click();
-    harness.run();
+    settle(&mut harness);
 
     // Path 0 (excitation): wavelength 0.488.
     wait_until(

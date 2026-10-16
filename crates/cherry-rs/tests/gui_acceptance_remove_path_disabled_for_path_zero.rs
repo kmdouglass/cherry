@@ -3,7 +3,7 @@
 mod gui_support;
 
 use egui_kittest::kittest::{NodeT, Queryable};
-use gui_support::launch;
+use gui_support::{launch, settle};
 
 /// VT-NAV-2: "Remove Path" is disabled while path 0 is active, even on a
 /// multipath system (path 0 can never be removed).
@@ -13,11 +13,11 @@ fn remove_path_disabled_while_path_zero_is_active() {
 
     // Create a second path (switches active_path to it, per VT-NAV-1).
     harness.get_by_label("+ Add Path").click();
-    harness.run();
+    settle(&mut harness);
 
     // Switch back to path 0 with the "previous" arrow.
     harness.get_by_label("\u{25c0}").click();
-    harness.run();
+    settle(&mut harness);
     harness.get_by_label_contains("Path 0");
 
     let remove_button = harness.get_by_label("Remove Path");

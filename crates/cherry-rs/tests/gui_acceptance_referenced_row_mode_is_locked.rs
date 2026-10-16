@@ -4,7 +4,7 @@ mod gui_support;
 
 use egui::accesskit::Role;
 use egui_kittest::kittest::{By, NodeT, Queryable};
-use gui_support::launch;
+use gui_support::{launch, settle};
 
 /// AT-14 (FR-14): a row that another row references via `Shared` can't
 /// change its ref mode, since that would leave the referrer dangling. In the
@@ -15,11 +15,11 @@ use gui_support::launch;
 fn referenced_rows_have_a_disabled_ref_mode_selector() {
     let mut harness = launch();
     harness.get_by_label("Examples").click();
-    harness.run();
+    settle(&mut harness);
     harness.get_by_label("Michelson Interferometer").click();
-    harness.run();
+    settle(&mut harness);
     harness.get_by_label("Surfaces").click();
-    harness.run();
+    settle(&mut harness);
 
     // Path 0 combo order (from the AccessKit tree): #0 Iris Variant; #1 BS
     // Ref, #2 BS Variant, #3 BS Arm; #4 M1 Ref, #5 M1 Variant, #6 M1 Kind;

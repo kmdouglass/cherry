@@ -7,7 +7,7 @@ use std::time::Duration;
 use egui::accesskit::Role;
 use egui_kittest::Harness;
 use egui_kittest::kittest::{By, Queryable};
-use gui_support::{has_label_contains, launch, wait_until};
+use gui_support::{has_label_contains, launch, settle, wait_until};
 
 use cherry_rs::gui::CherryApp;
 
@@ -15,12 +15,12 @@ use cherry_rs::gui::CherryApp;
 fn michelson_path_1_surfaces() -> Harness<'static, CherryApp> {
     let mut harness = launch();
     harness.get_by_label("Examples").click();
-    harness.run();
+    settle(&mut harness);
     harness.get_by_label("Michelson Interferometer").click();
-    harness.run();
+    settle(&mut harness);
 
     harness.get_by_label("\u{25b6}").click();
-    harness.run();
+    settle(&mut harness);
     wait_until(
         &mut harness,
         "switched to path 1",
@@ -28,7 +28,7 @@ fn michelson_path_1_surfaces() -> Harness<'static, CherryApp> {
         |h| has_label_contains(h, "Arm 2 (M2)"),
     );
     harness.get_by_label("Surfaces").click();
-    harness.run();
+    settle(&mut harness);
     harness
 }
 
@@ -44,7 +44,7 @@ fn open_combo(harness: &mut Harness<'static, CherryApp>, nth: usize) {
         .nth(nth)
         .unwrap()
         .click_accesskit();
-    harness.run();
+    settle(harness);
 }
 
 /// VT-SURF-2 (amended by FR-7, `20261016_michelson_interferometer_

@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use egui::accesskit::Role;
 use egui_kittest::kittest::{By, NodeT, Queryable};
-use gui_support::{has_label_contains, launch, wait_until};
+use gui_support::{has_label_contains, launch, settle, wait_until};
 
 /// VT-NAV-3: Remove Path is disabled when a later path `Shared`-references
 /// it, distinct from VT-NAV-2's "path 0 can never be removed" case. Builds
@@ -19,17 +19,17 @@ fn remove_path_disabled_once_a_later_path_shares_one_of_its_rows() {
     let mut harness = launch();
 
     harness.get_by_label("Examples").click();
-    harness.run();
+    settle(&mut harness);
     harness
         .get_by_label("Widefield Epifluorescence Microscope")
         .click();
-    harness.run();
+    settle(&mut harness);
 
     // Add path 2 and give it a second (non-Object/Image) row to switch to
     // Shared, via the same "+" insert-after control the Surfaces tab
     // already uses for every path.
     harness.get_by_label("+ Add Path").click();
-    harness.run();
+    settle(&mut harness);
     wait_until(
         &mut harness,
         "path 2 created",
@@ -37,9 +37,9 @@ fn remove_path_disabled_once_a_later_path_shares_one_of_its_rows() {
         |h| has_label_contains(h, "Path 2"),
     );
     harness.get_by_label("Surfaces").click();
-    harness.run();
+    settle(&mut harness);
     harness.get_all_by_label("+").next().unwrap().click();
-    harness.run();
+    settle(&mut harness);
 
     // Row 0 = Object (locked, Ref-mode combo only). Row 1 (now a default
     // `New` Sphere) gets combo #1 (Ref-mode) and combo #2 (Variant) — see
@@ -50,7 +50,7 @@ fn remove_path_disabled_once_a_later_path_shares_one_of_its_rows() {
         .nth(1)
         .unwrap()
         .click();
-    harness.run();
+    settle(&mut harness);
     harness.get_by_label("Shared").click();
     // Switching to Shared defaults to the first candidate, a real surface,
     // so the compute thread's spinner is mid-repaint; step rather than
@@ -68,7 +68,7 @@ fn remove_path_disabled_once_a_later_path_shares_one_of_its_rows() {
         .nth(2)
         .unwrap()
         .click();
-    harness.run();
+    settle(&mut harness);
     harness.get_by_label("(1, 4) Thin Lens").click();
     // A `.run()` here can exceed `max_steps` while the compute thread's
     // spinner is still mid-repaint from the earlier edits; a few plain
@@ -80,7 +80,7 @@ fn remove_path_disabled_once_a_later_path_shares_one_of_its_rows() {
     // Navigate back to path 1: Remove Path is now disabled, because path
     // 2 references one of its rows.
     harness.get_by_label("\u{25c0}").click();
-    harness.run();
+    settle(&mut harness);
     wait_until(
         &mut harness,
         "back on path 1",

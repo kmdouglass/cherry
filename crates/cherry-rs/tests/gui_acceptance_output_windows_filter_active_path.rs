@@ -5,7 +5,7 @@ mod gui_support;
 use std::time::Duration;
 
 use egui_kittest::kittest::Queryable;
-use gui_support::{has_label_contains, launch, wait_until};
+use gui_support::{has_label_contains, launch, settle, wait_until};
 
 /// VT-OUT-1: Paraxial/RayFan/SpotDiagram show only the active path's data,
 /// and switching `active_path` updates them. Exercised here with the
@@ -17,14 +17,14 @@ fn paraxial_window_shows_only_active_paths_efl() {
     let mut harness = launch();
 
     harness.get_by_label("Examples").click();
-    harness.run();
+    settle(&mut harness);
     harness
         .get_by_label("Widefield Epifluorescence Microscope")
         .click();
-    harness.run();
+    settle(&mut harness);
 
     harness.get_by_label("Paraxial Summary").click();
-    harness.run();
+    settle(&mut harness);
 
     // Path 0 (excitation): EFL = -1.8750 mm.
     wait_until(
@@ -38,7 +38,7 @@ fn paraxial_window_shows_only_active_paths_efl() {
     // Switch to path 1 (emission): EFL = 12.4999 mm — a different value, not
     // a stale carry-over from path 0.
     harness.get_by_label("\u{25b6}").click();
-    harness.run();
+    settle(&mut harness);
 
     wait_until(
         &mut harness,

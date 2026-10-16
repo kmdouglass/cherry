@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use egui::accesskit::Role;
 use egui_kittest::kittest::{By, Queryable};
-use gui_support::{has_label_contains, launch, wait_until};
+use gui_support::{has_label_contains, launch, settle, wait_until};
 
 /// Editing the Thin Lens example's focal length in the (default-open) Specs
 /// window propagates through the background compute thread into the
@@ -18,12 +18,12 @@ fn editing_focal_length_updates_paraxial_efl() {
     let mut harness = launch();
 
     harness.get_by_label("Examples").click();
-    harness.run();
+    settle(&mut harness);
     harness.get_by_label("Thin Lens").click();
-    harness.run();
+    settle(&mut harness);
 
     harness.get_by_label("Paraxial Summary").click();
-    harness.run();
+    settle(&mut harness);
     wait_until(
         &mut harness,
         "Paraxial window shows the initial EFL (100)",
@@ -38,13 +38,13 @@ fn editing_focal_length_updates_paraxial_efl() {
     harness
         .get(By::new().role(Role::SpinButton).value("100"))
         .click();
-    harness.run();
+    settle(&mut harness);
     harness
         .get(By::new().role(Role::SpinButton).value("100"))
         .type_text("50");
-    harness.run();
+    settle(&mut harness);
     harness.key_press(egui::Key::Tab);
-    harness.run();
+    settle(&mut harness);
 
     wait_until(
         &mut harness,

@@ -5,7 +5,7 @@ mod gui_support;
 use std::time::Duration;
 
 use egui_kittest::kittest::Queryable;
-use gui_support::{has_label_contains, launch, wait_until};
+use gui_support::{has_label_contains, launch, settle, wait_until};
 
 /// AT-10: loading "Michelson Interferometer" computes a valid result for
 /// both arms. Each arm focuses through the f = 100 mm detector lens, so the
@@ -15,12 +15,12 @@ use gui_support::{has_label_contains, launch, wait_until};
 fn load_michelson_shows_efl_for_both_arms() {
     let mut harness = launch();
     harness.get_by_label("Examples").click();
-    harness.run();
+    settle(&mut harness);
     harness.get_by_label("Michelson Interferometer").click();
-    harness.run();
+    settle(&mut harness);
 
     harness.get_by_label("Paraxial Summary").click();
-    harness.run();
+    settle(&mut harness);
 
     for arm in ["Arm 1 (M1)", "Arm 2 (M2)"] {
         wait_until(
@@ -38,6 +38,6 @@ fn load_michelson_shows_efl_for_both_arms() {
             "{arm}: expected the paraxial window to show 100.0000"
         );
         harness.get_by_label("\u{25b6}").click();
-        harness.run();
+        settle(&mut harness);
     }
 }
