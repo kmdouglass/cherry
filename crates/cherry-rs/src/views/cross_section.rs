@@ -229,7 +229,12 @@ fn build_plane_geometry(
     let mut grouped: Vec<(&Component, Vec<usize>)> = Vec::new();
     for pc in components {
         if let Some(entry) = grouped.iter_mut().find(|(c, _)| *c == &pc.component) {
-            entry.1.push(pc.path_id);
+            // A path revisiting a surface (e.g. a Michelson arm crossing its
+            // beam splitter twice) yields the same component twice for one
+            // path; tag each path once.
+            if !entry.1.contains(&pc.path_id) {
+                entry.1.push(pc.path_id);
+            }
         } else {
             grouped.push((&pc.component, vec![pc.path_id]));
         }
@@ -420,7 +425,12 @@ fn build_plane_geometry(
             (*z - flat_planes[i].1).abs() < EPS && (*t - flat_planes[i].2).abs() < EPS
         }) {
             let (_, _, _, merged) = flat_planes.remove(i);
-            flat_planes[j].3.path_ids.extend(merged.path_ids);
+            let path_ids = &mut flat_planes[j].3.path_ids;
+            for id in merged.path_ids {
+                if !path_ids.contains(&id) {
+                    path_ids.push(id);
+                }
+            }
         }
     }
 
@@ -1552,6 +1562,48 @@ mod tests {
         // it correctly produces no FlatPlane at all (not even one); this is
         // unrelated to path-sharing and matches pre-existing single-path
         // behavior. No separate Object-plane assertion applies here.
+    }
+
+    /// AT-11 (`20261016_michelson_interferometer_requirements.md`): a
+    /// surface revisited within one path (the Michelson's beam splitter, hit
+    /// twice by each arm) is drawn once, tagged with each path exactly once.
+    #[test]
+    fn same_path_revisit_is_drawn_once_with_unique_path_ids() {
+        use crate::examples::michelson_interferometer;
+
+        let model = michelson_interferometer::sequential_model(n!(1.0), &[0.6328], 100.0, 110.0);
+        let components = components_view(&model, n!(1.0)).unwrap();
+        let cs = cross_section_view(&model, None, &components);
+
+        let mut tags: Vec<Vec<usize>> = cs
+            .yz
+            .elements
+            .iter()
+            .map(|pde| {
+                let mut ids = pde.path_ids.clone();
+                ids.sort_unstable();
+                ids
+            })
+            .collect();
+        for ids in &tags {
+            let mut unique = ids.clone();
+            unique.dedup();
+            assert_eq!(ids, &unique, "an element lists a path more than once");
+        }
+        // Shared by both arms: iris, beam splitter, lens, detector. Own to
+        // one arm: M1, M2.
+        tags.sort();
+        assert_eq!(
+            tags,
+            vec![
+                vec![0],
+                vec![0, 1],
+                vec![0, 1],
+                vec![0, 1],
+                vec![0, 1],
+                vec![1]
+            ]
+        );
     }
 
     /// VT-XS-8 / design doc §10.1: `ObjectLinkedTo` synthesizes a *new*

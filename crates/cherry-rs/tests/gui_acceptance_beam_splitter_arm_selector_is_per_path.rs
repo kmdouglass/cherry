@@ -39,10 +39,12 @@ fn each_path_has_its_own_independently_clickable_arm_selector() {
         .click();
     harness.run();
 
-    // Path 0's beam-splitter row is the 3rd combo box on its Surfaces tab
-    // (Variant combos for the relay lens and beam splitter, then the Arm
-    // combo) — found by dumping the real tree and matching rects to row
-    // labels, the same way as the sibling Shared-picker tests. It renders
+    // Path 0's beam-splitter Arm selector is the 4th combo box on its
+    // Surfaces tab: the relay lens's Variant combo, then the beam
+    // splitter's Ref combo (shown because this is a multipath system;
+    // disabled because path 1 references the row — FR-8/FR-14), its
+    // Variant combo, then the Arm combo. Rows 0, 1 and 4 render their Ref
+    // mode as a plain label, since they have no valid Shared target. It renders
     // far enough right in the table to be clipped out of the Specs
     // window's visible scroll area, so a plain `.click()` (which requires
     // the node's screen position to be actually hit-testable) silently
@@ -50,7 +52,7 @@ fn each_path_has_its_own_independently_clickable_arm_selector() {
     // `Action::Click` directly and works regardless of scroll/clipping.
     harness
         .get_all(By::new().role(Role::ComboBox))
-        .nth(2)
+        .nth(3)
         .unwrap()
         .click_accesskit();
     harness.run();

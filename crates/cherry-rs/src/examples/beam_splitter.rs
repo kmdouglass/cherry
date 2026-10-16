@@ -2,7 +2,7 @@
 //!
 //! Build with `two_path_model(n_air, wavelengths, gap_transmitted,
 //! gap_reflected)`. Path 0 is the transmitted arm (+z); path 1 is the reflected
-//! arm (+y after a –45° tilt about R).
+//! arm (−y after a –45° tilt about R).
 use std::rc::Rc;
 
 use crate::{
@@ -15,8 +15,8 @@ use crate::{
 ///
 /// - Path 0: transmitted arm — image along +z at distance `gap_transmitted`
 ///   from the BS.
-/// - Path 1: reflected arm — image along +y at distance `gap_reflected` from
-///   the BS (45° BS deflects 90° into +y).
+/// - Path 1: reflected arm — image along −y at distance `gap_reflected` from
+///   the BS (the –45° BS deflects 90° into −y).
 pub fn two_path_model(
     n_air: Rc<dyn RefractiveIndexSpec>,
     wavelengths: &[Float],

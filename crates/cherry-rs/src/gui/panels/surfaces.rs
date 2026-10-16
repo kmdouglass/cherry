@@ -34,23 +34,32 @@ fn ref_mode(r: &SurfaceRefRow) -> RefMode {
     }
 }
 
-/// Candidates for a `Shared` row in `paths[active_path]`: every `New` row
-/// introduced by a strictly earlier path (FR-SURF-2), excluding same-path
-/// rows (FR-SURF-3) and Object/Image boundary surfaces, which cannot sit
-/// mid-path. Labelled `(path, #) Variant`.
-fn shared_candidates(specs: &SystemSpecs, active_path: usize) -> Vec<(RowId, String)> {
-    if active_path == 0 {
+/// Candidates for the `Shared` row at `row_idx` of `paths[active_path]`:
+/// every `New` row introduced by a strictly earlier path (FR-SURF-2) or at an
+/// earlier step of the same path (a revisit, FR-7). Filtered by the row's
+/// position (FR-9): the last row accepts only an Image, row 0 only an Object,
+/// and interior rows only non-boundary surfaces. Labelled `(path, #) Variant`.
+fn shared_candidates(
+    specs: &SystemSpecs,
+    active_path: usize,
+    row_idx: usize,
+) -> Vec<(RowId, String)> {
+    let Some(path) = specs.paths.get(active_path) else {
         return Vec::new();
-    }
+    };
+    let is_last = row_idx + 1 == path.surface_refs.len();
+    let accepts = |variant: SurfaceVariant| match variant {
+        SurfaceVariant::Image => is_last,
+        SurfaceVariant::Object => row_idx == 0,
+        _ => row_idx != 0 && !is_last,
+    };
+    let same_path_rows = &path.surface_refs[..row_idx.min(path.surface_refs.len())];
     specs.paths[..active_path]
         .iter()
         .flat_map(|path| path.surface_refs.iter())
+        .chain(same_path_rows)
         .filter_map(|r| match r {
-            SurfaceRefRow::New(row)
-                if !matches!(row.variant, SurfaceVariant::Object | SurfaceVariant::Image) =>
-            {
-                Some(row.id)
-            }
+            SurfaceRefRow::New(row) if accepts(row.variant) => Some(row.id),
             _ => None,
         })
         .filter_map(|id| specs.surface_label(id).map(|label| (id, label)))
@@ -116,7 +125,10 @@ pub fn surfaces_panel(
     let has_beam_splitter = refs
         .iter()
         .any(|r| variant_of(r) == Some(SurfaceVariant::BeamSplitter));
-    let show_ref_mode = active_path > 0;
+    // NFR-5: an ordinary single-path system keeps its pre-multipath look;
+    // the column still appears if the path already holds a non-New row.
+    let show_ref_mode =
+        specs.paths.len() > 1 || refs.iter().any(|r| !matches!(r, SurfaceRefRow::New(_)));
 
     egui::ScrollArea::horizontal().show(ui, |ui| {
         let ctx = ui.ctx().clone();
@@ -205,6 +217,9 @@ pub fn surfaces_panel(
                         (row_idx == 0 && mode == RefMode::New) || is_image;
 
                     let store_idx = table_idx.resolve(r);
+                    let referrer = r.row_id().and_then(|id| specs.shared_referrer_of(id));
+                    let has_shared_candidates =
+                        !shared_candidates(specs, active_path, row_idx).is_empty();
                     let auto_gap = specs.paths[active_path].gap_is_auto_inferred(row_idx);
 
                     let roc_solve_spec = store_idx
@@ -229,33 +244,45 @@ pub fn surfaces_panel(
                         // Ref-mode selector column
                         if show_ref_mode {
                             row.col(|ui| {
-                                if row_idx == 0 || is_image {
-                                    // Object (step 0) and Image rows: mode
-                                    // selector offered per FR-SURF-5 — New/
-                                    // Shared always; ObjectLinkedTo only at
-                                    // step 0.
+                                // New always; Shared only when a valid target
+                                // exists (FR-10) or the row already is one;
+                                // ObjectLinkedTo only at step 0 of a path > 0
+                                // (FR-SURF-5).
+                                let mut options = vec![RefMode::New];
+                                if mode == RefMode::Shared || has_shared_candidates {
+                                    options.push(RefMode::Shared);
+                                }
+                                if row_idx == 0 && active_path > 0 {
+                                    options.push(RefMode::ObjectLinkedTo);
+                                }
+                                if options.len() == 1 && mode == RefMode::New {
+                                    ui.label(mode.to_string());
+                                    return;
                                 }
                                 let id = ui
                                     .make_persistent_id(format!("refmode_{active_path}_{row_idx}"));
-                                let options: &[RefMode] = if row_idx == 0 {
-                                    &[RefMode::New, RefMode::Shared, RefMode::ObjectLinkedTo]
-                                } else {
-                                    &[RefMode::New, RefMode::Shared]
-                                };
-                                egui::ComboBox::from_id_salt(id)
-                                    .selected_text(mode.to_string())
-                                    .width(65.0)
-                                    .show_ui(ui, |ui| {
-                                        for &m in options {
-                                            if ui
-                                                .selectable_label(mode == m, m.to_string())
-                                                .clicked()
-                                                && m != mode
-                                            {
-                                                switch_mode = Some((row_idx, m));
+                                // FR-14: a referenced row can't change mode.
+                                let response = ui.add_enabled_ui(referrer.is_none(), |ui| {
+                                    egui::ComboBox::from_id_salt(id)
+                                        .selected_text(mode.to_string())
+                                        .width(65.0)
+                                        .show_ui(ui, |ui| {
+                                            for &m in &options {
+                                                if ui
+                                                    .selectable_label(mode == m, m.to_string())
+                                                    .clicked()
+                                                    && m != mode
+                                                {
+                                                    switch_mode = Some((row_idx, m));
+                                                }
                                             }
-                                        }
-                                    });
+                                        });
+                                });
+                                if let Some((p, s)) = referrer {
+                                    response.response.on_disabled_hover_text(format!(
+                                        "Referenced by ({p}, {s})"
+                                    ));
+                                }
                             });
                         }
 
@@ -293,7 +320,7 @@ pub fn surfaces_panel(
                                 }
                             }
                             RefMode::Shared => {
-                                let candidates = shared_candidates(specs, active_path);
+                                let candidates = shared_candidates(specs, active_path, row_idx);
                                 let current_label =
                                     match &specs.paths[active_path].surface_refs[row_idx] {
                                         SurfaceRefRow::Shared { target, .. } => {
@@ -808,14 +835,26 @@ fn switch_row_mode(
     step_idx: usize,
     new_mode: RefMode,
 ) {
+    // FR-14: replacing a referenced row would leave its referrer dangling.
+    if let Some(row_id) = specs
+        .paths
+        .get(active_path)
+        .and_then(|p| p.surface_refs.get(step_idx))
+        .and_then(SurfaceRefRow::row_id)
+        && specs.shared_referrer_of(row_id).is_some()
+    {
+        return;
+    }
     let new_ref = match new_mode {
         RefMode::New => {
             let id = specs.mint_row_id();
             SurfaceRefRow::New(SurfaceRow::new_default().with_id(id))
         }
         RefMode::Shared => {
-            let candidates = shared_candidates(specs, active_path);
-            let target = candidates.first().map(|(id, _)| *id).unwrap_or(RowId(0));
+            // FR-10: no valid target means no switch, never a guessed one.
+            let Some(&(target, _)) = shared_candidates(specs, active_path, step_idx).first() else {
+                return;
+            };
             SurfaceRefRow::Shared {
                 target,
                 gap_after: GapRow::default(),
@@ -956,21 +995,100 @@ mod tests {
 
     /// Shared-surface candidates are labelled `(path, #) Variant` and never
     /// include Object or Image surfaces.
+    /// FR-14: switching the mode of a row another row references is refused,
+    /// so the referencing `Shared` row never dangles.
+    #[test]
+    fn switch_row_mode_refuses_a_referenced_row() {
+        let mut specs = crate::gui::examples::wf_epi_microscope();
+        // Path 0 step 2 is the beam splitter, referenced by path 1.
+        let before = specs.paths[0].surface_refs[2].row_id();
+        switch_row_mode(&mut specs, 0, 2, RefMode::New);
+        assert_eq!(specs.paths[0].surface_refs[2].row_id(), before);
+    }
+
+    /// FR-14: an unreferenced row may still switch mode.
+    #[test]
+    fn switch_row_mode_allows_an_unreferenced_row() {
+        let mut specs = crate::gui::examples::wf_epi_microscope();
+        // Path 1 step 3 is its fold mirror, referenced by nothing.
+        let before = specs.paths[1].surface_refs[3].row_id();
+        switch_row_mode(&mut specs, 1, 3, RefMode::New);
+        assert_ne!(specs.paths[1].surface_refs[3].row_id(), before);
+    }
+
+    fn candidate_labels(specs: &SystemSpecs, active_path: usize, row_idx: usize) -> Vec<String> {
+        shared_candidates(specs, active_path, row_idx)
+            .into_iter()
+            .map(|(_, l)| l)
+            .collect()
+    }
+
+    /// Interior rows offer only non-boundary surfaces (FR-9).
     #[test]
     fn shared_candidates_are_indexed_and_exclude_object_and_image() {
         let specs = crate::gui::examples::wf_epi_microscope();
-        let labels: Vec<String> = shared_candidates(&specs, 1)
-            .into_iter()
-            .map(|(_, l)| l)
-            .collect();
         assert_eq!(
-            labels,
+            candidate_labels(&specs, 1, 2),
             vec![
                 "(0, 1) Thin Lens",
                 "(0, 2) Beam Splitter",
                 "(0, 3) Thin Lens"
             ]
         );
+    }
+
+    /// FR-7: same-path rows at earlier steps are offered; the row itself and
+    /// later rows are not.
+    #[test]
+    fn shared_candidates_include_only_earlier_rows_of_the_same_path() {
+        let specs = crate::gui::examples::wf_epi_microscope();
+        // Path 1 row 4 (tube lens): its own fold mirror (row 3) is earlier.
+        assert_eq!(
+            candidate_labels(&specs, 1, 4),
+            vec![
+                "(0, 1) Thin Lens",
+                "(0, 2) Beam Splitter",
+                "(0, 3) Thin Lens",
+                "(1, 3) Conic"
+            ]
+        );
+        // Path 1 row 3 (fold mirror): nothing of path 1 is earlier.
+        assert!(
+            !candidate_labels(&specs, 1, 3)
+                .iter()
+                .any(|l| l.starts_with("(1, "))
+        );
+    }
+
+    /// FR-7: path 0 can revisit its own earlier rows.
+    #[test]
+    fn shared_candidates_on_path_0_offer_its_own_earlier_rows() {
+        let specs = crate::gui::examples::wf_epi_microscope();
+        assert_eq!(candidate_labels(&specs, 0, 2), vec!["(0, 1) Thin Lens"]);
+        assert!(candidate_labels(&specs, 0, 1).is_empty());
+    }
+
+    /// FR-9: the last row offers only Image candidates and row 0 only
+    /// Object candidates.
+    #[test]
+    fn shared_candidates_for_boundary_rows_match_the_boundary_kind() {
+        let specs = crate::gui::examples::wf_epi_microscope();
+        assert_eq!(candidate_labels(&specs, 1, 5), vec!["(0, 4) Image"]);
+        assert_eq!(candidate_labels(&specs, 1, 0), vec!["(0, 0) Object"]);
+        assert!(candidate_labels(&specs, 0, 0).is_empty());
+    }
+
+    /// FR-10: switching to Shared with no valid candidate is a no-op rather
+    /// than inventing a target.
+    #[test]
+    fn switch_row_mode_to_shared_without_candidates_is_a_no_op() {
+        let mut specs = crate::gui::examples::wf_epi_microscope();
+        // Path 0 row 1 has no earlier non-boundary candidate.
+        switch_row_mode(&mut specs, 0, 1, RefMode::Shared);
+        assert!(matches!(
+            specs.paths[0].surface_refs[1],
+            SurfaceRefRow::New(_)
+        ));
     }
 
     fn default_panel(ui: &mut egui::Ui, specs: &mut SystemSpecs) -> bool {
@@ -1129,12 +1247,10 @@ mod tests {
         );
     }
 
-    /// Two-path system: path 1's Ref-mode selector column is visible, path
-    /// 0's is not (mirrors NFR-5 for the common single-path case).
+    /// NFR-5: a single-path system shows no Ref-mode column.
     #[test]
-    fn ref_mode_selector_shown_only_for_active_path_gt_zero() {
+    fn ref_mode_selector_hidden_for_single_path_system() {
         let mut specs = minimal_specs();
-        specs.add_path();
 
         let mut harness0 = Harness::builder()
             .with_size(egui::vec2(2000.0, 600.0))
@@ -1144,8 +1260,24 @@ mod tests {
         harness0.run();
         assert!(
             harness0.query_all_by_label("Ref").next().is_none(),
-            "path 0 should not show the Ref-mode column"
+            "a single-path system should not show the Ref-mode column"
         );
+    }
+
+    /// FR-8: in a multipath system path 0 shows the Ref-mode column too, so
+    /// it can revisit its own surfaces.
+    #[test]
+    fn ref_mode_selector_shown_for_path_0_of_multipath_system() {
+        let mut specs = minimal_specs();
+        specs.add_path();
+
+        let mut harness0 = Harness::builder()
+            .with_size(egui::vec2(2000.0, 600.0))
+            .build_ui(|ui| {
+                surfaces_panel(ui, &mut specs, 0, None, &mut None);
+            });
+        harness0.run();
+        harness0.get_by_label("Ref");
     }
 
     #[test]

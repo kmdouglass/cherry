@@ -5,6 +5,7 @@ pub mod concave_mirror;
 pub mod convexplano_lens;
 pub mod f_theta_scan_lens;
 pub mod galvo_mirror;
+pub mod michelson_interferometer;
 pub mod mirrors_figure_z;
 pub mod petzval_lens;
 pub mod thin_lens_singlet;

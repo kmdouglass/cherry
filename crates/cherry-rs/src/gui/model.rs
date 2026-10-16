@@ -443,6 +443,14 @@ fn default_phi() -> String {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LensGroupSpec {
     pub name: String,
+    /// The path whose components this group organizes. Each path keeps its
+    /// own groups, so switching `active_path` never discards another path's
+    /// grouping; a component shared by two paths can be grouped differently
+    /// in each. Group transforms are only applied to single-path systems
+    /// (see `convert.rs`), so two paths' groups never fight over one shared
+    /// surface's placement.
+    #[serde(default)]
+    pub path_id: usize,
     /// First surface indices of the components in this group.
     pub component_first_surfs: Vec<usize>,
     /// Global-frame decenter [R, U, F] in mm.
@@ -453,9 +461,10 @@ pub struct LensGroupSpec {
 }
 
 impl LensGroupSpec {
-    pub fn new(name: impl Into<String>) -> Self {
+    pub fn new(name: impl Into<String>, path_id: usize) -> Self {
         Self {
             name: name.into(),
+            path_id,
             component_first_surfs: Vec::new(),
             decenter: [0.0; 3],
             rotation: [0.0; 3],
@@ -989,14 +998,52 @@ impl SystemSpecs {
 
     /// Remove the path at index `k`. Returns `false` (no-op) if
     /// `path_is_removable(k)` is false. `Shared` references never need
-    /// renumbering (they target a `RowId`, not a path index); only
-    /// `ObjectLinkedTo.path`/`SolveSpec.path_id` fields referencing a path
-    /// after `k` are decremented (FR-NAV-4).
+    /// renumbering (they target a `RowId`, not a path index).
+    /// `ObjectLinkedTo.path`/`SolveSpec.path_id`/`LensGroupSpec.path_id`
+    /// fields referencing a path after `k` are decremented (FR-NAV-4), and
+    /// store-index-typed fields (`stop_surface`, curvature solves, lens
+    /// group members) after path `k`'s store indices shift down to follow
+    /// their surfaces. Path `k`'s own lens groups and curvature solves are
+    /// dropped.
     pub fn remove_path(&mut self, k: usize) -> bool {
         if !self.path_is_removable(k) {
             return false;
         }
+        // Store indices are assigned in path order, so path k's own
+        // (New/ObjectLinkedTo) rows occupy one contiguous range; everything
+        // after it shifts down by its length.
+        let table = self.store_index_table();
+        let removed: Vec<usize> = self.paths[k]
+            .surface_refs
+            .iter()
+            .filter_map(|r| r.row_id().and_then(|id| table.store_index_of(id)))
+            .collect();
+        let start = removed.iter().copied().min().unwrap_or(0);
+        let len = removed.len();
+        let shift = |i: usize| if i >= start + len { i - len } else { i };
+
         self.paths.remove(k);
+        for p in &mut self.paths {
+            p.stop_surface = p.stop_surface.map(shift);
+        }
+        self.solves.retain(|s| {
+            !(s.parameter() == SolveParameter::RadiusOfCurvature
+                && (start..start + len).contains(&s.surface_index()))
+        });
+        for solve in &mut self.solves {
+            if solve.parameter() == SolveParameter::RadiusOfCurvature {
+                solve.set_surface_index(shift(solve.surface_index()));
+            }
+        }
+        self.lens_groups.retain(|g| g.path_id != k);
+        for group in &mut self.lens_groups {
+            if group.path_id > k {
+                group.path_id -= 1;
+            }
+            for s in &mut group.component_first_surfs {
+                *s = shift(*s);
+            }
+        }
         for p in &mut self.paths {
             for r in &mut p.surface_refs {
                 if let SurfaceRefRow::ObjectLinkedTo { path, .. } = r
@@ -1095,16 +1142,27 @@ impl SystemSpecs {
 
         // Guard: Shared-target dangling reference.
         if let Some(row_id) = path.surface_refs[step_idx].row_id()
-            && self.paths.iter().any(|p| {
-                p.surface_refs
-                    .iter()
-                    .any(|r| matches!(r, SurfaceRefRow::Shared { target, .. } if *target == row_id))
-            })
+            && self.shared_referrer_of(row_id).is_some()
         {
             return false;
         }
 
         true
+    }
+
+    /// The first `Shared` row, as `(path, step)`, in any path (including
+    /// `row_id`'s own) that targets `row_id`, or `None`. Rows with a referrer
+    /// can be neither deleted nor switched to another ref mode, since either
+    /// would leave the referencing row dangling (FR-14).
+    pub fn shared_referrer_of(&self, row_id: RowId) -> Option<(usize, usize)> {
+        self.paths.iter().enumerate().find_map(|(p, path)| {
+            path.surface_refs
+                .iter()
+                .position(
+                    |r| matches!(r, SurfaceRefRow::Shared { target, .. } if *target == row_id),
+                )
+                .map(|s| (p, s))
+        })
     }
 
     /// Remove the row at step `step_idx` of path `path_idx`. No-ops (returns
@@ -1551,9 +1609,69 @@ mod tests {
 
     // --- lens_groups index updates ---
 
+    /// Three paths: path 0 = Object, Sphere, Sphere, Image (store 0-3);
+    /// path 1 = Object, Image (store 4-5, referenced by nobody, so
+    /// removable); path 2 = Object, Sphere, Image (store 6-8).
+    fn three_path_specs() -> SystemSpecs {
+        let mut specs = SystemSpecs::new_single(PathRow::from_surface_rows(vec![
+            SurfaceRow::new_object("Infinity"),
+            SurfaceRow::new_sphere("10.0", "50.0", "5.0", "1.5"),
+            SurfaceRow::new_sphere("10.0", "Infinity", "5.0", "1.0"),
+            SurfaceRow::new_image(),
+        ]));
+        specs.add_path();
+        specs.add_path();
+        specs.insert_surface_after(2, 0);
+        specs
+    }
+
+    /// Removing a path drops its own lens groups, renumbers later paths'
+    /// groups to their new path index, and shifts their store indices down
+    /// by the number of store indices the removed path introduced.
+    #[test]
+    fn remove_path_drops_its_groups_and_renumbers_later_ones() {
+        let mut specs = three_path_specs();
+        let group = |name: &str, path_id: usize, surf: usize| {
+            let mut g = LensGroupSpec::new(name, path_id);
+            g.component_first_surfs = vec![surf];
+            g
+        };
+        specs.lens_groups = vec![group("A", 0, 1), group("B", 1, 4), group("C", 2, 7)];
+
+        assert!(specs.remove_path(1));
+
+        let groups: Vec<(&str, usize, Vec<usize>)> = specs
+            .lens_groups
+            .iter()
+            .map(|g| (g.name.as_str(), g.path_id, g.component_first_surfs.clone()))
+            .collect();
+        assert_eq!(groups, vec![("A", 0, vec![1]), ("C", 1, vec![5])]);
+    }
+
+    /// Removing a path shifts later paths' store-index-typed fields
+    /// (`stop_surface`, curvature solves) by the removed path's store
+    /// indices, keeping them on the same physical surface.
+    #[test]
+    fn remove_path_renumbers_later_paths_store_indices() {
+        let mut specs = three_path_specs();
+        specs.paths[2].stop_surface = Some(7);
+        specs.paths[0].stop_surface = Some(1);
+
+        assert!(specs.remove_path(1));
+
+        assert_eq!(specs.paths[0].stop_surface, Some(1));
+        assert_eq!(specs.paths[1].stop_surface, Some(5));
+        assert_eq!(
+            specs
+                .store_index_table()
+                .resolve(&specs.paths[1].surface_refs[1]),
+            Some(5)
+        );
+    }
+
     fn specs_with_group(first_surfs: Vec<usize>) -> SystemSpecs {
         let mut specs = five_surface_specs();
-        let mut g = LensGroupSpec::new("G1");
+        let mut g = LensGroupSpec::new("G1", 0);
         g.component_first_surfs = first_surfs;
         specs.lens_groups = vec![g];
         specs
@@ -1649,6 +1767,30 @@ mod tests {
             beam_splitter_arms: Vec::new(),
         });
         specs
+    }
+
+    /// FR-14: `shared_referrer_of` names the first `Shared` row targeting a
+    /// row, as `(path, step)`, and `None` for unreferenced rows.
+    #[test]
+    fn shared_referrer_of_finds_the_referencing_row() {
+        let specs = two_path_specs();
+        assert_eq!(specs.shared_referrer_of(RowId(2)), Some((1, 1)));
+        assert_eq!(specs.shared_referrer_of(RowId(1)), None);
+    }
+
+    /// FR-14: a same-path `Shared` row also counts as a referrer.
+    #[test]
+    fn shared_referrer_of_finds_same_path_referrer() {
+        let mut specs = two_path_specs();
+        specs.paths[0].surface_refs.insert(
+            3,
+            SurfaceRefRow::Shared {
+                target: RowId(2),
+                gap_after: GapRow::default(),
+            },
+        );
+        specs.paths.truncate(1);
+        assert_eq!(specs.shared_referrer_of(RowId(2)), Some((0, 3)));
     }
 
     /// Surfaces are labelled by their owning path and their row (`#`) in

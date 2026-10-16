@@ -751,7 +751,7 @@ mod tests {
     fn group_with_zero_params_leaves_specs_unchanged() {
         use crate::gui::model::LensGroupSpec;
         let mut specs = thin_singlet_specs("5.0");
-        let mut g = LensGroupSpec::new("Lens");
+        let mut g = LensGroupSpec::new("Lens", 0);
         g.component_first_surfs = vec![1];
         specs.lens_groups = vec![g];
 
@@ -788,7 +788,7 @@ mod tests {
         use crate::gui::model::LensGroupSpec;
         use approx::assert_abs_diff_eq;
         let mut specs = thin_singlet_specs("5.0");
-        let mut g = LensGroupSpec::new("Lens");
+        let mut g = LensGroupSpec::new("Lens", 0);
         g.component_first_surfs = vec![1]; // element at surfaces [1, 2]
         g.decenter = [1.0, 0.0, 0.0]; // R = 1 mm
         g.rotation = [0.0, 0.0, 0.0];
@@ -826,7 +826,7 @@ mod tests {
         use crate::gui::model::LensGroupSpec;
         use approx::assert_abs_diff_eq;
         let mut specs = thin_singlet_specs("5.0");
-        let mut g = LensGroupSpec::new("Lens");
+        let mut g = LensGroupSpec::new("Lens", 0);
         g.component_first_surfs = vec![1];
         g.decenter = [0.0, 0.0, 0.0];
         g.rotation = [0.0, 1.0, 0.0]; // ψ = 1° (U-axis rotation)
@@ -864,7 +864,7 @@ mod tests {
         use crate::gui::model::LensGroupSpec;
         use approx::assert_abs_diff_eq;
         let mut specs = thin_singlet_specs("5.0");
-        let mut g = LensGroupSpec::new("Lens");
+        let mut g = LensGroupSpec::new("Lens", 0);
         g.component_first_surfs = vec![1];
         g.decenter = [1.0, 0.0, 0.0];
         g.rotation = [0.0, 1.0, 0.0]; // ψ = 1°
@@ -910,7 +910,7 @@ mod tests {
         ]);
         path.aperture_semi_diameter = "12.5".into();
         path.wavelengths = vec!["0.5876".into()];
-        let mut g = LensGroupSpec::new("Both");
+        let mut g = LensGroupSpec::new("Both", 0);
         g.component_first_surfs = vec![1, 3]; // element A (1–2) and element B (3–4)
         g.decenter = [0.0, 0.0, 0.0];
         g.rotation = [0.0, 2.0, 0.0]; // ψ = 2°
