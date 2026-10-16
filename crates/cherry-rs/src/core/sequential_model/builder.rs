@@ -1159,4 +1159,192 @@ mod tests {
             .build();
         assert!(result.is_err());
     }
+
+    // ── Same-path revisit guard ───────────────────────────────────────────
+
+    fn revisit_sphere(radius_of_curvature: Float, surf_kind: BoundaryKind) -> SurfaceSpec {
+        SurfaceSpec::Sphere {
+            semi_diameter: 10.0,
+            radius_of_curvature,
+            surf_kind,
+            rotation: Rotation3D::None,
+            decenter: Vec3::new(0.0, 0.0, 0.0),
+            rotation_offset: Rotation3D::None,
+        }
+    }
+
+    fn flat_mirror() -> SurfaceSpec {
+        SurfaceSpec::Conic {
+            semi_diameter: 10.0,
+            radius_of_curvature: Float::INFINITY,
+            conic_constant: 0.0,
+            surf_kind: BoundaryKind::Reflecting,
+            rotation: Rotation3D::None,
+            decenter: Vec3::new(0.0, 0.0, 0.0),
+            rotation_offset: Rotation3D::None,
+        }
+    }
+
+    /// Object → `surface` → flat mirror → `Shared(1)` (revisit) → Image.
+    fn single_revisit_path(surface: SurfaceSpec) -> crate::specs::paths::PathSpec {
+        use crate::specs::paths::{PathSpec, PathSurfaceRef};
+        PathSpec {
+            surface_refs: vec![
+                PathSurfaceRef::New(SurfaceSpec::Object),
+                PathSurfaceRef::New(surface),
+                PathSurfaceRef::New(flat_mirror()),
+                PathSurfaceRef::Shared(1),
+                PathSurfaceRef::New(SurfaceSpec::Image {
+                    rotation: Rotation3D::None,
+                    decenter: Vec3::new(0.0, 0.0, 0.0),
+                    rotation_offset: Rotation3D::None,
+                }),
+            ],
+            gaps: vec![
+                GapSpec {
+                    thickness: Float::INFINITY,
+                    refractive_index: n!(1.0),
+                },
+                GapSpec {
+                    thickness: 40.0,
+                    refractive_index: n!(1.0),
+                },
+                GapSpec {
+                    thickness: 40.0,
+                    refractive_index: n!(1.0),
+                },
+                GapSpec {
+                    thickness: 30.0,
+                    refractive_index: n!(1.0),
+                },
+            ],
+            beam_splitter_arms: vec![],
+            stop_surface: None,
+            wavelengths: vec![0.5876],
+        }
+    }
+
+    fn build_err(path: crate::specs::paths::PathSpec) -> String {
+        match SequentialModelBuilder::new().paths(vec![path]).build() {
+            Ok(_) => panic!("expected the build to fail"),
+            Err(e) => e.to_string(),
+        }
+    }
+
+    /// AT-12: the folded plano-convex singlet (analysis §5.1) revisits the
+    /// curved R = 50 surface on the return leg and must be rejected rather
+    /// than silently producing a wrong paraxial result.
+    #[test]
+    fn same_path_revisit_of_curved_refracting_surface_is_rejected() {
+        use crate::specs::paths::{PathSpec, PathSurfaceRef};
+        let gap = |thickness: Float, n: Float| GapSpec {
+            thickness,
+            refractive_index: n!(n),
+        };
+        let path = PathSpec {
+            surface_refs: vec![
+                PathSurfaceRef::New(SurfaceSpec::Object),
+                PathSurfaceRef::New(revisit_sphere(50.0, BoundaryKind::Refracting)),
+                PathSurfaceRef::New(revisit_sphere(Float::INFINITY, BoundaryKind::Refracting)),
+                PathSurfaceRef::New(flat_mirror()),
+                PathSurfaceRef::Shared(2),
+                PathSurfaceRef::Shared(1),
+                PathSurfaceRef::New(SurfaceSpec::Image {
+                    rotation: Rotation3D::None,
+                    decenter: Vec3::new(0.0, 0.0, 0.0),
+                    rotation_offset: Rotation3D::None,
+                }),
+            ],
+            gaps: vec![
+                gap(Float::INFINITY, 1.0),
+                gap(5.0, 1.5),
+                gap(40.0, 1.0),
+                gap(40.0, 1.0),
+                gap(5.0, 1.5),
+                gap(30.0, 1.0),
+            ],
+            beam_splitter_arms: vec![],
+            stop_surface: None,
+            wavelengths: vec![0.5876],
+        };
+        let err = build_err(path);
+        assert!(err.contains("step 5"), "{err}");
+        assert!(err.contains("revisits store index 1"), "{err}");
+    }
+
+    /// AT-12: a curved mirror is direction-dependent too.
+    #[test]
+    fn same_path_revisit_of_curved_mirror_is_rejected() {
+        let err = build_err(single_revisit_path(revisit_sphere(
+            -100.0,
+            BoundaryKind::Reflecting,
+        )));
+        assert!(err.contains("revisits store index 1"), "{err}");
+    }
+
+    /// AT-13a: flat surfaces, thin lenses, and beam splitters behave the same
+    /// in both traversal directions and may be revisited.
+    #[test]
+    fn same_path_revisit_of_direction_independent_surfaces_builds() {
+        use crate::specs::surfaces::BeamSplitterPathKind;
+
+        let flat = single_revisit_path(revisit_sphere(Float::INFINITY, BoundaryKind::Refracting));
+        assert!(
+            SequentialModelBuilder::new()
+                .paths(vec![flat])
+                .build()
+                .is_ok()
+        );
+
+        let thin_lens = single_revisit_path(SurfaceSpec::ThinLens {
+            semi_diameter: 10.0,
+            focal_length: 50.0,
+            rotation: Rotation3D::None,
+            decenter: Vec3::new(0.0, 0.0, 0.0),
+            rotation_offset: Rotation3D::None,
+        });
+        assert!(
+            SequentialModelBuilder::new()
+                .paths(vec![thin_lens])
+                .build()
+                .is_ok()
+        );
+
+        let mut bs = single_revisit_path(SurfaceSpec::BeamSplitter {
+            semi_diameter: 10.0,
+            rotation: Rotation3D::None,
+            decenter: Vec3::new(0.0, 0.0, 0.0),
+            rotation_offset: Rotation3D::None,
+        });
+        bs.beam_splitter_arms = vec![
+            BeamSplitterPathKind::Transmitting,
+            BeamSplitterPathKind::Transmitting,
+        ];
+        assert!(
+            SequentialModelBuilder::new()
+                .paths(vec![bs])
+                .build()
+                .is_ok()
+        );
+    }
+
+    /// FR-13: the guard only applies within one path; sharing a curved
+    /// surface introduced by an earlier path is unaffected.
+    #[test]
+    fn cross_path_shared_curved_surface_still_builds() {
+        use crate::specs::paths::PathSurfaceRef;
+        let mut path0 = single_revisit_path(flat_mirror());
+        path0.surface_refs[1] = PathSurfaceRef::New(revisit_sphere(50.0, BoundaryKind::Refracting));
+        path0.surface_refs[3] =
+            PathSurfaceRef::New(revisit_sphere(Float::INFINITY, BoundaryKind::Refracting));
+        let mut path1 = single_revisit_path(flat_mirror());
+        path1.surface_refs[0] = PathSurfaceRef::Shared(0);
+        path1.surface_refs[1] = PathSurfaceRef::Shared(1);
+        assert!(
+            SequentialModelBuilder::new()
+                .paths(vec![path0, path1])
+                .build()
+                .is_ok()
+        );
+    }
 }

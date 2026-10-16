@@ -557,6 +557,10 @@ impl eframe::App for CherryApp {
                         self.load_specs(examples::wf_epi_microscope());
                         ui.close();
                     }
+                    if ui.button("Michelson Interferometer").clicked() {
+                        self.load_specs(examples::michelson_interferometer());
+                        ui.close();
+                    }
                 });
                 ui.add_space(16.0);
 

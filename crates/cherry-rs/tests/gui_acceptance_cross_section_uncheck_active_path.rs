@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use egui::accesskit::Role;
 use egui_kittest::kittest::{By, Queryable};
-use gui_support::{has_label_contains, launch, wait_until};
+use gui_support::{has_label_contains, launch, settle, wait_until};
 
 /// VT-XS-6: unchecking the active path directly in the cross-section
 /// window's visibility checklist reassigns `active_path` to the only other
@@ -19,14 +19,14 @@ fn unchecking_active_path_reassigns_active_path() {
     let mut harness = launch();
 
     harness.get_by_label("Examples").click();
-    harness.run();
+    settle(&mut harness);
     harness
         .get_by_label("Widefield Epifluorescence Microscope")
         .click();
-    harness.run();
+    settle(&mut harness);
 
     harness.get_by_label("Cross Section").click();
-    harness.run();
+    settle(&mut harness);
     wait_until(
         &mut harness,
         "cross-section path checklist is populated",
@@ -41,7 +41,7 @@ fn unchecking_active_path_reassigns_active_path() {
     harness
         .get(By::new().role(Role::CheckBox).label("Path 0"))
         .click();
-    harness.run();
+    settle(&mut harness);
 
     wait_until(
         &mut harness,

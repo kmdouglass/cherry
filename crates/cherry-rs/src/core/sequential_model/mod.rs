@@ -325,6 +325,21 @@ pub fn reversed_surface_id(num_surfaces: usize, surf_id: usize) -> usize {
     num_surfaces - surf_id - 1
 }
 
+/// Whether traversing `surface` in the opposite direction changes its
+/// paraxial behaviour: true for any surface with finite curvature at either
+/// principal azimuth (so cylinders and torics count).
+///
+/// Revisiting such a surface within one path is rejected because the return
+/// pass would reuse the forward-pass curvature sign, silently turning e.g. a
+/// converging lens into a diverging one. `ThinLens` overrides `power()` and
+/// reports infinite `roc()`, so it is direction-independent. Custom surfaces
+/// that are curved but keep the default infinite `roc()` are not detected.
+fn is_direction_dependent(surface: &dyn Surface) -> bool {
+    [0.0, std::f64::consts::FRAC_PI_2 as Float]
+        .iter()
+        .any(|&azimuth| surface.roc(azimuth).is_finite())
+}
+
 /// Counts the leading contiguous `Shared` steps of a `Reversed`
 /// `ObjectLinkedTo` path, skipping the `ObjectLinkedTo` step itself.
 ///
@@ -586,6 +601,9 @@ impl SequentialModel {
 
         for ps in paths {
             let n_refs = ps.surface_refs.len();
+            // Store indices at or above this were introduced by the current
+            // path, so a `Shared` step targeting one is a same-path revisit.
+            let path_store_start = store_surfaces.len();
 
             if n_refs == 0 {
                 return Err(anyhow!("a PathSpec must have at least one surface_ref"));
@@ -800,6 +818,17 @@ impl SequentialModel {
                             return Err(anyhow!(
                                 "Shared({i}) references store index {i} which has not yet \
                                  been committed by any preceding PathSpec"
+                            ));
+                        }
+
+                        if *i >= path_store_start
+                            && is_direction_dependent(store_surfaces[*i].as_ref())
+                        {
+                            return Err(anyhow!(
+                                "step {step} revisits store index {i}, a curved surface already \
+                                 traversed by this path; reversed traversal of curved surfaces \
+                                 is not supported (only flat surfaces and thin lenses may be \
+                                 revisited within one path)"
                             ));
                         }
 

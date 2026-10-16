@@ -9,7 +9,7 @@ use egui_kittest::{
     Harness,
     kittest::{By, NodeT, Queryable},
 };
-use gui_support::{has_label_contains, launch, wait_until};
+use gui_support::{has_label_contains, launch, settle, wait_until};
 
 fn path_checkbox_toggled(harness: &Harness<'_, cherry_rs::gui::CherryApp>, label: &str) -> bool {
     harness
@@ -29,11 +29,11 @@ fn rechecking_hidden_path_makes_it_visible_again() {
     let mut harness = launch();
 
     harness.get_by_label("Examples").click();
-    harness.run();
+    settle(&mut harness);
     harness
         .get_by_label("Widefield Epifluorescence Microscope")
         .click();
-    harness.run();
+    settle(&mut harness);
 
     // Make Path 1 active via the Specs window's switcher.
     harness.get_by_label("\u{25b6}").click();
@@ -42,7 +42,7 @@ fn rechecking_hidden_path_makes_it_visible_again() {
     }
 
     harness.get_by_label("Cross Section").click();
-    harness.run();
+    settle(&mut harness);
     wait_until(
         &mut harness,
         "cross-section path checklist is populated",

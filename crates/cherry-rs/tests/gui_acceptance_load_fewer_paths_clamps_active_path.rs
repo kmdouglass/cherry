@@ -5,7 +5,7 @@ mod gui_support;
 use std::time::Duration;
 
 use egui_kittest::kittest::Queryable;
-use gui_support::{has_label_contains, has_value, launch, wait_until};
+use gui_support::{has_label_contains, has_value, launch, settle, wait_until};
 
 /// VT-NAV-5: loading a system with fewer paths than the current
 /// `active_path` clamps `active_path` into range (FR-NAV-6). With path 1 of
@@ -17,11 +17,11 @@ fn loading_single_path_example_while_path_1_active_clamps_active_path() {
     let mut harness = launch();
 
     harness.get_by_label("Examples").click();
-    harness.run();
+    settle(&mut harness);
     harness
         .get_by_label("Widefield Epifluorescence Microscope")
         .click();
-    harness.run();
+    settle(&mut harness);
 
     harness.get_by_label("\u{25b6}").click();
     for _ in 0..5 {
@@ -36,7 +36,7 @@ fn loading_single_path_example_while_path_1_active_clamps_active_path() {
     );
 
     harness.get_by_label("Examples").click();
-    harness.run();
+    settle(&mut harness);
     harness.get_by_label("Thin Lens").click();
     for _ in 0..5 {
         harness.step();

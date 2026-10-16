@@ -1,4 +1,4 @@
-use super::super::model::{SurfaceRefRow, SurfaceVariant, SystemSpecs};
+use super::super::model::{StoreIndexTable, SurfaceRefRow, SurfaceVariant, SystemSpecs};
 use super::{format_display_float, parse_display_float};
 
 /// Describe a step of `specs.paths[active_path]` for display in the
@@ -15,19 +15,33 @@ fn describe_step(specs: &SystemSpecs, active_path: usize, step: usize) -> Option
 
 /// Whether the step at `step` is eligible to be a stop surface (Conic,
 /// Sphere, Iris, ThinLens, or BeamSplitter — matches the library's own
-/// aperture-stop eligibility).
-fn is_eligible(specs: &SystemSpecs, active_path: usize, step: usize) -> bool {
-    let Some(r) = specs
-        .paths
-        .get(active_path)
-        .and_then(|p| p.surface_refs.get(step))
-    else {
+/// aperture-stop eligibility). A surface the path visits more than once is
+/// ineligible: the paraxial view rejects it as an ambiguous stop (FR-15).
+fn is_eligible(
+    specs: &SystemSpecs,
+    table: &StoreIndexTable,
+    active_path: usize,
+    step: usize,
+) -> bool {
+    let Some(path) = specs.paths.get(active_path) else {
         return false;
     };
+    let Some(r) = path.surface_refs.get(step) else {
+        return false;
+    };
+    let store_idx = table.resolve(r);
+    let visits = path
+        .surface_refs
+        .iter()
+        .filter(|other| table.resolve(other) == store_idx)
+        .count();
+    if store_idx.is_none() || visits > 1 {
+        return false;
+    }
     let variant = match r {
         SurfaceRefRow::New(row) => Some(row.variant),
         SurfaceRefRow::ObjectLinkedTo { .. } => None,
-        SurfaceRefRow::Shared { target, .. } => specs.store_index_table().owning_variant(*target),
+        SurfaceRefRow::Shared { target, .. } => table.owning_variant(*target),
     };
     matches!(
         variant,
@@ -71,11 +85,11 @@ pub fn aperture_panel(ui: &mut egui::Ui, specs: &mut SystemSpecs, active_path: u
     ui.separator();
 
     let n_steps = specs.paths[active_path].surface_refs.len();
+    let table = specs.store_index_table();
     let eligible: Vec<usize> = (0..n_steps)
-        .filter(|&step| is_eligible(specs, active_path, step))
+        .filter(|&step| is_eligible(specs, &table, active_path, step))
         .collect();
 
-    let table = specs.store_index_table();
     let current_stop = specs.paths[active_path].stop_surface;
     let selected_label = match current_stop {
         None => "Auto".to_owned(),
@@ -132,6 +146,29 @@ mod tests {
             describe_step(&specs, 1, 1).as_deref(),
             Some("(0, 3) Thin Lens")
         );
+    }
+
+    /// FR-15: a surface the active path visits more than once is not offered
+    /// as a stop (the paraxial view rejects it as ambiguous); surfaces
+    /// visited once still are.
+    #[test]
+    fn multiply_visited_surface_is_not_an_eligible_stop() {
+        use crate::gui::model::GapRow;
+        let mut specs = crate::gui::examples::wf_epi_microscope();
+        // Revisit path 0's beam splitter (step 2) after the objective.
+        let bs_id = specs.paths[0].surface_refs[2].row_id().unwrap();
+        specs.paths[0].surface_refs.insert(
+            4,
+            SurfaceRefRow::Shared {
+                target: bs_id,
+                gap_after: GapRow::new("10.0", "1.0"),
+            },
+        );
+        let table = specs.store_index_table();
+        assert!(!is_eligible(&specs, &table, 0, 2));
+        assert!(!is_eligible(&specs, &table, 0, 4));
+        assert!(is_eligible(&specs, &table, 0, 1));
+        assert!(is_eligible(&specs, &table, 0, 3));
     }
 
     /// The active path's own rows are labelled the same way, so two thin

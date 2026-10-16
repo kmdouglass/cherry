@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use egui::accesskit::Role;
 use egui_kittest::kittest::{By, Queryable};
-use gui_support::{has_label_contains, launch, wait_until};
+use gui_support::{has_label_contains, launch, settle, wait_until};
 
 /// VT-SURF-1: the Shared-surface picker offers every surface introduced by
 /// a strictly earlier path as a candidate, in no particular forced order —
@@ -22,15 +22,15 @@ fn shared_picker_lists_beam_splitter_despite_earlier_out_of_order_pick() {
     let mut harness = launch();
 
     harness.get_by_label("Examples").click();
-    harness.run();
+    settle(&mut harness);
     harness
         .get_by_label("Widefield Epifluorescence Microscope")
         .click();
-    harness.run();
+    settle(&mut harness);
 
     // Switch to path 1 (emission) and open its Surfaces tab.
     harness.get_by_label("\u{25b6}").click();
-    harness.run();
+    settle(&mut harness);
     wait_until(
         &mut harness,
         "switched to path 1",
@@ -38,7 +38,7 @@ fn shared_picker_lists_beam_splitter_despite_earlier_out_of_order_pick() {
         |h| has_label_contains(h, "Path 1"),
     );
     harness.get_by_label("Surfaces").click();
-    harness.run();
+    settle(&mut harness);
 
     // Combo box #6 is path 1's row-2 Shared-surface picker (the beam
     // splitter row, `Shared { target: RowId(2), .. }` in the fixture) — see
@@ -50,7 +50,7 @@ fn shared_picker_lists_beam_splitter_despite_earlier_out_of_order_pick() {
         .nth(6)
         .unwrap()
         .click();
-    harness.run();
+    settle(&mut harness);
 
     // The beam splitter (introduced by path 0, store index 2) is listed as
     // a candidate even though this same path already picked a *higher*

@@ -5,7 +5,7 @@ mod gui_support;
 use std::time::Duration;
 
 use egui_kittest::kittest::Queryable;
-use gui_support::{has_label_contains, launch, wait_until};
+use gui_support::{has_label_contains, launch, settle, wait_until};
 
 /// Loading a second example through the `Examples` menu replaces the first
 /// example's computed results in an already-open window, rather than
@@ -17,12 +17,12 @@ fn switching_examples_replaces_paraxial_window_contents() {
     let mut harness = launch();
 
     harness.get_by_label("Examples").click();
-    harness.run();
+    settle(&mut harness);
     harness.get_by_label("Thin Lens").click();
-    harness.run();
+    settle(&mut harness);
 
     harness.get_by_label("Paraxial Summary").click();
-    harness.run();
+    settle(&mut harness);
     wait_until(
         &mut harness,
         "Paraxial window shows Thin Lens's EFL (100)",
@@ -31,9 +31,9 @@ fn switching_examples_replaces_paraxial_window_contents() {
     );
 
     harness.get_by_label("Examples").click();
-    harness.run();
+    settle(&mut harness);
     harness.get_by_label("Biconvex Lens").click();
-    harness.run();
+    settle(&mut harness);
 
     // Biconvex Lens's EFL (~99.6297mm) deliberately differs from Thin
     // Lens's exact 100.0000mm, so a stale-result bug (old value lingering)

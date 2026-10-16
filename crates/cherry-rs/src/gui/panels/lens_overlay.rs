@@ -77,15 +77,18 @@ fn default_group_name(c: &Component) -> String {
     }
 }
 
-/// Validates `lens_groups` against detected `components`. Discards stale groups
-/// (whose component_first_surfs no longer match any detected component) and
-/// promotes unassigned components to new default single-component groups.
+/// Validates `path_id`'s lens groups against that path's detected
+/// `components`. Discards stale groups (whose component_first_surfs no longer
+/// match any detected component) and promotes unassigned components to new
+/// default single-component groups on `path_id`. Other paths' groups are left
+/// untouched: they describe components of their own path, not this one.
 ///
 /// Returns `(stale_names, n_new)` where `stale_names` are the names of the
 /// discarded groups and `n_new` is the number of newly added groups.
 fn validate_and_sync(
     lens_groups: &mut Vec<LensGroupSpec>,
     components: &[PathComponent],
+    path_id: usize,
 ) -> (Vec<String>, usize) {
     let known: HashSet<usize> = components
         .iter()
@@ -93,31 +96,33 @@ fn validate_and_sync(
         .collect();
 
     let mut stale_names = Vec::new();
-    let valid: Vec<LensGroupSpec> = lens_groups
-        .drain(..)
-        .filter(|g| {
-            let ok = g
-                .component_first_surfs
-                .iter()
-                .all(|&fs| known.contains(&fs));
-            if !ok {
-                stale_names.push(g.name.clone());
-            }
-            ok
-        })
-        .collect();
-    *lens_groups = valid;
+    lens_groups.retain(|g| {
+        if g.path_id != path_id {
+            return true;
+        }
+        let ok = g
+            .component_first_surfs
+            .iter()
+            .all(|&fs| known.contains(&fs));
+        if !ok {
+            stale_names.push(g.name.clone());
+        }
+        ok
+    });
 
-    let covered: HashSet<usize> = lens_groups
+    let mut covered: HashSet<usize> = lens_groups
         .iter()
+        .filter(|g| g.path_id == path_id)
         .flat_map(|g| g.component_first_surfs.iter().copied())
         .collect();
 
     let mut n_new = 0usize;
     for pc in components {
         let first = component_first_idx(&pc.component);
-        if !covered.contains(&first) {
-            let mut g = LensGroupSpec::new(default_group_name(&pc.component));
+        // `insert` also guards against a component listed twice by a path
+        // that revisits it.
+        if covered.insert(first) {
+            let mut g = LensGroupSpec::new(default_group_name(&pc.component), path_id);
             g.component_first_surfs = vec![first];
             lens_groups.push(g);
             n_new += 1;
@@ -125,13 +130,88 @@ fn validate_and_sync(
     }
 
     lens_groups.sort_by_key(|g| {
-        g.component_first_surfs
-            .first()
-            .copied()
-            .unwrap_or(usize::MAX)
+        (
+            g.path_id,
+            g.component_first_surfs
+                .first()
+                .copied()
+                .unwrap_or(usize::MAX),
+        )
     });
 
     (stale_names, n_new)
+}
+
+/// Indices into `specs.lens_groups` of the groups belonging to
+/// `active_path`, in list order — the rows of the Lens Overlay table.
+fn visible_groups(specs: &SystemSpecs, active_path: usize) -> Vec<usize> {
+    specs
+        .lens_groups
+        .iter()
+        .enumerate()
+        .filter(|(_, g)| g.path_id == active_path)
+        .map(|(i, _)| i)
+        .collect()
+}
+
+/// Replace the `selected` groups (indices into `groups`) with one group named
+/// `name` holding all their components, inserted where the first selected
+/// group was. Only groups on the first selected group's path are merged; a
+/// group never spans paths.
+fn merge_groups(groups: &mut Vec<LensGroupSpec>, selected: &[usize], name: String) {
+    let mut sel = selected.to_vec();
+    sel.sort_unstable();
+    sel.dedup();
+    let Some(&insert_pos) = sel.first() else {
+        return;
+    };
+    let path_id = groups[insert_pos].path_id;
+    sel.retain(|&i| groups[i].path_id == path_id);
+
+    let mut merged_surfs: Vec<usize> = sel
+        .iter()
+        .flat_map(|&i| groups[i].component_first_surfs.iter().copied())
+        .collect();
+    merged_surfs.sort_unstable();
+    merged_surfs.dedup();
+
+    for &i in sel.iter().rev() {
+        groups.remove(i);
+    }
+    let mut new_group = LensGroupSpec::new(name, path_id);
+    new_group.component_first_surfs = merged_surfs;
+    groups.insert(insert_pos, new_group);
+}
+
+/// Split each selected multi-component group (indices into `groups`) into
+/// single-component groups on the same path, named by `name_for(first_surf)`.
+fn split_groups(
+    groups: &mut Vec<LensGroupSpec>,
+    selected: &[usize],
+    name_for: impl Fn(usize) -> String,
+) {
+    let mut sel = selected.to_vec();
+    sel.sort_unstable_by(|a, b| b.cmp(a)); // descending — stable indices
+    sel.dedup();
+    for i in sel {
+        if groups[i].component_first_surfs.len() <= 1 {
+            continue;
+        }
+        let group = groups.remove(i);
+        for (offset, &key) in group.component_first_surfs.iter().enumerate() {
+            let mut new_group = LensGroupSpec::new(name_for(key), group.path_id);
+            new_group.component_first_surfs = vec![key];
+            groups.insert(i + offset, new_group);
+        }
+    }
+}
+
+/// One decenter or rotation cell. Disabled, with an explanation on hover,
+/// when group transforms don't apply. Returns `true` if the value changed.
+fn transform_cell(ui: &mut egui::Ui, value: &mut f64, enabled: bool) -> bool {
+    ui.add_enabled(enabled, egui::DragValue::new(value).speed(0.01))
+        .on_disabled_hover_text("Group transforms apply only to single-path systems")
+        .changed()
 }
 
 impl LensOverlayPanel {
@@ -153,21 +233,32 @@ impl LensOverlayPanel {
         if let Some(r) = result
             && (self.last_result_id != Some(r.id) || self.last_active_path != Some(active_path))
         {
+            let path_switched = self.last_active_path.is_some_and(|p| p != active_path);
             self.last_result_id = Some(r.id);
             self.last_active_path = Some(active_path);
+            // The warning and the selection both describe the previous path's
+            // groups; neither applies once that view is gone. Keeping the
+            // selection would let Merge reach into another path's groups.
+            if path_switched {
+                self.stale_names.clear();
+                self.selected.clear();
+            }
             let active_components: Vec<PathComponent> = r
                 .components
                 .iter()
                 .filter(|pc| pc.path_id == active_path)
                 .cloned()
                 .collect();
-            let (stale, n_new) = validate_and_sync(&mut specs.lens_groups, &active_components);
-            if !stale.is_empty() {
+            let (stale, n_new) =
+                validate_and_sync(&mut specs.lens_groups, &active_components, active_path);
+            // Only this path's groups are checked, so a discard here is a
+            // genuine one — possibly from an edit made while another path was
+            // active, surfacing now that this path is validated again.
+            // Either change can reorder `lens_groups`, invalidating the
+            // selected indices.
+            if !stale.is_empty() || n_new > 0 {
                 self.stale_names.extend(stale);
                 self.selected.clear();
-                changed = true;
-            }
-            if n_new > 0 {
                 changed = true;
             }
         }
@@ -226,7 +317,10 @@ impl LensOverlayPanel {
             .map(|pc| (component_first_idx(&pc.component), &pc.component))
             .collect();
 
-        let n_groups = specs.lens_groups.len();
+        let rows = visible_groups(specs, active_path);
+        // Group transforms are only applied to single-path systems
+        // (`convert.rs`); elsewhere the fields would silently do nothing.
+        let transforms_apply = specs.paths.len() == 1;
         let selected_snapshot = self.selected.clone();
 
         // Collect selection changes inside the table (deferred to avoid
@@ -280,7 +374,8 @@ impl LensOverlayPanel {
                     });
                 })
                 .body(|mut body| {
-                    for row_idx in 0..n_groups {
+                    // `row_idx` indexes `specs.lens_groups`, not the table.
+                    for &row_idx in &rows {
                         let is_selected = selected_snapshot.contains(&row_idx);
                         body.row(22.0, |mut row| {
                             row.set_selected(is_selected);
@@ -319,84 +414,48 @@ impl LensOverlayPanel {
 
                             // Decenter R / U / F
                             row.col(|ui| {
-                                if ui
-                                    .add(
-                                        egui::DragValue::new(
-                                            &mut specs.lens_groups[row_idx].decenter[0],
-                                        )
-                                        .speed(0.01),
-                                    )
-                                    .changed()
-                                {
-                                    changed = true;
-                                }
+                                changed |= transform_cell(
+                                    ui,
+                                    &mut specs.lens_groups[row_idx].decenter[0],
+                                    transforms_apply,
+                                );
                             });
                             row.col(|ui| {
-                                if ui
-                                    .add(
-                                        egui::DragValue::new(
-                                            &mut specs.lens_groups[row_idx].decenter[1],
-                                        )
-                                        .speed(0.01),
-                                    )
-                                    .changed()
-                                {
-                                    changed = true;
-                                }
+                                changed |= transform_cell(
+                                    ui,
+                                    &mut specs.lens_groups[row_idx].decenter[1],
+                                    transforms_apply,
+                                );
                             });
                             row.col(|ui| {
-                                if ui
-                                    .add(
-                                        egui::DragValue::new(
-                                            &mut specs.lens_groups[row_idx].decenter[2],
-                                        )
-                                        .speed(0.01),
-                                    )
-                                    .changed()
-                                {
-                                    changed = true;
-                                }
+                                changed |= transform_cell(
+                                    ui,
+                                    &mut specs.lens_groups[row_idx].decenter[2],
+                                    transforms_apply,
+                                );
                             });
 
                             // Euler angles θ / ψ / φ
                             row.col(|ui| {
-                                if ui
-                                    .add(
-                                        egui::DragValue::new(
-                                            &mut specs.lens_groups[row_idx].rotation[0],
-                                        )
-                                        .speed(0.01),
-                                    )
-                                    .changed()
-                                {
-                                    changed = true;
-                                }
+                                changed |= transform_cell(
+                                    ui,
+                                    &mut specs.lens_groups[row_idx].rotation[0],
+                                    transforms_apply,
+                                );
                             });
                             row.col(|ui| {
-                                if ui
-                                    .add(
-                                        egui::DragValue::new(
-                                            &mut specs.lens_groups[row_idx].rotation[1],
-                                        )
-                                        .speed(0.01),
-                                    )
-                                    .changed()
-                                {
-                                    changed = true;
-                                }
+                                changed |= transform_cell(
+                                    ui,
+                                    &mut specs.lens_groups[row_idx].rotation[1],
+                                    transforms_apply,
+                                );
                             });
                             row.col(|ui| {
-                                if ui
-                                    .add(
-                                        egui::DragValue::new(
-                                            &mut specs.lens_groups[row_idx].rotation[2],
-                                        )
-                                        .speed(0.01),
-                                    )
-                                    .changed()
-                                {
-                                    changed = true;
-                                }
+                                changed |= transform_cell(
+                                    ui,
+                                    &mut specs.lens_groups[row_idx].rotation[2],
+                                    transforms_apply,
+                                );
                             });
 
                             if row.response().hovered() {
@@ -438,25 +497,8 @@ impl LensOverlayPanel {
             {
                 self.merge_counter += 1;
                 let new_name = format!("Group {}", self.merge_counter);
-
-                let mut sel: Vec<usize> = self.selected.iter().copied().collect();
-                sel.sort_unstable();
-
-                let mut merged_surfs: Vec<usize> = sel
-                    .iter()
-                    .flat_map(|&i| specs.lens_groups[i].component_first_surfs.iter().copied())
-                    .collect();
-                merged_surfs.sort_unstable();
-                merged_surfs.dedup();
-
-                let insert_pos = *sel.first().expect("selected is non-empty");
-                for &i in sel.iter().rev() {
-                    specs.lens_groups.remove(i);
-                }
-                let mut new_group = LensGroupSpec::new(new_name);
-                new_group.component_first_surfs = merged_surfs;
-                specs.lens_groups.insert(insert_pos, new_group);
-
+                let sel: Vec<usize> = self.selected.iter().copied().collect();
+                merge_groups(&mut specs.lens_groups, &sel, new_name);
                 self.selected.clear();
                 changed = true;
             }
@@ -469,24 +511,13 @@ impl LensOverlayPanel {
                 .add_enabled(can_split, egui::Button::new("Split selected"))
                 .clicked()
             {
-                let mut sel: Vec<usize> = self.selected.iter().copied().collect();
-                sel.sort_unstable_by(|a, b| b.cmp(a)); // descending — stable indices
-
-                for i in sel {
-                    if specs.lens_groups[i].component_first_surfs.len() <= 1 {
-                        continue;
-                    }
-                    let group = specs.lens_groups.remove(i);
-                    for (offset, key) in group.component_first_surfs.iter().enumerate() {
-                        let name = comp_lookup
-                            .get(key)
-                            .map(|c| default_group_name(c))
-                            .unwrap_or_else(|| format!("Surface ({key})"));
-                        let mut new_group = LensGroupSpec::new(name);
-                        new_group.component_first_surfs = vec![*key];
-                        specs.lens_groups.insert(i + offset, new_group);
-                    }
-                }
+                let sel: Vec<usize> = self.selected.iter().copied().collect();
+                split_groups(&mut specs.lens_groups, &sel, |key| {
+                    comp_lookup
+                        .get(&key)
+                        .map(|c| default_group_name(c))
+                        .unwrap_or_else(|| format!("Surface ({key})"))
+                });
 
                 self.selected.clear();
                 changed = true;
@@ -524,16 +555,36 @@ mod tests {
     }
 
     fn make_group(name: &str, first_surfs: Vec<usize>) -> LensGroupSpec {
-        let mut g = LensGroupSpec::new(name);
+        make_path_group(name, 0, first_surfs)
+    }
+
+    fn make_path_group(name: &str, path_id: usize, first_surfs: Vec<usize>) -> LensGroupSpec {
+        let mut g = LensGroupSpec::new(name, path_id);
         g.component_first_surfs = first_surfs;
         g
+    }
+
+    /// A path that revisits a surface (a Michelson arm crossing its beam
+    /// splitter twice) lists that component twice; it still gets one group.
+    #[test]
+    fn validate_adds_one_group_for_a_revisited_component() {
+        let mut groups: Vec<LensGroupSpec> = Vec::new();
+        let components = as_path_components(vec![
+            Component::BeamSplitter { surf_idx: 2 },
+            make_mirror(3),
+            Component::BeamSplitter { surf_idx: 2 },
+        ]);
+        let (_, n_new) = validate_and_sync(&mut groups, &components, 0);
+        assert_eq!(n_new, 2);
+        let names: Vec<&str> = groups.iter().map(|g| g.name.as_str()).collect();
+        assert_eq!(names, vec!["Beam Splitter (2)", "Mirror (3)"]);
     }
 
     #[test]
     fn validate_adds_default_groups_when_empty() {
         let mut groups: Vec<LensGroupSpec> = Vec::new();
         let components = as_path_components(vec![make_element(vec![1, 2]), make_mirror(3)]);
-        let (stale, n_new) = validate_and_sync(&mut groups, &components);
+        let (stale, n_new) = validate_and_sync(&mut groups, &components, 0);
         assert!(stale.is_empty());
         assert_eq!(n_new, 2);
         assert_eq!(groups.len(), 2);
@@ -545,7 +596,7 @@ mod tests {
     fn validate_discards_stale_group() {
         let mut groups = vec![make_group("OldGroup", vec![5])];
         let components = as_path_components(vec![make_element(vec![1, 2])]);
-        let (stale, n_new) = validate_and_sync(&mut groups, &components);
+        let (stale, n_new) = validate_and_sync(&mut groups, &components, 0);
         assert_eq!(stale, vec!["OldGroup"]);
         assert_eq!(n_new, 1);
         assert_eq!(groups.len(), 1);
@@ -556,7 +607,7 @@ mod tests {
     fn validate_keeps_valid_groups_and_adds_new_component() {
         let mut groups = vec![make_group("MyLens", vec![1])];
         let components = as_path_components(vec![make_element(vec![1, 2]), make_mirror(3)]);
-        let (stale, n_new) = validate_and_sync(&mut groups, &components);
+        let (stale, n_new) = validate_and_sync(&mut groups, &components, 0);
         assert!(stale.is_empty());
         assert_eq!(n_new, 1);
         assert_eq!(groups.len(), 2);
@@ -568,35 +619,98 @@ mod tests {
     fn validate_groups_sorted_by_first_surf() {
         let mut groups: Vec<LensGroupSpec> = Vec::new();
         let components = as_path_components(vec![make_mirror(5), make_element(vec![1, 2])]);
-        let (_, _) = validate_and_sync(&mut groups, &components);
+        let (_, _) = validate_and_sync(&mut groups, &components, 0);
         assert_eq!(groups[0].component_first_surfs[0], 1);
         assert_eq!(groups[1].component_first_surfs[0], 5);
     }
 
-    /// Simulates the split logic from `show_contents` without the egui
-    /// plumbing.
     fn do_split(
         groups: &mut Vec<LensGroupSpec>,
         selected: &[usize],
         comp_lookup: &std::collections::HashMap<usize, Component>,
     ) {
-        let mut sel = selected.to_vec();
-        sel.sort_unstable_by(|a, b| b.cmp(a));
-        for i in sel {
-            if groups[i].component_first_surfs.len() <= 1 {
-                continue;
-            }
-            let group = groups.remove(i);
-            for (offset, key) in group.component_first_surfs.iter().enumerate() {
-                let name = comp_lookup
-                    .get(key)
-                    .map(default_group_name)
-                    .unwrap_or_else(|| format!("Surface ({key})"));
-                let mut new_group = LensGroupSpec::new(name);
-                new_group.component_first_surfs = vec![*key];
-                groups.insert(i + offset, new_group);
-            }
-        }
+        split_groups(groups, selected, |key| {
+            comp_lookup
+                .get(&key)
+                .map(default_group_name)
+                .unwrap_or_else(|| format!("Surface ({key})"))
+        });
+    }
+
+    /// Validation only touches the given path's groups; another path's
+    /// groups survive even though their components aren't in `components`.
+    #[test]
+    fn validate_leaves_other_paths_groups_untouched() {
+        let mut groups = vec![
+            make_path_group("Path0Lens", 0, vec![1]),
+            make_path_group("Path1Doublet", 1, vec![6, 8]),
+        ];
+        let components = as_path_components(vec![make_element(vec![1, 2])]);
+        let (stale, n_new) = validate_and_sync(&mut groups, &components, 0);
+        assert!(stale.is_empty());
+        assert_eq!(n_new, 0);
+        let names: Vec<&str> = groups.iter().map(|g| g.name.as_str()).collect();
+        assert_eq!(names, vec!["Path0Lens", "Path1Doublet"]);
+    }
+
+    /// New default groups belong to the path being validated, and a path
+    /// already covered elsewhere doesn't suppress them: the shared component
+    /// at store index 3 gets a group of its own on each path.
+    #[test]
+    fn validate_creates_groups_for_the_validated_path() {
+        let mut groups = vec![make_path_group("Path0Objective", 0, vec![3])];
+        let components = vec![PathComponent {
+            path_id: 1,
+            component: Component::ThinLens { surf_idx: 3 },
+        }];
+        let (_, n_new) = validate_and_sync(&mut groups, &components, 1);
+        assert_eq!(n_new, 1);
+        let tagged: Vec<(usize, &str)> = groups
+            .iter()
+            .map(|g| (g.path_id, g.name.as_str()))
+            .collect();
+        assert_eq!(tagged, vec![(0, "Path0Objective"), (1, "Thin Lens (3)")]);
+    }
+
+    /// Merging keeps the merged group on its path, and ignores a selected
+    /// index that belongs to a different path.
+    #[test]
+    fn merge_stays_within_one_path() {
+        let mut groups = vec![
+            make_path_group("A", 0, vec![1]),
+            make_path_group("B", 0, vec![3]),
+            make_path_group("C", 1, vec![6]),
+        ];
+        merge_groups(&mut groups, &[0, 1, 2], "Group 1".into());
+        let tagged: Vec<(usize, &str, Vec<usize>)> = groups
+            .iter()
+            .map(|g| (g.path_id, g.name.as_str(), g.component_first_surfs.clone()))
+            .collect();
+        assert_eq!(tagged, vec![(0, "Group 1", vec![1, 3]), (1, "C", vec![6])]);
+    }
+
+    /// Split groups inherit the original group's path.
+    #[test]
+    fn split_keeps_the_path() {
+        let mut groups = vec![make_path_group("Big", 1, vec![6, 8])];
+        split_groups(&mut groups, &[0], |key| format!("Surface ({key})"));
+        assert!(groups.iter().all(|g| g.path_id == 1));
+        assert_eq!(groups.len(), 2);
+    }
+
+    /// Only the active path's groups are listed in the table.
+    #[test]
+    fn visible_groups_are_the_active_paths() {
+        let specs = SystemSpecs {
+            lens_groups: vec![
+                make_path_group("A", 0, vec![1]),
+                make_path_group("B", 1, vec![6]),
+                make_path_group("C", 0, vec![3]),
+            ],
+            ..Default::default()
+        };
+        assert_eq!(visible_groups(&specs, 0), vec![0, 2]);
+        assert_eq!(visible_groups(&specs, 1), vec![1]);
     }
 
     #[test]
@@ -751,17 +865,249 @@ mod tests {
         );
 
         // Switch active_path to 1 without changing the ResultPackage id, and
-        // re-run — this must trigger re-validation (FR-OUT-3a).
+        // re-run — this must trigger re-validation (FR-OUT-3a), which gives
+        // path 1 its own group for the shared objective...
         active_path.set(1);
         harness.run();
         let (_, s, _) = harness.state();
         assert!(
-            !s.lens_groups
+            s.lens_groups
                 .iter()
-                .any(|g| g.component_first_surfs == vec![1]),
-            "the path-0-exclusive group must be discarded once active_path == 1, \
-             even though no new ResultPackage arrived"
+                .any(|g| g.path_id == 1 && g.component_first_surfs == vec![3]),
+            "path 1 should get its own group for the shared objective"
         );
+        // ...while path 0's groups, including the path-0-exclusive one, are
+        // kept rather than discarded (they are path 0's, not path 1's).
+        assert!(
+            s.lens_groups
+                .iter()
+                .any(|g| g.path_id == 0 && g.component_first_surfs == vec![1]),
+            "path 0's tube-lens group must survive switching to path 1"
+        );
+    }
+
+    /// Render the panel for `specs` and report, for each decenter/rotation
+    /// drag value, whether it is enabled.
+    fn transform_fields_enabled(specs: SystemSpecs) -> Vec<bool> {
+        use crate::gui::result_package::ResultPackage;
+        use egui::accesskit::Role;
+        use egui_kittest::kittest::{By, NodeT, Queryable};
+
+        let result = ResultPackage {
+            error: None,
+            components: vec![PathComponent {
+                path_id: 0,
+                component: make_element(vec![1, 2]),
+            }],
+            ..ResultPackage::error(1, String::new())
+        };
+        let mut harness =
+            egui_kittest::Harness::builder()
+                .with_size(egui::vec2(1400.0, 600.0))
+                .build_state(
+                    |ctx,
+                     (panel, specs, result): &mut (
+                        LensOverlayPanel,
+                        SystemSpecs,
+                        ResultPackage,
+                    )| {
+                        let mut open = true;
+                        panel.show(ctx, &mut open, specs, Some(result), 0);
+                    },
+                    (LensOverlayPanel::default(), specs, result),
+                );
+        harness.run();
+        harness
+            .get_all(By::new().role(Role::SpinButton))
+            .map(|n| !n.accesskit_node().is_disabled())
+            .collect()
+    }
+
+    /// Group transforms only apply to single-path systems (`convert.rs`), so
+    /// in a multipath system the decenter/rotation fields are disabled
+    /// rather than silently ignored.
+    #[test]
+    fn transform_fields_disabled_for_multipath_systems() {
+        let mut specs = SystemSpecs::default();
+        specs.add_path();
+        let enabled = transform_fields_enabled(specs);
+        assert_eq!(enabled.len(), 6, "one group row: 3 decenters + 3 angles");
+        assert!(enabled.iter().all(|&e| !e), "{enabled:?}");
+    }
+
+    #[test]
+    fn transform_fields_enabled_for_single_path_systems() {
+        let enabled = transform_fields_enabled(SystemSpecs::default());
+        assert_eq!(enabled.len(), 6, "one group row: 3 decenters + 3 angles");
+        assert!(enabled.iter().all(|&e| e), "{enabled:?}");
+    }
+
+    /// A user's merged group on path 0 survives a round trip through path 1.
+    #[test]
+    fn merged_group_survives_switching_paths_and_back() {
+        use crate::gui::result_package::ResultPackage;
+        use std::cell::Cell;
+        use std::rc::Rc;
+
+        let components = vec![
+            PathComponent {
+                path_id: 0,
+                component: make_element(vec![1, 2]),
+            },
+            PathComponent {
+                path_id: 0,
+                component: Component::ThinLens { surf_idx: 3 },
+            },
+            PathComponent {
+                path_id: 1,
+                component: Component::ThinLens { surf_idx: 3 },
+            },
+        ];
+        let result = ResultPackage {
+            error: None,
+            components,
+            ..ResultPackage::error(1, String::new())
+        };
+        let specs = SystemSpecs {
+            lens_groups: vec![make_path_group("Relay + objective", 0, vec![1, 3])],
+            ..Default::default()
+        };
+
+        let active_path = Rc::new(Cell::new(0usize));
+        let active_path_for_closure = Rc::clone(&active_path);
+        let mut harness =
+            egui_kittest::Harness::new_state(
+                move |ctx,
+                      (panel, specs, result): &mut (
+                    LensOverlayPanel,
+                    SystemSpecs,
+                    ResultPackage,
+                )| {
+                    let mut open = true;
+                    panel.show(
+                        ctx,
+                        &mut open,
+                        specs,
+                        Some(result),
+                        active_path_for_closure.get(),
+                    );
+                },
+                (LensOverlayPanel::default(), specs, result),
+            );
+        harness.run();
+        for path in [1, 0] {
+            active_path.set(path);
+            harness.run();
+        }
+
+        let (panel, s, _) = harness.state();
+        let path_0: Vec<(&str, Vec<usize>)> = s
+            .lens_groups
+            .iter()
+            .filter(|g| g.path_id == 0)
+            .map(|g| (g.name.as_str(), g.component_first_surfs.clone()))
+            .collect();
+        assert_eq!(path_0, vec![("Relay + objective", vec![1, 3])]);
+        assert!(panel.stale_names.is_empty());
+    }
+
+    /// Switching `active_path` back and forth discards the other path's
+    /// groups (FR-OUT-3a) but must not warn: nothing went stale, so the
+    /// "Discarded stale groups" banner stays empty instead of growing on every
+    /// switch.
+    #[test]
+    fn switching_active_path_does_not_report_stale_groups() {
+        use crate::gui::result_package::ResultPackage;
+        use std::cell::Cell;
+        use std::rc::Rc;
+
+        let components = vec![
+            PathComponent {
+                path_id: 0,
+                component: make_element(vec![1, 2]),
+            },
+            PathComponent {
+                path_id: 1,
+                component: make_mirror(4),
+            },
+        ];
+        let result = ResultPackage {
+            error: None,
+            components,
+            ..ResultPackage::error(1, String::new())
+        };
+
+        let active_path = Rc::new(Cell::new(0usize));
+        let active_path_for_closure = Rc::clone(&active_path);
+        let mut harness =
+            egui_kittest::Harness::new_state(
+                move |ctx,
+                      (panel, specs, result): &mut (
+                    LensOverlayPanel,
+                    SystemSpecs,
+                    ResultPackage,
+                )| {
+                    let mut open = true;
+                    panel.show(
+                        ctx,
+                        &mut open,
+                        specs,
+                        Some(result),
+                        active_path_for_closure.get(),
+                    );
+                },
+                (LensOverlayPanel::default(), SystemSpecs::default(), result),
+            );
+        harness.run();
+
+        for path in [1, 0, 1, 0] {
+            active_path.set(path);
+            harness.run();
+            let (panel, _, _) = harness.state();
+            assert!(
+                panel.stale_names.is_empty(),
+                "switching to path {path} reported stale groups: {:?}",
+                panel.stale_names
+            );
+        }
+    }
+
+    /// A discard caused by a new `ResultPackage` (an actual spec change)
+    /// still reports the stale group.
+    #[test]
+    fn new_result_that_drops_a_component_reports_stale_group() {
+        use crate::gui::result_package::ResultPackage;
+
+        let make_result = |id, components| ResultPackage {
+            error: None,
+            components,
+            ..ResultPackage::error(id, String::new())
+        };
+        let first = make_result(
+            1,
+            vec![PathComponent {
+                path_id: 0,
+                component: make_element(vec![1, 2]),
+            }],
+        );
+        let second = make_result(
+            2,
+            vec![PathComponent {
+                path_id: 0,
+                component: make_mirror(3),
+            }],
+        );
+
+        let mut panel = LensOverlayPanel::default();
+        let mut specs = SystemSpecs::default();
+        let ctx = egui::Context::default();
+        for result in [&first, &second] {
+            let _ = ctx.run(egui::RawInput::default(), |ctx| {
+                let mut open = true;
+                panel.show(ctx, &mut open, &mut specs, Some(result), 0);
+            });
+        }
+        assert_eq!(panel.stale_names, vec!["Element (1\u{2013}2)"]);
     }
 
     /// Regression: the RUF-axis hover annotation must convert a lens

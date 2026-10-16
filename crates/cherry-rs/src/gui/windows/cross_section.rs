@@ -688,11 +688,11 @@ fn draw_lens_group(
         })
         .collect();
 
-    // Draw each surface profile as a polyline.
+    // Draw each surface profile as one polyline: per-pair line segments are
+    // each feathered at both ends, so their joints show as faint gaps (most
+    // visibly on flat, axis-aligned faces).
     for profile in &all_profiles {
-        for pair in profile.windows(2) {
-            painter.line_segment([pair[0], pair[1]], stroke);
-        }
+        painter.add(egui::Shape::line(profile.clone(), stroke));
     }
 
     // Edge rims: connect consecutive profiles' top and bottom endpoints.
@@ -721,9 +721,10 @@ fn draw_surface_profile(
         .iter()
         .map(|&[z, t]| w2s.map(z as f32, t as f32))
         .collect();
-    for pair in screen_pts.windows(2) {
-        painter.line_segment([pair[0], pair[1]], stroke);
-    }
+    // One polyline, not per-pair segments: each separate segment is
+    // feathered at both ends, so a flat axis-aligned mirror drawn that way
+    // looks dashed.
+    painter.add(egui::Shape::line(screen_pts, stroke));
 }
 
 #[allow(clippy::too_many_arguments)]

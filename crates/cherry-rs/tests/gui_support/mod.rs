@@ -2,7 +2,7 @@
 //!
 //! To add a new acceptance test: call [`launch`] to get a running `CherryApp`
 //! harness, drive it the way a user would (`harness.get_by_label(...).click()`,
-//! `harness.run()`), then use [`wait_until`] to block until the background
+//! [`settle`]), then use [`wait_until`] to block until the background
 //! compute thread has produced the expected result before asserting on it.
 //! Never reach into `cherry_rs::gui` internals — only the public `CherryApp`
 //! / AccessKit surface a real user has (see
@@ -30,8 +30,28 @@ pub fn launch() -> Harness<'static, CherryApp> {
     let mut harness = Harness::builder()
         .with_size(egui::Vec2::new(1280.0, 720.0))
         .build_eframe(|cc| CherryApp::new(cc));
-    harness.run();
+    settle(&mut harness);
     harness
+}
+
+/// Run the harness until egui stops requesting immediate repaints, waiting
+/// out any compute that is still in flight.
+///
+/// Use this instead of `Harness::run`. While the compute thread is busy, the
+/// status-bar spinner requests a repaint every frame, so a bare `run()`
+/// panics after `max_steps` whenever a compute outlasts a handful of frames
+/// (common on slow CI runners). This retries `try_run` until it succeeds, or
+/// panics after a timeout.
+#[track_caller]
+pub fn settle(harness: &mut Harness<'_, CherryApp>) {
+    let timeout = Duration::from_secs(5);
+    let deadline = Instant::now() + timeout;
+    while harness.try_run().is_err() {
+        if Instant::now() >= deadline {
+            panic!("timed out after {timeout:?} waiting for the UI to settle");
+        }
+        std::thread::sleep(Duration::from_millis(5));
+    }
 }
 
 /// Step the harness until `predicate` returns `true`, or panic after

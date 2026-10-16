@@ -603,6 +603,107 @@ pub fn wf_epi_microscope() -> SystemSpecs {
     specs
 }
 
+/// Michelson interferometer: two arms (one path each) that each revisit the
+/// beam splitter on the return pass and recombine on a shared detector. See
+/// `crate::examples::michelson_interferometer` for the topology.
+pub fn michelson_interferometer() -> SystemSpecs {
+    use super::model::{BeamSplitterPathKindRow, GapRow, SurfaceRefRow};
+
+    let mirror = |thickness: &str| {
+        let mut m = SurfaceRow::new_conic("12.7", "Infinity", "0", thickness, "1.0");
+        m.boundary_variant = BoundaryVariant::Reflecting;
+        m
+    };
+    let fields = || {
+        ["0.0", "1.0"]
+            .into_iter()
+            .map(|chi| FieldRow {
+                chi: chi.into(),
+                phi: "90.0".into(),
+                x: "0.0".into(),
+            })
+            .collect::<Vec<_>>()
+    };
+
+    // Path 0 (arm 1): ids 0 Object, 1 Iris, 2 BS, 3 M1, 4 Lens, 5 Detector.
+    let mut path_0 = PathRow::from_surface_rows(vec![
+        SurfaceRow::new_object("Infinity"),
+        SurfaceRow::new_iris("2.0", "50.0", "1.0"),
+        SurfaceRow::new_beam_splitter("12.7", "100.0", "1.0"),
+        mirror("100.0"), // M1
+        SurfaceRow::new_thin_lens("12.7", "100.0", "100.0", "1.0"),
+        SurfaceRow::new_image(),
+    ]);
+    let id_of = |path: &PathRow, step: usize| path.surface_refs[step].row_id().unwrap();
+    let (object_id, iris_id, bs_id, lens_id, detector_id) = (
+        id_of(&path_0, 0),
+        id_of(&path_0, 1),
+        id_of(&path_0, 2),
+        id_of(&path_0, 4),
+        id_of(&path_0, 5),
+    );
+    if let SurfaceRefRow::New(row) = &mut path_0.surface_refs[2] {
+        row.theta = "45".into();
+    }
+    // Return pass: revisit the beam splitter on the way to the lens.
+    path_0.surface_refs.insert(
+        4,
+        SurfaceRefRow::Shared {
+            target: bs_id,
+            gap_after: GapRow::new("50.0", "1.0"),
+        },
+    );
+    path_0.name = Some("Arm 1 (M1)".into());
+    path_0.beam_splitter_arms = vec![
+        BeamSplitterPathKindRow::Transmitting,
+        BeamSplitterPathKindRow::Reflecting,
+    ];
+    path_0.stop_surface = Some(1);
+    path_0.fields = fields();
+    path_0.field_mode = FieldMode::Angle;
+    path_0.aperture_semi_diameter = "2.0".into();
+    path_0.wavelengths = vec!["0.6328".into()];
+
+    let mut specs = SystemSpecs::new_single(path_0);
+    specs.cross_section_n_rays = 3;
+
+    // Path 1 (arm 2): everything shared except its own mirror.
+    let m2_id = specs.mint_row_id();
+    let shared = |target: RowId, thickness: &str| SurfaceRefRow::Shared {
+        target,
+        gap_after: GapRow::new(thickness, "1.0"),
+    };
+    specs.paths.push(PathRow {
+        name: Some("Arm 2 (M2)".into()),
+        surface_refs: vec![
+            SurfaceRefRow::Shared {
+                target: object_id,
+                gap_after: GapRow::new("Infinity", "1.0"),
+            },
+            shared(iris_id, "50.0"),
+            shared(bs_id, "110.0"),
+            SurfaceRefRow::New(mirror("110.0").with_id(m2_id)), // M2
+            shared(bs_id, "50.0"),                              // revisit
+            shared(lens_id, "100.0"),
+            SurfaceRefRow::Shared {
+                target: detector_id,
+                gap_after: GapRow::default(),
+            }, // recombination
+        ],
+        stop_surface: Some(1),
+        fields: fields(),
+        field_mode: FieldMode::Angle,
+        aperture_semi_diameter: "2.0".into(),
+        wavelengths: vec!["0.6328".into()],
+        beam_splitter_arms: vec![
+            BeamSplitterPathKindRow::Reflecting,
+            BeamSplitterPathKindRow::Transmitting,
+        ],
+    });
+
+    specs
+}
+
 /// f = +100 mm concave mirror.
 pub fn concave_mirror() -> SystemSpecs {
     let mut path = PathRow::from_surface_rows(vec![
@@ -695,6 +796,42 @@ mod tests {
             .solves(parsed.solves)
             .build()
             .expect("model");
+    }
+
+    /// AT-8: the GUI Michelson converts to the library example's topology and
+    /// geometry, store index for store index.
+    #[test]
+    fn michelson_interferometer_matches_library_example() {
+        let parsed = parse(&michelson_interferometer());
+        let model = SequentialModelBuilder::new()
+            .paths(parsed.path_specs)
+            .build()
+            .expect("model")
+            .model;
+        let reference = crate::examples::michelson_interferometer::sequential_model(
+            crate::n!(1.0),
+            &[0.6328],
+            100.0,
+            110.0,
+        );
+
+        assert_eq!(model.path_count(), 2);
+        assert_eq!(model.path_surface_indices(0), &[0, 1, 2, 3, 2, 4, 5]);
+        assert_eq!(model.path_surface_indices(1), &[0, 1, 2, 6, 2, 4, 5]);
+        // Skip the Object at infinity.
+        for (gui, lib) in model
+            .placements()
+            .iter()
+            .zip(reference.placements())
+            .skip(1)
+        {
+            approx::assert_abs_diff_eq!(gui.position.x(), lib.position.x(), epsilon = 1e-9);
+            approx::assert_abs_diff_eq!(gui.position.y(), lib.position.y(), epsilon = 1e-9);
+            approx::assert_abs_diff_eq!(gui.position.z(), lib.position.z(), epsilon = 1e-9,);
+        }
+        for path in 0..2 {
+            assert_eq!(model.stop_surface_for_path(path), Some(1), "path {path}");
+        }
     }
 
     /// The M solve on the lens-to-image gap must resolve to the lens's back

@@ -5,7 +5,7 @@ mod gui_support;
 use std::time::Duration;
 
 use egui_kittest::kittest::Queryable;
-use gui_support::{has_label_contains, launch, wait_until};
+use gui_support::{has_label_contains, launch, settle, wait_until};
 
 /// Loading the "Thin Lens" example and opening the Paraxial Summary window
 /// shows the known effective focal length (100mm, from the example's
@@ -17,13 +17,13 @@ fn load_thin_lens_shows_efl_in_paraxial_window() {
     // Open the Examples menu and pick "Thin Lens" — the same click path a
     // user takes (see app.rs, menu_button("Examples", ...)).
     harness.get_by_label("Examples").click();
-    harness.run();
+    settle(&mut harness);
     harness.get_by_label("Thin Lens").click();
-    harness.run();
+    settle(&mut harness);
 
     // Open the Paraxial Summary window via the always-visible window list.
     harness.get_by_label("Paraxial Summary").click();
-    harness.run();
+    settle(&mut harness);
 
     // Wait for the background compute thread to finish and the window to
     // render the expected row.

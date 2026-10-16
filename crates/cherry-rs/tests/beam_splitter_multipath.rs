@@ -74,16 +74,18 @@ fn at7_arm_specific_gaps_are_independent() {
 }
 
 // AT-13: a repeated store index (Shared revisiting a surface) is accepted.
+// The revisited Sphere is flat: same-path revisits of curved surfaces are
+// rejected by the builder (reversed traversal of curvature is unsupported).
 #[test]
 fn at13_repeated_store_index_is_permitted_via_pathspec() {
-    // Path: [New(Obj), New(Sphere), Shared(1), New(Img)]
+    // Path: [New(Obj), New(flat Sphere), Shared(1), New(Img)]
     // surface_indices = [0, 1, 1, 2]
     let path = PathSpec {
         surface_refs: vec![
             PathSurfaceRef::New(SurfaceSpec::Object),
             PathSurfaceRef::New(SurfaceSpec::Sphere {
                 semi_diameter: 12.7,
-                radius_of_curvature: 65.0,
+                radius_of_curvature: f64::INFINITY,
                 surf_kind: BoundaryKind::Refracting,
                 rotation: Rotation3D::None,
                 decenter: Vec3::new(0.0, 0.0, 0.0),
